@@ -28,8 +28,13 @@ const changeRequestData = {
 // Data storage keys
 const STORAGE_KEYS = {
   CHANGE_DATA: 'change_request_data',
-  DRAFT_ID: 'change_request_draft_id'
+  DRAFT_ID: 'change_request_draft_id',
+  LOCATION_CACHE: 'location_cache',
+  MANAGER_CACHE: 'manager_cache'
 };
+
+// Cache timeout in milliseconds (24 hours)
+const CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
 
 const changeTypeTooltips = {
   'standard': 'Standard Changes: All changes to critical assets > automate predefined/repeatable changes as much as possible',
@@ -917,7 +922,7 @@ function searchAgents(e) {
 }
 
 /**
- * Get location name by ID
+ * Get location name by ID with caching
  * @param {number} locationId - Location ID 
  * @returns {Promise<string>} - Location name
  */
@@ -929,8 +934,20 @@ async function getLocationName(locationId) {
     console.error('Client not available for location lookup');
     return 'Unknown';
   }
-  
+
   try {
+    // Check cache first
+    const cachedLocations = await getCachedLocations();
+    
+    // If location is in cache and not expired, use it
+    if (cachedLocations[locationId] && 
+        cachedLocations[locationId].timestamp > Date.now() - CACHE_TIMEOUT) {
+      console.log(`Using cached location: ${cachedLocations[locationId].name}`);
+      return cachedLocations[locationId].name;
+    }
+    
+    // If not in cache or expired, fetch from API
+    console.log(`Fetching location ${locationId} from API`);
     const response = await window.client.request.invokeTemplate("getLocation", {
       context: {
         location_id: locationId
@@ -945,7 +962,16 @@ async function getLocationName(locationId) {
     try {
       const parsedData = JSON.parse(response.response || '{}');
       if (parsedData && parsedData.location && parsedData.location.name) {
-        return parsedData.location.name;
+        const locationName = parsedData.location.name;
+        
+        // Update cache
+        cachedLocations[locationId] = {
+          name: locationName,
+          timestamp: Date.now()
+        };
+        await cacheLocations(cachedLocations);
+        
+        return locationName;
       }
       return 'Unknown';
     } catch (parseError) {
@@ -959,7 +985,39 @@ async function getLocationName(locationId) {
 }
 
 /**
- * Get reporting manager name by ID
+ * Get cached locations from storage
+ * @returns {Promise<Object>} - Cached locations
+ */
+async function getCachedLocations() {
+  try {
+    // Try to get cached locations
+    const result = await window.client.db.get(STORAGE_KEYS.LOCATION_CACHE);
+    return result || {};
+  } catch (error) {
+    // If error or not found, return empty cache
+    console.log('No location cache found or error:', error);
+    return {};
+  }
+}
+
+/**
+ * Save locations to cache
+ * @param {Object} locations - Locations to cache
+ * @returns {Promise<boolean>} - Success status
+ */
+async function cacheLocations(locations) {
+  try {
+    await window.client.db.set(STORAGE_KEYS.LOCATION_CACHE, locations);
+    console.log('Location cache updated');
+    return true;
+  } catch (error) {
+    console.error('Failed to save location cache:', error);
+    return false;
+  }
+}
+
+/**
+ * Get reporting manager name by ID with caching
  * @param {number} managerId - Manager ID 
  * @returns {Promise<string>} - Manager name
  */
@@ -973,6 +1031,18 @@ async function getManagerName(managerId) {
   }
   
   try {
+    // Check cache first
+    const cachedManagers = await getCachedManagers();
+    
+    // If manager is in cache and not expired, use it
+    if (cachedManagers[managerId] && 
+        cachedManagers[managerId].timestamp > Date.now() - CACHE_TIMEOUT) {
+      console.log(`Using cached manager: ${cachedManagers[managerId].name}`);
+      return cachedManagers[managerId].name;
+    }
+    
+    // If not in cache or expired, fetch from API
+    console.log(`Fetching manager ${managerId} from API`);
     const response = await window.client.request.invokeTemplate("getRequesterDetails", {
       context: {
         requester_id: managerId
@@ -988,7 +1058,16 @@ async function getManagerName(managerId) {
       const parsedData = JSON.parse(response.response || '{}');
       if (parsedData && parsedData.requester) {
         const manager = parsedData.requester;
-        return `${manager.first_name || ''} ${manager.last_name || ''}`.trim() || 'Unknown';
+        const managerName = `${manager.first_name || ''} ${manager.last_name || ''}`.trim() || 'Unknown';
+        
+        // Update cache
+        cachedManagers[managerId] = {
+          name: managerName,
+          timestamp: Date.now()
+        };
+        await cacheManagers(cachedManagers);
+        
+        return managerName;
       }
       return 'Unknown';
     } catch (parseError) {
@@ -998,6 +1077,38 @@ async function getManagerName(managerId) {
   } catch (error) {
     console.error('Error fetching manager:', error);
     return 'Unknown';
+  }
+}
+
+/**
+ * Get cached managers from storage
+ * @returns {Promise<Object>} - Cached managers
+ */
+async function getCachedManagers() {
+  try {
+    // Try to get cached managers
+    const result = await window.client.db.get(STORAGE_KEYS.MANAGER_CACHE);
+    return result || {};
+  } catch (error) {
+    // If error or not found, return empty cache
+    console.log('No manager cache found or error:', error);
+    return {};
+  }
+}
+
+/**
+ * Save managers to cache
+ * @param {Object} managers - Managers to cache
+ * @returns {Promise<boolean>} - Success status
+ */
+async function cacheManagers(managers) {
+  try {
+    await window.client.db.set(STORAGE_KEYS.MANAGER_CACHE, managers);
+    console.log('Manager cache updated');
+    return true;
+  } catch (error) {
+    console.error('Failed to save manager cache:', error);
+    return false;
   }
 }
 
@@ -1015,89 +1126,116 @@ function displaySearchResults(containerId, results, selectionCallback) {
     return;
   }
   
-  results.forEach(result => {
-    const resultItem = document.createElement('div');
-    resultItem.className = 'list-group-item search-result-item d-flex flex-column';
-    
-    // Basic information
-    const email = result.email || result.primary_email || '';
-    
-    // Create a container for name and badges
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'd-flex justify-content-between align-items-center w-100';
-    
-    // Name with proper styling
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'fw-bold';
-    nameDiv.textContent = `${result.first_name} ${result.last_name}`;
-    headerDiv.appendChild(nameDiv);
-    
-    // Role/type badge
-    const roleDiv = document.createElement('div');
-    const type = containerId.includes('agent') ? 'Agent' : 'Requester';
-    roleDiv.innerHTML = `<span class="badge ${type === 'Agent' ? 'bg-info' : 'bg-primary'}">${type}</span>`;
-    headerDiv.appendChild(roleDiv);
-    
-    resultItem.appendChild(headerDiv);
-    
-    // Email
-    const emailDiv = document.createElement('div');
-    emailDiv.className = 'text-secondary small';
-    emailDiv.innerHTML = `<i class="fas fa-envelope me-1"></i>${email}`;
-    resultItem.appendChild(emailDiv);
-    
-    // Details container for additional info
-    const detailsContainer = document.createElement('div');
-    detailsContainer.className = 'mt-2 d-flex flex-wrap gap-2';
-    
-    // Add job title badge if available
-    if (result.job_title) {
-      const jobTitleBadge = document.createElement('span');
-      jobTitleBadge.className = 'badge bg-light text-dark border';
-      jobTitleBadge.innerHTML = `<i class="fas fa-briefcase me-1"></i>${result.job_title}`;
-      detailsContainer.appendChild(jobTitleBadge);
+  // First enhance all contacts with location and manager information
+  Promise.all(results.map(async (result) => {
+    // Only fetch additional info if we have IDs but don't have names yet
+    if ((result.location_id && !result.location_name) || 
+        (result.reporting_manager_id && !result.manager_name)) {
+      return await enhanceContactInfo(result);
     }
-    
-    // Add department badge if available
-    if (result.department_names && result.department_names.length > 0) {
-      const deptBadge = document.createElement('span');
-      deptBadge.className = 'badge bg-light text-dark border';
-      deptBadge.innerHTML = `<i class="fas fa-building me-1"></i>${result.department_names[0]}`;
-      detailsContainer.appendChild(deptBadge);
-    }
-    
-    // Add location badge if available
-    if (result.location_name) {
-      const locBadge = document.createElement('span');
-      locBadge.className = 'badge bg-light text-dark border';
-      locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
-      detailsContainer.appendChild(locBadge);
-    }
-    
-    // Only add details container if we have any badges
-    if (detailsContainer.children.length > 0) {
-      resultItem.appendChild(detailsContainer);
-    }
-    
-    // Add hover effect and clickable styling
-    resultItem.classList.add('search-item-hover');
-    
-    // Store the full result object for selection
-    resultItem.addEventListener('click', () => {
-      // Add location and manager info when selected
-      if (result.location_id || result.reporting_manager_id) {
-        enhanceContactInfo(result)
-          .then(enhancedResult => selectionCallback(enhancedResult))
-          .catch(err => {
-            console.error('Error enhancing contact info:', err);
-            selectionCallback(result);
-          });
-      } else {
-        selectionCallback(result);
+    return result;
+  }))
+  .then(enhancedResults => {
+    // Now render with the enhanced data
+    enhancedResults.forEach(result => {
+      const resultItem = document.createElement('div');
+      resultItem.className = 'list-group-item search-result-item d-flex flex-column';
+      
+      // Basic information
+      const email = result.email || result.primary_email || '';
+      
+      // Create a container for name and badges
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'd-flex justify-content-between align-items-center w-100';
+      
+      // Name with proper styling
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'fw-bold';
+      nameDiv.textContent = `${result.first_name} ${result.last_name}`;
+      headerDiv.appendChild(nameDiv);
+      
+      // Role/type badge
+      const roleDiv = document.createElement('div');
+      const type = containerId.includes('agent') ? 'Agent' : 'Requester';
+      roleDiv.innerHTML = `<span class="badge ${type === 'Agent' ? 'bg-info' : 'bg-primary'}">${type}</span>`;
+      headerDiv.appendChild(roleDiv);
+      
+      resultItem.appendChild(headerDiv);
+      
+      // Email
+      const emailDiv = document.createElement('div');
+      emailDiv.className = 'text-secondary small';
+      emailDiv.innerHTML = `<i class="fas fa-envelope me-1"></i>${email}`;
+      resultItem.appendChild(emailDiv);
+      
+      // Details container for additional info
+      const detailsContainer = document.createElement('div');
+      detailsContainer.className = 'mt-2 d-flex flex-wrap gap-2';
+      
+      // Add job title badge if available
+      if (result.job_title) {
+        const jobTitleBadge = document.createElement('span');
+        jobTitleBadge.className = 'badge bg-light text-dark border';
+        jobTitleBadge.innerHTML = `<i class="fas fa-briefcase me-1"></i>${result.job_title}`;
+        detailsContainer.appendChild(jobTitleBadge);
       }
+      
+      // Add department badge if available
+      if (result.department_names && result.department_names.length > 0) {
+        const deptBadge = document.createElement('span');
+        deptBadge.className = 'badge bg-light text-dark border';
+        deptBadge.innerHTML = `<i class="fas fa-building me-1"></i>${result.department_names[0]}`;
+        detailsContainer.appendChild(deptBadge);
+      }
+      
+      // Add location badge if available (enhanced info)
+      if (result.location_name) {
+        const locBadge = document.createElement('span');
+        locBadge.className = 'badge bg-light text-dark border';
+        locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
+        detailsContainer.appendChild(locBadge);
+      } else if (result.location_id) {
+        // Display "Loading..." if we have a location ID but no name yet
+        const locBadge = document.createElement('span');
+        locBadge.className = 'badge bg-light text-dark border';
+        locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>Loading...`;
+        detailsContainer.appendChild(locBadge);
+      }
+      
+      // Add manager badge if available (enhanced info)
+      if (result.manager_name) {
+        const mgrBadge = document.createElement('span');
+        mgrBadge.className = 'badge bg-light text-dark border';
+        mgrBadge.innerHTML = `<i class="fas fa-user-tie me-1"></i>${result.manager_name}`;
+        detailsContainer.appendChild(mgrBadge);
+      }
+      
+      // Only add details container if we have any badges
+      if (detailsContainer.children.length > 0) {
+        resultItem.appendChild(detailsContainer);
+      }
+      
+      // Add hover effect and clickable styling
+      resultItem.classList.add('search-item-hover');
+      
+      // Store the full result object for selection
+      resultItem.addEventListener('click', () => {
+        selectionCallback(result);
+      });
+      
+      container.appendChild(resultItem);
     });
-    
-    container.appendChild(resultItem);
+  })
+  .catch(error => {
+    console.error('Error enhancing search results:', error);
+    // Fallback to basic display without enhancement
+    results.forEach(result => {
+      const resultItem = document.createElement('div');
+      resultItem.className = 'list-group-item search-result-item';
+      resultItem.innerHTML = `<div class="fw-bold">${result.first_name} ${result.last_name}</div>`;
+      resultItem.addEventListener('click', () => selectionCallback(result));
+      container.appendChild(resultItem);
+    });
   });
 }
 
@@ -1112,11 +1250,13 @@ async function enhanceContactInfo(contact) {
     // Add location name if location ID exists
     if (contact.location_id) {
       enhancedContact.location_name = await getLocationName(contact.location_id);
+      console.log(`Enhanced contact with location: ${enhancedContact.location_name}`);
     }
     
     // Add manager name if manager ID exists
     if (contact.reporting_manager_id) {
       enhancedContact.manager_name = await getManagerName(contact.reporting_manager_id);
+      console.log(`Enhanced contact with manager: ${enhancedContact.manager_name}`);
     }
     
     return enhancedContact;
