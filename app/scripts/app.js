@@ -3,7 +3,7 @@
  * Full page application for managing change requests in Freshservice
  */
 
-let changeRequestData = {
+const changeRequestData = {
   requester: null,
   agent: null,
   changeType: 'standard',
@@ -237,14 +237,6 @@ function populateFormFields() {
     const element = safeGetElement(id);
     if (element && text !== undefined && text !== null) {
       element.textContent = text;
-    }
-  }
-  
-  // Safely set element display style
-  function safeSetDisplay(id, displayValue) {
-    const element = safeGetElement(id);
-    if (element) {
-      element.style.display = displayValue;
     }
   }
   
@@ -1282,12 +1274,17 @@ function formatDateTime(dateTimeString) {
 
 // Helper function for debouncing
 function debounce(fn, delay) {
-  let timeoutId;
+  // Define timeoutId in parent scope to avoid race condition
+  let timeoutId = null;
+  
   return function(...args) {
     const context = this;
-    clearTimeout(timeoutId);
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
     timeoutId = setTimeout(() => {
       fn.apply(context, args);
+      timeoutId = null;
     }, delay);
   };
 }
