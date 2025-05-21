@@ -1,0 +1,279 @@
+/* Base styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #333;
+  line-height: 1.5;
+}
+
+.fw-widget-wrapper {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #183247;
+}
+
+/* Tabs styling */
+.tabs-wrapper {
+  background-color: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+}
+
+.tab-item {
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+}
+
+.tab-item:hover {
+  background-color: #f5f7f9;
+}
+
+.tab-item.active {
+  border-bottom: 2px solid #2c5cc5;
+  color: #2c5cc5;
+}
+
+.tab-content {
+  padding: 24px;
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Form styling */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.fw-input, .fw-textarea, .fw-dropdown {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.fw-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-actions {
+  margin-top: 30px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.fw-button {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  background-color: #f5f7f9;
+  color: #333;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.fw-button:hover {
+  background-color: #e8edf2;
+}
+
+.fw-button--primary {
+  background-color: #2c5cc5;
+  color: white;
+  border-color: #2c5cc5;
+}
+
+.fw-button--primary:hover {
+  background-color: #1e4494;
+}
+
+/* Search and dropdown styling */
+.search-input-container {
+  position: relative;
+}
+
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 0 0 4px 4px;
+  z-index: 10;
+  display: none;
+}
+
+.search-result-item {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.search-result-item:hover {
+  background-color: #f5f7f9;
+}
+
+.selected-result {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #f5f7f9;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  display: none;
+}
+
+.lead-time-info {
+  padding: 8px 12px;
+  background-color: #f5f7f9;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.tooltip {
+  position: relative;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #f7f9fa;
+  border-left: 3px solid #2c5cc5;
+  border-radius: 0 4px 4px 0;
+  display: none;
+}
+
+/* Risk assessment styling */
+.risk-question {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9fafb;
+}
+
+.risk-options {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.risk-options label {
+  display: flex;
+  align-items: center;
+  font-weight: normal;
+  cursor: pointer;
+}
+
+.risk-options input {
+  margin-right: 8px;
+}
+
+.risk-result {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f5f7f9;
+}
+
+.risk-score, .risk-level {
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.risk-explanation {
+  margin-top: 10px;
+}
+
+/* Assets section styling */
+.selected-assets-container {
+  margin-top: 20px;
+}
+
+.selected-assets-list {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  min-height: 100px;
+  padding: 12px;
+}
+
+.asset-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #f5f7f9;
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+
+.asset-item .remove-asset {
+  color: #e74c3c;
+  cursor: pointer;
+}
+
+/* Modal styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-content {
+  background-color: white;
+  padding: 24px;
+  border-radius: 4px;
+  width: 80%;
+  max-width: 800px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Utility classes */
+.hidden {
+  display: none !important;
+}

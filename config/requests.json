@@ -1,0 +1,62 @@
+{
+  "getRequesters": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/requesters",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+      },
+      "query": {
+        "query": "{requester_query}"
+      }
+    }
+  },
+  "getAgents": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/agents",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+      },
+      "query": {
+        "query": "{agent_query}"
+      }
+    }
+  },
+  "getAssets": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/assets",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+      },
+      "query": {
+        "query": "{asset_query}"
+      }
+    }
+  },
+  "getServices": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/services",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+      },
+      "query": {
+        "query": "{service_query}"
+      }
+    }
+  }
+} 

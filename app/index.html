@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="{{{appclient}}}"></script>
+    <link rel="stylesheet" type="text/css" href="styles/style.css" />
+    <link rel="stylesheet" type="text/css" href="https://static.freshdev.io/fdk/2.0/assets/freshservice.css" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  </head>
+
+  <body>
+    <div class="fw-widget-wrapper">
+      <div class="tabs-wrapper">
+        <div class="tabs">
+          <div class="tab-item active" data-tab="change-details">Change Details</div>
+          <div class="tab-item" data-tab="risk-assessment">Risk Assessment</div>
+          <div class="tab-item" data-tab="impacted-assets">Impacted Assets</div>
+        </div>
+
+        <!-- Change Details Tab -->
+        <div id="change-details" class="tab-content active">
+          <h3>Change Details</h3>
+          <div class="form-group">
+            <label for="requester">Requester:</label>
+            <div class="search-input-container">
+              <input type="text" id="requester-search" placeholder="Search by name or email">
+              <div id="requester-results" class="search-results"></div>
+            </div>
+            <div id="selected-requester" class="selected-result"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="agent">Agent (Technical SME):</label>
+            <div class="search-input-container">
+              <input type="text" id="agent-search" placeholder="Search by name or email">
+              <div id="agent-results" class="search-results"></div>
+            </div>
+            <div id="selected-agent" class="selected-result"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="change-type">Change Type:</label>
+            <select id="change-type" class="fw-dropdown">
+              <option value="standard">Standard Change</option>
+              <option value="non-production">Non-Production Change</option>
+              <option value="emergency">Emergency Change</option>
+              <option value="non-standard">Non-standard Change</option>
+            </select>
+            <div class="tooltip" id="change-type-tooltip"></div>
+          </div>
+
+          <div class="form-group">
+            <label>Lead Time:</label>
+            <div id="lead-time" class="lead-time-info">2 business days</div>
+          </div>
+
+          <div class="form-group">
+            <label for="planned-start">Planned Start Date and Time:</label>
+            <input type="datetime-local" id="planned-start" class="fw-input">
+          </div>
+
+          <div class="form-group">
+            <label for="planned-end">Planned End Date and Time:</label>
+            <input type="datetime-local" id="planned-end" class="fw-input">
+          </div>
+
+          <div class="form-group">
+            <label for="implementation-plan">Implementation Plan:</label>
+            <textarea id="implementation-plan" class="fw-textarea" rows="5"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="backout-plan">Backout (Recovery) Plan:</label>
+            <textarea id="backout-plan" class="fw-textarea" rows="5"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="validation-plan">Validation Plan:</label>
+            <textarea id="validation-plan" class="fw-textarea" rows="5"></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button id="details-next" class="fw-button fw-button--primary">Next</button>
+          </div>
+        </div>
+
+        <!-- Risk Assessment Tab -->
+        <div id="risk-assessment" class="tab-content">
+          <h3>Risk Assessment</h3>
+          <p>Please answer all questions to determine the risk level of this change.</p>
+
+          <div class="risk-question">
+            <label>What is the potential business impact if the change fails?</label>
+            <div class="risk-options">
+              <label>
+                <input type="radio" name="business-impact" value="1"> Low - Limited impact on business operations
+              </label>
+              <label>
+                <input type="radio" name="business-impact" value="2"> Medium - Noticeable impact on some business operations
+              </label>
+              <label>
+                <input type="radio" name="business-impact" value="3"> High - Significant impact on business operations
+              </label>
+            </div>
+          </div>
+
+          <div class="risk-question">
+            <label>How many users will be affected by this change?</label>
+            <div class="risk-options">
+              <label>
+                <input type="radio" name="affected-users" value="1"> Few (<50 users)
+              </label>
+              <label>
+                <input type="radio" name="affected-users" value="2"> Some (50-200 users)
+              </label>
+              <label>
+                <input type="radio" name="affected-users" value="3"> Many (>200 users)
+              </label>
+            </div>
+          </div>
+
+          <div class="risk-question">
+            <label>How complex is this change?</label>
+            <div class="risk-options">
+              <label>
+                <input type="radio" name="complexity" value="1"> Simple - Routine change with established procedures
+              </label>
+              <label>
+                <input type="radio" name="complexity" value="2"> Moderate - Some complexity but well understood
+              </label>
+              <label>
+                <input type="radio" name="complexity" value="3"> Complex - Multiple systems or uncommon procedures
+              </label>
+            </div>
+          </div>
+
+          <div class="risk-question">
+            <label>What level of testing has been performed?</label>
+            <div class="risk-options">
+              <label>
+                <input type="radio" name="testing" value="1"> Comprehensive - Thoroughly tested in multiple environments
+              </label>
+              <label>
+                <input type="radio" name="testing" value="2"> Adequate - Primary functions tested in test environment
+              </label>
+              <label>
+                <input type="radio" name="testing" value="3"> Limited - Minimal testing or testing not possible
+              </label>
+            </div>
+          </div>
+
+          <div class="risk-question">
+            <label>Is there a rollback plan available?</label>
+            <div class="risk-options">
+              <label>
+                <input type="radio" name="rollback" value="1"> Yes - Detailed rollback plan with proven procedures
+              </label>
+              <label>
+                <input type="radio" name="rollback" value="2"> Partial - Basic rollback steps identified
+              </label>
+              <label>
+                <input type="radio" name="rollback" value="3"> No - No rollback possible or very difficult
+              </label>
+            </div>
+          </div>
+
+          <div id="risk-result" class="risk-result hidden">
+            <h4>Risk Assessment Result</h4>
+            <div class="risk-score">
+              <span>Risk Score: </span>
+              <span id="risk-score-value"></span>
+            </div>
+            <div class="risk-level">
+              <span>Risk Level: </span>
+              <span id="risk-level-value"></span>
+            </div>
+            <div class="risk-explanation" id="risk-explanation"></div>
+          </div>
+
+          <div class="form-actions">
+            <button id="calculate-risk" class="fw-button">Calculate Risk</button>
+            <button id="risk-next" class="fw-button fw-button--primary">Next</button>
+          </div>
+        </div>
+
+        <!-- Impacted Assets Tab -->
+        <div id="impacted-assets" class="tab-content">
+          <h3>Impacted Assets</h3>
+          
+          <div class="form-group">
+            <label>Search for Assets or Services:</label>
+            <div class="search-input-container">
+              <input type="text" id="asset-search" placeholder="Search for assets or services">
+              <div id="asset-results" class="search-results"></div>
+            </div>
+          </div>
+
+          <div class="selected-assets-container">
+            <h4>Selected Assets</h4>
+            <div id="selected-assets" class="selected-assets-list"></div>
+          </div>
+
+          <div class="form-actions">
+            <button id="submit-change" class="fw-button fw-button--primary">Submit Change Request</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Confirmation Modal -->
+      <div id="confirmation-modal" class="modal hidden">
+        <div class="modal-content">
+          <h3>Change Request Summary</h3>
+          <div id="summary-content"></div>
+          <div class="modal-actions">
+            <button id="edit-request" class="fw-button">Edit</button>
+            <button id="confirm-submit" class="fw-button fw-button--primary">Confirm & Submit</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  <script src="scripts/app.js"></script>
+</html>

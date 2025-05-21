@@ -1,0 +1,38 @@
+{
+  "platform-version": "2.3",
+  "product": {
+    "freshservice": {
+      "location": {
+        "full_page_app": {
+          "url": "index.html",
+          "icon": "styles/images/icon.svg",
+          "name": "Change Request"
+        }
+      },
+      "requests": {
+        "getRequesters": {},
+        "getAgents": {},
+        "getAssets": {},
+        "getServices": {}
+      },
+      "storage": {
+        "data_storage": {
+          "properties": {
+            "change_request_data": {
+              "type": "object",
+              "description": "Draft change request data"
+            },
+            "change_request_draft_id": {
+              "type": "string",
+              "description": "ID of the draft change request"
+            }
+          }
+        }
+      }
+    }
+  },
+  "engines": {
+    "node": "18.19.1",
+    "fdk": "9.4.2"
+  }
+}
