@@ -638,11 +638,12 @@ function searchRequesters(e) {
     return;
   }
 
-  // Just pass the search term - the template handles formatting and encoding
+  // Format and encode the query for Freshservice API
+  const query = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
+  
+  // Use invokeTemplate with path suffix to add query parameter
   window.client.request.invokeTemplate("getRequesters", {
-    context: {
-      requester_query: searchTerm
-    }
+    path_suffix: `?query=${query}`
   })
   .then(function(data) {
     try {
@@ -681,11 +682,12 @@ function searchAgents(e) {
     return;
   }
 
-  // Just pass the search term - the template handles formatting and encoding
+  // Format and encode the query for Freshservice API
+  const query = encodeURIComponent(`"~[first_name|last_name|email]:'${searchTerm}'"`);
+  
+  // Use invokeTemplate with path suffix to add query parameter
   window.client.request.invokeTemplate("getAgents", {
-    context: {
-      agent_query: searchTerm
-    }
+    path_suffix: `?query=${query}`
   })
   .then(function(data) {
     try {
@@ -1063,20 +1065,20 @@ function searchAssets(e) {
     return;
   }
 
-  // Just pass the search term - the template handles formatting and encoding
+  // Format and encode the queries for Freshservice API
+  const assetQuery = encodeURIComponent(`"~[name|display_name]:'${searchTerm}'"`);
+  const serviceQuery = encodeURIComponent(`"~[name|display_name]:'${searchTerm}'"`);
+  
+  // Search for assets and services
   Promise.all([
     window.client.request.invokeTemplate("getAssets", {
-      context: {
-        asset_query: searchTerm
-      }
+      path_suffix: `?query=${assetQuery}`
     }).catch(error => {
       console.error('Asset search failed:', error);
       return { response: JSON.stringify({ assets: [] }) };
     }),
     window.client.request.invokeTemplate("getServices", {
-      context: {
-        service_query: searchTerm
-      }
+      path_suffix: `?query=${serviceQuery}`
     }).catch(error => {
       console.error('Service search failed:', error);
       return { response: JSON.stringify({ services: [] }) };

@@ -8,9 +8,6 @@
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
-      },
-      "query": {
-        "query": "\"%7E%5Bfirst_name%7Clast_name%7Cprimary_email%5D%3A%27<%=requester_query%>%27\""
       }
     }
   },
@@ -23,9 +20,6 @@
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
-      },
-      "query": {
-        "query": "\"%7E%5Bfirst_name%7Clast_name%7Cemail%5D%3A%27<%=agent_query%>%27\""
       }
     }
   },
@@ -62,9 +56,6 @@
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
-      },
-      "query": {
-        "query": "\"%7E%5Bname%7Cdisplay_name%5D%3A%27<%=asset_query%>%27\""
       }
     }
   },
@@ -77,9 +68,6 @@
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
-      },
-      "query": {
-        "query": "\"%7E%5Bname%7Cdisplay_name%5D%3A%27<%=service_query%>%27\""
       }
     }
   }
