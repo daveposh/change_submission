@@ -55,9 +55,21 @@ function initializeApp() {
   onInit
     .then(function getClient(_client) {
       window.client = _client;
+      
+      // Set up event listeners first
       setupEventListeners();
       setupChangeTypeTooltips();
-      loadSavedData(); // Load data from storage if available
+      
+      // Then try to load saved data, but catch any errors
+      try {
+        loadSavedData().catch(err => {
+          console.error("Error loading saved data:", err);
+          // Continue with empty form rather than breaking the app
+          showNotification('error', 'Could not load saved data');
+        });
+      } catch (error) {
+        console.error("Exception during loadSavedData:", error);
+      }
     })
     .catch(handleErr);
 }
@@ -80,7 +92,8 @@ async function loadSavedData() {
     }
   } catch (error) {
     // No saved data or error, just continue with empty form
-    console.log('No saved change request data found');
+    console.log('No saved change request data found or error:', error);
+    // Don't rethrow - we want to continue with empty form
   }
 }
 
@@ -345,10 +358,26 @@ function searchRequesters(e) {
     }
   })
     .then(function(data) {
-      const requesters = JSON.parse(data.response).requesters || [];
-      displaySearchResults('requester-results', requesters, selectRequester);
+      if (!data || !data.response) {
+        console.error('Invalid response data:', data);
+        displaySearchResults('requester-results', [], selectRequester);
+        return;
+      }
+      
+      try {
+        const response = JSON.parse(data.response);
+        const requesters = response && response.requesters ? response.requesters : [];
+        displaySearchResults('requester-results', requesters, selectRequester);
+      } catch (error) {
+        console.error('Error parsing response:', error);
+        displaySearchResults('requester-results', [], selectRequester);
+      }
     })
-    .catch(handleErr);
+    .catch(function(error) {
+      console.error('API request failed:', error);
+      displaySearchResults('requester-results', [], selectRequester);
+      handleErr(error);
+    });
 }
 
 /**
@@ -364,10 +393,26 @@ function searchAgents(e) {
     }
   })
     .then(function(data) {
-      const agents = JSON.parse(data.response).agents || [];
-      displaySearchResults('agent-results', agents, selectAgent);
+      if (!data || !data.response) {
+        console.error('Invalid response data:', data);
+        displaySearchResults('agent-results', [], selectAgent);
+        return;
+      }
+      
+      try {
+        const response = JSON.parse(data.response);
+        const agents = response && response.agents ? response.agents : [];
+        displaySearchResults('agent-results', agents, selectAgent);
+      } catch (error) {
+        console.error('Error parsing response:', error);
+        displaySearchResults('agent-results', [], selectAgent);
+      }
     })
-    .catch(handleErr);
+    .catch(function(error) {
+      console.error('API request failed:', error);
+      displaySearchResults('agent-results', [], selectAgent);
+      handleErr(error);
+    });
 }
 
 /**
@@ -385,8 +430,21 @@ async function getLocationName(locationId) {
       }
     });
     
-    const location = JSON.parse(response.response).location;
-    return location.name || 'Unknown';
+    if (!response || !response.response) {
+      console.error('Invalid location response:', response);
+      return 'Unknown';
+    }
+    
+    try {
+      const parsedData = JSON.parse(response.response);
+      if (parsedData && parsedData.location && parsedData.location.name) {
+        return parsedData.location.name;
+      }
+      return 'Unknown';
+    } catch (parseError) {
+      console.error('Error parsing location response:', parseError);
+      return 'Unknown';
+    }
   } catch (error) {
     console.error('Error fetching location:', error);
     return 'Unknown';
@@ -408,8 +466,22 @@ async function getManagerName(managerId) {
       }
     });
     
-    const manager = JSON.parse(response.response).requester;
-    return `${manager.first_name} ${manager.last_name}`;
+    if (!response || !response.response) {
+      console.error('Invalid manager response:', response);
+      return 'Unknown';
+    }
+    
+    try {
+      const parsedData = JSON.parse(response.response);
+      if (parsedData && parsedData.requester) {
+        const manager = parsedData.requester;
+        return `${manager.first_name || ''} ${manager.last_name || ''}`.trim() || 'Unknown';
+      }
+      return 'Unknown';
+    } catch (parseError) {
+      console.error('Error parsing manager response:', parseError);
+      return 'Unknown';
+    }
   } catch (error) {
     console.error('Error fetching manager:', error);
     return 'Unknown';
@@ -684,26 +756,60 @@ function searchAssets(e) {
       context: {
         asset_query: searchTerm
       }
+    }).catch(error => {
+      console.error('Asset search failed:', error);
+      return { response: JSON.stringify({ assets: [] }) };
     }),
     client.request.invokeTemplate("getServices", {
       context: {
         service_query: searchTerm
       }
+    }).catch(error => {
+      console.error('Service search failed:', error);
+      return { response: JSON.stringify({ services: [] }) };
     })
   ])
     .then(function([assetsResponse, servicesResponse]) {
-      const assets = JSON.parse(assetsResponse.response).assets || [];
-      const services = JSON.parse(servicesResponse.response).services || [];
-      
-      // Combine both results
-      const combinedResults = [
-        ...assets.map(item => ({ ...item, type: 'asset' })),
-        ...services.map(item => ({ ...item, type: 'service' }))
-      ];
-      
-      displayAssetResults('asset-results', combinedResults, selectAsset);
+      try {
+        // Safely parse the assets response
+        let assets = [];
+        if (assetsResponse && assetsResponse.response) {
+          try {
+            const assetData = JSON.parse(assetsResponse.response);
+            assets = assetData && assetData.assets ? assetData.assets : [];
+          } catch (parseError) {
+            console.error('Error parsing assets response:', parseError);
+          }
+        }
+        
+        // Safely parse the services response
+        let services = [];
+        if (servicesResponse && servicesResponse.response) {
+          try {
+            const serviceData = JSON.parse(servicesResponse.response);
+            services = serviceData && serviceData.services ? serviceData.services : [];
+          } catch (parseError) {
+            console.error('Error parsing services response:', parseError);
+          }
+        }
+        
+        // Combine both results with type information
+        const combinedResults = [
+          ...assets.map(item => ({ ...item, type: 'asset' })),
+          ...services.map(item => ({ ...item, type: 'service' }))
+        ];
+        
+        displayAssetResults('asset-results', combinedResults, selectAsset);
+      } catch (error) {
+        console.error('Error processing search results:', error);
+        displayAssetResults('asset-results', [], selectAsset);
+      }
     })
-    .catch(handleErr);
+    .catch(function(error) {
+      console.error('Combined asset/service search failed:', error);
+      displayAssetResults('asset-results', [], selectAsset);
+      handleErr(error);
+    });
 }
 
 function displayAssetResults(containerId, results, selectionCallback) {
@@ -947,15 +1053,52 @@ function debounce(fn, delay) {
 
 // Helper function for showing notifications
 function showNotification(type, message) {
-  client.interface.trigger('showNotify', { 
-    type: type === 'error' ? 'danger' : type,
-    message: message
-  });
+  try {
+    if (!client || !client.interface) {
+      console.error('Client interface not available for notifications');
+      return;
+    }
+    
+    // Make sure we have a valid message
+    const safeMessage = message || 'Notification';
+    
+    // Map error type to danger for Bootstrap
+    const notificationType = type === 'error' ? 'danger' : type;
+    
+    client.interface.trigger('showNotify', { 
+      type: notificationType,
+      message: safeMessage
+    }).catch(err => {
+      console.error('Error showing notification:', err);
+    });
+  } catch (error) {
+    console.error('Failed to show notification:', error);
+  }
 }
 
 function handleErr(err = 'None') {
+  let errorMessage = 'An error occurred. Please try again.';
+  
+  // Log detailed error information
   console.error(`Error occurred. Details:`, err);
-  showNotification('error', 'An error occurred. Please try again.');
+  
+  // Try to extract a more specific error message if available
+  try {
+    if (typeof err === 'string') {
+      errorMessage = err;
+    } else if (err && err.message) {
+      errorMessage = `Error: ${err.message}`;
+    } else if (err && err.status && err.status.message) {
+      errorMessage = `API Error: ${err.status.message}`;
+    } else if (err && typeof err === 'object') {
+      errorMessage = `Error: ${JSON.stringify(err).substring(0, 100)}...`;
+    }
+  } catch (e) {
+    console.error('Error while processing error message:', e);
+  }
+  
+  // Show error notification with the extracted message
+  showNotification('error', errorMessage);
 }
 
 // Helper function to get appropriate Bootstrap badge class for risk level
