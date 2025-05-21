@@ -7,7 +7,7 @@
       "path": "/api/v2/requesters",
       "headers": {
         "Content-Type": "application/json",
-        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
         "query": "\"<%= encode(requester_query) %>\""
@@ -22,7 +22,7 @@
       "path": "/api/v2/agents",
       "headers": {
         "Content-Type": "application/json",
-        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
         "query": "\"<%= encode(agent_query) %>\""
@@ -37,7 +37,7 @@
       "path": "/api/v2/requesters/{requester_id}",
       "headers": {
         "Content-Type": "application/json",
-        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
     }
   },
@@ -49,7 +49,7 @@
       "path": "/api/v2/locations/{location_id}",
       "headers": {
         "Content-Type": "application/json",
-        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
     }
   },
@@ -61,7 +61,7 @@
       "path": "/api/v2/assets",
       "headers": {
         "Content-Type": "application/json",
-        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
         "query": "{asset_query}"
@@ -76,7 +76,7 @@
       "path": "/api/v2/services",
       "headers": {
         "Content-Type": "application/json",
-        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
         "query": "{service_query}"
