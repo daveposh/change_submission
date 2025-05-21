@@ -10,7 +10,7 @@
         "Authorization": "Basic <%= encode(iparam.api_key) %>"
       },
       "query": {
-        "query": "{requester_query}"
+        "query": "\"~[first_name|last_name|primary_email]:{requester_query}\""
       }
     }
   },
@@ -25,7 +25,31 @@
         "Authorization": "Basic <%= encode(iparam.api_key) %>"
       },
       "query": {
-        "query": "{agent_query}"
+        "query": "\"~[first_name|last_name|email]:{agent_query}\""
+      }
+    }
+  },
+  "getRequesterDetails": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/requesters/{requester_id}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key) %>"
+      }
+    }
+  },
+  "getLocation": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/locations/{location_id}",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key) %>"
       }
     }
   },

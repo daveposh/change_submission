@@ -127,17 +127,13 @@ h3 {
   top: 100%;
   left: 0;
   right: 0;
-  max-height: 200px;
+  max-height: 300px;
   overflow-y: auto;
   background: white;
-  border: 1px solid #ddd;
-  border-radius: 0 0 4px 4px;
-  z-index: 10;
-  display: none;
+  z-index: 100;
 }
 
 .search-result-item {
-  padding: 8px 12px;
   cursor: pointer;
 }
 
@@ -146,131 +142,43 @@ h3 {
 }
 
 .selected-result {
-  margin-top: 8px;
-  padding: 8px 12px;
-  background-color: #f5f7f9;
-  border-radius: 4px;
-  border: 1px solid #ddd;
   display: none;
 }
 
-.lead-time-info {
-  padding: 8px 12px;
-  background-color: #f5f7f9;
-  border-radius: 4px;
-  border: 1px solid #ddd;
+.result-detail {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
 }
 
-.tooltip {
-  position: relative;
-  margin-top: 8px;
-  padding: 8px 12px;
-  background-color: #f7f9fa;
-  border-left: 3px solid #2c5cc5;
-  border-radius: 0 4px 4px 0;
-  display: none;
+.selected-details {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.search-result-item.no-results {
+  font-style: italic;
+  color: #999;
 }
 
 /* Risk assessment styling */
 .risk-question {
-  margin-bottom: 24px;
-  padding: 16px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f9fafb;
-}
-
-.risk-options {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.risk-options label {
-  display: flex;
-  align-items: center;
-  font-weight: normal;
-  cursor: pointer;
-}
-
-.risk-options input {
-  margin-right: 8px;
+  margin-bottom: 20px;
 }
 
 .risk-result {
   margin: 20px 0;
-  padding: 16px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f5f7f9;
-}
-
-.risk-score, .risk-level {
-  margin-bottom: 10px;
-  font-weight: 500;
-}
-
-.risk-explanation {
-  margin-top: 10px;
 }
 
 /* Assets section styling */
-.selected-assets-container {
-  margin-top: 20px;
-}
-
 .selected-assets-list {
-  border: 1px solid #ddd;
-  border-radius: 4px;
   min-height: 100px;
-  padding: 12px;
-}
-
-.asset-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background-color: #f5f7f9;
-  margin-bottom: 8px;
-  border-radius: 4px;
 }
 
 .asset-item .remove-asset {
-  color: #e74c3c;
-  cursor: pointer;
-}
-
-/* Modal styles */
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal-content {
-  background-color: white;
-  padding: 24px;
-  border-radius: 4px;
-  width: 80%;
-  max-width: 800px;
-  max-height: 80vh;
-  overflow-y: auto;
-}
-
-.modal-actions {
-  margin-top: 24px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  color: #dc3545;
 }
 
 /* Utility classes */

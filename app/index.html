@@ -2,217 +2,285 @@
 <html>
   <head>
     <script src="{{{appclient}}}"></script>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom styles -->
     <link rel="stylesheet" type="text/css" href="styles/style.css" />
     <link rel="stylesheet" type="text/css" href="https://static.freshdev.io/fdk/2.0/assets/freshservice.css" />
+    <!-- jQuery and Bootstrap JS -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
   </head>
 
   <body>
-    <div class="fw-widget-wrapper">
-      <div class="tabs-wrapper">
-        <div class="tabs">
-          <div class="tab-item active" data-tab="change-details">Change Details</div>
-          <div class="tab-item" data-tab="risk-assessment">Risk Assessment</div>
-          <div class="tab-item" data-tab="impacted-assets">Impacted Assets</div>
-        </div>
+    <div class="fw-widget-wrapper container-fluid py-4">
+      <div class="tabs-wrapper card">
+        <ul class="nav nav-tabs" id="changeTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#change-details" type="button" role="tab" aria-controls="change-details" aria-selected="true">Change Details</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="risk-tab" data-bs-toggle="tab" data-bs-target="#risk-assessment" type="button" role="tab" aria-controls="risk-assessment" aria-selected="false">Risk Assessment</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="assets-tab" data-bs-toggle="tab" data-bs-target="#impacted-assets" type="button" role="tab" aria-controls="impacted-assets" aria-selected="false">Impacted Assets</button>
+          </li>
+        </ul>
 
-        <!-- Change Details Tab -->
-        <div id="change-details" class="tab-content active">
-          <h3>Change Details</h3>
-          <div class="form-group">
-            <label for="requester">Requester:</label>
-            <div class="search-input-container">
-              <input type="text" id="requester-search" placeholder="Search by name or email">
-              <div id="requester-results" class="search-results"></div>
-            </div>
-            <div id="selected-requester" class="selected-result"></div>
-          </div>
+        <div class="tab-content p-4" id="changeTabContent">
+          <!-- Change Details Tab -->
+          <div class="tab-pane fade show active" id="change-details" role="tabpanel" aria-labelledby="details-tab">
+            <h3 class="mb-4">Change Details</h3>
+            <div class="row g-3">
+              <div class="col-md-6 form-group mb-3">
+                <label for="requester" class="form-label">Requester:</label>
+                <div class="search-input-container">
+                  <input type="text" id="requester-search" class="form-control" placeholder="Search by name or email">
+                  <div id="requester-results" class="search-results list-group"></div>
+                </div>
+                <div id="selected-requester" class="selected-result mt-2 p-2 border rounded bg-light"></div>
+              </div>
 
-          <div class="form-group">
-            <label for="agent">Agent (Technical SME):</label>
-            <div class="search-input-container">
-              <input type="text" id="agent-search" placeholder="Search by name or email">
-              <div id="agent-results" class="search-results"></div>
-            </div>
-            <div id="selected-agent" class="selected-result"></div>
-          </div>
+              <div class="col-md-6 form-group mb-3">
+                <label for="agent" class="form-label">Agent (Technical SME):</label>
+                <div class="search-input-container">
+                  <input type="text" id="agent-search" class="form-control" placeholder="Search by name or email">
+                  <div id="agent-results" class="search-results list-group"></div>
+                </div>
+                <div id="selected-agent" class="selected-result mt-2 p-2 border rounded bg-light"></div>
+              </div>
 
-          <div class="form-group">
-            <label for="change-type">Change Type:</label>
-            <select id="change-type" class="fw-dropdown">
-              <option value="standard">Standard Change</option>
-              <option value="non-production">Non-Production Change</option>
-              <option value="emergency">Emergency Change</option>
-              <option value="non-standard">Non-standard Change</option>
-            </select>
-            <div class="tooltip" id="change-type-tooltip"></div>
-          </div>
+              <div class="col-md-6 form-group mb-3">
+                <label for="change-type" class="form-label">Change Type:</label>
+                <select id="change-type" class="form-select">
+                  <option value="standard">Standard Change</option>
+                  <option value="non-production">Non-Production Change</option>
+                  <option value="emergency">Emergency Change</option>
+                  <option value="non-standard">Non-standard Change</option>
+                </select>
+                <div class="tooltip form-text" id="change-type-tooltip"></div>
+              </div>
 
-          <div class="form-group">
-            <label>Lead Time:</label>
-            <div id="lead-time" class="lead-time-info">2 business days</div>
-          </div>
+              <div class="col-md-6 form-group mb-3">
+                <label class="form-label">Lead Time:</label>
+                <div id="lead-time" class="lead-time-info p-2 border rounded bg-light">2 business days</div>
+              </div>
 
-          <div class="form-group">
-            <label for="planned-start">Planned Start Date and Time:</label>
-            <input type="datetime-local" id="planned-start" class="fw-input">
-          </div>
+              <div class="col-md-6 form-group mb-3">
+                <label for="planned-start" class="form-label">Planned Start Date and Time:</label>
+                <input type="datetime-local" id="planned-start" class="form-control">
+              </div>
 
-          <div class="form-group">
-            <label for="planned-end">Planned End Date and Time:</label>
-            <input type="datetime-local" id="planned-end" class="fw-input">
-          </div>
+              <div class="col-md-6 form-group mb-3">
+                <label for="planned-end" class="form-label">Planned End Date and Time:</label>
+                <input type="datetime-local" id="planned-end" class="form-control">
+              </div>
 
-          <div class="form-group">
-            <label for="implementation-plan">Implementation Plan:</label>
-            <textarea id="implementation-plan" class="fw-textarea" rows="5"></textarea>
-          </div>
+              <div class="col-12 form-group mb-3">
+                <label for="implementation-plan" class="form-label">Implementation Plan:</label>
+                <textarea id="implementation-plan" class="form-control" rows="5"></textarea>
+              </div>
 
-          <div class="form-group">
-            <label for="backout-plan">Backout (Recovery) Plan:</label>
-            <textarea id="backout-plan" class="fw-textarea" rows="5"></textarea>
-          </div>
+              <div class="col-12 form-group mb-3">
+                <label for="backout-plan" class="form-label">Backout (Recovery) Plan:</label>
+                <textarea id="backout-plan" class="form-control" rows="5"></textarea>
+              </div>
 
-          <div class="form-group">
-            <label for="validation-plan">Validation Plan:</label>
-            <textarea id="validation-plan" class="fw-textarea" rows="5"></textarea>
-          </div>
+              <div class="col-12 form-group mb-3">
+                <label for="validation-plan" class="form-label">Validation Plan:</label>
+                <textarea id="validation-plan" class="form-control" rows="5"></textarea>
+              </div>
 
-          <div class="form-actions">
-            <button id="details-next" class="fw-button fw-button--primary">Next</button>
-          </div>
-        </div>
-
-        <!-- Risk Assessment Tab -->
-        <div id="risk-assessment" class="tab-content">
-          <h3>Risk Assessment</h3>
-          <p>Please answer all questions to determine the risk level of this change.</p>
-
-          <div class="risk-question">
-            <label>What is the potential business impact if the change fails?</label>
-            <div class="risk-options">
-              <label>
-                <input type="radio" name="business-impact" value="1"> Low - Limited impact on business operations
-              </label>
-              <label>
-                <input type="radio" name="business-impact" value="2"> Medium - Noticeable impact on some business operations
-              </label>
-              <label>
-                <input type="radio" name="business-impact" value="3"> High - Significant impact on business operations
-              </label>
+              <div class="col-12 form-actions text-end">
+                <button id="details-next" class="btn btn-primary">Next</button>
+              </div>
             </div>
           </div>
 
-          <div class="risk-question">
-            <label>How many users will be affected by this change?</label>
-            <div class="risk-options">
-              <label>
-                <input type="radio" name="affected-users" value="1"> Few (<50 users)
-              </label>
-              <label>
-                <input type="radio" name="affected-users" value="2"> Some (50-200 users)
-              </label>
-              <label>
-                <input type="radio" name="affected-users" value="3"> Many (>200 users)
-              </label>
+          <!-- Risk Assessment Tab -->
+          <div class="tab-pane fade" id="risk-assessment" role="tabpanel" aria-labelledby="risk-tab">
+            <h3 class="mb-4">Risk Assessment</h3>
+            <p class="text-secondary">Please answer all questions to determine the risk level of this change.</p>
+
+            <div class="risk-question card mb-4 p-3">
+              <label class="fw-bold mb-2">What is the potential business impact if the change fails?</label>
+              <div class="risk-options">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="business-impact" id="impact-1" value="1">
+                  <label class="form-check-label" for="impact-1">
+                    Low - Limited impact on business operations
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="business-impact" id="impact-2" value="2">
+                  <label class="form-check-label" for="impact-2">
+                    Medium - Noticeable impact on some business operations
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="business-impact" id="impact-3" value="3">
+                  <label class="form-check-label" for="impact-3">
+                    High - Significant impact on business operations
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="risk-question card mb-4 p-3">
+              <label class="fw-bold mb-2">How many users will be affected by this change?</label>
+              <div class="risk-options">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="affected-users" id="users-1" value="1">
+                  <label class="form-check-label" for="users-1">
+                    Few (<50 users)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="affected-users" id="users-2" value="2">
+                  <label class="form-check-label" for="users-2">
+                    Some (50-200 users)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="affected-users" id="users-3" value="3">
+                  <label class="form-check-label" for="users-3">
+                    Many (>200 users)
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="risk-question card mb-4 p-3">
+              <label class="fw-bold mb-2">How complex is this change?</label>
+              <div class="risk-options">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="complexity" id="complexity-1" value="1">
+                  <label class="form-check-label" for="complexity-1">
+                    Simple - Routine change with established procedures
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="complexity" id="complexity-2" value="2">
+                  <label class="form-check-label" for="complexity-2">
+                    Moderate - Some complexity but well understood
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="complexity" id="complexity-3" value="3">
+                  <label class="form-check-label" for="complexity-3">
+                    Complex - Multiple systems or uncommon procedures
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="risk-question card mb-4 p-3">
+              <label class="fw-bold mb-2">What level of testing has been performed?</label>
+              <div class="risk-options">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="testing" id="testing-1" value="1">
+                  <label class="form-check-label" for="testing-1">
+                    Comprehensive - Thoroughly tested in multiple environments
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="testing" id="testing-2" value="2">
+                  <label class="form-check-label" for="testing-2">
+                    Adequate - Primary functions tested in test environment
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="testing" id="testing-3" value="3">
+                  <label class="form-check-label" for="testing-3">
+                    Limited - Minimal testing or testing not possible
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="risk-question card mb-4 p-3">
+              <label class="fw-bold mb-2">Is there a rollback plan available?</label>
+              <div class="risk-options">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="rollback" id="rollback-1" value="1">
+                  <label class="form-check-label" for="rollback-1">
+                    Yes - Detailed rollback plan with proven procedures
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="rollback" id="rollback-2" value="2">
+                  <label class="form-check-label" for="rollback-2">
+                    Partial - Basic rollback steps identified
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="rollback" id="rollback-3" value="3">
+                  <label class="form-check-label" for="rollback-3">
+                    No - No rollback possible or very difficult
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div id="risk-result" class="risk-result card bg-light p-4 mb-4 hidden">
+              <h4 class="mb-3">Risk Assessment Result</h4>
+              <div class="risk-score mb-2">
+                <span class="fw-bold">Risk Score: </span>
+                <span id="risk-score-value"></span>
+              </div>
+              <div class="risk-level mb-2">
+                <span class="fw-bold">Risk Level: </span>
+                <span id="risk-level-value" class="badge"></span>
+              </div>
+              <div class="risk-explanation mt-3" id="risk-explanation"></div>
+            </div>
+
+            <div class="form-actions text-end">
+              <button id="calculate-risk" class="btn btn-secondary me-2">Calculate Risk</button>
+              <button id="risk-next" class="btn btn-primary">Next</button>
             </div>
           </div>
 
-          <div class="risk-question">
-            <label>How complex is this change?</label>
-            <div class="risk-options">
-              <label>
-                <input type="radio" name="complexity" value="1"> Simple - Routine change with established procedures
-              </label>
-              <label>
-                <input type="radio" name="complexity" value="2"> Moderate - Some complexity but well understood
-              </label>
-              <label>
-                <input type="radio" name="complexity" value="3"> Complex - Multiple systems or uncommon procedures
-              </label>
+          <!-- Impacted Assets Tab -->
+          <div class="tab-pane fade" id="impacted-assets" role="tabpanel" aria-labelledby="assets-tab">
+            <h3 class="mb-4">Impacted Assets</h3>
+            
+            <div class="form-group mb-4">
+              <label class="form-label">Search for Assets or Services:</label>
+              <div class="search-input-container">
+                <input type="text" id="asset-search" class="form-control" placeholder="Search for assets or services">
+                <div id="asset-results" class="search-results list-group"></div>
+              </div>
             </div>
-          </div>
 
-          <div class="risk-question">
-            <label>What level of testing has been performed?</label>
-            <div class="risk-options">
-              <label>
-                <input type="radio" name="testing" value="1"> Comprehensive - Thoroughly tested in multiple environments
-              </label>
-              <label>
-                <input type="radio" name="testing" value="2"> Adequate - Primary functions tested in test environment
-              </label>
-              <label>
-                <input type="radio" name="testing" value="3"> Limited - Minimal testing or testing not possible
-              </label>
+            <div class="selected-assets-container mb-4">
+              <h4 class="mb-3">Selected Assets</h4>
+              <div id="selected-assets" class="selected-assets-list p-3 border rounded"></div>
             </div>
-          </div>
 
-          <div class="risk-question">
-            <label>Is there a rollback plan available?</label>
-            <div class="risk-options">
-              <label>
-                <input type="radio" name="rollback" value="1"> Yes - Detailed rollback plan with proven procedures
-              </label>
-              <label>
-                <input type="radio" name="rollback" value="2"> Partial - Basic rollback steps identified
-              </label>
-              <label>
-                <input type="radio" name="rollback" value="3"> No - No rollback possible or very difficult
-              </label>
+            <div class="form-actions text-end">
+              <button id="submit-change" class="btn btn-primary">Submit Change Request</button>
             </div>
-          </div>
-
-          <div id="risk-result" class="risk-result hidden">
-            <h4>Risk Assessment Result</h4>
-            <div class="risk-score">
-              <span>Risk Score: </span>
-              <span id="risk-score-value"></span>
-            </div>
-            <div class="risk-level">
-              <span>Risk Level: </span>
-              <span id="risk-level-value"></span>
-            </div>
-            <div class="risk-explanation" id="risk-explanation"></div>
-          </div>
-
-          <div class="form-actions">
-            <button id="calculate-risk" class="fw-button">Calculate Risk</button>
-            <button id="risk-next" class="fw-button fw-button--primary">Next</button>
-          </div>
-        </div>
-
-        <!-- Impacted Assets Tab -->
-        <div id="impacted-assets" class="tab-content">
-          <h3>Impacted Assets</h3>
-          
-          <div class="form-group">
-            <label>Search for Assets or Services:</label>
-            <div class="search-input-container">
-              <input type="text" id="asset-search" placeholder="Search for assets or services">
-              <div id="asset-results" class="search-results"></div>
-            </div>
-          </div>
-
-          <div class="selected-assets-container">
-            <h4>Selected Assets</h4>
-            <div id="selected-assets" class="selected-assets-list"></div>
-          </div>
-
-          <div class="form-actions">
-            <button id="submit-change" class="fw-button fw-button--primary">Submit Change Request</button>
           </div>
         </div>
       </div>
 
       <!-- Confirmation Modal -->
-      <div id="confirmation-modal" class="modal hidden">
-        <div class="modal-content">
-          <h3>Change Request Summary</h3>
-          <div id="summary-content"></div>
-          <div class="modal-actions">
-            <button id="edit-request" class="fw-button">Edit</button>
-            <button id="confirm-submit" class="fw-button fw-button--primary">Confirm & Submit</button>
+      <div class="modal fade" id="confirmation-modal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="confirmModalLabel">Change Request Summary</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="summary-content"></div>
+            </div>
+            <div class="modal-footer">
+              <button id="edit-request" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Edit</button>
+              <button id="confirm-submit" type="button" class="btn btn-primary">Confirm & Submit</button>
+            </div>
           </div>
         </div>
       </div>

@@ -13,7 +13,9 @@
         "getRequesters": {},
         "getAgents": {},
         "getAssets": {},
-        "getServices": {}
+        "getServices": {},
+        "getRequesterDetails": {},
+        "getLocation": {}
       },
       "storage": {
         "data_storage": {

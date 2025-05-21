@@ -115,15 +115,45 @@ async function clearSavedData() {
 function populateFormFields() {
   // Populate requester if exists
   if (changeRequestData.requester) {
+    const requester = changeRequestData.requester;
     const selectedContainer = document.getElementById('selected-requester');
-    selectedContainer.textContent = `${changeRequestData.requester.first_name} ${changeRequestData.requester.last_name} (${changeRequestData.requester.email})`;
+    
+    // Create detailed requester info display
+    let requesterInfo = `${requester.first_name} ${requester.last_name} (${requester.email || requester.primary_email})`;
+    
+    // Add additional details if available
+    const detailsList = [];
+    if (requester.job_title) detailsList.push(`Title: ${requester.job_title}`);
+    if (requester.location_name) detailsList.push(`Location: ${requester.location_name}`);
+    if (requester.manager_name) detailsList.push(`Manager: ${requester.manager_name}`);
+    
+    if (detailsList.length > 0) {
+      requesterInfo += `<div class="selected-details">${detailsList.join(' | ')}</div>`;
+    }
+    
+    selectedContainer.innerHTML = requesterInfo;
     selectedContainer.style.display = 'block';
   }
   
   // Populate agent if exists
   if (changeRequestData.agent) {
+    const agent = changeRequestData.agent;
     const selectedContainer = document.getElementById('selected-agent');
-    selectedContainer.textContent = `${changeRequestData.agent.first_name} ${changeRequestData.agent.last_name} (${changeRequestData.agent.email})`;
+    
+    // Create detailed agent info display
+    let agentInfo = `${agent.first_name} ${agent.last_name} (${agent.email})`;
+    
+    // Add additional details if available
+    const detailsList = [];
+    if (agent.job_title) detailsList.push(`Title: ${agent.job_title}`);
+    if (agent.location_name) detailsList.push(`Location: ${agent.location_name}`);
+    if (agent.manager_name) detailsList.push(`Manager: ${agent.manager_name}`);
+    
+    if (detailsList.length > 0) {
+      agentInfo += `<div class="selected-details">${detailsList.join(' | ')}</div>`;
+    }
+    
+    selectedContainer.innerHTML = agentInfo;
     selectedContainer.style.display = 'block';
   }
   
@@ -198,11 +228,8 @@ function populateFormFields() {
 }
 
 function setupEventListeners() {
-  // Tab navigation
-  const tabItems = document.querySelectorAll('.tab-item');
-  tabItems.forEach(tab => {
-    tab.addEventListener('click', () => switchTab(tab.dataset.tab));
-  });
+  // We don't need to manually handle tab switching since Bootstrap will handle it
+  // Just add listeners for the Next buttons to programmatically switch tabs
 
   // Change Details tab
   document.getElementById('requester-search').addEventListener('input', debounce(searchRequesters, 300));
@@ -291,24 +318,23 @@ function setupChangeTypeTooltips() {
 }
 
 function switchTab(tabId) {
-  // Hide all tab contents
-  document.querySelectorAll('.tab-content').forEach(tab => {
-    tab.classList.remove('active');
-  });
+  // Use Bootstrap's tab functionality
+  const tabSelector = `#changeTabs button[data-bs-target="#${tabId}"]`;
+  const tabElement = document.querySelector(tabSelector);
   
-  // Deactivate all tabs
-  document.querySelectorAll('.tab-item').forEach(tab => {
-    tab.classList.remove('active');
-  });
-  
-  // Activate the selected tab
-  document.getElementById(tabId).classList.add('active');
-  document.querySelector(`.tab-item[data-tab="${tabId}"]`).classList.add('active');
-  
-  // Save current tab in storage
-  saveCurrentData();
+  if (tabElement) {
+    // Create a new Bootstrap Tab instance and show it
+    const tab = new bootstrap.Tab(tabElement);
+    tab.show();
+    
+    // Save current tab in storage
+    saveCurrentData();
+  }
 }
 
+/**
+ * Search for requesters using Freshservice API
+ */
 function searchRequesters(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
@@ -319,12 +345,15 @@ function searchRequesters(e) {
     }
   })
     .then(function(data) {
-      const requesters = JSON.parse(data.response).requesters;
+      const requesters = JSON.parse(data.response).requesters || [];
       displaySearchResults('requester-results', requesters, selectRequester);
     })
     .catch(handleErr);
 }
 
+/**
+ * Search for agents using Freshservice API
+ */
 function searchAgents(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
@@ -335,30 +364,156 @@ function searchAgents(e) {
     }
   })
     .then(function(data) {
-      const agents = JSON.parse(data.response).agents;
+      const agents = JSON.parse(data.response).agents || [];
       displaySearchResults('agent-results', agents, selectAgent);
     })
     .catch(handleErr);
 }
 
+/**
+ * Get location name by ID
+ * @param {number} locationId - Location ID 
+ * @returns {Promise<string>} - Location name
+ */
+async function getLocationName(locationId) {
+  if (!locationId) return 'N/A';
+  
+  try {
+    const response = await client.request.invokeTemplate("getLocation", {
+      context: {
+        location_id: locationId
+      }
+    });
+    
+    const location = JSON.parse(response.response).location;
+    return location.name || 'Unknown';
+  } catch (error) {
+    console.error('Error fetching location:', error);
+    return 'Unknown';
+  }
+}
+
+/**
+ * Get reporting manager name by ID
+ * @param {number} managerId - Manager ID 
+ * @returns {Promise<string>} - Manager name
+ */
+async function getManagerName(managerId) {
+  if (!managerId) return 'N/A';
+  
+  try {
+    const response = await client.request.invokeTemplate("getRequesterDetails", {
+      context: {
+        requester_id: managerId
+      }
+    });
+    
+    const manager = JSON.parse(response.response).requester;
+    return `${manager.first_name} ${manager.last_name}`;
+  } catch (error) {
+    console.error('Error fetching manager:', error);
+    return 'Unknown';
+  }
+}
+
+/**
+ * Display search results with enhanced information
+ */
 function displaySearchResults(containerId, results, selectionCallback) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
   container.style.display = results.length ? 'block' : 'none';
   
+  if (results.length === 0) {
+    container.innerHTML = '<div class="list-group-item search-result-item no-results">No results found</div>';
+    container.style.display = 'block';
+    return;
+  }
+  
   results.forEach(result => {
     const resultItem = document.createElement('div');
-    resultItem.className = 'search-result-item';
-    resultItem.textContent = `${result.first_name} ${result.last_name} (${result.email})`;
-    resultItem.addEventListener('click', () => selectionCallback(result));
+    resultItem.className = 'list-group-item search-result-item';
+    
+    // Basic information
+    const email = result.email || result.primary_email || '';
+    resultItem.innerHTML = `
+      <div class="fw-bold">${result.first_name} ${result.last_name}</div>
+      <div class="text-secondary small">${email}</div>
+    `;
+    
+    // Add job title if available
+    if (result.job_title) {
+      const jobTitle = document.createElement('div');
+      jobTitle.className = 'small text-muted result-detail';
+      jobTitle.textContent = `Title: ${result.job_title}`;
+      resultItem.appendChild(jobTitle);
+    }
+    
+    // Store the full result object for selection
+    resultItem.addEventListener('click', () => {
+      // Add location and manager info when selected
+      if (result.location_id || result.reporting_manager_id) {
+        enhanceContactInfo(result)
+          .then(enhancedResult => selectionCallback(enhancedResult))
+          .catch(err => {
+            console.error('Error enhancing contact info:', err);
+            selectionCallback(result);
+          });
+      } else {
+        selectionCallback(result);
+      }
+    });
+    
     container.appendChild(resultItem);
   });
+}
+
+/**
+ * Enhance contact information with location name and manager name
+ */
+async function enhanceContactInfo(contact) {
+  try {
+    // Make a copy to avoid modifying the original
+    const enhancedContact = { ...contact };
+    
+    // Add location name if location ID exists
+    if (contact.location_id) {
+      enhancedContact.location_name = await getLocationName(contact.location_id);
+    }
+    
+    // Add manager name if manager ID exists
+    if (contact.reporting_manager_id) {
+      enhancedContact.manager_name = await getManagerName(contact.reporting_manager_id);
+    }
+    
+    return enhancedContact;
+  } catch (error) {
+    console.error('Error enhancing contact info:', error);
+    return contact;
+  }
 }
 
 function selectRequester(requester) {
   changeRequestData.requester = requester;
   const selectedContainer = document.getElementById('selected-requester');
-  selectedContainer.textContent = `${requester.first_name} ${requester.last_name} (${requester.email})`;
+  
+  // Create detailed requester info display
+  let requesterInfo = `
+    <div class="fw-bold">${requester.first_name} ${requester.last_name}</div>
+    <div>${requester.email || requester.primary_email}</div>
+  `;
+  
+  // Add additional details if available
+  const detailsList = [];
+  if (requester.job_title) detailsList.push(`Title: ${requester.job_title}`);
+  if (requester.location_name) detailsList.push(`Location: ${requester.location_name}`);
+  if (requester.manager_name) detailsList.push(`Manager: ${requester.manager_name}`);
+  
+  if (detailsList.length > 0) {
+    requesterInfo += `<div class="selected-details mt-2 text-secondary small">${detailsList.join(' | ')}</div>`;
+  }
+  
+  selectedContainer.innerHTML = requesterInfo;
   selectedContainer.style.display = 'block';
   
   document.getElementById('requester-results').style.display = 'none';
@@ -371,7 +526,24 @@ function selectRequester(requester) {
 function selectAgent(agent) {
   changeRequestData.agent = agent;
   const selectedContainer = document.getElementById('selected-agent');
-  selectedContainer.textContent = `${agent.first_name} ${agent.last_name} (${agent.email})`;
+  
+  // Create detailed agent info display
+  let agentInfo = `
+    <div class="fw-bold">${agent.first_name} ${agent.last_name}</div>
+    <div>${agent.email}</div>
+  `;
+  
+  // Add additional details if available
+  const detailsList = [];
+  if (agent.job_title) detailsList.push(`Title: ${agent.job_title}`);
+  if (agent.location_name) detailsList.push(`Location: ${agent.location_name}`);
+  if (agent.manager_name) detailsList.push(`Manager: ${agent.manager_name}`);
+  
+  if (detailsList.length > 0) {
+    agentInfo += `<div class="selected-details mt-2 text-secondary small">${detailsList.join(' | ')}</div>`;
+  }
+  
+  selectedContainer.innerHTML = agentInfo;
   selectedContainer.style.display = 'block';
   
   document.getElementById('agent-results').style.display = 'none';
@@ -423,8 +595,10 @@ function validateDetailsAndNext() {
     return;
   }
   
-  // Proceed to the next tab
-  switchTab('risk-assessment');
+  // Use Bootstrap's tab functionality to go to the next tab
+  const riskTab = document.querySelector('#changeTabs button[data-bs-target="#risk-assessment"]');
+  const tab = new bootstrap.Tab(riskTab);
+  tab.show();
 }
 
 function updateRiskSelection(e) {
@@ -460,7 +634,7 @@ function calculateRisk() {
   const totalScore = riskKeys.reduce((sum, key) => sum + changeRequestData.riskAssessment[key], 0);
   changeRequestData.riskAssessment.totalScore = totalScore;
   
-  // Determine risk level
+  // Determine risk level and badge color
   let riskLevel, riskExplanation;
   if (totalScore <= 7) {
     riskLevel = 'Low';
@@ -476,9 +650,12 @@ function calculateRisk() {
   
   // Display results
   document.getElementById('risk-score-value').textContent = totalScore;
-  document.getElementById('risk-level-value').textContent = riskLevel;
-  document.getElementById('risk-explanation').textContent = riskExplanation;
   
+  const riskLevelElement = document.getElementById('risk-level-value');
+  riskLevelElement.textContent = riskLevel;
+  riskLevelElement.className = `badge ${getRiskBadgeClass(riskLevel)}`;
+  
+  document.getElementById('risk-explanation').textContent = riskExplanation;
   document.getElementById('risk-result').classList.remove('hidden');
   
   // Save to data storage
@@ -491,7 +668,10 @@ function validateRiskAndNext() {
     return;
   }
   
-  switchTab('impacted-assets');
+  // Use Bootstrap's tab functionality to go to the next tab
+  const assetsTab = document.querySelector('#changeTabs button[data-bs-target="#impacted-assets"]');
+  const tab = new bootstrap.Tab(assetsTab);
+  tab.show();
 }
 
 function searchAssets(e) {
@@ -531,10 +711,20 @@ function displayAssetResults(containerId, results, selectionCallback) {
   container.innerHTML = '';
   container.style.display = results.length ? 'block' : 'none';
   
+  if (results.length === 0) {
+    container.innerHTML = '<div class="list-group-item search-result-item no-results">No results found</div>';
+    container.style.display = 'block';
+    return;
+  }
+  
   results.forEach(result => {
     const resultItem = document.createElement('div');
-    resultItem.className = 'search-result-item';
-    resultItem.textContent = `${result.name} (${result.type})`;
+    resultItem.className = 'list-group-item search-result-item';
+    resultItem.innerHTML = `
+      <div class="fw-bold">${result.name}</div>
+      <div class="text-secondary small">${result.type}</div>
+    `;
+    
     resultItem.addEventListener('click', () => selectionCallback(result));
     container.appendChild(resultItem);
   });
@@ -564,16 +754,16 @@ function renderSelectedAssets() {
   container.innerHTML = '';
   
   if (changeRequestData.selectedAssets.length === 0) {
-    container.innerHTML = '<div class="empty-message">No assets selected</div>';
+    container.innerHTML = '<div class="empty-message text-secondary">No assets selected</div>';
     return;
   }
   
   changeRequestData.selectedAssets.forEach((asset, index) => {
     const assetItem = document.createElement('div');
-    assetItem.className = 'asset-item';
+    assetItem.className = 'asset-item d-flex justify-content-between align-items-center p-2 mb-2 bg-light rounded';
     assetItem.innerHTML = `
-      <span>${asset.name} (${asset.type})</span>
-      <span class="remove-asset" data-index="${index}">✕</span>
+      <span class="me-2">${asset.name} <span class="badge bg-secondary">${asset.type}</span></span>
+      <button class="btn btn-sm btn-outline-danger remove-asset" data-index="${index}">✕</button>
     `;
     container.appendChild(assetItem);
   });
@@ -597,47 +787,68 @@ function showSummary() {
   
   const summaryContent = document.getElementById('summary-content');
   
-  // Generate summary HTML
+  // Generate summary HTML with Bootstrap styling
   summaryContent.innerHTML = `
-    <div class="summary-section">
-      <h4>Change Details</h4>
-      <p><strong>Requester:</strong> ${changeRequestData.requester.first_name} ${changeRequestData.requester.last_name}</p>
-      <p><strong>Agent (Technical SME):</strong> ${changeRequestData.agent.first_name} ${changeRequestData.agent.last_name}</p>
-      <p><strong>Change Type:</strong> ${changeRequestData.changeType}</p>
-      <p><strong>Lead Time:</strong> ${changeRequestData.leadTime}</p>
-      <p><strong>Planned Start:</strong> ${formatDateTime(changeRequestData.plannedStart)}</p>
-      <p><strong>Planned End:</strong> ${formatDateTime(changeRequestData.plannedEnd)}</p>
+    <div class="summary-section mb-4">
+      <h5>Change Details</h5>
+      <hr>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Requester:</strong> ${changeRequestData.requester.first_name} ${changeRequestData.requester.last_name}</p>
+          <p><strong>Agent (Technical SME):</strong> ${changeRequestData.agent.first_name} ${changeRequestData.agent.last_name}</p>
+          <p><strong>Change Type:</strong> ${changeRequestData.changeType}</p>
+          <p><strong>Lead Time:</strong> ${changeRequestData.leadTime}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Planned Start:</strong> ${formatDateTime(changeRequestData.plannedStart)}</p>
+          <p><strong>Planned End:</strong> ${formatDateTime(changeRequestData.plannedEnd)}</p>
+        </div>
+      </div>
       
-      <h5>Implementation Plan</h5>
-      <p>${changeRequestData.implementationPlan || 'Not provided'}</p>
+      <h6 class="mt-3">Implementation Plan</h6>
+      <p class="text-secondary">${changeRequestData.implementationPlan || 'Not provided'}</p>
       
-      <h5>Backout (Recovery) Plan</h5>
-      <p>${changeRequestData.backoutPlan || 'Not provided'}</p>
+      <h6 class="mt-3">Backout (Recovery) Plan</h6>
+      <p class="text-secondary">${changeRequestData.backoutPlan || 'Not provided'}</p>
       
-      <h5>Validation Plan</h5>
-      <p>${changeRequestData.validationPlan || 'Not provided'}</p>
+      <h6 class="mt-3">Validation Plan</h6>
+      <p class="text-secondary">${changeRequestData.validationPlan || 'Not provided'}</p>
+    </div>
+    
+    <div class="summary-section mb-4">
+      <h5>Risk Assessment</h5>
+      <hr>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Risk Score:</strong> ${changeRequestData.riskAssessment.totalScore}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Risk Level:</strong> <span class="badge ${getRiskBadgeClass(changeRequestData.riskAssessment.riskLevel)}">${changeRequestData.riskAssessment.riskLevel}</span></p>
+        </div>
+      </div>
     </div>
     
     <div class="summary-section">
-      <h4>Risk Assessment</h4>
-      <p><strong>Risk Score:</strong> ${changeRequestData.riskAssessment.totalScore}</p>
-      <p><strong>Risk Level:</strong> ${changeRequestData.riskAssessment.riskLevel}</p>
-    </div>
-    
-    <div class="summary-section">
-      <h4>Impacted Assets (${changeRequestData.selectedAssets.length})</h4>
-      <ul>
-        ${changeRequestData.selectedAssets.map(asset => `<li>${asset.name} (${asset.type})</li>`).join('')}
+      <h5>Impacted Assets (${changeRequestData.selectedAssets.length})</h5>
+      <hr>
+      <ul class="list-group">
+        ${changeRequestData.selectedAssets.map(asset => `<li class="list-group-item">${asset.name} <span class="badge bg-secondary">${asset.type}</span></li>`).join('')}
       </ul>
     </div>
   `;
   
-  // Show the confirmation modal
-  document.getElementById('confirmation-modal').classList.remove('hidden');
+  // Show the Bootstrap modal
+  const modalElement = document.getElementById('confirmation-modal');
+  const confirmationModal = new bootstrap.Modal(modalElement);
+  confirmationModal.show();
 }
 
 function closeModal() {
-  document.getElementById('confirmation-modal').classList.add('hidden');
+  const modalElement = document.getElementById('confirmation-modal');
+  const modal = bootstrap.Modal.getInstance(modalElement);
+  if (modal) {
+    modal.hide();
+  }
 }
 
 async function submitChangeRequest() {
@@ -745,4 +956,18 @@ function showNotification(type, message) {
 function handleErr(err = 'None') {
   console.error(`Error occurred. Details:`, err);
   showNotification('error', 'An error occurred. Please try again.');
+}
+
+// Helper function to get appropriate Bootstrap badge class for risk level
+function getRiskBadgeClass(riskLevel) {
+  switch(riskLevel) {
+    case 'Low':
+      return 'bg-success';
+    case 'Medium':
+      return 'bg-warning text-dark';
+    case 'High':
+      return 'bg-danger';
+    default:
+      return 'bg-secondary';
+  }
 }
