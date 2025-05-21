@@ -46,32 +46,61 @@ const leadTimeText = {
 };
 
 document.onreadystatechange = function() {
-  if (document.readyState === 'interactive') initializeApp();
+  if (document.readyState === 'interactive') {
+    console.log('Document ready, initializing app...');
+    setTimeout(initializeApp, 500); // Add slight delay before initialization
+  }
 };
 
 function initializeApp() {
-  const onInit = app.initialized();
+  console.log('Starting app initialization...');
   
-  onInit
-    .then(function getClient(_client) {
-      window.client = _client;
-      
-      // Set up event listeners first
-      setupEventListeners();
-      setupChangeTypeTooltips();
-      
-      // Then try to load saved data, but catch any errors
-      try {
-        loadSavedData().catch(err => {
-          console.error("Error loading saved data:", err);
-          // Continue with empty form rather than breaking the app
-          showNotification('error', 'Could not load saved data');
-        });
-      } catch (error) {
-        console.error("Exception during loadSavedData:", error);
-      }
-    })
-    .catch(handleErr);
+  try {
+    // Initialize app client with proper error handling
+    app.initialized()
+      .then(function getClient(_client) {
+        console.log('App client initialized successfully');
+        window.client = _client;
+        
+        // IMPORTANT: Wait for DOM to be fully ready before setting up UI
+        setTimeout(() => {
+          try {
+            console.log('Setting up app components...');
+            setupEventListeners();
+            setupChangeTypeTooltips();
+            
+            // Only attempt to load data after setup is complete
+            setTimeout(() => {
+              try {
+                console.log('Loading saved data...');
+                loadSavedData().catch(err => {
+                  console.error("Error in loadSavedData promise:", err);
+                });
+              } catch (dataErr) {
+                console.error("Exception during data loading:", dataErr);
+              }
+            }, 300);
+          } catch (setupErr) {
+            console.error("Error during app setup:", setupErr);
+          }
+        }, 300);
+      })
+      .catch(function(initErr) {
+        console.error("App client initialization failed:", initErr);
+        // Try to show error without using client interface
+        try {
+          document.body.innerHTML += `
+            <div style="color: red; padding: 20px; border: 1px solid red; margin: 20px; background: #fff">
+              App initialization failed. Please refresh the page or contact support.
+            </div>
+          `;
+        } catch (e) {
+          console.error("Failed to show error message:", e);
+        }
+      });
+  } catch (e) {
+    console.error("Critical error during initialization:", e);
+  }
 }
 
 /**
@@ -331,17 +360,77 @@ function setupChangeTypeTooltips() {
 }
 
 function switchTab(tabId) {
-  // Use Bootstrap's tab functionality
-  const tabSelector = `#changeTabs button[data-bs-target="#${tabId}"]`;
-  const tabElement = document.querySelector(tabSelector);
-  
-  if (tabElement) {
-    // Create a new Bootstrap Tab instance and show it
-    const tab = new bootstrap.Tab(tabElement);
-    tab.show();
+  console.log(`Switching to tab: ${tabId}`);
+  try {
+    // Try using Bootstrap's tab functionality first
+    const tabSelector = `#changeTabs button[data-bs-target="#${tabId}"]`;
+    const tabElement = document.querySelector(tabSelector);
     
-    // Save current tab in storage
-    saveCurrentData();
+    if (tabElement && window.bootstrap && typeof bootstrap.Tab === 'function') {
+      // Create a new Bootstrap Tab instance and show it
+      try {
+        const tab = new bootstrap.Tab(tabElement);
+        tab.show();
+        console.log('Tab switched using Bootstrap API');
+      } catch (bootstrapErr) {
+        console.error('Error using Bootstrap tab API:', bootstrapErr);
+        manuallyShowTab(tabId);
+      }
+    } else {
+      console.warn('Bootstrap tab feature not available, using fallback method');
+      manuallyShowTab(tabId);
+    }
+    
+    // Save current tab in storage (if client is available)
+    try {
+      if (window.client && typeof window.client.db === 'object' && typeof window.client.db.set === 'function') {
+        saveCurrentData().catch(err => console.error('Error saving tab state:', err));
+      }
+    } catch (saveErr) {
+      console.error('Error saving tab state:', saveErr);
+    }
+  } catch (tabErr) {
+    console.error('Error switching tab:', tabErr);
+    // Last resort fallback
+    try {
+      manuallyShowTab(tabId);
+    } catch (e) {
+      console.error('Manual tab switching also failed:', e);
+    }
+  }
+}
+
+// Fallback function to manually activate a tab without Bootstrap
+function manuallyShowTab(tabId) {
+  console.log(`Manually showing tab: ${tabId}`);
+  try {
+    // Hide all tabs
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+      pane.classList.remove('show', 'active');
+    });
+    
+    // Hide all tab buttons
+    document.querySelectorAll('#changeTabs button').forEach(button => {
+      button.classList.remove('active');
+      button.setAttribute('aria-selected', 'false');
+    });
+    
+    // Show the target tab
+    const targetPane = document.getElementById(tabId);
+    if (targetPane) {
+      targetPane.classList.add('show', 'active');
+      console.log(`Activated tab pane: ${tabId}`);
+    }
+    
+    // Show the target tab button
+    const targetButton = document.querySelector(`button[data-bs-target="#${tabId}"]`);
+    if (targetButton) {
+      targetButton.classList.add('active');
+      targetButton.setAttribute('aria-selected', 'true');
+      console.log(`Activated tab button for: ${tabId}`);
+    }
+  } catch (e) {
+    console.error('Error in manual tab switching:', e);
   }
 }
 
@@ -667,10 +756,8 @@ function validateDetailsAndNext() {
     return;
   }
   
-  // Use Bootstrap's tab functionality to go to the next tab
-  const riskTab = document.querySelector('#changeTabs button[data-bs-target="#risk-assessment"]');
-  const tab = new bootstrap.Tab(riskTab);
-  tab.show();
+  // Use our robust tab switching function instead of direct Bootstrap access
+  switchTab('risk-assessment');
 }
 
 function updateRiskSelection(e) {
@@ -740,10 +827,8 @@ function validateRiskAndNext() {
     return;
   }
   
-  // Use Bootstrap's tab functionality to go to the next tab
-  const assetsTab = document.querySelector('#changeTabs button[data-bs-target="#impacted-assets"]');
-  const tab = new bootstrap.Tab(assetsTab);
-  tab.show();
+  // Use our robust tab switching function instead of direct Bootstrap access
+  switchTab('impacted-assets');
 }
 
 function searchAssets(e) {
@@ -1051,28 +1136,88 @@ function debounce(fn, delay) {
   };
 }
 
-// Helper function for showing notifications
+// Helper function for showing notifications with fallback
 function showNotification(type, message) {
+  console.log(`Notification (${type}): ${message}`);
+  
   try {
-    if (!client || !client.interface) {
-      console.error('Client interface not available for notifications');
-      return;
+    // Only use client interface if it's fully initialized
+    if (window.client && window.client.interface && typeof window.client.interface.trigger === 'function') {
+      // Map error type to danger for Bootstrap
+      const notificationType = type === 'error' ? 'danger' : type;
+      const safeMessage = message || 'Notification';
+      
+      window.client.interface.trigger('showNotify', { 
+        type: notificationType,
+        message: safeMessage
+      }).catch(err => {
+        console.error('Error showing notification via interface:', err);
+        // If interface fails, try DOM fallback
+        showFallbackNotification(type, message);
+      });
+    } else {
+      // Use DOM fallback if client interface isn't available
+      console.warn('Client interface not available, using fallback notification');
+      showFallbackNotification(type, message);
     }
-    
-    // Make sure we have a valid message
-    const safeMessage = message || 'Notification';
-    
-    // Map error type to danger for Bootstrap
-    const notificationType = type === 'error' ? 'danger' : type;
-    
-    client.interface.trigger('showNotify', { 
-      type: notificationType,
-      message: safeMessage
-    }).catch(err => {
-      console.error('Error showing notification:', err);
-    });
   } catch (error) {
     console.error('Failed to show notification:', error);
+    // Final fallback if everything else fails
+    showFallbackNotification(type, message);
+  }
+}
+
+// DOM-based notification fallback
+function showFallbackNotification(type, message) {
+  try {
+    // Remove any existing notifications
+    const existingNotifications = document.querySelectorAll('.fallback-notification');
+    existingNotifications.forEach(note => {
+      if (note && note.parentNode) {
+        note.parentNode.removeChild(note);
+      }
+    });
+    
+    // Create new notification element
+    const notification = document.createElement('div');
+    notification.className = `fallback-notification alert alert-${type === 'error' ? 'danger' : type}`;
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.right = '20px';
+    notification.style.zIndex = '9999';
+    notification.style.maxWidth = '300px';
+    notification.style.padding = '10px 15px';
+    notification.style.borderRadius = '4px';
+    notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+    notification.textContent = message || 'Notification';
+    
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close';
+    closeBtn.style.float = 'right';
+    closeBtn.style.marginLeft = '10px';
+    closeBtn.style.fontSize = '16px';
+    closeBtn.style.fontWeight = 'bold';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.onclick = function() {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    };
+    
+    notification.prepend(closeBtn);
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 5000);
+  } catch (e) {
+    console.error('Failed to create fallback notification:', e);
   }
 }
 
