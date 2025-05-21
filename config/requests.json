@@ -10,7 +10,7 @@
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
-        "query": "<%=requester_query%>"
+        "query": "\"%7E%5Bfirst_name%7Clast_name%7Cprimary_email%5D%3A%27<%=requester_query%>%27\""
       }
     }
   },
@@ -25,7 +25,7 @@
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
-        "query": "<%=agent_query%>"
+        "query": "\"%7E%5Bfirst_name%7Clast_name%7Cemail%5D%3A%27<%=agent_query%>%27\""
       }
     }
   },
@@ -64,7 +64,7 @@
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
-        "query": "<%=asset_query%>"
+        "query": "\"%7E%5Bname%7Cdisplay_name%5D%3A%27<%=asset_query%>%27\""
       }
     }
   },
@@ -79,7 +79,7 @@
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
-        "query": "<%=service_query%>"
+        "query": "\"%7E%5Bname%7Cdisplay_name%5D%3A%27<%=service_query%>%27\""
       }
     }
   }

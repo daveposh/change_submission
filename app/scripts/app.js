@@ -638,13 +638,10 @@ function searchRequesters(e) {
     return;
   }
 
-  // Format exactly as required by API documentation
-  const query = `~[first_name|last_name|primary_email]:'${searchTerm}'`;
-  
-  // Use the domain from app initialization
+  // Just pass the search term - the template handles formatting and encoding
   window.client.request.invokeTemplate("getRequesters", {
     context: {
-      requester_query: query
+      requester_query: searchTerm
     }
   })
   .then(function(data) {
@@ -684,13 +681,10 @@ function searchAgents(e) {
     return;
   }
 
-  // Format exactly as required by API documentation
-  const query = `~[first_name|last_name|email]:'${searchTerm}'`;
-  
-  // Use the domain from app initialization
+  // Just pass the search term - the template handles formatting and encoding
   window.client.request.invokeTemplate("getAgents", {
     context: {
-      agent_query: query
+      agent_query: searchTerm
     }
   })
   .then(function(data) {
@@ -1069,15 +1063,11 @@ function searchAssets(e) {
     return;
   }
 
-  // Format queries for both asset and service searches
-  const assetQuery = `~[name|display_name]:'${searchTerm}'`;
-  const serviceQuery = `~[name|display_name]:'${searchTerm}'`;
-  
-  // Search for assets and services
+  // Just pass the search term - the template handles formatting and encoding
   Promise.all([
     window.client.request.invokeTemplate("getAssets", {
       context: {
-        asset_query: assetQuery
+        asset_query: searchTerm
       }
     }).catch(error => {
       console.error('Asset search failed:', error);
@@ -1085,7 +1075,7 @@ function searchAssets(e) {
     }),
     window.client.request.invokeTemplate("getServices", {
       context: {
-        service_query: serviceQuery
+        service_query: searchTerm
       }
     }).catch(error => {
       console.error('Service search failed:', error);
