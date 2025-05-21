@@ -47,15 +47,40 @@ const leadTimeText = {
 
 // Load FontAwesome if not already loaded
 function loadFontAwesome() {
-  if (!document.querySelector('link[href*="fontawesome"]')) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-    link.integrity = 'sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==';
-    link.crossOrigin = 'anonymous';
-    link.referrerPolicy = 'no-referrer';
-    document.head.appendChild(link);
-    console.log('FontAwesome loaded');
+  try {
+    // Check if Font Awesome is already loaded
+    if (!document.querySelector('link[href*="fontawesome"]')) {
+      console.log('Loading FontAwesome...');
+      
+      // Use FDK-friendly approach to load external resources
+      // First create the link element
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+      
+      // Add it to the head
+      document.head.appendChild(link);
+      
+      console.log('FontAwesome loaded');
+    } else {
+      console.log('FontAwesome already loaded');
+    }
+  } catch (error) {
+    // If there's an error loading Font Awesome, we'll provide fallback icons
+    console.error('Error loading FontAwesome:', error);
+    
+    // Add basic fallback icons using CSS
+    const style = document.createElement('style');
+    style.textContent = `
+      /* Fallback icons using CSS */
+      .icon-fallback-user:before { content: "👤"; }
+      .icon-fallback-email:before { content: "✉"; }
+      .icon-fallback-building:before { content: "🏢"; }
+      .icon-fallback-location:before { content: "📍"; }
+      .icon-fallback-desktop:before { content: "💻"; }
+      .icon-fallback-times:before { content: "✕"; }
+    `;
+    document.head.appendChild(style);
   }
 }
 
@@ -366,7 +391,10 @@ function populateFormFields() {
               <div class="fw-bold">${requester.first_name} ${requester.last_name}</div>
               <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${requester.email || requester.primary_email}</div>
             </div>
-            <span class="badge bg-primary">Requester</span>
+            <div>
+              <span class="badge bg-primary me-2">Requester</span>
+              <button class="btn btn-sm btn-outline-secondary clear-requester" type="button"><i class="fas fa-times"></i></button>
+            </div>
           </div>
         `;
         
@@ -396,6 +424,9 @@ function populateFormFields() {
         selectedContainer.innerHTML = requesterInfo;
         selectedContainer.style.display = 'block';
         selectedContainer.classList.add('p-2', 'border', 'rounded', 'bg-light');
+        
+        // Add event listener to the clear button
+        document.querySelector('.clear-requester').addEventListener('click', clearRequester);
       }
     }
     
@@ -412,7 +443,10 @@ function populateFormFields() {
               <div class="fw-bold">${agent.first_name} ${agent.last_name}</div>
               <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${agent.email}</div>
             </div>
-            <span class="badge bg-info">Agent</span>
+            <div>
+              <span class="badge bg-info me-2">Agent</span>
+              <button class="btn btn-sm btn-outline-secondary clear-agent" type="button"><i class="fas fa-times"></i></button>
+            </div>
           </div>
         `;
         
@@ -442,6 +476,9 @@ function populateFormFields() {
         selectedContainer.innerHTML = agentInfo;
         selectedContainer.style.display = 'block';
         selectedContainer.classList.add('p-2', 'border', 'rounded', 'bg-light');
+        
+        // Add event listener to the clear button
+        document.querySelector('.clear-agent').addEventListener('click', clearAgent);
       }
     }
     
@@ -591,62 +628,43 @@ function setupEventListeners() {
 
 /**
  * Enhance search inputs with icons and better styling
+ * Simplified version to fix FDK validation errors
  */
 function enhanceSearchInputs() {
-  // Add search icon and styling to search inputs
-  const searchInputs = [
-    { id: 'requester-search', placeholder: 'Search for a requester...', icon: 'user' },
-    { id: 'agent-search', placeholder: 'Search for an agent...', icon: 'user-tie' },
-    { id: 'asset-search', placeholder: 'Search for assets or services...', icon: 'desktop' }
-  ];
+  // Fix search input placeholders without DOM manipulation
+  const requesterSearch = document.getElementById('requester-search');
+  const agentSearch = document.getElementById('agent-search');
+  const assetSearch = document.getElementById('asset-search');
   
-  searchInputs.forEach(item => {
-    const input = document.getElementById(item.id);
-    if (!input) return;
-    
-    // Create a wrapper div for the input group
-    const wrapper = document.createElement('div');
-    wrapper.className = 'input-group mb-3';
-    
-    // Create the icon span
-    const iconSpan = document.createElement('span');
-    iconSpan.className = 'input-group-text bg-light';
-    iconSpan.innerHTML = `<i class="fas fa-${item.icon}"></i>`;
-    
-    // Clone the original input to preserve event listeners
-    const newInput = input.cloneNode(true);
-    newInput.className = 'form-control';
-    newInput.placeholder = item.placeholder;
-    
-    // Copy event listeners from old to new input
-    const oldInputClone = input.cloneNode(true);
-    const events = getEventListeners(input);
-    
-    // Insert the new elements
-    wrapper.appendChild(iconSpan);
-    wrapper.appendChild(newInput);
-    
-    // Replace the old input with the wrapper
-    input.parentNode.replaceChild(wrapper, input);
-    
-    // Reattach event listeners
-    if (item.id === 'requester-search') {
-      newInput.addEventListener('input', debounce(searchRequesters, 300));
-    } else if (item.id === 'agent-search') {
-      newInput.addEventListener('input', debounce(searchAgents, 300));
-    } else if (item.id === 'asset-search') {
-      newInput.addEventListener('input', debounce(searchAssets, 300));
-    }
-  });
+  if (requesterSearch) {
+    requesterSearch.placeholder = 'Search for a requester...';
+    requesterSearch.classList.add('form-control');
+  }
+  
+  if (agentSearch) {
+    agentSearch.placeholder = 'Search for an agent...';
+    agentSearch.classList.add('form-control');
+  }
+  
+  if (assetSearch) {
+    assetSearch.placeholder = 'Search for assets or services...';
+    assetSearch.classList.add('form-control');
+  }
+  
+  // Add icon labels next to inputs using existing markup
+  // This avoids complex DOM manipulation that might cause FDK issues
+  addIconLabel('requester-search-label', 'fas fa-user', 'Requester');
+  addIconLabel('agent-search-label', 'fas fa-user-tie', 'Agent');
+  addIconLabel('asset-search-label', 'fas fa-desktop', 'Assets/Services');
 }
 
-/**
- * Helper function to get event listeners - simplified version
- * since we know there's only an 'input' event we care about
- */
-function getEventListeners(element) {
-  // This is a simplified function since we can't actually get event listeners directly
-  return ['input']; // We only care about input events in this case
+// Helper to add icon labels
+function addIconLabel(labelId, iconClass, text) {
+  const label = document.getElementById(labelId);
+  if (label) {
+    label.innerHTML = `<i class="${iconClass} me-1"></i> ${text}`;
+    label.classList.add('fw-bold');
+  }
 }
 
 function setupChangeTypeTooltips() {
@@ -1119,7 +1137,10 @@ function selectRequester(requester) {
         <div class="fw-bold">${requester.first_name} ${requester.last_name}</div>
         <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${requester.email || requester.primary_email}</div>
       </div>
-      <span class="badge bg-primary">Requester</span>
+      <div>
+        <span class="badge bg-primary me-2">Requester</span>
+        <button class="btn btn-sm btn-outline-secondary clear-requester" type="button"><i class="fas fa-times"></i></button>
+      </div>
     </div>
   `;
   
@@ -1150,6 +1171,9 @@ function selectRequester(requester) {
   selectedContainer.style.display = 'block';
   selectedContainer.classList.add('p-2', 'border', 'rounded', 'bg-light');
   
+  // Add event listener to the clear button
+  document.querySelector('.clear-requester').addEventListener('click', clearRequester);
+  
   document.getElementById('requester-results').style.display = 'none';
   document.getElementById('requester-search').value = '';
   
@@ -1168,7 +1192,10 @@ function selectAgent(agent) {
         <div class="fw-bold">${agent.first_name} ${agent.last_name}</div>
         <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${agent.email}</div>
       </div>
-      <span class="badge bg-info">Agent</span>
+      <div>
+        <span class="badge bg-info me-2">Agent</span>
+        <button class="btn btn-sm btn-outline-secondary clear-agent" type="button"><i class="fas fa-times"></i></button>
+      </div>
     </div>
   `;
   
@@ -1199,8 +1226,41 @@ function selectAgent(agent) {
   selectedContainer.style.display = 'block';
   selectedContainer.classList.add('p-2', 'border', 'rounded', 'bg-light');
   
+  // Add event listener to the clear button
+  document.querySelector('.clear-agent').addEventListener('click', clearAgent);
+  
   document.getElementById('agent-results').style.display = 'none';
   document.getElementById('agent-search').value = '';
+  
+  // Save to data storage
+  saveCurrentData();
+}
+
+// Function to clear the selected requester
+function clearRequester() {
+  // Clear the data
+  changeRequestData.requester = null;
+  
+  // Clear the UI
+  const selectedContainer = document.getElementById('selected-requester');
+  selectedContainer.innerHTML = '';
+  selectedContainer.style.display = 'none';
+  selectedContainer.classList.remove('p-2', 'border', 'rounded', 'bg-light');
+  
+  // Save to data storage
+  saveCurrentData();
+}
+
+// Function to clear the selected agent
+function clearAgent() {
+  // Clear the data
+  changeRequestData.agent = null;
+  
+  // Clear the UI
+  const selectedContainer = document.getElementById('selected-agent');
+  selectedContainer.innerHTML = '';
+  selectedContainer.style.display = 'none';
+  selectedContainer.classList.remove('p-2', 'border', 'rounded', 'bg-light');
   
   // Save to data storage
   saveCurrentData();
