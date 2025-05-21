@@ -2657,47 +2657,62 @@ function setupSettingsUI() {
   console.log('Setting up settings UI');
   
   try {
-    // Create settings toggle button
-    const appContainer = document.querySelector('.app-container');
+    // Try different container selectors to ensure we find something to attach to
+    let appContainer = document.querySelector('.app-container');
+    
     if (!appContainer) {
-      console.error('App container not found for settings UI');
+      // Try a more general selector if the specific one doesn't exist
+      appContainer = document.querySelector('.wrapper') || 
+                    document.querySelector('main') || 
+                    document.querySelector('body');
+      
+      console.log('Using fallback container for settings UI:', appContainer);
+    }
+    
+    if (!appContainer) {
+      console.error('No container found for settings UI');
       return;
     }
     
-    // Add settings toggle button
+    // Add settings toggle button - make it more visible
     const settingsButton = document.createElement('button');
     settingsButton.id = 'settings-toggle';
-    settingsButton.className = 'btn btn-sm btn-outline-secondary settings-toggle-btn';
-    settingsButton.innerHTML = '<i class="fas fa-cog"></i> Settings';
+    settingsButton.className = 'btn btn-primary settings-toggle-btn';
+    settingsButton.innerHTML = '<i class="fas fa-cog"></i> Rate Limits';
     settingsButton.style.position = 'fixed';
     settingsButton.style.bottom = '20px';
     settingsButton.style.right = '20px';
-    settingsButton.style.zIndex = '1000';
-    appContainer.appendChild(settingsButton);
+    settingsButton.style.zIndex = '9999';
+    settingsButton.style.padding = '8px 15px';
+    settingsButton.style.borderRadius = '20px';
+    settingsButton.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+    document.body.appendChild(settingsButton); // Append directly to body for guaranteed visibility
     
     // Create settings panel (initially hidden)
     const settingsPanel = document.createElement('div');
     settingsPanel.id = 'settings-panel';
     settingsPanel.className = 'card settings-panel';
     settingsPanel.style.position = 'fixed';
-    settingsPanel.style.bottom = '70px';
+    settingsPanel.style.bottom = '75px';
     settingsPanel.style.right = '20px';
-    settingsPanel.style.width = '300px';
-    settingsPanel.style.zIndex = '1000';
+    settingsPanel.style.width = '350px';
+    settingsPanel.style.zIndex = '9999';
     settingsPanel.style.display = 'none';
-    settingsPanel.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+    settingsPanel.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)';
+    settingsPanel.style.background = '#fff';
+    settingsPanel.style.borderRadius = '8px';
     
     // Populate settings panel content
     settingsPanel.innerHTML = `
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">API Settings</h5>
-        <button type="button" class="btn-close" aria-label="Close" id="close-settings"></button>
+      <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+        <h5 class="mb-0">API Rate Limit Settings</h5>
+        <button type="button" class="btn-close btn-close-white" aria-label="Close" id="close-settings"></button>
       </div>
       <div class="card-body">
         <form id="settings-form">
           <div class="mb-3">
-            <label for="fs-plan" class="form-label">Freshservice Plan</label>
-            <select class="form-select" id="fs-plan">
+            <label for="fs-plan" class="form-label fw-bold">Freshservice Plan</label>
+            <select class="form-select form-select-lg" id="fs-plan">
               <option value="starter">Starter</option>
               <option value="growth">Growth</option>
               <option value="pro">Pro</option>
@@ -2706,20 +2721,20 @@ function setupSettingsUI() {
             <div class="form-text">Select your Freshservice plan to set appropriate rate limits</div>
           </div>
           
-          <div class="mb-3">
-            <label for="api-safety" class="form-label">API Safety Margin (${DEFAULT_SETTINGS.apiSafetyMargin * 100}%)</label>
+          <div class="mb-4">
+            <label for="api-safety" class="form-label fw-bold">API Safety Margin (<span id="safety-value">${Math.round(DEFAULT_SETTINGS.apiSafetyMargin * 100)}</span>%)</label>
             <input type="range" class="form-range" id="api-safety" min="0.1" max="0.9" step="0.1" value="${DEFAULT_SETTINGS.apiSafetyMargin}">
             <div class="form-text">Safety margin to prevent hitting API rate limits</div>
           </div>
           
-          <div class="mb-3">
-            <button type="button" class="btn btn-primary" id="save-settings">Save Settings</button>
+          <div class="mb-3 d-grid">
+            <button type="button" class="btn btn-lg btn-primary" id="save-settings">Save Settings</button>
           </div>
         </form>
       </div>
     `;
     
-    appContainer.appendChild(settingsPanel);
+    document.body.appendChild(settingsPanel); // Append directly to body for guaranteed visibility
     
     // Add close button listener
     const closeBtn = document.getElementById('close-settings');
@@ -2729,9 +2744,19 @@ function setupSettingsUI() {
       });
     }
     
+    // Add slider value display update
+    const safetySlider = document.getElementById('api-safety');
+    const safetyValue = document.getElementById('safety-value');
+    if (safetySlider && safetyValue) {
+      safetySlider.addEventListener('input', function() {
+        safetyValue.textContent = Math.round(this.value * 100);
+      });
+    }
+    
     // Load current settings
     loadSettingsIntoForm();
     
+    console.log('Settings UI setup complete');
   } catch (error) {
     console.error('Error setting up settings UI:', error);
   }
