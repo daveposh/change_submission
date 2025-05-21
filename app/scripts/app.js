@@ -601,7 +601,7 @@ function searchRequesters(e) {
   if (searchTerm.length < 2) return;
 
   // Format exactly as required by API: ~[fields]:'query'
-  const queryString = `~[first_name|last_name|primary_email]:'${searchTerm}'`;
+  const queryString = `~[first_name|last_name|email]:'${searchTerm}'`;
 
   client.request.invokeTemplate("getRequesters", {
     context: {
