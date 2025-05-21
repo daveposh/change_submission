@@ -30,11 +30,67 @@ const STORAGE_KEYS = {
   CHANGE_DATA: 'change_request_data',
   DRAFT_ID: 'change_request_draft_id',
   LOCATION_CACHE: 'location_cache',
-  USER_CACHE: 'user_cache'
+  USER_CACHE: 'user_cache',
+  SETTINGS_CACHE: 'settings_cache'
 };
 
 // Cache timeout in milliseconds (24 hours)
 const CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
+
+// Default settings
+const DEFAULT_SETTINGS = {
+  freshservicePlan: 'enterprise', // 'starter', 'growth', 'pro', 'enterprise'
+  rateLimits: {
+    starter: {
+      overall: 100,
+      listTickets: 40,
+      viewTicket: 50,
+      createTicket: 50,
+      updateTicket: 50,
+      listAssets: 40,
+      updateAsset: 50,
+      listAgents: 40,
+      listRequesters: 40
+    },
+    growth: {
+      overall: 200,
+      listTickets: 70,
+      viewTicket: 80,
+      createTicket: 80,
+      updateTicket: 80,
+      listAssets: 70,
+      updateAsset: 80,
+      listAgents: 70,
+      listRequesters: 70
+    },
+    pro: {
+      overall: 400,
+      listTickets: 120,
+      viewTicket: 140,
+      createTicket: 140,
+      updateTicket: 140,
+      listAssets: 120,
+      updateAsset: 140,
+      listAgents: 120,
+      listRequesters: 120
+    },
+    enterprise: {
+      overall: 500,
+      listTickets: 140,
+      viewTicket: 160,
+      createTicket: 160,
+      updateTicket: 160,
+      listAssets: 140,
+      updateAsset: 160,
+      listAgents: 140,
+      listRequesters: 140
+    }
+  },
+  // API usage percentage to use (safe margin to avoid hitting limits)
+  apiSafetyMargin: 0.7,
+  // Last settings update timestamp
+  lastUpdated: Date.now()
+};
 
 const changeTypeTooltips = {
   'standard': 'Standard Changes: All changes to critical assets > automate predefined/repeatable changes as much as possible',
@@ -203,6 +259,13 @@ async function fetchUsers() {
   }
 
   try {
+    // Get safe API limits based on plan settings
+    const apiLimits = await getSafeApiLimits();
+    const requesterPageLimit = apiLimits.listRequestersPageLimit || 1;
+    const agentPageLimit = apiLimits.listAgentsPageLimit || 1;
+    
+    console.log(`Using rate limits: ${requesterPageLimit} requester pages, ${agentPageLimit} agent pages`);
+    
     const allUsers = {};
     
     // Function to load requesters from a specific page
@@ -243,10 +306,8 @@ async function fetchUsers() {
       console.log(`Loading agents page ${pageNum}`);
       
       try {
-        // Use invokeTemplate for agents
-        const response = await window.client.request.invokeTemplate("getAgents", {
-          path_suffix: `?page=${pageNum}&per_page=100`
-        });
+        // Use direct API call instead of template
+        const response = await window.client.request.get(`/api/v2/agents?page=${pageNum}&per_page=100`);
         
         if (!response || !response.response) {
           console.error('Invalid agents response:', response);
@@ -271,11 +332,11 @@ async function fetchUsers() {
       }
     }
     
-    // Fetch requesters (up to 300)
+    // Fetch requesters
     let requesterPage = 1;
     let hasMoreRequesters = true;
     
-    while (hasMoreRequesters && requesterPage <= 3) {
+    while (hasMoreRequesters && requesterPage <= requesterPageLimit) {
       const { users, more } = await loadRequestersPage(requesterPage);
       
       // Process requesters and add to cache
@@ -295,11 +356,11 @@ async function fetchUsers() {
       requesterPage++;
     }
     
-    // Fetch agents (up to 200)
+    // Fetch agents
     let agentPage = 1;
     let hasMoreAgents = true;
     
-    while (hasMoreAgents && agentPage <= 2) {
+    while (hasMoreAgents && agentPage <= agentPageLimit) {
       const { users, more } = await loadAgentsPage(agentPage);
       
       // Process agents and add to cache
@@ -425,13 +486,10 @@ async function getUserDetails(userId) {
       console.log(`User ${userId} not found as requester, trying as agent...`);
     }
     
-    // If not found as requester, try as an agent
+    // If not found as requester, try as an agent using direct API call instead of template
     try {
-      const response = await window.client.request.invokeTemplate("getAgentDetails", {
-        context: {
-          agent_id: userId
-        }
-      });
+      // Use direct GET request since the template isn't available
+      const response = await window.client.request.get(`/api/v2/agents/${userId}`);
       
       if (response && response.response) {
         const parsedData = JSON.parse(response.response || '{}');
@@ -528,6 +586,7 @@ function initializeApp() {
             
             setupEventListeners();
             setupChangeTypeTooltips();
+            setupSettingsUI(); // Set up settings UI
             
             // Fetch and cache all locations and most frequently used users
             Promise.all([
@@ -1004,6 +1063,18 @@ function setupEventListeners() {
   // Confirmation Modal
   document.getElementById('edit-request').addEventListener('click', closeModal);
   document.getElementById('confirm-submit').addEventListener('click', submitChangeRequest);
+  
+  // Settings toggle (if exists)
+  const settingsToggle = document.getElementById('settings-toggle');
+  if (settingsToggle) {
+    settingsToggle.addEventListener('click', toggleSettingsPanel);
+  }
+  
+  // Settings save button (if exists)
+  const saveSettingsBtn = document.getElementById('save-settings');
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener('click', updateSettings);
+  }
   
   // Form inputs with auto-save
   document.getElementById('planned-start').addEventListener('change', function() {
@@ -2518,3 +2589,226 @@ document.addEventListener('DOMContentLoaded', function() {
   `;
   document.head.appendChild(style);
 });
+
+/**
+ * Get current settings with fallback to defaults
+ * @returns {Promise<Object>} - Current settings
+ */
+async function getSettings() {
+  try {
+    // Try to get settings from cache
+    const settings = await window.client.db.get(STORAGE_KEYS.SETTINGS_CACHE);
+    if (settings) {
+      console.log('Retrieved settings from cache');
+      return settings;
+    }
+    
+    // If not in cache, use defaults and save them
+    console.log('No settings found, using defaults');
+    await saveSettings(DEFAULT_SETTINGS);
+    return DEFAULT_SETTINGS;
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    return DEFAULT_SETTINGS;
+  }
+}
+
+/**
+ * Save settings to cache
+ * @param {Object} settings - Settings to save
+ * @returns {Promise<boolean>} - Success status
+ */
+async function saveSettings(settings) {
+  try {
+    // Update timestamp
+    settings.lastUpdated = Date.now();
+    await window.client.db.set(STORAGE_KEYS.SETTINGS_CACHE, settings);
+    console.log('Settings saved to cache');
+    return true;
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    return false;
+  }
+}
+
+/**
+ * Calculate safe API request counts based on rate limits
+ * @returns {Promise<Object>} - Object with calculated safe limits
+ */
+async function getSafeApiLimits() {
+  const settings = await getSettings();
+  const plan = settings.freshservicePlan.toLowerCase();
+  const safetyMargin = settings.apiSafetyMargin;
+  
+  // Get rate limits for the current plan
+  const limits = settings.rateLimits[plan] || settings.rateLimits.enterprise;
+  
+  // Calculate safe number of requests (applying safety margin)
+  return {
+    listAgentsPageLimit: Math.floor((limits.listAgents * safetyMargin) / 100), // Each page is 100 agents
+    listRequestersPageLimit: Math.floor((limits.listRequesters * safetyMargin) / 100) // Each page is 100 requesters
+  };
+}
+
+/**
+ * Create and add settings UI components
+ */
+function setupSettingsUI() {
+  console.log('Setting up settings UI');
+  
+  try {
+    // Create settings toggle button
+    const appContainer = document.querySelector('.app-container');
+    if (!appContainer) {
+      console.error('App container not found for settings UI');
+      return;
+    }
+    
+    // Add settings toggle button
+    const settingsButton = document.createElement('button');
+    settingsButton.id = 'settings-toggle';
+    settingsButton.className = 'btn btn-sm btn-outline-secondary settings-toggle-btn';
+    settingsButton.innerHTML = '<i class="fas fa-cog"></i> Settings';
+    settingsButton.style.position = 'fixed';
+    settingsButton.style.bottom = '20px';
+    settingsButton.style.right = '20px';
+    settingsButton.style.zIndex = '1000';
+    appContainer.appendChild(settingsButton);
+    
+    // Create settings panel (initially hidden)
+    const settingsPanel = document.createElement('div');
+    settingsPanel.id = 'settings-panel';
+    settingsPanel.className = 'card settings-panel';
+    settingsPanel.style.position = 'fixed';
+    settingsPanel.style.bottom = '70px';
+    settingsPanel.style.right = '20px';
+    settingsPanel.style.width = '300px';
+    settingsPanel.style.zIndex = '1000';
+    settingsPanel.style.display = 'none';
+    settingsPanel.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+    
+    // Populate settings panel content
+    settingsPanel.innerHTML = `
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">API Settings</h5>
+        <button type="button" class="btn-close" aria-label="Close" id="close-settings"></button>
+      </div>
+      <div class="card-body">
+        <form id="settings-form">
+          <div class="mb-3">
+            <label for="fs-plan" class="form-label">Freshservice Plan</label>
+            <select class="form-select" id="fs-plan">
+              <option value="starter">Starter</option>
+              <option value="growth">Growth</option>
+              <option value="pro">Pro</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
+            <div class="form-text">Select your Freshservice plan to set appropriate rate limits</div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="api-safety" class="form-label">API Safety Margin (${DEFAULT_SETTINGS.apiSafetyMargin * 100}%)</label>
+            <input type="range" class="form-range" id="api-safety" min="0.1" max="0.9" step="0.1" value="${DEFAULT_SETTINGS.apiSafetyMargin}">
+            <div class="form-text">Safety margin to prevent hitting API rate limits</div>
+          </div>
+          
+          <div class="mb-3">
+            <button type="button" class="btn btn-primary" id="save-settings">Save Settings</button>
+          </div>
+        </form>
+      </div>
+    `;
+    
+    appContainer.appendChild(settingsPanel);
+    
+    // Add close button listener
+    const closeBtn = document.getElementById('close-settings');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function() {
+        document.getElementById('settings-panel').style.display = 'none';
+      });
+    }
+    
+    // Load current settings
+    loadSettingsIntoForm();
+    
+  } catch (error) {
+    console.error('Error setting up settings UI:', error);
+  }
+}
+
+/**
+ * Toggle settings panel visibility
+ */
+function toggleSettingsPanel() {
+  const panel = document.getElementById('settings-panel');
+  if (panel) {
+    if (panel.style.display === 'none') {
+      panel.style.display = 'block';
+      loadSettingsIntoForm();
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+}
+
+/**
+ * Load settings into the form
+ */
+async function loadSettingsIntoForm() {
+  try {
+    const settings = await getSettings();
+    
+    // Set plan dropdown
+    const planSelect = document.getElementById('fs-plan');
+    if (planSelect) {
+      planSelect.value = settings.freshservicePlan;
+    }
+    
+    // Set safety margin slider
+    const safetySlider = document.getElementById('api-safety');
+    if (safetySlider) {
+      safetySlider.value = settings.apiSafetyMargin;
+    }
+    
+  } catch (error) {
+    console.error('Error loading settings into form:', error);
+  }
+}
+
+/**
+ * Update settings from form values
+ */
+async function updateSettings() {
+  try {
+    const settings = await getSettings();
+    
+    // Get plan from select
+    const planSelect = document.getElementById('fs-plan');
+    if (planSelect) {
+      settings.freshservicePlan = planSelect.value;
+    }
+    
+    // Get safety margin from slider
+    const safetySlider = document.getElementById('api-safety');
+    if (safetySlider) {
+      settings.apiSafetyMargin = parseFloat(safetySlider.value);
+    }
+    
+    // Save updated settings
+    await saveSettings(settings);
+    
+    // Show success message
+    showNotification('success', 'Settings updated successfully');
+    
+    // Hide settings panel
+    const panel = document.getElementById('settings-panel');
+    if (panel) {
+      panel.style.display = 'none';
+    }
+    
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    showNotification('error', 'Failed to update settings');
+  }
+}
