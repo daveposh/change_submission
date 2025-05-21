@@ -602,7 +602,7 @@ function searchRequesters(e) {
 
   client.request.invokeTemplate("getRequesters", {
     context: {
-      requester_query: searchTerm
+      requester_query: encodeURIComponent(searchTerm)
     }
   })
     .then(function(data) {
@@ -637,7 +637,7 @@ function searchAgents(e) {
 
   client.request.invokeTemplate("getAgents", {
     context: {
-      agent_query: searchTerm
+      agent_query: encodeURIComponent(searchTerm)
     }
   })
     .then(function(data) {
@@ -998,7 +998,7 @@ function searchAssets(e) {
   Promise.all([
     client.request.invokeTemplate("getAssets", {
       context: {
-        asset_query: searchTerm
+        asset_query: encodeURIComponent(searchTerm)
       }
     }).catch(error => {
       console.error('Asset search failed:', error);
@@ -1006,7 +1006,7 @@ function searchAssets(e) {
     }),
     client.request.invokeTemplate("getServices", {
       context: {
-        service_query: searchTerm
+        service_query: encodeURIComponent(searchTerm)
       }
     }).catch(error => {
       console.error('Service search failed:', error);
