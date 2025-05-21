@@ -641,31 +641,53 @@ function searchRequesters(e) {
   // Format and encode the query for Freshservice API
   const query = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
   
-  // Use invokeTemplate with path suffix to add query parameter
-  window.client.request.invokeTemplate("getRequesters", {
-    path_suffix: `?query=${query}`
-  })
-  .then(function(data) {
-    try {
-      if (!data) {
-        console.error('No data returned from requester search');
-        displaySearchResults('requester-results', [], selectRequester);
-        return;
+  // Show loading indicator
+  const resultsContainer = document.getElementById('requester-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Function to load results from a specific page
+  function loadPage(page = 1, allResults = []) {
+    // Use invokeTemplate with path suffix to add query parameter
+    window.client.request.invokeTemplate("getRequesters", {
+      path_suffix: `?query=${query}&page=${page}&per_page=30`
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from requester search');
+          displaySearchResults('requester-results', allResults, selectRequester);
+          return;
+        }
+        
+        const response = JSON.parse(data.response || '{"requesters":[]}');
+        const requesters = response && response.requesters ? response.requesters : [];
+        
+        // Combine with previous results
+        const combinedResults = [...allResults, ...requesters];
+        
+        // If we got a full page of results, there might be more
+        if (requesters.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
+          // Load next page
+          loadPage(page + 1, combinedResults);
+        } else {
+          // Display all results
+          displaySearchResults('requester-results', combinedResults, selectRequester);
+        }
+      } catch (error) {
+        console.error('Error parsing response:', error);
+        displaySearchResults('requester-results', allResults, selectRequester);
       }
-      
-      const response = JSON.parse(data.response || '{"requesters":[]}');
-      const requesters = response && response.requesters ? response.requesters : [];
-      displaySearchResults('requester-results', requesters, selectRequester);
-    } catch (error) {
-      console.error('Error parsing response:', error);
-      displaySearchResults('requester-results', [], selectRequester);
-    }
-  })
-  .catch(function(error) {
-    console.error('API request failed:', error);
-    displaySearchResults('requester-results', [], selectRequester);
-    handleErr(error);
-  });
+    })
+    .catch(function(error) {
+      console.error('API request failed:', error);
+      displaySearchResults('requester-results', allResults, selectRequester);
+      handleErr(error);
+    });
+  }
+  
+  // Start loading from page 1
+  loadPage(1, []);
 }
 
 /**
@@ -685,31 +707,53 @@ function searchAgents(e) {
   // Format and encode the query for Freshservice API
   const query = encodeURIComponent(`"~[first_name|last_name|email]:'${searchTerm}'"`);
   
-  // Use invokeTemplate with path suffix to add query parameter
-  window.client.request.invokeTemplate("getAgents", {
-    path_suffix: `?query=${query}`
-  })
-  .then(function(data) {
-    try {
-      if (!data) {
-        console.error('No data returned from agent search');
-        displaySearchResults('agent-results', [], selectAgent);
-        return;
+  // Show loading indicator
+  const resultsContainer = document.getElementById('agent-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Function to load results from a specific page
+  function loadPage(page = 1, allResults = []) {
+    // Use invokeTemplate with path suffix to add query parameter
+    window.client.request.invokeTemplate("getAgents", {
+      path_suffix: `?query=${query}&page=${page}&per_page=30`
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from agent search');
+          displaySearchResults('agent-results', allResults, selectAgent);
+          return;
+        }
+        
+        const response = JSON.parse(data.response || '{"agents":[]}');
+        const agents = response && response.agents ? response.agents : [];
+        
+        // Combine with previous results
+        const combinedResults = [...allResults, ...agents];
+        
+        // If we got a full page of results, there might be more
+        if (agents.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
+          // Load next page
+          loadPage(page + 1, combinedResults);
+        } else {
+          // Display all results
+          displaySearchResults('agent-results', combinedResults, selectAgent);
+        }
+      } catch (error) {
+        console.error('Error parsing response:', error);
+        displaySearchResults('agent-results', allResults, selectAgent);
       }
-      
-      const response = JSON.parse(data.response || '{"agents":[]}');
-      const agents = response && response.agents ? response.agents : [];
-      displaySearchResults('agent-results', agents, selectAgent);
-    } catch (error) {
-      console.error('Error parsing response:', error);
-      displaySearchResults('agent-results', [], selectAgent);
-    }
-  })
-  .catch(function(error) {
-    console.error('API request failed:', error);
-    displaySearchResults('agent-results', [], selectAgent);
-    handleErr(error);
-  });
+    })
+    .catch(function(error) {
+      console.error('API request failed:', error);
+      displaySearchResults('agent-results', allResults, selectAgent);
+      handleErr(error);
+    });
+  }
+  
+  // Start loading from page 1
+  loadPage(1, []);
 }
 
 /**
@@ -1069,44 +1113,95 @@ function searchAssets(e) {
   const assetQuery = encodeURIComponent(`"~[name|display_name]:'${searchTerm}'"`);
   const serviceQuery = encodeURIComponent(`"~[name|display_name]:'${searchTerm}'"`);
   
-  // Search for assets and services
-  Promise.all([
-    window.client.request.invokeTemplate("getAssets", {
-      path_suffix: `?query=${assetQuery}`
-    }).catch(error => {
-      console.error('Asset search failed:', error);
-      return { response: JSON.stringify({ assets: [] }) };
-    }),
-    window.client.request.invokeTemplate("getServices", {
-      path_suffix: `?query=${serviceQuery}`
-    }).catch(error => {
-      console.error('Service search failed:', error);
-      return { response: JSON.stringify({ services: [] }) };
+  // Show loading indicator
+  const resultsContainer = document.getElementById('asset-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Arrays to store all results from pagination
+  let allAssets = [];
+  let allServices = [];
+  
+  // Function to load assets from a specific page
+  function loadAssetsPage(page = 1) {
+    return window.client.request.invokeTemplate("getAssets", {
+      path_suffix: `?query=${assetQuery}&page=${page}&per_page=30`
     })
+    .then(function(data) {
+      if (!data || !data.response) {
+        return { assets: [] };
+      }
+      
+      try {
+        const response = JSON.parse(data.response);
+        const assets = response && response.assets ? response.assets : [];
+        
+        // Combine with previous results
+        allAssets = [...allAssets, ...assets];
+        
+        // If we got a full page of results, there might be more
+        if (assets.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
+          // Load next page
+          return loadAssetsPage(page + 1);
+        }
+        
+        return { assets: allAssets };
+      } catch (error) {
+        console.error('Error parsing assets response:', error);
+        return { assets: allAssets };
+      }
+    })
+    .catch(error => {
+      console.error('Asset search failed:', error);
+      return { assets: allAssets };
+    });
+  }
+  
+  // Function to load services from a specific page
+  function loadServicesPage(page = 1) {
+    return window.client.request.invokeTemplate("getServices", {
+      path_suffix: `?query=${serviceQuery}&page=${page}&per_page=30`
+    })
+    .then(function(data) {
+      if (!data || !data.response) {
+        return { services: [] };
+      }
+      
+      try {
+        const response = JSON.parse(data.response);
+        const services = response && response.services ? response.services : [];
+        
+        // Combine with previous results
+        allServices = [...allServices, ...services];
+        
+        // If we got a full page of results, there might be more
+        if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
+          // Load next page
+          return loadServicesPage(page + 1);
+        }
+        
+        return { services: allServices };
+      } catch (error) {
+        console.error('Error parsing services response:', error);
+        return { services: allServices };
+      }
+    })
+    .catch(error => {
+      console.error('Service search failed:', error);
+      return { services: allServices };
+    });
+  }
+  
+  // Start loading both assets and services from page 1
+  Promise.all([
+    loadAssetsPage(1),
+    loadServicesPage(1)
   ])
   .then(function([assetsResponse, servicesResponse]) {
     try {
-      // Safely parse the assets response
-      let assets = [];
-      if (assetsResponse && assetsResponse.response) {
-        try {
-          const assetData = JSON.parse(assetsResponse.response);
-          assets = assetData && assetData.assets ? assetData.assets : [];
-        } catch (parseError) {
-          console.error('Error parsing assets response:', parseError);
-        }
-      }
-      
-      // Safely parse the services response
-      let services = [];
-      if (servicesResponse && servicesResponse.response) {
-        try {
-          const serviceData = JSON.parse(servicesResponse.response);
-          services = serviceData && serviceData.services ? serviceData.services : [];
-        } catch (parseError) {
-          console.error('Error parsing services response:', parseError);
-        }
-      }
+      // Get assets and services from the responses
+      const assets = assetsResponse.assets || [];
+      const services = servicesResponse.services || [];
       
       // Combine both results with type information
       const combinedResults = [
