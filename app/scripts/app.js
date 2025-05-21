@@ -1000,11 +1000,15 @@ function searchAssets(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
+  // Format queries for both asset and service searches
+  const assetQuery = `"~[name|display_name]:'${searchTerm}'"`;
+  const serviceQuery = `"~[name|display_name]:'${searchTerm}'"`;
+
   // Search for assets and services
   Promise.all([
     client.request.invokeTemplate("getAssets", {
       context: {
-        asset_query: encodeURIComponent(searchTerm)
+        asset_query: assetQuery
       }
     }).catch(error => {
       console.error('Asset search failed:', error);
@@ -1012,7 +1016,7 @@ function searchAssets(e) {
     }),
     client.request.invokeTemplate("getServices", {
       context: {
-        service_query: encodeURIComponent(searchTerm)
+        service_query: serviceQuery
       }
     }).catch(error => {
       console.error('Service search failed:', error);
