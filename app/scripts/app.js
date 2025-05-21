@@ -638,8 +638,9 @@ function searchRequesters(e) {
     return;
   }
 
-  // Format and encode the query for Freshservice API - no quotes around ~[...]
-  const query = encodeURIComponent(`~[first_name|last_name|primary_email]:'${searchTerm}'`);
+  // Correctly encode the entire query string including quotes for Freshservice API
+  const queryStr = `~[first_name|last_name|primary_email]:'${searchTerm}'`;
+  const encodedQuery = encodeURIComponent(`"${queryStr}"`);
   
   // Show loading indicator
   const resultsContainer = document.getElementById('requester-results');
@@ -648,9 +649,9 @@ function searchRequesters(e) {
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
-    // Use invokeTemplate with path suffix to add query parameter - add quotes around the query in the URL
+    // Use invokeTemplate with path suffix to add query parameter
     window.client.request.invokeTemplate("getRequesters", {
-      path_suffix: `?query="${query}"&page=${page}&per_page=30`
+      path_suffix: `?query=${encodedQuery}&page=${page}&per_page=30`
     })
     .then(function(data) {
       try {
@@ -704,8 +705,9 @@ function searchAgents(e) {
     return;
   }
 
-  // Format and encode the query for Freshservice API - no quotes around ~[...]
-  const query = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  // Correctly encode the entire query string including quotes for Freshservice API
+  const queryStr = `~[first_name|last_name|email]:'${searchTerm}'`;
+  const encodedQuery = encodeURIComponent(`"${queryStr}"`);
   
   // Show loading indicator
   const resultsContainer = document.getElementById('agent-results');
@@ -714,9 +716,9 @@ function searchAgents(e) {
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
-    // Use invokeTemplate with path suffix to add query parameter - add quotes around the query in the URL
+    // Use invokeTemplate with path suffix to add query parameter
     window.client.request.invokeTemplate("getAgents", {
-      path_suffix: `?query="${query}"&page=${page}&per_page=30`
+      path_suffix: `?query=${encodedQuery}&page=${page}&per_page=30`
     })
     .then(function(data) {
       try {
@@ -1109,9 +1111,11 @@ function searchAssets(e) {
     return;
   }
 
-  // Format and encode the queries for Freshservice API - no quotes around ~[...]
-  const assetQuery = encodeURIComponent(`~[name|display_name]:'${searchTerm}'`);
-  const serviceQuery = encodeURIComponent(`~[name|display_name]:'${searchTerm}'`);
+  // Correctly encode the entire query string including quotes for Freshservice API
+  const assetQueryStr = `~[name|display_name]:'${searchTerm}'`;
+  const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
+  const encodedAssetQuery = encodeURIComponent(`"${assetQueryStr}"`);
+  const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
   
   // Show loading indicator
   const resultsContainer = document.getElementById('asset-results');
@@ -1125,7 +1129,7 @@ function searchAssets(e) {
   // Function to load assets from a specific page
   function loadAssetsPage(page = 1) {
     return window.client.request.invokeTemplate("getAssets", {
-      path_suffix: `?query="${assetQuery}"&page=${page}&per_page=30`
+      path_suffix: `?query=${encodedAssetQuery}&page=${page}&per_page=30`
     })
     .then(function(data) {
       if (!data || !data.response) {
@@ -1160,7 +1164,7 @@ function searchAssets(e) {
   // Function to load services from a specific page
   function loadServicesPage(page = 1) {
     return window.client.request.invokeTemplate("getServices", {
-      path_suffix: `?query="${serviceQuery}"&page=${page}&per_page=30`
+      path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
     })
     .then(function(data) {
       if (!data || !data.response) {
