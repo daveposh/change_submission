@@ -603,29 +603,28 @@ function searchRequesters(e) {
   // Format exactly as required by API documentation
   const query = `"~[first_name|last_name|primary_email]:'${searchTerm}'"`;
   const encodedQuery = encodeURIComponent(query);
-  const domain = window.iparam.freshservice_domain;
   
-  window.client.request.get(`https://${domain}/api/v2/requesters?query=${encodedQuery}`, {
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Basic " + btoa(window.iparam.api_key + ":X")
+  // Use the domain from app initialization
+  window.client.request.invokeTemplate("getRequesters", {
+    context: {
+      requester_query: query
     }
   })
-    .then(function(data) {
-      try {
-        const response = JSON.parse(data.response);
-        const requesters = response && response.requesters ? response.requesters : [];
-        displaySearchResults('requester-results', requesters, selectRequester);
-      } catch (error) {
-        console.error('Error parsing response:', error);
-        displaySearchResults('requester-results', [], selectRequester);
-      }
-    })
-    .catch(function(error) {
-      console.error('API request failed:', error);
+  .then(function(data) {
+    try {
+      const response = JSON.parse(data.response);
+      const requesters = response && response.requesters ? response.requesters : [];
+      displaySearchResults('requester-results', requesters, selectRequester);
+    } catch (error) {
+      console.error('Error parsing response:', error);
       displaySearchResults('requester-results', [], selectRequester);
-      handleErr(error);
-    });
+    }
+  })
+  .catch(function(error) {
+    console.error('API request failed:', error);
+    displaySearchResults('requester-results', [], selectRequester);
+    handleErr(error);
+  });
 }
 
 /**
@@ -638,29 +637,28 @@ function searchAgents(e) {
   // Format exactly as required by API documentation
   const query = `"~[first_name|last_name|email]:'${searchTerm}'"`;
   const encodedQuery = encodeURIComponent(query);
-  const domain = window.iparam.freshservice_domain;
   
-  window.client.request.get(`https://${domain}/api/v2/agents?query=${encodedQuery}`, {
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Basic " + btoa(window.iparam.api_key + ":X")
+  // Use the domain from app initialization
+  window.client.request.invokeTemplate("getAgents", {
+    context: {
+      agent_query: query
     }
   })
-    .then(function(data) {
-      try {
-        const response = JSON.parse(data.response);
-        const agents = response && response.agents ? response.agents : [];
-        displaySearchResults('agent-results', agents, selectAgent);
-      } catch (error) {
-        console.error('Error parsing response:', error);
-        displaySearchResults('agent-results', [], selectAgent);
-      }
-    })
-    .catch(function(error) {
-      console.error('API request failed:', error);
+  .then(function(data) {
+    try {
+      const response = JSON.parse(data.response);
+      const agents = response && response.agents ? response.agents : [];
+      displaySearchResults('agent-results', agents, selectAgent);
+    } catch (error) {
+      console.error('Error parsing response:', error);
       displaySearchResults('agent-results', [], selectAgent);
-      handleErr(error);
-    });
+    }
+  })
+  .catch(function(error) {
+    console.error('API request failed:', error);
+    displaySearchResults('agent-results', [], selectAgent);
+    handleErr(error);
+  });
 }
 
 /**
@@ -990,6 +988,9 @@ function validateRiskAndNext() {
   switchTab('impacted-assets');
 }
 
+/**
+ * Search for assets using Freshservice API
+ */
 function searchAssets(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
@@ -997,72 +998,67 @@ function searchAssets(e) {
   // Format queries for both asset and service searches
   const assetQuery = `"~[name|display_name]:'${searchTerm}'"`;
   const serviceQuery = `"~[name|display_name]:'${searchTerm}'"`;
-  const encodedAssetQuery = encodeURIComponent(assetQuery);
-  const encodedServiceQuery = encodeURIComponent(serviceQuery);
-  const domain = window.iparam.freshservice_domain;
   
   // Search for assets and services
   Promise.all([
-    window.client.request.get(`https://${domain}/api/v2/assets?query=${encodedAssetQuery}`, {
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Basic " + btoa(window.iparam.api_key + ":X")
+    window.client.request.invokeTemplate("getAssets", {
+      context: {
+        asset_query: assetQuery
       }
     }).catch(error => {
       console.error('Asset search failed:', error);
       return { response: JSON.stringify({ assets: [] }) };
     }),
-    window.client.request.get(`https://${domain}/api/v2/services?query=${encodedServiceQuery}`, {
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Basic " + btoa(window.iparam.api_key + ":X")
+    window.client.request.invokeTemplate("getServices", {
+      context: {
+        service_query: serviceQuery
       }
     }).catch(error => {
       console.error('Service search failed:', error);
       return { response: JSON.stringify({ services: [] }) };
     })
   ])
-    .then(function([assetsResponse, servicesResponse]) {
-      try {
-        // Safely parse the assets response
-        let assets = [];
-        if (assetsResponse && assetsResponse.response) {
-          try {
-            const assetData = JSON.parse(assetsResponse.response);
-            assets = assetData && assetData.assets ? assetData.assets : [];
-          } catch (parseError) {
-            console.error('Error parsing assets response:', parseError);
-          }
+  .then(function([assetsResponse, servicesResponse]) {
+    try {
+      // Safely parse the assets response
+      let assets = [];
+      if (assetsResponse && assetsResponse.response) {
+        try {
+          const assetData = JSON.parse(assetsResponse.response);
+          assets = assetData && assetData.assets ? assetData.assets : [];
+        } catch (parseError) {
+          console.error('Error parsing assets response:', parseError);
         }
-        
-        // Safely parse the services response
-        let services = [];
-        if (servicesResponse && servicesResponse.response) {
-          try {
-            const serviceData = JSON.parse(servicesResponse.response);
-            services = serviceData && serviceData.services ? serviceData.services : [];
-          } catch (parseError) {
-            console.error('Error parsing services response:', parseError);
-          }
-        }
-        
-        // Combine both results with type information
-        const combinedResults = [
-          ...assets.map(item => ({ ...item, type: 'asset' })),
-          ...services.map(item => ({ ...item, type: 'service' }))
-        ];
-        
-        displayAssetResults('asset-results', combinedResults, selectAsset);
-      } catch (error) {
-        console.error('Error processing search results:', error);
-        displayAssetResults('asset-results', [], selectAsset);
       }
-    })
-    .catch(function(error) {
-      console.error('Combined asset/service search failed:', error);
+      
+      // Safely parse the services response
+      let services = [];
+      if (servicesResponse && servicesResponse.response) {
+        try {
+          const serviceData = JSON.parse(servicesResponse.response);
+          services = serviceData && serviceData.services ? serviceData.services : [];
+        } catch (parseError) {
+          console.error('Error parsing services response:', parseError);
+        }
+      }
+      
+      // Combine both results with type information
+      const combinedResults = [
+        ...assets.map(item => ({ ...item, type: 'asset' })),
+        ...services.map(item => ({ ...item, type: 'service' }))
+      ];
+      
+      displayAssetResults('asset-results', combinedResults, selectAsset);
+    } catch (error) {
+      console.error('Error processing search results:', error);
       displayAssetResults('asset-results', [], selectAsset);
-      handleErr(error);
-    });
+    }
+  })
+  .catch(function(error) {
+    console.error('Combined asset/service search failed:', error);
+    displayAssetResults('asset-results', [], selectAsset);
+    handleErr(error);
+  });
 }
 
 function displayAssetResults(containerId, results, selectionCallback) {
