@@ -56,10 +56,29 @@ function initializeApp() {
   console.log('Starting app initialization...');
   
   try {
+    // Make sure window is defined
+    if (typeof window === 'undefined') {
+      console.error('Window object is not available');
+      return;
+    }
+
     // Initialize app client with proper error handling
-    window.client.initialized()
+    if (typeof app === 'undefined') {
+      console.error('App object is not available');
+      displayInitError('App initialization failed: app object not available');
+      return;
+    }
+    
+    app.initialized()
       .then(function getClient(_client) {
         console.log('App client initialized successfully');
+        
+        // Ensure client is stored in the window object for global access
+        if (typeof window === 'undefined') {
+          console.error('Window object is not available for client storage');
+          return;
+        }
+        
         window.client = _client;
         
         // IMPORTANT: Wait for DOM to be fully ready before setting up UI
@@ -77,6 +96,12 @@ function initializeApp() {
             setTimeout(() => {
               try {
                 console.log('Loading saved data...');
+                // Check for client before trying to load saved data
+                if (!window.client) {
+                  console.error('Client not available for loading data');
+                  return;
+                }
+                
                 loadSavedData().catch(err => {
                   console.error("Error in loadSavedData promise:", err);
                 });
@@ -92,18 +117,24 @@ function initializeApp() {
       .catch(function(initErr) {
         console.error("App client initialization failed:", initErr);
         // Try to show error without using client interface
-        try {
-          document.body.innerHTML += `
-            <div style="color: red; padding: 20px; border: 1px solid red; margin: 20px; background: #fff">
-              App initialization failed. Please refresh the page or contact support.
-            </div>
-          `;
-        } catch (e) {
-          console.error("Failed to show error message:", e);
-        }
+        displayInitError('App initialization failed. Please refresh the page or contact support.');
       });
   } catch (e) {
     console.error("Critical error during initialization:", e);
+    displayInitError('Critical initialization error: ' + (e.message || 'unknown error'));
+  }
+}
+
+// Helper function to display initialization errors without relying on the client
+function displayInitError(message) {
+  try {
+    document.body.innerHTML += `
+      <div style="color: red; padding: 20px; border: 1px solid red; margin: 20px; background: #fff">
+        ${message}
+      </div>
+    `;
+  } catch (e) {
+    console.error("Failed to show error message:", e);
   }
 }
 
@@ -600,6 +631,13 @@ function searchRequesters(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
+  // Ensure client is available
+  if (!window.client || !window.client.request) {
+    console.error('Client or request object not available for requester search');
+    handleErr('API client not initialized. Please refresh the page.');
+    return;
+  }
+
   // Format exactly as required by API documentation
   const query = `~[first_name|last_name|primary_email]:'${searchTerm}'`;
   
@@ -611,7 +649,13 @@ function searchRequesters(e) {
   })
   .then(function(data) {
     try {
-      const response = JSON.parse(data.response);
+      if (!data) {
+        console.error('No data returned from requester search');
+        displaySearchResults('requester-results', [], selectRequester);
+        return;
+      }
+      
+      const response = JSON.parse(data.response || '{"requesters":[]}');
       const requesters = response && response.requesters ? response.requesters : [];
       displaySearchResults('requester-results', requesters, selectRequester);
     } catch (error) {
@@ -633,6 +677,13 @@ function searchAgents(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
+  // Ensure client is available
+  if (!window.client || !window.client.request) {
+    console.error('Client or request object not available for agent search');
+    handleErr('API client not initialized. Please refresh the page.');
+    return;
+  }
+
   // Format exactly as required by API documentation
   const query = `~[first_name|last_name|email]:'${searchTerm}'`;
   
@@ -644,7 +695,13 @@ function searchAgents(e) {
   })
   .then(function(data) {
     try {
-      const response = JSON.parse(data.response);
+      if (!data) {
+        console.error('No data returned from agent search');
+        displaySearchResults('agent-results', [], selectAgent);
+        return;
+      }
+      
+      const response = JSON.parse(data.response || '{"agents":[]}');
       const agents = response && response.agents ? response.agents : [];
       displaySearchResults('agent-results', agents, selectAgent);
     } catch (error) {
@@ -667,6 +724,12 @@ function searchAgents(e) {
 async function getLocationName(locationId) {
   if (!locationId) return 'N/A';
   
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for location lookup');
+    return 'Unknown';
+  }
+  
   try {
     const response = await window.client.request.invokeTemplate("getLocation", {
       context: {
@@ -680,7 +743,7 @@ async function getLocationName(locationId) {
     }
     
     try {
-      const parsedData = JSON.parse(response.response);
+      const parsedData = JSON.parse(response.response || '{}');
       if (parsedData && parsedData.location && parsedData.location.name) {
         return parsedData.location.name;
       }
@@ -703,6 +766,12 @@ async function getLocationName(locationId) {
 async function getManagerName(managerId) {
   if (!managerId) return 'N/A';
   
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for manager lookup');
+    return 'Unknown';
+  }
+  
   try {
     const response = await window.client.request.invokeTemplate("getRequesterDetails", {
       context: {
@@ -716,7 +785,7 @@ async function getManagerName(managerId) {
     }
     
     try {
-      const parsedData = JSON.parse(response.response);
+      const parsedData = JSON.parse(response.response || '{}');
       if (parsedData && parsedData.requester) {
         const manager = parsedData.requester;
         return `${manager.first_name || ''} ${manager.last_name || ''}`.trim() || 'Unknown';
@@ -992,6 +1061,13 @@ function validateRiskAndNext() {
 function searchAssets(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
+
+  // Ensure client is available
+  if (!window.client || !window.client.request) {
+    console.error('Client or request object not available for asset search');
+    handleErr('API client not initialized. Please refresh the page.');
+    return;
+  }
 
   // Format queries for both asset and service searches
   const assetQuery = `~[name|display_name]:'${searchTerm}'`;
@@ -1335,7 +1411,7 @@ function showNotification(type, message) {
   
   try {
     // Only use client interface if it's fully initialized
-    if (window.client && window.client.interface && typeof window.client.interface.trigger === 'function') {
+    if (window && window.client && window.client.interface && typeof window.client.interface.trigger === 'function') {
       // Map error type to danger for Bootstrap
       const notificationType = type === 'error' ? 'danger' : type;
       const safeMessage = message || 'Notification';
