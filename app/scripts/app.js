@@ -45,9 +45,25 @@ const leadTimeText = {
   'non-standard': '2 business days'
 };
 
+// Load FontAwesome if not already loaded
+function loadFontAwesome() {
+  if (!document.querySelector('link[href*="fontawesome"]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+    link.integrity = 'sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==';
+    link.crossOrigin = 'anonymous';
+    link.referrerPolicy = 'no-referrer';
+    document.head.appendChild(link);
+    console.log('FontAwesome loaded');
+  }
+}
+
 document.onreadystatechange = function() {
   if (document.readyState === 'interactive') {
     console.log('Document ready, initializing app...');
+    // Load FontAwesome first
+    loadFontAwesome();
     setTimeout(initializeApp, 500); // Add slight delay before initialization
   }
 };
@@ -343,28 +359,43 @@ function populateFormFields() {
       const selectedContainer = safeGetElement('selected-requester');
       
       if (selectedContainer) {
-        // Create detailed requester info display
-        let requesterInfo = '';
+        // Create detailed requester info display with improved styling
+        let requesterInfo = `
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+              <div class="fw-bold">${requester.first_name} ${requester.last_name}</div>
+              <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${requester.email || requester.primary_email}</div>
+            </div>
+            <span class="badge bg-primary">Requester</span>
+          </div>
+        `;
         
-        // Basic info - check each property safely
-        const firstName = requester.first_name || '';
-        const lastName = requester.last_name || '';
-        const email = requester.email || requester.primary_email || '';
-        
-        requesterInfo = `${firstName} ${lastName} (${email})`;
-        
-        // Add additional details if available
+        // Add badges for additional details in a flex container
         const detailsList = [];
-        if (requester.job_title) detailsList.push(`Title: ${requester.job_title}`);
-        if (requester.location_name) detailsList.push(`Location: ${requester.location_name}`);
-        if (requester.manager_name) detailsList.push(`Manager: ${requester.manager_name}`);
+        
+        if (requester.job_title) {
+          detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-briefcase me-1"></i>${requester.job_title}</span>`);
+        }
+        
+        if (requester.location_name) {
+          detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-map-marker-alt me-1"></i>${requester.location_name}</span>`);
+        }
+        
+        if (requester.manager_name) {
+          detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-user-tie me-1"></i>${requester.manager_name}</span>`);
+        }
+        
+        if (requester.department_names && requester.department_names.length > 0) {
+          detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-building me-1"></i>${requester.department_names[0]}</span>`);
+        }
         
         if (detailsList.length > 0) {
-          requesterInfo += `<div class="selected-details">${detailsList.join(' | ')}</div>`;
+          requesterInfo += `<div class="d-flex flex-wrap gap-2 mt-1">${detailsList.join('')}</div>`;
         }
         
         selectedContainer.innerHTML = requesterInfo;
         selectedContainer.style.display = 'block';
+        selectedContainer.classList.add('p-2', 'border', 'rounded', 'bg-light');
       }
     }
     
@@ -374,28 +405,43 @@ function populateFormFields() {
       const selectedContainer = safeGetElement('selected-agent');
       
       if (selectedContainer) {
-        // Create detailed agent info display
-        let agentInfo = '';
+        // Create detailed agent info display with improved styling
+        let agentInfo = `
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div>
+              <div class="fw-bold">${agent.first_name} ${agent.last_name}</div>
+              <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${agent.email}</div>
+            </div>
+            <span class="badge bg-info">Agent</span>
+          </div>
+        `;
         
-        // Basic info - check each property safely
-        const firstName = agent.first_name || '';
-        const lastName = agent.last_name || '';
-        const email = agent.email || '';
-        
-        agentInfo = `${firstName} ${lastName} (${email})`;
-        
-        // Add additional details if available
+        // Add badges for additional details in a flex container
         const detailsList = [];
-        if (agent.job_title) detailsList.push(`Title: ${agent.job_title}`);
-        if (agent.location_name) detailsList.push(`Location: ${agent.location_name}`);
-        if (agent.manager_name) detailsList.push(`Manager: ${agent.manager_name}`);
+        
+        if (agent.job_title) {
+          detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-briefcase me-1"></i>${agent.job_title}</span>`);
+        }
+        
+        if (agent.location_name) {
+          detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-map-marker-alt me-1"></i>${agent.location_name}</span>`);
+        }
+        
+        if (agent.manager_name) {
+          detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-user-tie me-1"></i>${agent.manager_name}</span>`);
+        }
+        
+        if (agent.department_names && agent.department_names.length > 0) {
+          detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-building me-1"></i>${agent.department_names[0]}</span>`);
+        }
         
         if (detailsList.length > 0) {
-          agentInfo += `<div class="selected-details">${detailsList.join(' | ')}</div>`;
+          agentInfo += `<div class="d-flex flex-wrap gap-2 mt-1">${detailsList.join('')}</div>`;
         }
         
         selectedContainer.innerHTML = agentInfo;
         selectedContainer.style.display = 'block';
+        selectedContainer.classList.add('p-2', 'border', 'rounded', 'bg-light');
       }
     }
     
@@ -491,6 +537,9 @@ function setupEventListeners() {
   // We don't need to manually handle tab switching since Bootstrap will handle it
   // Just add listeners for the Next buttons to programmatically switch tabs
 
+  // Enhance search inputs with icons and styling
+  enhanceSearchInputs();
+
   // Change Details tab
   document.getElementById('requester-search').addEventListener('input', debounce(searchRequesters, 300));
   document.getElementById('agent-search').addEventListener('input', debounce(searchAgents, 300));
@@ -538,6 +587,66 @@ function setupEventListeners() {
     changeRequestData.validationPlan = this.value;
     saveCurrentData();
   }, 1000));
+}
+
+/**
+ * Enhance search inputs with icons and better styling
+ */
+function enhanceSearchInputs() {
+  // Add search icon and styling to search inputs
+  const searchInputs = [
+    { id: 'requester-search', placeholder: 'Search for a requester...', icon: 'user' },
+    { id: 'agent-search', placeholder: 'Search for an agent...', icon: 'user-tie' },
+    { id: 'asset-search', placeholder: 'Search for assets or services...', icon: 'desktop' }
+  ];
+  
+  searchInputs.forEach(item => {
+    const input = document.getElementById(item.id);
+    if (!input) return;
+    
+    // Create a wrapper div for the input group
+    const wrapper = document.createElement('div');
+    wrapper.className = 'input-group mb-3';
+    
+    // Create the icon span
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'input-group-text bg-light';
+    iconSpan.innerHTML = `<i class="fas fa-${item.icon}"></i>`;
+    
+    // Clone the original input to preserve event listeners
+    const newInput = input.cloneNode(true);
+    newInput.className = 'form-control';
+    newInput.placeholder = item.placeholder;
+    
+    // Copy event listeners from old to new input
+    const oldInputClone = input.cloneNode(true);
+    const events = getEventListeners(input);
+    
+    // Insert the new elements
+    wrapper.appendChild(iconSpan);
+    wrapper.appendChild(newInput);
+    
+    // Replace the old input with the wrapper
+    input.parentNode.replaceChild(wrapper, input);
+    
+    // Reattach event listeners
+    if (item.id === 'requester-search') {
+      newInput.addEventListener('input', debounce(searchRequesters, 300));
+    } else if (item.id === 'agent-search') {
+      newInput.addEventListener('input', debounce(searchAgents, 300));
+    } else if (item.id === 'asset-search') {
+      newInput.addEventListener('input', debounce(searchAssets, 300));
+    }
+  });
+}
+
+/**
+ * Helper function to get event listeners - simplified version
+ * since we know there's only an 'input' event we care about
+ */
+function getEventListeners(element) {
+  // This is a simplified function since we can't actually get event listeners directly
+  return ['input']; // We only care about input events in this case
 }
 
 function setupChangeTypeTooltips() {
@@ -890,22 +999,70 @@ function displaySearchResults(containerId, results, selectionCallback) {
   
   results.forEach(result => {
     const resultItem = document.createElement('div');
-    resultItem.className = 'list-group-item search-result-item';
+    resultItem.className = 'list-group-item search-result-item d-flex flex-column';
     
     // Basic information
     const email = result.email || result.primary_email || '';
-    resultItem.innerHTML = `
-      <div class="fw-bold">${result.first_name} ${result.last_name}</div>
-      <div class="text-secondary small">${email}</div>
-    `;
     
-    // Add job title if available
+    // Create a container for name and badges
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'd-flex justify-content-between align-items-center w-100';
+    
+    // Name with proper styling
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'fw-bold';
+    nameDiv.textContent = `${result.first_name} ${result.last_name}`;
+    headerDiv.appendChild(nameDiv);
+    
+    // Role/type badge
+    const roleDiv = document.createElement('div');
+    const type = containerId.includes('agent') ? 'Agent' : 'Requester';
+    roleDiv.innerHTML = `<span class="badge ${type === 'Agent' ? 'bg-info' : 'bg-primary'}">${type}</span>`;
+    headerDiv.appendChild(roleDiv);
+    
+    resultItem.appendChild(headerDiv);
+    
+    // Email
+    const emailDiv = document.createElement('div');
+    emailDiv.className = 'text-secondary small';
+    emailDiv.innerHTML = `<i class="fas fa-envelope me-1"></i>${email}`;
+    resultItem.appendChild(emailDiv);
+    
+    // Details container for additional info
+    const detailsContainer = document.createElement('div');
+    detailsContainer.className = 'mt-2 d-flex flex-wrap gap-2';
+    
+    // Add job title badge if available
     if (result.job_title) {
-      const jobTitle = document.createElement('div');
-      jobTitle.className = 'small text-muted result-detail';
-      jobTitle.textContent = `Title: ${result.job_title}`;
-      resultItem.appendChild(jobTitle);
+      const jobTitleBadge = document.createElement('span');
+      jobTitleBadge.className = 'badge bg-light text-dark border';
+      jobTitleBadge.innerHTML = `<i class="fas fa-briefcase me-1"></i>${result.job_title}`;
+      detailsContainer.appendChild(jobTitleBadge);
     }
+    
+    // Add department badge if available
+    if (result.department_names && result.department_names.length > 0) {
+      const deptBadge = document.createElement('span');
+      deptBadge.className = 'badge bg-light text-dark border';
+      deptBadge.innerHTML = `<i class="fas fa-building me-1"></i>${result.department_names[0]}`;
+      detailsContainer.appendChild(deptBadge);
+    }
+    
+    // Add location badge if available
+    if (result.location_name) {
+      const locBadge = document.createElement('span');
+      locBadge.className = 'badge bg-light text-dark border';
+      locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
+      detailsContainer.appendChild(locBadge);
+    }
+    
+    // Only add details container if we have any badges
+    if (detailsContainer.children.length > 0) {
+      resultItem.appendChild(detailsContainer);
+    }
+    
+    // Add hover effect and clickable styling
+    resultItem.classList.add('search-item-hover');
     
     // Store the full result object for selection
     resultItem.addEventListener('click', () => {
@@ -955,24 +1112,43 @@ function selectRequester(requester) {
   changeRequestData.requester = requester;
   const selectedContainer = document.getElementById('selected-requester');
   
-  // Create detailed requester info display
+  // Create detailed requester info display with improved styling
   let requesterInfo = `
-    <div class="fw-bold">${requester.first_name} ${requester.last_name}</div>
-    <div>${requester.email || requester.primary_email}</div>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <div class="fw-bold">${requester.first_name} ${requester.last_name}</div>
+        <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${requester.email || requester.primary_email}</div>
+      </div>
+      <span class="badge bg-primary">Requester</span>
+    </div>
   `;
   
-  // Add additional details if available
+  // Add badges for additional details in a flex container
   const detailsList = [];
-  if (requester.job_title) detailsList.push(`Title: ${requester.job_title}`);
-  if (requester.location_name) detailsList.push(`Location: ${requester.location_name}`);
-  if (requester.manager_name) detailsList.push(`Manager: ${requester.manager_name}`);
+  
+  if (requester.job_title) {
+    detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-briefcase me-1"></i>${requester.job_title}</span>`);
+  }
+  
+  if (requester.location_name) {
+    detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-map-marker-alt me-1"></i>${requester.location_name}</span>`);
+  }
+  
+  if (requester.manager_name) {
+    detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-user-tie me-1"></i>${requester.manager_name}</span>`);
+  }
+  
+  if (requester.department_names && requester.department_names.length > 0) {
+    detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-building me-1"></i>${requester.department_names[0]}</span>`);
+  }
   
   if (detailsList.length > 0) {
-    requesterInfo += `<div class="selected-details mt-2 text-secondary small">${detailsList.join(' | ')}</div>`;
+    requesterInfo += `<div class="d-flex flex-wrap gap-2 mt-1">${detailsList.join('')}</div>`;
   }
   
   selectedContainer.innerHTML = requesterInfo;
   selectedContainer.style.display = 'block';
+  selectedContainer.classList.add('p-2', 'border', 'rounded', 'bg-light');
   
   document.getElementById('requester-results').style.display = 'none';
   document.getElementById('requester-search').value = '';
@@ -985,24 +1161,43 @@ function selectAgent(agent) {
   changeRequestData.agent = agent;
   const selectedContainer = document.getElementById('selected-agent');
   
-  // Create detailed agent info display
+  // Create detailed agent info display with improved styling
   let agentInfo = `
-    <div class="fw-bold">${agent.first_name} ${agent.last_name}</div>
-    <div>${agent.email}</div>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <div class="fw-bold">${agent.first_name} ${agent.last_name}</div>
+        <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${agent.email}</div>
+      </div>
+      <span class="badge bg-info">Agent</span>
+    </div>
   `;
   
-  // Add additional details if available
+  // Add badges for additional details in a flex container
   const detailsList = [];
-  if (agent.job_title) detailsList.push(`Title: ${agent.job_title}`);
-  if (agent.location_name) detailsList.push(`Location: ${agent.location_name}`);
-  if (agent.manager_name) detailsList.push(`Manager: ${agent.manager_name}`);
+  
+  if (agent.job_title) {
+    detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-briefcase me-1"></i>${agent.job_title}</span>`);
+  }
+  
+  if (agent.location_name) {
+    detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-map-marker-alt me-1"></i>${agent.location_name}</span>`);
+  }
+  
+  if (agent.manager_name) {
+    detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-user-tie me-1"></i>${agent.manager_name}</span>`);
+  }
+  
+  if (agent.department_names && agent.department_names.length > 0) {
+    detailsList.push(`<span class="badge bg-light text-dark border"><i class="fas fa-building me-1"></i>${agent.department_names[0]}</span>`);
+  }
   
   if (detailsList.length > 0) {
-    agentInfo += `<div class="selected-details mt-2 text-secondary small">${detailsList.join(' | ')}</div>`;
+    agentInfo += `<div class="d-flex flex-wrap gap-2 mt-1">${detailsList.join('')}</div>`;
   }
   
   selectedContainer.innerHTML = agentInfo;
   selectedContainer.style.display = 'block';
+  selectedContainer.classList.add('p-2', 'border', 'rounded', 'bg-light');
   
   document.getElementById('agent-results').style.display = 'none';
   document.getElementById('agent-search').value = '';
@@ -1270,11 +1465,91 @@ function displayAssetResults(containerId, results, selectionCallback) {
   
   results.forEach(result => {
     const resultItem = document.createElement('div');
-    resultItem.className = 'list-group-item search-result-item';
-    resultItem.innerHTML = `
-      <div class="fw-bold">${result.name}</div>
-      <div class="text-secondary small">${result.type}</div>
-    `;
+    resultItem.className = 'list-group-item search-result-item d-flex flex-column search-item-hover';
+    
+    // Create a container for name and type badge
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'd-flex justify-content-between align-items-center w-100';
+    
+    // Name with proper styling
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'fw-bold';
+    nameDiv.textContent = result.name || result.display_name || 'Unnamed';
+    headerDiv.appendChild(nameDiv);
+    
+    // Type badge - different colors for asset vs service
+    const typeDiv = document.createElement('div');
+    const isAsset = result.type === 'asset';
+    typeDiv.innerHTML = `<span class="badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'}">${isAsset ? 'Asset' : 'Service'}</span>`;
+    headerDiv.appendChild(typeDiv);
+    
+    resultItem.appendChild(headerDiv);
+    
+    // Additional information based on asset type
+    const detailsContainer = document.createElement('div');
+    detailsContainer.className = 'mt-2 d-flex flex-wrap gap-2';
+    
+    // Different badges for different properties
+    if (result.asset_type_name) {
+      const typeBadge = document.createElement('span');
+      typeBadge.className = 'badge bg-light text-dark border';
+      typeBadge.innerHTML = `<i class="fas fa-tag me-1"></i>${result.asset_type_name}`;
+      detailsContainer.appendChild(typeBadge);
+    }
+    
+    if (result.product_name) {
+      const productBadge = document.createElement('span');
+      productBadge.className = 'badge bg-light text-dark border';
+      productBadge.innerHTML = `<i class="fas fa-box me-1"></i>${result.product_name}`;
+      detailsContainer.appendChild(productBadge);
+    }
+    
+    if (result.department_name) {
+      const deptBadge = document.createElement('span');
+      deptBadge.className = 'badge bg-light text-dark border';
+      deptBadge.innerHTML = `<i class="fas fa-building me-1"></i>${result.department_name}`;
+      detailsContainer.appendChild(deptBadge);
+    }
+    
+    if (result.location_name) {
+      const locBadge = document.createElement('span');
+      locBadge.className = 'badge bg-light text-dark border';
+      locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
+      detailsContainer.appendChild(locBadge);
+    }
+    
+    // Service-specific badges
+    if (!isAsset && result.category_name) {
+      const categoryBadge = document.createElement('span');
+      categoryBadge.className = 'badge bg-light text-dark border';
+      categoryBadge.innerHTML = `<i class="fas fa-folder me-1"></i>${result.category_name}`;
+      detailsContainer.appendChild(categoryBadge);
+    }
+    
+    // Status badge with appropriate color
+    if (result.status) {
+      const statusBadge = document.createElement('span');
+      let statusClass = 'bg-secondary';
+      
+      if (result.status.toLowerCase().includes('active') || 
+          result.status.toLowerCase().includes('in use')) {
+        statusClass = 'bg-success';
+      } else if (result.status.toLowerCase().includes('retired') || 
+                result.status.toLowerCase().includes('end')) {
+        statusClass = 'bg-danger';
+      } else if (result.status.toLowerCase().includes('pending')) {
+        statusClass = 'bg-warning text-dark';
+      }
+      
+      statusBadge.className = `badge ${statusClass}`;
+      statusBadge.innerHTML = `<i class="fas fa-circle me-1"></i>${result.status}`;
+      detailsContainer.appendChild(statusBadge);
+    }
+    
+    // Only add details container if we have any badges
+    if (detailsContainer.children.length > 0) {
+      resultItem.appendChild(detailsContainer);
+    }
     
     resultItem.addEventListener('click', () => selectionCallback(result));
     container.appendChild(resultItem);
@@ -1326,13 +1601,70 @@ function renderSelectedAssets() {
       // Safely get asset properties
       const assetName = asset.name || 'Unnamed Asset';
       const assetType = asset.type || 'unknown';
+      const isAsset = assetType === 'asset';
       
       const assetItem = document.createElement('div');
-      assetItem.className = 'asset-item d-flex justify-content-between align-items-center p-2 mb-2 bg-light rounded';
-      assetItem.innerHTML = `
-        <span class="me-2">${assetName} <span class="badge bg-secondary">${assetType}</span></span>
-        <button class="btn btn-sm btn-outline-danger remove-asset" data-index="${index}">✕</button>
-      `;
+      assetItem.className = 'asset-item mb-2 p-2 border rounded bg-light';
+      
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'd-flex justify-content-between align-items-center';
+      
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'fw-bold';
+      nameSpan.textContent = assetName;
+      
+      const badgeSpan = document.createElement('span');
+      badgeSpan.className = `badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'} me-2`;
+      badgeSpan.textContent = isAsset ? 'Asset' : 'Service';
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'btn btn-sm btn-outline-danger remove-asset';
+      removeBtn.innerHTML = '✕';
+      removeBtn.dataset.index = index;
+      
+      headerDiv.appendChild(nameSpan);
+      
+      const badgesDiv = document.createElement('div');
+      badgesDiv.className = 'd-flex align-items-center';
+      badgesDiv.appendChild(badgeSpan);
+      badgesDiv.appendChild(removeBtn);
+      
+      headerDiv.appendChild(badgesDiv);
+      assetItem.appendChild(headerDiv);
+      
+      // Add details if available
+      const detailsContainer = document.createElement('div');
+      detailsContainer.className = 'd-flex flex-wrap gap-2 mt-2';
+      let hasDetails = false;
+      
+      if (asset.asset_type_name) {
+        hasDetails = true;
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-light text-dark border';
+        badge.innerHTML = `<i class="fas fa-tag me-1"></i>${asset.asset_type_name}`;
+        detailsContainer.appendChild(badge);
+      }
+      
+      if (asset.product_name) {
+        hasDetails = true;
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-light text-dark border';
+        badge.innerHTML = `<i class="fas fa-box me-1"></i>${asset.product_name}`;
+        detailsContainer.appendChild(badge);
+      }
+      
+      if (asset.location_name) {
+        hasDetails = true;
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-light text-dark border';
+        badge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${asset.location_name}`;
+        detailsContainer.appendChild(badge);
+      }
+      
+      if (hasDetails) {
+        assetItem.appendChild(detailsContainer);
+      }
+      
       container.appendChild(assetItem);
     });
     
@@ -1650,3 +1982,25 @@ function getRiskBadgeClass(riskLevel) {
       return 'bg-secondary';
   }
 }
+
+// Add this CSS to the top of your file
+document.addEventListener('DOMContentLoaded', function() {
+  // Add custom CSS for hover effect
+  const style = document.createElement('style');
+  style.textContent = `
+    .search-item-hover {
+      transition: background-color 0.2s ease;
+      cursor: pointer;
+    }
+    .search-item-hover:hover {
+      background-color: #f8f9fa;
+    }
+    .search-result-item {
+      border-left: 3px solid transparent;
+    }
+    .search-result-item:hover {
+      border-left: 3px solid #0d6efd;
+    }
+  `;
+  document.head.appendChild(style);
+});
