@@ -66,6 +66,10 @@ function initializeApp() {
         setTimeout(() => {
           try {
             console.log('Setting up app components...');
+            
+            // Manually initialize Bootstrap tabs
+            initializeBootstrapTabs();
+            
             setupEventListeners();
             setupChangeTypeTooltips();
             
@@ -100,6 +104,67 @@ function initializeApp() {
       });
   } catch (e) {
     console.error("Critical error during initialization:", e);
+  }
+}
+
+/**
+ * Manually initialize Bootstrap tabs to avoid conflicts with Freshservice CSS
+ */
+function initializeBootstrapTabs() {
+  try {
+    console.log('Manually initializing Bootstrap tabs');
+    
+    // Get all tab buttons
+    const tabButtons = document.querySelectorAll('#changeTabs button[data-bs-toggle="tab"]');
+    
+    // Add click handlers to each button
+    tabButtons.forEach(button => {
+      button.addEventListener('click', function(event) {
+        event.preventDefault();
+        
+        // Get the target panel ID
+        const targetId = button.getAttribute('data-bs-target');
+        
+        // Hide all panels
+        document.querySelectorAll('.tab-pane').forEach(pane => {
+          pane.classList.remove('show', 'active');
+        });
+        
+        // Hide all active tab buttons
+        document.querySelectorAll('#changeTabs button').forEach(btn => {
+          btn.classList.remove('active');
+          btn.setAttribute('aria-selected', 'false');
+        });
+        
+        // Show the target panel
+        const targetPane = document.querySelector(targetId);
+        if (targetPane) {
+          targetPane.classList.add('show', 'active');
+        }
+        
+        // Show the active tab button
+        button.classList.add('active');
+        button.setAttribute('aria-selected', 'true');
+      });
+    });
+    
+    // Manually activate the first tab
+    const firstTab = document.querySelector('#changeTabs button:first-child');
+    if (firstTab) {
+      const targetId = firstTab.getAttribute('data-bs-target');
+      const targetPane = document.querySelector(targetId);
+      
+      if (targetPane) {
+        targetPane.classList.add('show', 'active');
+      }
+      
+      firstTab.classList.add('active');
+      firstTab.setAttribute('aria-selected', 'true');
+    }
+    
+    console.log('Bootstrap tabs initialized');
+  } catch (error) {
+    console.error('Error initializing Bootstrap tabs:', error);
   }
 }
 
@@ -484,75 +549,47 @@ function setupChangeTypeTooltips() {
 function switchTab(tabId) {
   console.log(`Switching to tab: ${tabId}`);
   try {
-    // Try using Bootstrap's tab functionality first
+    // Get the tab button that corresponds to this tabId
     const tabSelector = `#changeTabs button[data-bs-target="#${tabId}"]`;
     const tabElement = document.querySelector(tabSelector);
     
-    if (tabElement && window.bootstrap && typeof bootstrap.Tab === 'function') {
-      // Create a new Bootstrap Tab instance and show it
+    if (tabElement) {
+      // Hide all panels
+      document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('show', 'active');
+      });
+      
+      // Hide all active tab buttons
+      document.querySelectorAll('#changeTabs button').forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+      });
+      
+      // Show the target panel
+      const targetPane = document.getElementById(tabId);
+      if (targetPane) {
+        targetPane.classList.add('show', 'active');
+        console.log(`Activated tab pane: ${tabId}`);
+      }
+      
+      // Show the active tab button
+      tabElement.classList.add('active');
+      tabElement.setAttribute('aria-selected', 'true');
+      console.log(`Activated tab button for: ${tabId}`);
+      
+      // Save current tab in storage (if client is available)
       try {
-        const tab = new bootstrap.Tab(tabElement);
-        tab.show();
-        console.log('Tab switched using Bootstrap API');
-      } catch (bootstrapErr) {
-        console.error('Error using Bootstrap tab API:', bootstrapErr);
-        manuallyShowTab(tabId);
+        if (window.client && typeof window.client.db === 'object' && typeof window.client.db.set === 'function') {
+          saveCurrentData().catch(err => console.error('Error saving tab state:', err));
+        }
+      } catch (saveErr) {
+        console.error('Error saving tab state:', saveErr);
       }
     } else {
-      console.warn('Bootstrap tab feature not available, using fallback method');
-      manuallyShowTab(tabId);
-    }
-    
-    // Save current tab in storage (if client is available)
-    try {
-      if (window.client && typeof window.client.db === 'object' && typeof window.client.db.set === 'function') {
-        saveCurrentData().catch(err => console.error('Error saving tab state:', err));
-      }
-    } catch (saveErr) {
-      console.error('Error saving tab state:', saveErr);
+      console.error(`Tab element not found for: ${tabId}`);
     }
   } catch (tabErr) {
     console.error('Error switching tab:', tabErr);
-    // Last resort fallback
-    try {
-      manuallyShowTab(tabId);
-    } catch (e) {
-      console.error('Manual tab switching also failed:', e);
-    }
-  }
-}
-
-// Fallback function to manually activate a tab without Bootstrap
-function manuallyShowTab(tabId) {
-  console.log(`Manually showing tab: ${tabId}`);
-  try {
-    // Hide all tabs
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.classList.remove('show', 'active');
-    });
-    
-    // Hide all tab buttons
-    document.querySelectorAll('#changeTabs button').forEach(button => {
-      button.classList.remove('active');
-      button.setAttribute('aria-selected', 'false');
-    });
-    
-    // Show the target tab
-    const targetPane = document.getElementById(tabId);
-    if (targetPane) {
-      targetPane.classList.add('show', 'active');
-      console.log(`Activated tab pane: ${tabId}`);
-    }
-    
-    // Show the target tab button
-    const targetButton = document.querySelector(`button[data-bs-target="#${tabId}"]`);
-    if (targetButton) {
-      targetButton.classList.add('active');
-      targetButton.setAttribute('aria-selected', 'true');
-      console.log(`Activated tab button for: ${tabId}`);
-    }
-  } catch (e) {
-    console.error('Error in manual tab switching:', e);
   }
 }
 
