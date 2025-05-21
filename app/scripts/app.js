@@ -603,7 +603,7 @@ function searchRequesters(e) {
   // Format exactly as required by API documentation
   const query = `"~[first_name|last_name|primary_email]:'${searchTerm}'"`;
 
-  client.request.invokeTemplate("getRequesters", {
+  window.client.request.invokeTemplate("getRequesters", {
     context: {
       requester_query: query
     }
@@ -641,7 +641,7 @@ function searchAgents(e) {
   // Format exactly as required by API documentation
   const query = `"~[first_name|last_name|email]:'${searchTerm}'"`;
 
-  client.request.invokeTemplate("getAgents", {
+  window.client.request.invokeTemplate("getAgents", {
     context: {
       agent_query: query
     }
@@ -1006,7 +1006,7 @@ function searchAssets(e) {
 
   // Search for assets and services
   Promise.all([
-    client.request.invokeTemplate("getAssets", {
+    window.client.request.invokeTemplate("getAssets", {
       context: {
         asset_query: assetQuery
       }
@@ -1014,7 +1014,7 @@ function searchAssets(e) {
       console.error('Asset search failed:', error);
       return { response: JSON.stringify({ assets: [] }) };
     }),
-    client.request.invokeTemplate("getServices", {
+    window.client.request.invokeTemplate("getServices", {
       context: {
         service_query: serviceQuery
       }
