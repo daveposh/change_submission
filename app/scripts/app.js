@@ -98,6 +98,95 @@ document.onreadystatechange = function() {
   }
 };
 
+/**
+ * Fetch all locations from the API and store them in the cache
+ * @returns {Promise<Object>} - Cached locations
+ */
+async function fetchAllLocations() {
+  console.log('Fetching all locations from API');
+  
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for locations fetch');
+    return {};
+  }
+
+  try {
+    const allLocations = {};
+    let page = 1;
+    let hasMorePages = true;
+    
+    // Function to load locations from a specific page
+    async function loadLocationsPage(pageNum) {
+      console.log(`Loading locations page ${pageNum}`);
+      
+      try {
+        // Use raw request instead of invokeTemplate to access locations API
+        const response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
+        
+        if (!response || !response.response) {
+          console.error('Invalid locations response:', response);
+          return { locations: [], more: false };
+        }
+        
+        try {
+          const parsedData = JSON.parse(response.response || '{"locations":[]}');
+          const locations = parsedData.locations || [];
+          
+          // Check if we might have more pages (received full page of results)
+          const hasMore = locations.length === 100;
+          
+          return { locations, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing locations response:', parseError);
+          return { locations: [], more: false };
+        }
+      } catch (error) {
+        console.error(`Error fetching locations page ${pageNum}:`, error);
+        return { locations: [], more: false };
+      }
+    }
+    
+    // Load all pages of locations
+    while (hasMorePages) {
+      const { locations, more } = await loadLocationsPage(page);
+      
+      // Process locations and add to cache
+      locations.forEach(location => {
+        if (location && location.id && location.name) {
+          allLocations[location.id] = {
+            name: location.name,
+            timestamp: Date.now()
+          };
+        }
+      });
+      
+      // Check if we should load more pages
+      hasMorePages = more;
+      page++;
+      
+      // Safety check to prevent infinite loops
+      if (page > 10) {
+        console.warn('Reached maximum number of location pages (10)');
+        break;
+      }
+    }
+    
+    // Save all locations to cache
+    if (Object.keys(allLocations).length > 0) {
+      console.log(`Caching ${Object.keys(allLocations).length} locations`);
+      await cacheLocations(allLocations);
+    } else {
+      console.warn('No locations found to cache');
+    }
+    
+    return allLocations;
+  } catch (error) {
+    console.error('Error in fetchAllLocations:', error);
+    return {};
+  }
+}
+
 function initializeApp() {
   console.log('Starting app initialization...');
   
@@ -137,6 +226,11 @@ function initializeApp() {
             
             setupEventListeners();
             setupChangeTypeTooltips();
+            
+            // Fetch and cache all locations
+            fetchAllLocations().catch(err => {
+              console.error("Error in fetchAllLocations:", err);
+            });
             
             // Only attempt to load data after setup is complete
             setTimeout(() => {
@@ -930,7 +1024,7 @@ async function getLocationName(locationId) {
   if (!locationId) return 'N/A';
   
   // Check for client availability
-  if (!window.client || !window.client.request) {
+  if (!window.client || !window.client.db) {
     console.error('Client not available for location lookup');
     return 'Unknown';
   }
@@ -947,7 +1041,20 @@ async function getLocationName(locationId) {
     }
     
     // If not in cache or expired, fetch from API
-    console.log(`Fetching location ${locationId} from API`);
+    // But first, check if we can trigger a full refresh to benefit other locations too
+    if (Object.keys(cachedLocations).length === 0 || 
+        Object.values(cachedLocations).some(loc => loc.timestamp < Date.now() - CACHE_TIMEOUT)) {
+      console.log('Location cache expired or empty, fetching all locations');
+      const allLocations = await fetchAllLocations();
+      
+      // Check if our target location was included in the refresh
+      if (allLocations[locationId]) {
+        return allLocations[locationId].name;
+      }
+    }
+    
+    // If we still don't have the location after a refresh attempt, get it individually
+    console.log(`Fetching individual location ${locationId} from API`);
     const response = await window.client.request.invokeTemplate("getLocation", {
       context: {
         location_id: locationId
@@ -1247,8 +1354,8 @@ async function enhanceContactInfo(contact) {
     // Make a copy to avoid modifying the original
     const enhancedContact = { ...contact };
     
-    // Add location name if location ID exists
-    if (contact.location_id) {
+    // Add location name if location ID exists and location_name doesn't already exist
+    if (contact.location_id && !contact.location_name) {
       enhancedContact.location_name = await getLocationName(contact.location_id);
       console.log(`Enhanced contact with location: ${enhancedContact.location_name}`);
     }
