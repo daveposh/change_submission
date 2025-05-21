@@ -30,7 +30,7 @@ const STORAGE_KEYS = {
   CHANGE_DATA: 'change_request_data',
   DRAFT_ID: 'change_request_draft_id',
   LOCATION_CACHE: 'location_cache',
-  MANAGER_CACHE: 'manager_cache'
+  USER_CACHE: 'user_cache'
 };
 
 // Cache timeout in milliseconds (24 hours)
@@ -187,6 +187,212 @@ async function fetchAllLocations() {
   }
 }
 
+/**
+ * Fetch all users from the API and store them in the cache
+ * This may not fetch ALL users as there could be thousands
+ * but will pre-fetch a reasonable number to reduce API calls
+ * @returns {Promise<Object>} - Cached users
+ */
+async function fetchUsers() {
+  console.log('Fetching users from API');
+  
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for users fetch');
+    return {};
+  }
+
+  try {
+    const allUsers = {};
+    let page = 1;
+    let hasMorePages = true;
+    
+    // Function to load users from a specific page
+    async function loadUsersPage(pageNum) {
+      console.log(`Loading users page ${pageNum}`);
+      
+      try {
+        // Use raw request to access users API
+        const response = await window.client.request.get(`/api/v2/requesters?page=${pageNum}&per_page=100`);
+        
+        if (!response || !response.response) {
+          console.error('Invalid users response:', response);
+          return { users: [], more: false };
+        }
+        
+        try {
+          const parsedData = JSON.parse(response.response || '{"requesters":[]}');
+          const users = parsedData.requesters || [];
+          
+          // Check if we might have more pages (received full page of results)
+          const hasMore = users.length === 100;
+          
+          return { users, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing users response:', parseError);
+          return { users: [], more: false };
+        }
+      } catch (error) {
+        console.error(`Error fetching users page ${pageNum}:`, error);
+        return { users: [], more: false };
+      }
+    }
+    
+    // Load a reasonable number of pages - limit to 5 pages (500 users)
+    // to avoid excessive API calls for large organizations
+    while (hasMorePages && page <= 5) {
+      const { users, more } = await loadUsersPage(page);
+      
+      // Process users and add to cache
+      users.forEach(user => {
+        if (user && user.id) {
+          const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          allUsers[user.id] = {
+            name: displayName,
+            data: user, // Store full user data for potential future use
+            timestamp: Date.now()
+          };
+        }
+      });
+      
+      // Check if we should load more pages
+      hasMorePages = more;
+      page++;
+    }
+    
+    // Save all users to cache
+    if (Object.keys(allUsers).length > 0) {
+      console.log(`Caching ${Object.keys(allUsers).length} users`);
+      await cacheUsers(allUsers);
+    } else {
+      console.warn('No users found to cache');
+    }
+    
+    return allUsers;
+  } catch (error) {
+    console.error('Error in fetchUsers:', error);
+    return {};
+  }
+}
+
+/**
+ * Get cached users from storage
+ * @returns {Promise<Object>} - Cached users
+ */
+async function getCachedUsers() {
+  try {
+    // Try to get cached users
+    const result = await window.client.db.get(STORAGE_KEYS.USER_CACHE);
+    return result || {};
+  } catch (error) {
+    // If error or not found, return empty cache
+    console.log('No user cache found or error:', error);
+    return {};
+  }
+}
+
+/**
+ * Save users to cache
+ * @param {Object} users - Users to cache
+ * @returns {Promise<boolean>} - Success status
+ */
+async function cacheUsers(users) {
+  try {
+    await window.client.db.set(STORAGE_KEYS.USER_CACHE, users);
+    console.log('User cache updated');
+    return true;
+  } catch (error) {
+    console.error('Failed to save user cache:', error);
+    return false;
+  }
+}
+
+/**
+ * Get user details by ID with caching
+ * @param {number} userId - User ID 
+ * @returns {Promise<Object>} - User data or null
+ */
+async function getUserDetails(userId) {
+  if (!userId) return null;
+  
+  // Check for client availability
+  if (!window.client || !window.client.db) {
+    console.error('Client not available for user lookup');
+    return null;
+  }
+
+  try {
+    // Check cache first
+    const cachedUsers = await getCachedUsers();
+    
+    // If user is in cache and not expired, use it
+    if (cachedUsers[userId] && 
+        cachedUsers[userId].timestamp > Date.now() - CACHE_TIMEOUT) {
+      console.log(`Using cached user data: ${cachedUsers[userId].name}`);
+      return cachedUsers[userId].data;
+    }
+    
+    // If not in cache or expired, fetch from API
+    console.log(`Fetching user ${userId} from API`);
+    const response = await window.client.request.get(`/api/v2/requesters/${userId}`);
+    
+    if (!response || !response.response) {
+      console.error('Invalid user response:', response);
+      return null;
+    }
+    
+    try {
+      const parsedData = JSON.parse(response.response || '{}');
+      if (parsedData && parsedData.requester) {
+        const user = parsedData.requester;
+        const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+        
+        // Update cache
+        cachedUsers[userId] = {
+          name: userName,
+          data: user,
+          timestamp: Date.now()
+        };
+        await cacheUsers(cachedUsers);
+        
+        return user;
+      }
+      return null;
+    } catch (parseError) {
+      console.error('Error parsing user response:', parseError);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
+  }
+}
+
+/**
+ * Get user or manager name by ID with caching
+ * @param {number} userId - User ID 
+ * @returns {Promise<string>} - User name
+ */
+async function getUserName(userId) {
+  if (!userId) return 'N/A';
+  
+  const user = await getUserDetails(userId);
+  if (user) {
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+  }
+  return 'Unknown';
+}
+
+/**
+ * Get reporting manager name by ID with caching
+ * @param {number} managerId - Manager ID 
+ * @returns {Promise<string>} - Manager name
+ */
+async function getManagerName(managerId) {
+  // Since manager IDs are just user IDs, use the user cache/lookup
+  return await getUserName(managerId);
+}
+
 function initializeApp() {
   console.log('Starting app initialization...');
   
@@ -227,10 +433,15 @@ function initializeApp() {
             setupEventListeners();
             setupChangeTypeTooltips();
             
-            // Fetch and cache all locations
-            fetchAllLocations().catch(err => {
-              console.error("Error in fetchAllLocations:", err);
-            });
+            // Fetch and cache all locations and most frequently used users
+            Promise.all([
+              fetchAllLocations().catch(err => {
+                console.error("Error in fetchAllLocations:", err);
+              }),
+              fetchUsers().catch(err => {
+                console.error("Error in fetchUsers:", err);
+              })
+            ]);
             
             // Only attempt to load data after setup is complete
             setTimeout(() => {
@@ -1120,102 +1331,6 @@ async function cacheLocations(locations) {
 }
 
 /**
- * Get reporting manager name by ID with caching
- * @param {number} managerId - Manager ID 
- * @returns {Promise<string>} - Manager name
- */
-async function getManagerName(managerId) {
-  if (!managerId) return 'N/A';
-  
-  // Check for client availability
-  if (!window.client || !window.client.request) {
-    console.error('Client not available for manager lookup');
-    return 'Unknown';
-  }
-  
-  try {
-    // Check cache first
-    const cachedManagers = await getCachedManagers();
-    
-    // If manager is in cache and not expired, use it
-    if (cachedManagers[managerId] && 
-        cachedManagers[managerId].timestamp > Date.now() - CACHE_TIMEOUT) {
-      console.log(`Using cached manager: ${cachedManagers[managerId].name}`);
-      return cachedManagers[managerId].name;
-    }
-    
-    // If not in cache or expired, fetch from API
-    console.log(`Fetching manager ${managerId} from API`);
-    const response = await window.client.request.invokeTemplate("getRequesterDetails", {
-      context: {
-        requester_id: managerId
-      }
-    });
-    
-    if (!response || !response.response) {
-      console.error('Invalid manager response:', response);
-      return 'Unknown';
-    }
-    
-    try {
-      const parsedData = JSON.parse(response.response || '{}');
-      if (parsedData && parsedData.requester) {
-        const manager = parsedData.requester;
-        const managerName = `${manager.first_name || ''} ${manager.last_name || ''}`.trim() || 'Unknown';
-        
-        // Update cache
-        cachedManagers[managerId] = {
-          name: managerName,
-          timestamp: Date.now()
-        };
-        await cacheManagers(cachedManagers);
-        
-        return managerName;
-      }
-      return 'Unknown';
-    } catch (parseError) {
-      console.error('Error parsing manager response:', parseError);
-      return 'Unknown';
-    }
-  } catch (error) {
-    console.error('Error fetching manager:', error);
-    return 'Unknown';
-  }
-}
-
-/**
- * Get cached managers from storage
- * @returns {Promise<Object>} - Cached managers
- */
-async function getCachedManagers() {
-  try {
-    // Try to get cached managers
-    const result = await window.client.db.get(STORAGE_KEYS.MANAGER_CACHE);
-    return result || {};
-  } catch (error) {
-    // If error or not found, return empty cache
-    console.log('No manager cache found or error:', error);
-    return {};
-  }
-}
-
-/**
- * Save managers to cache
- * @param {Object} managers - Managers to cache
- * @returns {Promise<boolean>} - Success status
- */
-async function cacheManagers(managers) {
-  try {
-    await window.client.db.set(STORAGE_KEYS.MANAGER_CACHE, managers);
-    console.log('Manager cache updated');
-    return true;
-  } catch (error) {
-    console.error('Failed to save manager cache:', error);
-    return false;
-  }
-}
-
-/**
  * Display search results with enhanced information
  */
 function displaySearchResults(containerId, results, selectionCallback) {
@@ -1356,9 +1471,9 @@ async function enhanceContactInfo(contact) {
       console.log(`Enhanced contact with location: ${enhancedContact.location_name}`);
     }
     
-    // Add manager name if manager ID exists
-    if (contact.reporting_manager_id) {
-      enhancedContact.manager_name = await getManagerName(contact.reporting_manager_id);
+    // Add manager name if manager ID exists and manager_name doesn't already exist
+    if (contact.reporting_manager_id && !contact.manager_name) {
+      enhancedContact.manager_name = await getUserName(contact.reporting_manager_id);
       console.log(`Enhanced contact with manager: ${enhancedContact.manager_name}`);
     }
     
