@@ -10,7 +10,7 @@
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
-        "query": "\"<%= encode(requester_query) %>\""
+        "query": "<%=requester_query%>"
       }
     }
   },
@@ -25,7 +25,7 @@
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       },
       "query": {
-        "query": "\"<%= encode(agent_query) %>\""
+        "query": "<%=agent_query%>"
       }
     }
   },

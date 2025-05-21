@@ -600,12 +600,12 @@ function searchRequesters(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
-  // Format exactly as required by API: ~[fields]:'query'
-  const queryString = `~[first_name|last_name|email]:'${searchTerm}'`;
+  // Format exactly as required by API documentation
+  const query = `"~[first_name|last_name|primary_email]:'${searchTerm}'"`;
 
   client.request.invokeTemplate("getRequesters", {
     context: {
-      requester_query: queryString
+      requester_query: query
     }
   })
     .then(function(data) {
@@ -638,12 +638,12 @@ function searchAgents(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
-  // Format exactly as required by API: ~[fields]:'query'
-  const queryString = `~[first_name|last_name|email]:'${searchTerm}'`;
+  // Format exactly as required by API documentation
+  const query = `"~[first_name|last_name|email]:'${searchTerm}'"`;
 
   client.request.invokeTemplate("getAgents", {
     context: {
-      agent_query: queryString
+      agent_query: query
     }
   })
     .then(function(data) {
