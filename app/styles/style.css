@@ -11,74 +11,21 @@ body {
   line-height: 1.5;
 }
 
-/* Override Freshservice styles that conflict with Bootstrap */
-/* Force Bootstrap Tab System to work properly */
+/* Bootstrap enhancing styles */
+/* Keep tab styles consistent */
 .nav-tabs .nav-link {
-  cursor: pointer !important;
-  background-color: #f8f9fa !important;
-  border: 1px solid #dee2e6 !important;
-  border-bottom: none !important;
-  margin-bottom: -1px !important;
-  border-top-left-radius: 0.25rem !important;
-  border-top-right-radius: 0.25rem !important;
+  cursor: pointer;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-bottom: none;
+  margin-bottom: -1px;
 }
 
 .nav-tabs .nav-link.active {
-  background-color: #fff !important;
-  border-color: #dee2e6 #dee2e6 #fff !important;
-  color: #495057 !important;
-  font-weight: 500 !important;
-}
-
-.tab-content {
-  padding: 20px !important;
-  display: block !important;
-}
-
-.tab-pane {
-  display: none !important;
-}
-
-.tab-pane.active.show {
-  display: block !important;
-}
-
-/* Fix Bootstrap form controls */
-.form-control, .form-select {
-  display: block !important;
-  width: 100% !important;
-  padding: 0.375rem 0.75rem !important;
-  font-size: 1rem !important;
-  font-weight: 400 !important;
-  line-height: 1.5 !important;
-  background-color: #fff !important;
-  background-clip: padding-box !important;
-  border: 1px solid #ced4da !important;
-  appearance: auto !important;
-  border-radius: 0.25rem !important;
-  transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out !important;
-}
-
-/* Fix buttons */
-.btn {
-  cursor: pointer !important;
-  display: inline-block !important;
-  font-weight: 400 !important;
-  text-align: center !important;
-  white-space: nowrap !important;
-  vertical-align: middle !important;
-  user-select: none !important;
-  border: 1px solid transparent !important;
-  padding: 0.375rem 0.75rem !important;
-  font-size: 1rem !important;
-  line-height: 1.5 !important;
-  border-radius: 0.25rem !important;
-}
-
-.btn-primary {
-  color: #fff !important;
-  background-color: #0d6efd !important;
-  border-color: #0d6efd !important;
+  background-color: #fff;
+  border-color: #dee2e6 #dee2e6 #fff;
+  color: #495057;
+  font-weight: 500;
 }
 
 .fw-widget-wrapper {
@@ -124,11 +71,6 @@ h3 {
 
 .tab-content {
   padding: 24px;
-  display: none;
-}
-
-.tab-content.active {
-  display: block;
 }
 
 /* Form styling */
@@ -140,51 +82,6 @@ h3 {
   display: block;
   margin-bottom: 6px;
   font-weight: 500;
-}
-
-.fw-input, .fw-textarea, .fw-dropdown {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.fw-textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.form-actions {
-  margin-top: 30px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.fw-button {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  background-color: #f5f7f9;
-  color: #333;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
-}
-
-.fw-button:hover {
-  background-color: #e8edf2;
-}
-
-.fw-button--primary {
-  background-color: #2c5cc5;
-  color: white;
-  border-color: #2c5cc5;
-}
-
-.fw-button--primary:hover {
-  background-color: #1e4494;
 }
 
 /* Search and dropdown styling */
