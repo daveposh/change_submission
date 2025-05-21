@@ -602,7 +602,7 @@ function searchRequesters(e) {
 
   client.request.invokeTemplate("getRequesters", {
     context: {
-      requester_query: encodeURIComponent(searchTerm)
+      requester_query: searchTerm
     }
   })
     .then(function(data) {
@@ -637,7 +637,7 @@ function searchAgents(e) {
 
   client.request.invokeTemplate("getAgents", {
     context: {
-      agent_query: encodeURIComponent(searchTerm)
+      agent_query: searchTerm
     }
   })
     .then(function(data) {
