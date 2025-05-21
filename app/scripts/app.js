@@ -602,19 +602,16 @@ function searchRequesters(e) {
 
   // Format exactly as required by API documentation
   const query = `"~[first_name|last_name|primary_email]:'${searchTerm}'"`;
-
-  window.client.request.invokeTemplate("getRequesters", {
-    context: {
-      requester_query: query
+  const encodedQuery = encodeURIComponent(query);
+  const domain = window.iparam.freshservice_domain;
+  
+  window.client.request.get(`https://${domain}/api/v2/requesters?query=${encodedQuery}`, {
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Basic " + btoa(window.iparam.api_key + ":X")
     }
   })
     .then(function(data) {
-      if (!data || !data.response) {
-        console.error('Invalid response data:', data);
-        displaySearchResults('requester-results', [], selectRequester);
-        return;
-      }
-      
       try {
         const response = JSON.parse(data.response);
         const requesters = response && response.requesters ? response.requesters : [];
@@ -640,19 +637,16 @@ function searchAgents(e) {
 
   // Format exactly as required by API documentation
   const query = `"~[first_name|last_name|email]:'${searchTerm}'"`;
-
-  window.client.request.invokeTemplate("getAgents", {
-    context: {
-      agent_query: query
+  const encodedQuery = encodeURIComponent(query);
+  const domain = window.iparam.freshservice_domain;
+  
+  window.client.request.get(`https://${domain}/api/v2/agents?query=${encodedQuery}`, {
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Basic " + btoa(window.iparam.api_key + ":X")
     }
   })
     .then(function(data) {
-      if (!data || !data.response) {
-        console.error('Invalid response data:', data);
-        displaySearchResults('agent-results', [], selectAgent);
-        return;
-      }
-      
       try {
         const response = JSON.parse(data.response);
         const agents = response && response.agents ? response.agents : [];
@@ -1003,20 +997,25 @@ function searchAssets(e) {
   // Format queries for both asset and service searches
   const assetQuery = `"~[name|display_name]:'${searchTerm}'"`;
   const serviceQuery = `"~[name|display_name]:'${searchTerm}'"`;
-
+  const encodedAssetQuery = encodeURIComponent(assetQuery);
+  const encodedServiceQuery = encodeURIComponent(serviceQuery);
+  const domain = window.iparam.freshservice_domain;
+  
   // Search for assets and services
   Promise.all([
-    window.client.request.invokeTemplate("getAssets", {
-      context: {
-        asset_query: assetQuery
+    window.client.request.get(`https://${domain}/api/v2/assets?query=${encodedAssetQuery}`, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Basic " + btoa(window.iparam.api_key + ":X")
       }
     }).catch(error => {
       console.error('Asset search failed:', error);
       return { response: JSON.stringify({ assets: [] }) };
     }),
-    window.client.request.invokeTemplate("getServices", {
-      context: {
-        service_query: serviceQuery
+    window.client.request.get(`https://${domain}/api/v2/services?query=${encodedServiceQuery}`, {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Basic " + btoa(window.iparam.api_key + ":X")
       }
     }).catch(error => {
       console.error('Service search failed:', error);
