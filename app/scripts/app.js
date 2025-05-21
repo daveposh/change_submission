@@ -1055,11 +1055,7 @@ async function getLocationName(locationId) {
     
     // If we still don't have the location after a refresh attempt, get it individually
     console.log(`Fetching individual location ${locationId} from API`);
-    const response = await window.client.request.invokeTemplate("getLocation", {
-      context: {
-        location_id: locationId
-      }
-    });
+    const response = await window.client.request.get(`/api/v2/locations/${locationId}`);
     
     if (!response || !response.response) {
       console.error('Invalid location response:', response);
