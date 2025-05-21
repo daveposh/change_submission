@@ -82,7 +82,3 @@ The app uses Freshworks Data Storage API for persisting form data:
 - Automatically saves form data as the user progresses
 - Loads saved data when the app is reopened
 - Clears saved data after successful submission
-
-## License
-
-Copyright © 2023 Freshworks Inc.
