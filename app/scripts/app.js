@@ -638,9 +638,10 @@ function searchRequesters(e) {
     return;
   }
 
-  // Correctly encode the entire query string including quotes for Freshservice API
-  const queryStr = `~[first_name|last_name|primary_email]:'${searchTerm}'`;
-  const encodedQuery = encodeURIComponent(`"${queryStr}"`);
+  // Try a simpler approach - direct search by name
+  // Format 1: Try direct contains search
+  const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
+  console.log('Requester search with query:', encodedQuery);
   
   // Show loading indicator
   const resultsContainer = document.getElementById('requester-results');
@@ -650,8 +651,11 @@ function searchRequesters(e) {
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
+    const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
+    console.log('Requester API URL:', requestUrl);
+    
     window.client.request.invokeTemplate("getRequesters", {
-      path_suffix: `?query=${encodedQuery}&page=${page}&per_page=30`
+      path_suffix: requestUrl
     })
     .then(function(data) {
       try {
@@ -661,11 +665,23 @@ function searchRequesters(e) {
           return;
         }
         
+        console.log('Requester search raw response:', data.response);
         const response = JSON.parse(data.response || '{"requesters":[]}');
         const requesters = response && response.requesters ? response.requesters : [];
+        console.log(`Requester search returned ${requesters.length} results`);
+        
+        // Manual filtering if the API filtering isn't working
+        const filteredRequesters = requesters.filter(requester => {
+          const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
+          const email = (requester.primary_email || requester.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredRequesters.length} results`);
         
         // Combine with previous results
-        const combinedResults = [...allResults, ...requesters];
+        const combinedResults = [...allResults, ...filteredRequesters];
         
         // If we got a full page of results, there might be more
         if (requesters.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
@@ -705,9 +721,9 @@ function searchAgents(e) {
     return;
   }
 
-  // Correctly encode the entire query string including quotes for Freshservice API
-  const queryStr = `~[first_name|last_name|email]:'${searchTerm}'`;
-  const encodedQuery = encodeURIComponent(`"${queryStr}"`);
+  // Try a simpler approach - direct search by name
+  const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
+  console.log('Agent search with query:', encodedQuery);
   
   // Show loading indicator
   const resultsContainer = document.getElementById('agent-results');
@@ -717,8 +733,11 @@ function searchAgents(e) {
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
+    const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
+    console.log('Agent API URL:', requestUrl);
+    
     window.client.request.invokeTemplate("getAgents", {
-      path_suffix: `?query=${encodedQuery}&page=${page}&per_page=30`
+      path_suffix: requestUrl
     })
     .then(function(data) {
       try {
@@ -728,11 +747,23 @@ function searchAgents(e) {
           return;
         }
         
+        console.log('Agent search raw response:', data.response);
         const response = JSON.parse(data.response || '{"agents":[]}');
         const agents = response && response.agents ? response.agents : [];
+        console.log(`Agent search returned ${agents.length} results`);
+        
+        // Manual filtering if the API filtering isn't working
+        const filteredAgents = agents.filter(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredAgents.length} results`);
         
         // Combine with previous results
-        const combinedResults = [...allResults, ...agents];
+        const combinedResults = [...allResults, ...filteredAgents];
         
         // If we got a full page of results, there might be more
         if (agents.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
