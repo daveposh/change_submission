@@ -107,22 +107,51 @@ function initializeApp() {
  * Load saved change request data from the data storage
  */
 async function loadSavedData() {
+  console.log('Attempting to load saved data...');
+  
+  // First check if client is properly initialized
+  if (!window.client || !window.client.db || typeof window.client.db.get !== 'function') {
+    console.error('Client DB API not available for loading data');
+    return;
+  }
+  
   try {
-    const data = await client.db.get(STORAGE_KEYS.CHANGE_DATA);
-    if (data) {
+    // Try to get data with proper error handling
+    console.log('Requesting data from storage...');
+    const result = await window.client.db.get(STORAGE_KEYS.CHANGE_DATA);
+    
+    // Check if we have valid data
+    if (result && typeof result === 'object') {
+      console.log('Data retrieved successfully');
+      
       // Update the global data object with saved values
-      Object.keys(data).forEach(key => {
-        changeRequestData[key] = data[key];
+      Object.keys(result).forEach(key => {
+        changeRequestData[key] = result[key];
       });
       
       // Update the UI with saved data
-      populateFormFields();
-      showNotification('info', 'Draft change request data loaded');
+      try {
+        console.log('Populating form fields with saved data');
+        populateFormFields();
+        
+        // Only show notification after successfully populating the form
+        setTimeout(() => {
+          showNotification('info', 'Draft change request data loaded');
+        }, 500);
+        
+        return true; // Indicate success
+      } catch (formError) {
+        console.error('Error populating form with saved data:', formError);
+      }
+    } else {
+      console.log('No saved data found in storage');
+      return false;
     }
   } catch (error) {
-    // No saved data or error, just continue with empty form
-    console.log('No saved change request data found or error:', error);
-    // Don't rethrow - we want to continue with empty form
+    // Handle storage error but don't break the app
+    console.log('Error accessing saved data:', error);
+    // Don't show error notification as this is a normal condition for first-time users
+    return false;
   }
 }
 
@@ -130,12 +159,40 @@ async function loadSavedData() {
  * Save current change request data to the data storage
  */
 async function saveCurrentData() {
+  // Check if client DB is available before attempting to save
+  if (!window.client || !window.client.db || typeof window.client.db.set !== 'function') {
+    console.error('Client DB API not available for saving data');
+    return false;
+  }
+  
   try {
-    await client.db.set(STORAGE_KEYS.CHANGE_DATA, changeRequestData);
-    showNotification('success', 'Change request draft saved');
+    console.log('Saving current form data...');
+    await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, changeRequestData);
+    console.log('Form data saved successfully');
+    
+    // Only show notification 20% of the time to avoid too many notifications
+    if (Math.random() < 0.2) {
+      setTimeout(() => {
+        try {
+          showNotification('success', 'Change request draft saved');
+        } catch (notifyErr) {
+          console.warn('Could not show save notification:', notifyErr);
+        }
+      }, 300);
+    }
+    
+    return true;
   } catch (error) {
-    handleErr(error);
-    showNotification('error', 'Failed to save draft');
+    console.error('Failed to save draft:', error);
+    // Don't show error notification every time to avoid flooding user
+    if (Math.random() < 0.3) {
+      try {
+        showNotification('error', 'Failed to save draft');
+      } catch (notifyErr) {
+        console.warn('Could not show error notification:', notifyErr);
+      }
+    }
+    return false;
   }
 }
 
@@ -155,117 +212,190 @@ async function clearSavedData() {
  * Populate form fields with data from storage
  */
 function populateFormFields() {
-  // Populate requester if exists
-  if (changeRequestData.requester) {
-    const requester = changeRequestData.requester;
-    const selectedContainer = document.getElementById('selected-requester');
-    
-    // Create detailed requester info display
-    let requesterInfo = `${requester.first_name} ${requester.last_name} (${requester.email || requester.primary_email})`;
-    
-    // Add additional details if available
-    const detailsList = [];
-    if (requester.job_title) detailsList.push(`Title: ${requester.job_title}`);
-    if (requester.location_name) detailsList.push(`Location: ${requester.location_name}`);
-    if (requester.manager_name) detailsList.push(`Manager: ${requester.manager_name}`);
-    
-    if (detailsList.length > 0) {
-      requesterInfo += `<div class="selected-details">${detailsList.join(' | ')}</div>`;
+  console.log('Populating form fields with saved data');
+  
+  // Safely get a DOM element with null checking
+  function safeGetElement(id) {
+    const element = document.getElementById(id);
+    if (!element) {
+      console.warn(`Element not found: ${id}`);
+      return null;
     }
-    
-    selectedContainer.innerHTML = requesterInfo;
-    selectedContainer.style.display = 'block';
+    return element;
   }
   
-  // Populate agent if exists
-  if (changeRequestData.agent) {
-    const agent = changeRequestData.agent;
-    const selectedContainer = document.getElementById('selected-agent');
-    
-    // Create detailed agent info display
-    let agentInfo = `${agent.first_name} ${agent.last_name} (${agent.email})`;
-    
-    // Add additional details if available
-    const detailsList = [];
-    if (agent.job_title) detailsList.push(`Title: ${agent.job_title}`);
-    if (agent.location_name) detailsList.push(`Location: ${agent.location_name}`);
-    if (agent.manager_name) detailsList.push(`Manager: ${agent.manager_name}`);
-    
-    if (detailsList.length > 0) {
-      agentInfo += `<div class="selected-details">${detailsList.join(' | ')}</div>`;
+  // Safely set element value with null checking
+  function safeSetValue(id, value) {
+    const element = safeGetElement(id);
+    if (element && value !== undefined && value !== null) {
+      element.value = value;
     }
-    
-    selectedContainer.innerHTML = agentInfo;
-    selectedContainer.style.display = 'block';
   }
   
-  // Populate Change Type
-  const changeTypeSelect = document.getElementById('change-type');
-  if (changeRequestData.changeType) {
-    changeTypeSelect.value = changeRequestData.changeType;
-  }
-  document.getElementById('lead-time').textContent = changeRequestData.leadTime;
-  
-  // Populate dates
-  if (changeRequestData.plannedStart) {
-    document.getElementById('planned-start').value = changeRequestData.plannedStart;
+  // Safely set element text content with null checking
+  function safeSetText(id, text) {
+    const element = safeGetElement(id);
+    if (element && text !== undefined && text !== null) {
+      element.textContent = text;
+    }
   }
   
-  if (changeRequestData.plannedEnd) {
-    document.getElementById('planned-end').value = changeRequestData.plannedEnd;
+  // Safely set element display style
+  function safeSetDisplay(id, displayValue) {
+    const element = safeGetElement(id);
+    if (element) {
+      element.style.display = displayValue;
+    }
   }
   
-  // Populate text areas
-  document.getElementById('implementation-plan').value = changeRequestData.implementationPlan || '';
-  document.getElementById('backout-plan').value = changeRequestData.backoutPlan || '';
-  document.getElementById('validation-plan').value = changeRequestData.validationPlan || '';
-  
-  // Populate risk assessment
-  const riskAssessment = changeRequestData.riskAssessment;
-  if (riskAssessment) {
-    // Set radio buttons based on saved risk data
-    if (riskAssessment.businessImpact > 0) {
-      document.querySelector(`input[name="business-impact"][value="${riskAssessment.businessImpact}"]`).checked = true;
-    }
-    
-    if (riskAssessment.affectedUsers > 0) {
-      document.querySelector(`input[name="affected-users"][value="${riskAssessment.affectedUsers}"]`).checked = true;
-    }
-    
-    if (riskAssessment.complexity > 0) {
-      document.querySelector(`input[name="complexity"][value="${riskAssessment.complexity}"]`).checked = true;
-    }
-    
-    if (riskAssessment.testing > 0) {
-      document.querySelector(`input[name="testing"][value="${riskAssessment.testing}"]`).checked = true;
-    }
-    
-    if (riskAssessment.rollback > 0) {
-      document.querySelector(`input[name="rollback"][value="${riskAssessment.rollback}"]`).checked = true;
-    }
-    
-    // Show risk results if they exist
-    if (riskAssessment.totalScore > 0) {
-      document.getElementById('risk-score-value').textContent = riskAssessment.totalScore;
-      document.getElementById('risk-level-value').textContent = riskAssessment.riskLevel;
+  try {
+    // Populate requester if exists
+    if (changeRequestData.requester) {
+      const requester = changeRequestData.requester;
+      const selectedContainer = safeGetElement('selected-requester');
       
-      let riskExplanation = '';
-      if (riskAssessment.riskLevel === 'Low') {
-        riskExplanation = 'This change poses minimal risk to business operations and is likely to be implemented successfully.';
-      } else if (riskAssessment.riskLevel === 'Medium') {
-        riskExplanation = 'This change poses moderate risk to business operations. Consider additional testing or verification steps.';
-      } else {
-        riskExplanation = 'This change poses significant risk to business operations. A detailed review is recommended before proceeding.';
+      if (selectedContainer) {
+        // Create detailed requester info display
+        let requesterInfo = '';
+        
+        // Basic info - check each property safely
+        const firstName = requester.first_name || '';
+        const lastName = requester.last_name || '';
+        const email = requester.email || requester.primary_email || '';
+        
+        requesterInfo = `${firstName} ${lastName} (${email})`;
+        
+        // Add additional details if available
+        const detailsList = [];
+        if (requester.job_title) detailsList.push(`Title: ${requester.job_title}`);
+        if (requester.location_name) detailsList.push(`Location: ${requester.location_name}`);
+        if (requester.manager_name) detailsList.push(`Manager: ${requester.manager_name}`);
+        
+        if (detailsList.length > 0) {
+          requesterInfo += `<div class="selected-details">${detailsList.join(' | ')}</div>`;
+        }
+        
+        selectedContainer.innerHTML = requesterInfo;
+        selectedContainer.style.display = 'block';
+      }
+    }
+    
+    // Populate agent if exists
+    if (changeRequestData.agent) {
+      const agent = changeRequestData.agent;
+      const selectedContainer = safeGetElement('selected-agent');
+      
+      if (selectedContainer) {
+        // Create detailed agent info display
+        let agentInfo = '';
+        
+        // Basic info - check each property safely
+        const firstName = agent.first_name || '';
+        const lastName = agent.last_name || '';
+        const email = agent.email || '';
+        
+        agentInfo = `${firstName} ${lastName} (${email})`;
+        
+        // Add additional details if available
+        const detailsList = [];
+        if (agent.job_title) detailsList.push(`Title: ${agent.job_title}`);
+        if (agent.location_name) detailsList.push(`Location: ${agent.location_name}`);
+        if (agent.manager_name) detailsList.push(`Manager: ${agent.manager_name}`);
+        
+        if (detailsList.length > 0) {
+          agentInfo += `<div class="selected-details">${detailsList.join(' | ')}</div>`;
+        }
+        
+        selectedContainer.innerHTML = agentInfo;
+        selectedContainer.style.display = 'block';
+      }
+    }
+    
+    // Populate Change Type
+    const changeTypeSelect = safeGetElement('change-type');
+    if (changeTypeSelect && changeRequestData.changeType) {
+      changeTypeSelect.value = changeRequestData.changeType;
+    }
+    safeSetText('lead-time', changeRequestData.leadTime || '2 business days');
+    
+    // Populate dates
+    safeSetValue('planned-start', changeRequestData.plannedStart || '');
+    safeSetValue('planned-end', changeRequestData.plannedEnd || '');
+    
+    // Populate text areas
+    safeSetValue('implementation-plan', changeRequestData.implementationPlan || '');
+    safeSetValue('backout-plan', changeRequestData.backoutPlan || '');
+    safeSetValue('validation-plan', changeRequestData.validationPlan || '');
+    
+    // Populate risk assessment if it exists
+    const riskAssessment = changeRequestData.riskAssessment;
+    if (riskAssessment) {
+      // Set radio buttons based on saved risk data
+      try {
+        if (riskAssessment.businessImpact > 0) {
+          const radioElement = document.querySelector(`input[name="business-impact"][value="${riskAssessment.businessImpact}"]`);
+          if (radioElement) radioElement.checked = true;
+        }
+        
+        if (riskAssessment.affectedUsers > 0) {
+          const radioElement = document.querySelector(`input[name="affected-users"][value="${riskAssessment.affectedUsers}"]`);
+          if (radioElement) radioElement.checked = true;
+        }
+        
+        if (riskAssessment.complexity > 0) {
+          const radioElement = document.querySelector(`input[name="complexity"][value="${riskAssessment.complexity}"]`);
+          if (radioElement) radioElement.checked = true;
+        }
+        
+        if (riskAssessment.testing > 0) {
+          const radioElement = document.querySelector(`input[name="testing"][value="${riskAssessment.testing}"]`);
+          if (radioElement) radioElement.checked = true;
+        }
+        
+        if (riskAssessment.rollback > 0) {
+          const radioElement = document.querySelector(`input[name="rollback"][value="${riskAssessment.rollback}"]`);
+          if (radioElement) radioElement.checked = true;
+        }
+      } catch (radioErr) {
+        console.error('Error setting risk radio buttons:', radioErr);
       }
       
-      document.getElementById('risk-explanation').textContent = riskExplanation;
-      document.getElementById('risk-result').classList.remove('hidden');
+      // Show risk results if they exist
+      if (riskAssessment.totalScore > 0) {
+        safeSetText('risk-score-value', riskAssessment.totalScore);
+        
+        const riskLevelElement = safeGetElement('risk-level-value');
+        if (riskLevelElement) {
+          riskLevelElement.textContent = riskAssessment.riskLevel;
+          riskLevelElement.className = `badge ${getRiskBadgeClass(riskAssessment.riskLevel)}`;
+        }
+        
+        let riskExplanation = '';
+        if (riskAssessment.riskLevel === 'Low') {
+          riskExplanation = 'This change poses minimal risk to business operations and is likely to be implemented successfully.';
+        } else if (riskAssessment.riskLevel === 'Medium') {
+          riskExplanation = 'This change poses moderate risk to business operations. Consider additional testing or verification steps.';
+        } else {
+          riskExplanation = 'This change poses significant risk to business operations. A detailed review is recommended before proceeding.';
+        }
+        
+        safeSetText('risk-explanation', riskExplanation);
+        
+        const riskResultElement = safeGetElement('risk-result');
+        if (riskResultElement) {
+          riskResultElement.classList.remove('hidden');
+        }
+      }
     }
-  }
-  
-  // Populate selected assets
-  if (changeRequestData.selectedAssets && changeRequestData.selectedAssets.length > 0) {
-    renderSelectedAssets();
+    
+    // Populate selected assets
+    if (changeRequestData.selectedAssets && changeRequestData.selectedAssets.length > 0) {
+      renderSelectedAssets();
+    }
+    
+    console.log('Form populated successfully');
+  } catch (error) {
+    console.error('Error populating form fields:', error);
   }
 }
 
@@ -941,33 +1071,59 @@ function selectAsset(asset) {
 }
 
 function renderSelectedAssets() {
-  const container = document.getElementById('selected-assets');
-  container.innerHTML = '';
-  
-  if (changeRequestData.selectedAssets.length === 0) {
-    container.innerHTML = '<div class="empty-message text-secondary">No assets selected</div>';
-    return;
-  }
-  
-  changeRequestData.selectedAssets.forEach((asset, index) => {
-    const assetItem = document.createElement('div');
-    assetItem.className = 'asset-item d-flex justify-content-between align-items-center p-2 mb-2 bg-light rounded';
-    assetItem.innerHTML = `
-      <span class="me-2">${asset.name} <span class="badge bg-secondary">${asset.type}</span></span>
-      <button class="btn btn-sm btn-outline-danger remove-asset" data-index="${index}">✕</button>
-    `;
-    container.appendChild(assetItem);
-  });
-  
-  // Add event listeners to remove buttons
-  document.querySelectorAll('.remove-asset').forEach(button => {
-    button.addEventListener('click', function() {
-      const index = parseInt(this.dataset.index);
-      changeRequestData.selectedAssets.splice(index, 1);
-      renderSelectedAssets();
-      saveCurrentData();
+  try {
+    const container = document.getElementById('selected-assets');
+    if (!container) {
+      console.warn('Selected assets container not found');
+      return;
+    }
+    
+    container.innerHTML = '';
+    
+    // Check if we have valid asset data
+    if (!Array.isArray(changeRequestData.selectedAssets) || changeRequestData.selectedAssets.length === 0) {
+      container.innerHTML = '<div class="empty-message text-secondary">No assets selected</div>';
+      return;
+    }
+    
+    // Create elements for each asset
+    changeRequestData.selectedAssets.forEach((asset, index) => {
+      if (!asset || typeof asset !== 'object') {
+        console.warn(`Invalid asset data at index ${index}`);
+        return; // Skip invalid asset
+      }
+      
+      // Safely get asset properties
+      const assetName = asset.name || 'Unnamed Asset';
+      const assetType = asset.type || 'unknown';
+      
+      const assetItem = document.createElement('div');
+      assetItem.className = 'asset-item d-flex justify-content-between align-items-center p-2 mb-2 bg-light rounded';
+      assetItem.innerHTML = `
+        <span class="me-2">${assetName} <span class="badge bg-secondary">${assetType}</span></span>
+        <button class="btn btn-sm btn-outline-danger remove-asset" data-index="${index}">✕</button>
+      `;
+      container.appendChild(assetItem);
     });
-  });
+    
+    // Add event listeners to remove buttons
+    document.querySelectorAll('.remove-asset').forEach(button => {
+      button.addEventListener('click', function() {
+        try {
+          const index = parseInt(this.dataset.index, 10);
+          if (!isNaN(index) && index >= 0 && index < changeRequestData.selectedAssets.length) {
+            changeRequestData.selectedAssets.splice(index, 1);
+            renderSelectedAssets();
+            saveCurrentData().catch(err => console.error('Error saving after asset removal:', err));
+          }
+        } catch (e) {
+          console.error('Error removing asset:', e);
+        }
+      });
+    });
+  } catch (error) {
+    console.error('Error rendering selected assets:', error);
+  }
 }
 
 function showSummary() {
