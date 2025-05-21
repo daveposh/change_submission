@@ -57,7 +57,7 @@ function initializeApp() {
   
   try {
     // Initialize app client with proper error handling
-    app.initialized()
+    window.client.initialized()
       .then(function getClient(_client) {
         console.log('App client initialized successfully');
         window.client = _client;
@@ -266,7 +266,7 @@ async function saveCurrentData() {
  */
 async function clearSavedData() {
   try {
-    await client.db.delete(STORAGE_KEYS.CHANGE_DATA);
+    await window.client.db.delete(STORAGE_KEYS.CHANGE_DATA);
     console.log('Saved data cleared');
   } catch (error) {
     console.error('Error clearing saved data', error);
@@ -601,8 +601,7 @@ function searchRequesters(e) {
   if (searchTerm.length < 2) return;
 
   // Format exactly as required by API documentation
-  const query = `"~[first_name|last_name|primary_email]:'${searchTerm}'"`;
-  const encodedQuery = encodeURIComponent(query);
+  const query = `~[first_name|last_name|primary_email]:'${searchTerm}'`;
   
   // Use the domain from app initialization
   window.client.request.invokeTemplate("getRequesters", {
@@ -635,8 +634,7 @@ function searchAgents(e) {
   if (searchTerm.length < 2) return;
 
   // Format exactly as required by API documentation
-  const query = `"~[first_name|last_name|email]:'${searchTerm}'"`;
-  const encodedQuery = encodeURIComponent(query);
+  const query = `~[first_name|last_name|email]:'${searchTerm}'`;
   
   // Use the domain from app initialization
   window.client.request.invokeTemplate("getAgents", {
@@ -670,7 +668,7 @@ async function getLocationName(locationId) {
   if (!locationId) return 'N/A';
   
   try {
-    const response = await client.request.invokeTemplate("getLocation", {
+    const response = await window.client.request.invokeTemplate("getLocation", {
       context: {
         location_id: locationId
       }
@@ -706,7 +704,7 @@ async function getManagerName(managerId) {
   if (!managerId) return 'N/A';
   
   try {
-    const response = await client.request.invokeTemplate("getRequesterDetails", {
+    const response = await window.client.request.invokeTemplate("getRequesterDetails", {
       context: {
         requester_id: managerId
       }
@@ -996,8 +994,8 @@ function searchAssets(e) {
   if (searchTerm.length < 2) return;
 
   // Format queries for both asset and service searches
-  const assetQuery = `"~[name|display_name]:'${searchTerm}'"`;
-  const serviceQuery = `"~[name|display_name]:'${searchTerm}'"`;
+  const assetQuery = `~[name|display_name]:'${searchTerm}'`;
+  const serviceQuery = `~[name|display_name]:'${searchTerm}'`;
   
   // Search for assets and services
   Promise.all([
