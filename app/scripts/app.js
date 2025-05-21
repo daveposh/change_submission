@@ -204,19 +204,19 @@ async function fetchUsers() {
 
   try {
     const allUsers = {};
-    let page = 1;
-    let hasMorePages = true;
     
-    // Function to load users from a specific page
-    async function loadUsersPage(pageNum) {
-      console.log(`Loading users page ${pageNum}`);
+    // Function to load requesters from a specific page
+    async function loadRequestersPage(pageNum) {
+      console.log(`Loading requesters page ${pageNum}`);
       
       try {
-        // Use raw request to access users API
-        const response = await window.client.request.get(`/api/v2/requesters?page=${pageNum}&per_page=100`);
+        // Use invokeTemplate which is more reliable in Freshservice
+        const response = await window.client.request.invokeTemplate("getRequesters", {
+          path_suffix: `?page=${pageNum}&per_page=100`
+        });
         
         if (!response || !response.response) {
-          console.error('Invalid users response:', response);
+          console.error('Invalid requesters response:', response);
           return { users: [], more: false };
         }
         
@@ -229,40 +229,99 @@ async function fetchUsers() {
           
           return { users, more: hasMore };
         } catch (parseError) {
-          console.error('Error parsing users response:', parseError);
+          console.error('Error parsing requesters response:', parseError);
           return { users: [], more: false };
         }
       } catch (error) {
-        console.error(`Error fetching users page ${pageNum}:`, error);
+        console.error(`Error fetching requesters page ${pageNum}:`, error);
         return { users: [], more: false };
       }
     }
     
-    // Load a reasonable number of pages - limit to 5 pages (500 users)
-    // to avoid excessive API calls for large organizations
-    while (hasMorePages && page <= 5) {
-      const { users, more } = await loadUsersPage(page);
+    // Function to load agents from a specific page
+    async function loadAgentsPage(pageNum) {
+      console.log(`Loading agents page ${pageNum}`);
       
-      // Process users and add to cache
+      try {
+        // Use invokeTemplate for agents
+        const response = await window.client.request.invokeTemplate("getAgents", {
+          path_suffix: `?page=${pageNum}&per_page=100`
+        });
+        
+        if (!response || !response.response) {
+          console.error('Invalid agents response:', response);
+          return { users: [], more: false };
+        }
+        
+        try {
+          const parsedData = JSON.parse(response.response || '{"agents":[]}');
+          const users = parsedData.agents || [];
+          
+          // Check if we might have more pages (received full page of results)
+          const hasMore = users.length === 100;
+          
+          return { users, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing agents response:', parseError);
+          return { users: [], more: false };
+        }
+      } catch (error) {
+        console.error(`Error fetching agents page ${pageNum}:`, error);
+        return { users: [], more: false };
+      }
+    }
+    
+    // Fetch requesters (up to 300)
+    let requesterPage = 1;
+    let hasMoreRequesters = true;
+    
+    while (hasMoreRequesters && requesterPage <= 3) {
+      const { users, more } = await loadRequestersPage(requesterPage);
+      
+      // Process requesters and add to cache
       users.forEach(user => {
         if (user && user.id) {
           const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
           allUsers[user.id] = {
             name: displayName,
-            data: user, // Store full user data for potential future use
-            timestamp: Date.now()
+            data: user,
+            timestamp: Date.now(),
+            type: 'requester'
           };
         }
       });
       
-      // Check if we should load more pages
-      hasMorePages = more;
-      page++;
+      hasMoreRequesters = more;
+      requesterPage++;
+    }
+    
+    // Fetch agents (up to 200)
+    let agentPage = 1;
+    let hasMoreAgents = true;
+    
+    while (hasMoreAgents && agentPage <= 2) {
+      const { users, more } = await loadAgentsPage(agentPage);
+      
+      // Process agents and add to cache
+      users.forEach(user => {
+        if (user && user.id) {
+          const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          allUsers[user.id] = {
+            name: displayName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'agent'
+          };
+        }
+      });
+      
+      hasMoreAgents = more;
+      agentPage++;
     }
     
     // Save all users to cache
     if (Object.keys(allUsers).length > 0) {
-      console.log(`Caching ${Object.keys(allUsers).length} users`);
+      console.log(`Caching ${Object.keys(allUsers).length} users (${requesterPage-1} requester pages, ${agentPage-1} agent pages)`);
       await cacheUsers(allUsers);
     } else {
       console.warn('No users found to cache');
@@ -334,34 +393,71 @@ async function getUserDetails(userId) {
     
     // If not in cache or expired, fetch from API
     console.log(`Fetching user ${userId} from API`);
-    const response = await window.client.request.get(`/api/v2/requesters/${userId}`);
     
-    if (!response || !response.response) {
-      console.error('Invalid user response:', response);
-      return null;
-    }
-    
+    // First try to get the user as a requester
     try {
-      const parsedData = JSON.parse(response.response || '{}');
-      if (parsedData && parsedData.requester) {
-        const user = parsedData.requester;
-        const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-        
-        // Update cache
-        cachedUsers[userId] = {
-          name: userName,
-          data: user,
-          timestamp: Date.now()
-        };
-        await cacheUsers(cachedUsers);
-        
-        return user;
+      const response = await window.client.request.invokeTemplate("getRequesterDetails", {
+        context: {
+          requester_id: userId
+        }
+      });
+      
+      if (response && response.response) {
+        const parsedData = JSON.parse(response.response || '{}');
+        if (parsedData && parsedData.requester) {
+          const user = parsedData.requester;
+          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          
+          // Update cache
+          cachedUsers[userId] = {
+            name: userName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'requester'
+          };
+          await cacheUsers(cachedUsers);
+          
+          console.log(`Found user ${userId} as requester: ${userName}`);
+          return user;
+        }
       }
-      return null;
-    } catch (parseError) {
-      console.error('Error parsing user response:', parseError);
-      return null;
+    } catch (requesterErr) {
+      console.log(`User ${userId} not found as requester, trying as agent...`);
     }
+    
+    // If not found as requester, try as an agent
+    try {
+      const response = await window.client.request.invokeTemplate("getAgentDetails", {
+        context: {
+          agent_id: userId
+        }
+      });
+      
+      if (response && response.response) {
+        const parsedData = JSON.parse(response.response || '{}');
+        if (parsedData && parsedData.agent) {
+          const user = parsedData.agent;
+          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          
+          // Update cache
+          cachedUsers[userId] = {
+            name: userName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'agent'
+          };
+          await cacheUsers(cachedUsers);
+          
+          console.log(`Found user ${userId} as agent: ${userName}`);
+          return user;
+        }
+      }
+    } catch (agentErr) {
+      console.error(`User ${userId} not found as agent either:`, agentErr);
+    }
+    
+    console.error(`User ${userId} not found as either requester or agent`);
+    return null;
   } catch (error) {
     console.error('Error fetching user:', error);
     return null;
