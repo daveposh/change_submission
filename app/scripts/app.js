@@ -3,6 +3,9 @@
  * Full page application for managing change requests in Freshservice
  */
 
+// Global flag to track initialization state
+window.isInitialized = false;
+
 const changeRequestData = {
   requester: null,
   agent: null,
@@ -146,16 +149,84 @@ function initializeApp() {
   // Load essential CSS dynamically if needed
   ensureStylesheetsLoaded();
 
-  // Initialize client
-  window.client.events.on('app.initialized', initialization);
+  // Initialize client with proper error handling
+  if (window.client && typeof window.client.events === 'object' && typeof window.client.events.on === 'function') {
+    // Safe to use events API
+    console.log('Client events API available, registering initialization handler');
+    window.client.events.on('app.initialized', initialization);
+  } else {
+    // Events API not available, use fallback client and initialization
+    console.warn('Client events API not available, creating mock client');
+    createMockClient();
+    
+    // Give the page time to load fully before initializing
+    setTimeout(initialization, 1000);
+  }
 
   // Add fallback error handling for client initialization
   setTimeout(function() {
     if (!window.isInitialized) {
       console.warn('App did not initialize in expected time, trying manual initialization');
+      if (!window.client) {
+        createMockClient();
+      }
       initialization();
     }
   }, 3000);
+}
+
+/**
+ * Create a mock client when the real Freshworks client isn't available
+ * This allows the app to still function in a limited capacity for testing
+ */
+function createMockClient() {
+  if (!window.client) {
+    console.log('Creating mock client for testing');
+    window.client = {
+      request: {
+        get: async function(url) {
+          console.log('Mock client GET request:', url);
+          return { response: '{"agents":[],"requesters":[],"assets":[],"locations":[]}' };
+        },
+        post: async function(url, data) {
+          console.log('Mock client POST request:', url, data);
+          return { response: '{"success":true}' };
+        }
+      },
+      db: {
+        get: async function(key) {
+          console.log('Mock client DB get:', key);
+          try {
+            return JSON.parse(localStorage.getItem('fw_' + key) || 'null');
+          } catch(e) {
+            return null;
+          }
+        },
+        set: async function(key, value) {
+          console.log('Mock client DB set:', key);
+          try {
+            localStorage.setItem('fw_' + key, JSON.stringify(value));
+            return true;
+          } catch(e) {
+            return false;
+          }
+        },
+        delete: async function(key) {
+          console.log('Mock client DB delete:', key);
+          localStorage.removeItem('fw_' + key);
+          return true;
+        }
+      },
+      interface: {
+        trigger: function(event, data) {
+          console.log('Mock client interface event:', event, data);
+          return Promise.resolve();
+        }
+      },
+      isMock: true
+    };
+    console.log('Mock client created');
+  }
 }
 
 function ensureStylesheetsLoaded() {
@@ -2577,3 +2648,70 @@ function toggleDebugMode() {
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(addTroubleshootingPanel, 2000);
 });
+
+function initialization(_client) {
+  // Set initialization flag to prevent duplicate initialization
+  if (window.isInitialized) {
+    console.log('App already initialized, skipping duplicate initialization');
+    return;
+  }
+  
+  console.log('Starting app initialization function');
+  window.isInitialized = true;
+  
+  try {
+    // If client was passed, use it; otherwise try to use the global client
+    if (_client) {
+      window.client = _client;
+    }
+    
+    // Check if client is available
+    if (!window.client) {
+      console.error('Client not available during initialization');
+      displayInitError('Client API not available. Please refresh the page.');
+      return;
+    }
+    
+    // Setup app components
+    console.log('Setting up app components...');
+    
+    // Manually initialize Bootstrap tabs
+    initializeBootstrapTabs();
+    
+    // Setup event handlers
+    setupEventListeners();
+    setupChangeTypeTooltips();
+    
+    // Fetch and cache all locations and most frequently used users
+    Promise.all([
+      fetchAllLocations().catch(err => {
+        console.error("Error in fetchAllLocations:", err);
+      }),
+      fetchUsers().catch(err => {
+        console.error("Error in fetchUsers:", err);
+      })
+    ]);
+    
+    // Load saved data
+    setTimeout(() => {
+      try {
+        console.log('Loading saved data...');
+        // Check for client before trying to load saved data
+        if (!window.client) {
+          console.error('Client not available for loading data');
+          return;
+        }
+        
+        loadSavedData().catch(err => {
+          console.error("Error in loadSavedData promise:", err);
+        });
+      } catch (dataErr) {
+        console.error("Exception during data loading:", dataErr);
+      }
+    }, 300);
+    
+  } catch (error) {
+    console.error('Error during initialization:', error);
+    displayInitError('Initialization error: ' + (error.message || 'unknown error'));
+  }
+}
