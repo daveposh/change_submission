@@ -32,6 +32,40 @@
       color: #888;
       font-size: 14px;
     }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+    }
+    table th, table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    table th {
+      background-color: #f8f9fa;
+    }
+    .error-message {
+      color: #dc3545;
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+    }
+    .update-note {
+      background-color: #cce5ff;
+      border: 1px solid #b8daff;
+      color: #004085;
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin-top: 20px;
+    }
   </style>
 </head>
 
@@ -39,15 +73,28 @@
   <div class="container">
     <h1>Change Request App Configuration</h1>
     
-    <div class="card">
-      <p>This app uses the installation parameters configured during installation:</p>
-      <ul>
-        <li><strong>Freshservice Plan</strong>: Configures API rate limits based on your plan</li>
-        <li><strong>API Safety Margin</strong>: Sets a safety margin to prevent hitting API limits</li>
-        <li><strong>Inventory Software/Services Type ID</strong>: Determines which asset types to display</li>
-        <li><strong>Search Cache Timeout</strong>: Controls how long search results are cached</li>
-      </ul>
-      <p>To modify these settings, please reinstall the app or contact your administrator.</p>
+    <div id="error-message" class="error-message"></div>
+    
+    <div id="loading-message" class="loading">
+      <div class="spinner-border" role="status"></div>
+      <p>Loading configuration parameters...</p>
+    </div>
+    
+    <div id="params-container" class="card" style="display: none;">
+      <h2>Current Configuration</h2>
+      <p>These are the current settings for your Change Request App:</p>
+      
+      <table id="params-list">
+        <tr>
+          <th>Parameter</th>
+          <th>Value</th>
+          <th>Description</th>
+        </tr>
+      </table>
+      
+      <div class="update-note">
+        <p><strong>Note:</strong> To modify these settings, you need to reinstall the app. Contact your administrator for assistance.</p>
+      </div>
     </div>
 
     <div class="footer">
@@ -55,17 +102,6 @@
     </div>
   </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      app.initialized()
-        .then(function(_client) {
-          window.client = _client;
-          client.instance.resize({ height: "500px" });
-        })
-        .catch(function(error) {
-          console.error('Error during app initialization:', error);
-        });
-    });
-  </script>
+  <script src="app/scripts/config.js"></script>
 </body>
 </html> 
