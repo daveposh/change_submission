@@ -2129,7 +2129,8 @@ function searchAssets(e) {
   }
 
   // Correctly encode the entire query string including quotes for Freshservice API
-  const assetQueryStr = `~[name|display_name]:'${searchTerm}'`;
+  // Adding asset_type_id=33000752344 filter to search only specific asset type
+  const assetQueryStr = `asset_type_id:33000752344 AND ~[name|display_name]:'${searchTerm}'`;
   const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
   const encodedAssetQuery = encodeURIComponent(`"${assetQueryStr}"`);
   const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
@@ -2145,6 +2146,7 @@ function searchAssets(e) {
   
   // Function to load assets from a specific page
   function loadAssetsPage(page = 1) {
+    console.log(`Loading assets page ${page} with filter asset_type_id:33000752344`);
     return window.client.request.invokeTemplate("getAssets", {
       path_suffix: `?query=${encodedAssetQuery}&page=${page}&per_page=30`
     })
@@ -2156,6 +2158,7 @@ function searchAssets(e) {
       try {
         const response = JSON.parse(data.response);
         const assets = response && response.assets ? response.assets : [];
+        console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
         
         // Combine with previous results
         allAssets = [...allAssets, ...assets];
