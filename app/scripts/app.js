@@ -1130,36 +1130,86 @@ function setupChangeTypeTooltips() {
   const changeTypeSelect = document.getElementById('change-type');
   const changeTypeTooltip = document.getElementById('change-type-tooltip');
   
-  // Show tooltip for the default selected change type
+  // Ensure tooltip container has proper styling
+  if (changeTypeTooltip) {
+    // Apply better styling to the tooltip
+    changeTypeTooltip.style.padding = '10px 15px';
+    changeTypeTooltip.style.border = '1px solid #ccc';
+    changeTypeTooltip.style.borderRadius = '5px';
+    changeTypeTooltip.style.backgroundColor = '#f8f9fa';
+    changeTypeTooltip.style.marginTop = '10px';
+    changeTypeTooltip.style.fontSize = '0.9rem';
+    changeTypeTooltip.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+    changeTypeTooltip.style.maxWidth = '400px';
+  }
+  
+  // Show tooltip for the default selected change type immediately
   updateTooltipContent(changeTypeSelect.value);
   
-  // Show tooltip on hover or focus
-  changeTypeSelect.addEventListener('mouseenter', function() {
+  // Always display the tooltip after initialization
+  if (changeTypeTooltip) {
     changeTypeTooltip.style.display = 'block';
-  });
+  }
   
-  changeTypeSelect.addEventListener('mouseleave', function() {
-    if (!changeTypeSelect.matches(':focus')) {
-      changeTypeTooltip.style.display = 'none';
+  // Keep showing the tooltip on hover (doesn't hide it anymore)
+  changeTypeSelect.addEventListener('mouseenter', function() {
+    if (changeTypeTooltip) {
+      changeTypeTooltip.style.display = 'block';
     }
   });
   
+  // Keep showing the tooltip on focus (doesn't hide it anymore)
   changeTypeSelect.addEventListener('focus', function() {
-    changeTypeTooltip.style.display = 'block';
-  });
-  
-  changeTypeSelect.addEventListener('blur', function() {
-    changeTypeTooltip.style.display = 'none';
+    if (changeTypeTooltip) {
+      changeTypeTooltip.style.display = 'block';
+    }
   });
   
   function updateTooltipContent(changeType) {
-    changeTypeTooltip.textContent = changeTypeTooltips[changeType] || '';
-    changeTypeTooltip.style.display = 'block';
+    if (changeTypeTooltip) {
+      // Get tooltip content for the selected change type
+      const tooltipContent = changeTypeTooltips[changeType] || '';
+      
+      // Update tooltip content
+      changeTypeTooltip.textContent = tooltipContent;
+      
+      // Always show tooltip
+      changeTypeTooltip.style.display = 'block';
+      
+      // Add visual indication of selected type
+      changeTypeTooltip.className = ''; // Clear any existing classes
+      changeTypeTooltip.classList.add('tooltip-' + changeType);
+      
+      // Add a small indicator of the currently selected type
+      const typeLabel = document.createElement('div');
+      typeLabel.className = 'fw-bold mb-1';
+      typeLabel.textContent = 'Selected: ' + changeType.charAt(0).toUpperCase() + changeType.slice(1);
+      
+      // Wrap the tooltip text in a container
+      const tooltipContainer = document.createElement('div');
+      tooltipContainer.textContent = tooltipContent;
+      
+      // Clear the tooltip and add the new content
+      changeTypeTooltip.innerHTML = '';
+      changeTypeTooltip.appendChild(typeLabel);
+      changeTypeTooltip.appendChild(tooltipContainer);
+    }
   }
   
   // Update tooltip when change type changes
   changeTypeSelect.addEventListener('change', function() {
     updateTooltipContent(this.value);
+    
+    // Update lead time text
+    const leadTimeElement = document.getElementById('lead-time');
+    if (leadTimeElement) {
+      leadTimeElement.textContent = leadTimeText[this.value] || '2 business days';
+    }
+    
+    // Always ensure tooltip is visible after changing
+    if (changeTypeTooltip) {
+      changeTypeTooltip.style.display = 'block';
+    }
   });
 }
 
