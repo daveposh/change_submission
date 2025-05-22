@@ -36,69 +36,6 @@ const STORAGE_KEYS = {
 // Cache timeout in milliseconds (24 hours)
 const CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
 
-// Default search cache timeout in milliseconds (10 seconds)
-const DEFAULT_SEARCH_CACHE_TIMEOUT = 10000;
-
-// In-memory cache for search results
-const searchCache = {
-  requesters: {}, // Map of search term -> { results, timestamp }
-  agents: {}      // Map of search term -> { results, timestamp }
-};
-
-// Default rate limits if not configured during installation
-const DEFAULT_RATE_LIMITS = {
-  starter: {
-    overall: 100,
-    listTickets: 40,
-    viewTicket: 50,
-    createTicket: 50,
-    updateTicket: 50,
-    listAssets: 40,
-    updateAsset: 50,
-    listAgents: 40,
-    listRequesters: 40
-  },
-  growth: {
-    overall: 200,
-    listTickets: 70,
-    viewTicket: 80,
-    createTicket: 80,
-    updateTicket: 80,
-    listAssets: 70,
-    updateAsset: 80,
-    listAgents: 70,
-    listRequesters: 70
-  },
-  pro: {
-    overall: 400,
-    listTickets: 120,
-    viewTicket: 140,
-    createTicket: 140,
-    updateTicket: 140,
-    listAssets: 120,
-    updateAsset: 140,
-    listAgents: 120,
-    listRequesters: 120
-  },
-  enterprise: {
-    overall: 500,
-    listTickets: 140,
-    viewTicket: 160,
-    createTicket: 160,
-    updateTicket: 160,
-    listAssets: 140,
-    updateAsset: 160,
-    listAgents: 140,
-    listRequesters: 140
-  }
-};
-
-// Default safety margin (percentage of rate limit to use)
-const DEFAULT_SAFETY_MARGIN = 70; // Changed from 0.7 to 70 (percentage)
-
-// Default inventory software/services type ID
-const DEFAULT_INVENTORY_TYPE_ID = 33000752344;
-
 const changeTypeTooltips = {
   'standard': 'Standard Changes: All changes to critical assets > automate predefined/repeatable changes as much as possible',
   'non-production': 'Non-Production Changes: used for non-prod designated assets, such as a dev server for ceifx, or amptest',
@@ -116,13 +53,39 @@ const leadTimeText = {
 // Load FontAwesome if not already loaded
 function loadFontAwesome() {
   try {
-    console.log('Using bundled icons instead of loading FontAwesome externally');
-    
-    // Note: Icon classes are defined in app/styles/styles.css
-    // No need to generate them here anymore
-    console.log('Icon classes are defined in CSS file');
+    // Check if Font Awesome is already loaded
+    if (!document.querySelector('link[href*="fontawesome"]')) {
+      console.log('Loading FontAwesome...');
+      
+      // Use FDK-friendly approach to load external resources
+      // First create the link element
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+      
+      // Add it to the head
+      document.head.appendChild(link);
+      
+      console.log('FontAwesome loaded');
+    } else {
+      console.log('FontAwesome already loaded');
+    }
   } catch (error) {
-    console.error('Error setting up icons:', error);
+    // If there's an error loading Font Awesome, we'll provide fallback icons
+    console.error('Error loading FontAwesome:', error);
+    
+    // Add basic fallback icons using CSS
+    const style = document.createElement('style');
+    style.textContent = `
+      /* Fallback icons using CSS */
+      .icon-fallback-user:before { content: "👤"; }
+      .icon-fallback-email:before { content: "✉"; }
+      .icon-fallback-building:before { content: "🏢"; }
+      .icon-fallback-location:before { content: "📍"; }
+      .icon-fallback-desktop:before { content: "💻"; }
+      .icon-fallback-times:before { content: "✕"; }
+    `;
+    document.head.appendChild(style);
   }
 }
 
@@ -140,12 +103,11 @@ document.onreadystatechange = function() {
  * @returns {Promise<Object>} - Cached locations
  */
 async function fetchAllLocations() {
-  console.log('Fetching locations from API');
+  console.log('Fetching all locations from API');
   
   // Check for client availability
   if (!window.client || !window.client.request) {
     console.error('Client not available for locations fetch');
-    // Return an empty object without failing
     return {};
   }
 
@@ -159,39 +121,8 @@ async function fetchAllLocations() {
       console.log(`Loading locations page ${pageNum}`);
       
       try {
-        // Check that client and request methods are available
-        if (!window.client || !window.client.request) {
-          console.error('Client request API no longer available');
-          throw new Error('Client request API not available');
-        }
-        
-        // Try using direct GET first
-        let response;
-        
-        try {
-          // Check if get method exists
-          if (typeof window.client.request.get !== 'function') {
-            console.error('get method not available');
-            throw new Error('get method not available');
-          }
-          
-          console.log('Fetching locations using request.get()');
-          response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
-        } catch (getError) {
-          console.warn('Failed to use direct GET, falling back to invokeTemplate:', getError);
-          
-          // Check if invokeTemplate method exists
-          if (typeof window.client.request.invokeTemplate !== 'function') {
-            console.error('invokeTemplate method not available either');
-            throw new Error('Both get and invokeTemplate methods not available');
-          }
-          
-          // Fallback to invokeTemplate if get fails
-          console.log('Trying to fetch locations using invokeTemplate');
-          response = await window.client.request.invokeTemplate("getLocations", {
-            path_suffix: `?page=${pageNum}&per_page=100`
-          });
-        }
+        // Use raw request directly with properly formatted URL
+        const response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
         
         if (!response || !response.response) {
           console.error('Invalid locations response:', response);
@@ -252,7 +183,6 @@ async function fetchAllLocations() {
     return allLocations;
   } catch (error) {
     console.error('Error in fetchAllLocations:', error);
-    // Return an empty object without failing
     return {};
   }
 }
@@ -273,204 +203,66 @@ async function fetchUsers() {
   }
 
   try {
-    // Get safe API limits based on plan settings
-    const apiLimits = await getSafeApiLimits();
-    const requesterPageLimit = apiLimits.listRequestersPageLimit || 1;
-    const agentPageLimit = apiLimits.listAgentsPageLimit || 1;
-    
-    console.log(`Using rate limits: ${requesterPageLimit} requester pages, ${agentPageLimit} agent pages`);
-    
     const allUsers = {};
+    let page = 1;
+    let hasMorePages = true;
     
-    // Function to load requesters from a specific page
-    async function loadRequestersPage(pageNum) {
-      console.log(`Loading requesters page ${pageNum}`);
+    // Function to load users from a specific page
+    async function loadUsersPage(pageNum) {
+      console.log(`Loading users page ${pageNum}`);
       
       try {
-        // Debug client methods
-        if (window.client && window.client.request) {
-          console.log('Available client.request methods:', Object.keys(window.client.request));
-        } else {
-          console.error('Client request object not available:', window.client);
+        // Use raw request to access users API
+        const response = await window.client.request.get(`/api/v2/requesters?page=${pageNum}&per_page=100`);
+        
+        if (!response || !response.response) {
+          console.error('Invalid users response:', response);
           return { users: [], more: false };
         }
-
-        // Use window.client.request.get() directly as required
+        
         try {
-          console.log('Fetching requesters using request.get()');
-          const response = await window.client.request.get(`/api/v2/requesters?page=${pageNum}&per_page=100`);
+          const parsedData = JSON.parse(response.response || '{"requesters":[]}');
+          const users = parsedData.requesters || [];
           
-          if (!response || !response.response) {
-            console.error('Invalid requesters response:', response);
-            return { users: [], more: false };
-          }
+          // Check if we might have more pages (received full page of results)
+          const hasMore = users.length === 100;
           
-          try {
-            const parsedData = JSON.parse(response.response || '{"requesters":[]}');
-            const users = parsedData.requesters || [];
-            
-            // Check if we might have more pages (received full page of results)
-            const hasMore = users.length === 100;
-            
-            return { users, more: hasMore };
-          } catch (parseError) {
-            console.error('Error parsing requesters response:', parseError);
-            return { users: [], more: false };
-          }
-        } catch (getError) {
-          console.error('Error using request.get() for requesters:', getError);
-          
-          // Fallback to invokeTemplate only if get() fails
-          try {
-            console.log('Falling back to invokeTemplate method');
-            const response = await window.client.request.invokeTemplate("getRequesters", {
-              path_suffix: `?page=${pageNum}&per_page=100`
-            });
-            
-            if (!response || !response.response) {
-              console.error('Invalid requesters fallback response:', response);
-              return { users: [], more: false };
-            }
-            
-            try {
-              const parsedData = JSON.parse(response.response || '{"requesters":[]}');
-              const users = parsedData.requesters || [];
-              return { users, more: hasMore };
-            } catch (parseError) {
-              console.error('Error parsing requesters fallback response:', parseError);
-              return { users: [], more: false };
-            }
-          } catch (fallbackError) {
-            console.error('Complete failure fetching requesters:', fallbackError);
-            return { users: [], more: false };
-          }
+          return { users, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing users response:', parseError);
+          return { users: [], more: false };
         }
       } catch (error) {
-        console.error(`Error fetching requesters page ${pageNum}:`, error);
+        console.error(`Error fetching users page ${pageNum}:`, error);
         return { users: [], more: false };
       }
     }
     
-    // Function to load agents from a specific page
-    async function loadAgentsPage(pageNum) {
-      console.log(`Loading agents page ${pageNum}`);
+    // Load a reasonable number of pages - limit to 5 pages (500 users)
+    // to avoid excessive API calls for large organizations
+    while (hasMorePages && page <= 5) {
+      const { users, more } = await loadUsersPage(page);
       
-      try {
-        // Debug client methods
-        if (window.client && window.client.request) {
-          console.log('Available client.request methods:', Object.keys(window.client.request));
-        } else {
-          console.error('Client request object not available:', window.client);
-          return { users: [], more: false };
-        }
-
-        // Use window.client.request.get() directly as required
-        try {
-          console.log('Fetching agents using request.get()');
-          const response = await window.client.request.get(`/api/v2/agents?page=${pageNum}&per_page=100`);
-          
-          if (!response || !response.response) {
-            console.error('Invalid agents response:', response);
-            return { users: [], more: false };
-          }
-          
-          try {
-            const parsedData = JSON.parse(response.response || '{"agents":[]}');
-            const users = parsedData.agents || [];
-            
-            // Check if we might have more pages (received full page of results)
-            const hasMore = users.length === 100;
-            
-            return { users, more: hasMore };
-          } catch (parseError) {
-            console.error('Error parsing agents response:', parseError);
-            return { users: [], more: false };
-          }
-        } catch (getError) {
-          console.error('Error using request.get() for agents:', getError);
-          
-          // Fallback to invokeTemplate only if get() fails
-          try {
-            console.log('Falling back to invokeTemplate method');
-            const response = await window.client.request.invokeTemplate("getAgents", {
-              path_suffix: `?page=${pageNum}&per_page=100`
-            });
-            
-            if (!response || !response.response) {
-              console.error('Invalid agents fallback response:', response);
-              return { users: [], more: false };
-            }
-            
-            try {
-              const parsedData = JSON.parse(response.response || '{"agents":[]}');
-              const users = parsedData.agents || [];
-              return { users, more: hasMore };
-            } catch (parseError) {
-              console.error('Error parsing agents fallback response:', parseError);
-              return { users: [], more: false };
-            }
-          } catch (fallbackError) {
-            console.error('Complete failure fetching agents:', fallbackError);
-            return { users: [], more: false };
-          }
-        }
-      } catch (error) {
-        console.error(`Error fetching agents page ${pageNum}:`, error);
-        return { users: [], more: false };
-      }
-    }
-    
-    // Fetch requesters
-    let requesterPage = 1;
-    let hasMoreRequesters = true;
-    
-    while (hasMoreRequesters && requesterPage <= requesterPageLimit) {
-      const { users, more } = await loadRequestersPage(requesterPage);
-      
-      // Process requesters and add to cache
+      // Process users and add to cache
       users.forEach(user => {
         if (user && user.id) {
           const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
           allUsers[user.id] = {
             name: displayName,
-            data: user,
-            timestamp: Date.now(),
-            type: 'requester'
+            data: user, // Store full user data for potential future use
+            timestamp: Date.now()
           };
         }
       });
       
-      hasMoreRequesters = more;
-      requesterPage++;
-    }
-    
-    // Fetch agents
-    let agentPage = 1;
-    let hasMoreAgents = true;
-    
-    while (hasMoreAgents && agentPage <= agentPageLimit) {
-      const { users, more } = await loadAgentsPage(agentPage);
-      
-      // Process agents and add to cache
-      users.forEach(user => {
-        if (user && user.id) {
-          const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-          allUsers[user.id] = {
-            name: displayName,
-            data: user,
-            timestamp: Date.now(),
-            type: 'agent'
-          };
-        }
-      });
-      
-      hasMoreAgents = more;
-      agentPage++;
+      // Check if we should load more pages
+      hasMorePages = more;
+      page++;
     }
     
     // Save all users to cache
     if (Object.keys(allUsers).length > 0) {
-      console.log(`Caching ${Object.keys(allUsers).length} users (${requesterPage-1} requester pages, ${agentPage-1} agent pages)`);
+      console.log(`Caching ${Object.keys(allUsers).length} users`);
       await cacheUsers(allUsers);
     } else {
       console.warn('No users found to cache');
@@ -542,68 +334,34 @@ async function getUserDetails(userId) {
     
     // If not in cache or expired, fetch from API
     console.log(`Fetching user ${userId} from API`);
+    const response = await window.client.request.get(`/api/v2/requesters/${userId}`);
     
-    // First try to get the user as a requester
-    try {
-      const response = await window.client.request.invokeTemplate("getRequesterDetails", {
-        context: {
-          requester_id: userId
-        }
-      });
-      
-      if (response && response.response) {
-        const parsedData = JSON.parse(response.response || '{}');
-        if (parsedData && parsedData.requester) {
-          const user = parsedData.requester;
-          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-          
-          // Update cache
-          cachedUsers[userId] = {
-            name: userName,
-            data: user,
-            timestamp: Date.now(),
-            type: 'requester'
-          };
-          await cacheUsers(cachedUsers);
-          
-          console.log(`Found user ${userId} as requester: ${userName}`);
-          return user;
-        }
-      }
-    } catch (requesterErr) {
-      console.log(`User ${userId} not found as requester, trying as agent...`);
+    if (!response || !response.response) {
+      console.error('Invalid user response:', response);
+      return null;
     }
     
-    // If not found as requester, try as an agent using direct API call instead of template
     try {
-      // Use direct GET request since the template isn't available
-      const response = await window.client.request.get(`/api/v2/agents/${userId}`);
-      
-      if (response && response.response) {
-        const parsedData = JSON.parse(response.response || '{}');
-        if (parsedData && parsedData.agent) {
-          const user = parsedData.agent;
-          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-          
-          // Update cache
-          cachedUsers[userId] = {
-            name: userName,
-            data: user,
-            timestamp: Date.now(),
-            type: 'agent'
-          };
-          await cacheUsers(cachedUsers);
-          
-          console.log(`Found user ${userId} as agent: ${userName}`);
-          return user;
-        }
+      const parsedData = JSON.parse(response.response || '{}');
+      if (parsedData && parsedData.requester) {
+        const user = parsedData.requester;
+        const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+        
+        // Update cache
+        cachedUsers[userId] = {
+          name: userName,
+          data: user,
+          timestamp: Date.now()
+        };
+        await cacheUsers(cachedUsers);
+        
+        return user;
       }
-    } catch (agentErr) {
-      console.error(`User ${userId} not found as agent either:`, agentErr);
+      return null;
+    } catch (parseError) {
+      console.error('Error parsing user response:', parseError);
+      return null;
     }
-    
-    console.error(`User ${userId} not found as either requester or agent`);
-    return null;
   } catch (error) {
     console.error('Error fetching user:', error);
     return null;
@@ -635,7 +393,6 @@ async function getManagerName(managerId) {
   return await getUserName(managerId);
 }
 
-// Make sure app initialization properly loads the client API
 function initializeApp() {
   console.log('Starting app initialization...');
   
@@ -653,304 +410,82 @@ function initializeApp() {
       return;
     }
     
-    // Try to initialize the client with retries
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    function initializeClient() {
-      console.log(`Initializing app client (attempt ${retryCount + 1})...`);
-      
-      app.initialized()
-        .then(function getClient(_client) {
-          console.log('App client initialized successfully');
-          
-          // Enhanced debug logging - log all available client methods
-          if (_client) {
-            console.log('Available client methods:', Object.keys(_client));
+    app.initialized()
+      .then(function getClient(_client) {
+        console.log('App client initialized successfully');
+        
+        // Ensure client is stored in the window object for global access
+        if (typeof window === 'undefined') {
+          console.error('Window object is not available for client storage');
+          return;
+        }
+        
+        window.client = _client;
+        
+        // IMPORTANT: Wait for DOM to be fully ready before setting up UI
+        setTimeout(() => {
+          try {
+            console.log('Setting up app components...');
             
-            // Check for specific endpoints
-            ['events', 'request', 'db', 'interface', 'iparams'].forEach(endpoint => {
-              if (_client[endpoint]) {
-                console.log(`✓ Client endpoint '${endpoint}' is available`);
-                if (typeof _client[endpoint] === 'object') {
-                  console.log(`Methods on ${endpoint}:`, Object.keys(_client[endpoint]));
+            // Manually initialize Bootstrap tabs
+            initializeBootstrapTabs();
+            
+            setupEventListeners();
+            setupChangeTypeTooltips();
+            
+            // Fetch and cache all locations and most frequently used users
+            Promise.all([
+              fetchAllLocations().catch(err => {
+                console.error("Error in fetchAllLocations:", err);
+              }),
+              fetchUsers().catch(err => {
+                console.error("Error in fetchUsers:", err);
+              })
+            ]);
+            
+            // Only attempt to load data after setup is complete
+            setTimeout(() => {
+              try {
+                console.log('Loading saved data...');
+                // Check for client before trying to load saved data
+                if (!window.client) {
+                  console.error('Client not available for loading data');
+                  return;
                 }
-              } else {
-                console.error(`✗ Client endpoint '${endpoint}' is NOT available`);
+                
+                loadSavedData().catch(err => {
+                  console.error("Error in loadSavedData promise:", err);
+                });
+              } catch (dataErr) {
+                console.error("Exception during data loading:", dataErr);
               }
-            });
-          } else {
-            console.error('Client object is null or undefined!');
-            throw new Error('Client initialization returned empty client');
+            }, 300);
+          } catch (setupErr) {
+            console.error("Error during app setup:", setupErr);
           }
-          
-          // Store client in window object for global access
-          window.client = _client;
-          
-          // Setup fallback mechanisms for missing endpoints
-          setupClientFallbacks();
-          
-          // Continue with app setup
-          continueWithAppSetup();
-        })
-        .catch(function(initErr) {
-          console.error(`App client initialization failed (attempt ${retryCount + 1}):`, initErr);
-          
-          if (retryCount < maxRetries) {
-            // Retry initialization after a delay
-            retryCount++;
-            console.log(`Retrying client initialization in ${retryCount * 1000}ms...`);
-            setTimeout(initializeClient, retryCount * 1000);
-          } else {
-            console.error(`Failed to initialize client after ${maxRetries} attempts`);
-            displayInitError('App initialization failed. Please refresh the page or contact support.');
-            
-            // Try to continue with fallbacks
-            setupClientFallbacks();
-            continueWithAppSetup(true);
-          }
-        });
-    }
-    
-    // Start the initialization process
-    initializeClient();
-    
+        }, 300);
+      })
+      .catch(function(initErr) {
+        console.error("App client initialization failed:", initErr);
+        // Try to show error without using client interface
+        displayInitError('App initialization failed. Please refresh the page or contact support.');
+      });
   } catch (e) {
     console.error("Critical error during initialization:", e);
     displayInitError('Critical initialization error: ' + (e.message || 'unknown error'));
   }
 }
 
-// Set up fallbacks for missing client endpoints
-function setupClientFallbacks() {
+// Helper function to display initialization errors without relying on the client
+function displayInitError(message) {
   try {
-    // Create client object if it doesn't exist
-    if (!window.client) {
-      console.warn('Creating fallback client object');
-      window.client = {};
-    }
-    
-    // Create request endpoint if it doesn't exist
-    if (!window.client.request) {
-      console.warn('Creating fallback request endpoint');
-      window.client.request = {
-        get: function(url) {
-          console.error('Fallback request.get called - API not available:', url);
-          return Promise.reject(new Error('Client API not available'));
-        },
-        post: function(url, data) {
-          console.error('Fallback request.post called - API not available:', url, data);
-          return Promise.reject(new Error('Client API not available'));
-        },
-        put: function(url, data) {
-          console.error('Fallback request.put called - API not available:', url, data);
-          return Promise.reject(new Error('Client API not available'));
-        },
-        delete: function(url) {
-          console.error('Fallback request.delete called - API not available:', url);
-          return Promise.reject(new Error('Client API not available'));
-        },
-        invokeTemplate: function(templateName, options) {
-          console.error('Fallback invokeTemplate called - API not available:', templateName, options);
-          return Promise.reject(new Error('Client API not available'));
-        }
-      };
-    }
-    
-    // Create db endpoint if it doesn't exist
-    if (!window.client.db) {
-      console.warn('Creating fallback db endpoint');
-      
-      // Use localStorage as a fallback for db if available
-      const useLocalStorage = typeof localStorage !== 'undefined';
-      
-      window.client.db = {
-        get: function(key) {
-          console.warn('Fallback db.get called - using localStorage:', key);
-          if (useLocalStorage) {
-            try {
-              const value = localStorage.getItem(`app_fallback_${key}`);
-              return Promise.resolve(value ? JSON.parse(value) : null);
-            } catch (e) {
-              console.error('Error reading from localStorage:', e);
-              return Promise.resolve(null);
-            }
-          }
-          return Promise.resolve(null);
-        },
-        set: function(key, value) {
-          console.warn('Fallback db.set called - using localStorage:', key);
-          if (useLocalStorage) {
-            try {
-              localStorage.setItem(`app_fallback_${key}`, JSON.stringify(value));
-              return Promise.resolve(true);
-            } catch (e) {
-              console.error('Error writing to localStorage:', e);
-              return Promise.resolve(false);
-            }
-          }
-          return Promise.resolve(false);
-        },
-        delete: function(key) {
-          console.warn('Fallback db.delete called - using localStorage:', key);
-          if (useLocalStorage) {
-            try {
-              localStorage.removeItem(`app_fallback_${key}`);
-              return Promise.resolve(true);
-            } catch (e) {
-              console.error('Error deleting from localStorage:', e);
-              return Promise.resolve(false);
-            }
-          }
-          return Promise.resolve(false);
-        }
-      };
-    }
-    
-    // Create interface endpoint if it doesn't exist
-    if (!window.client.interface) {
-      console.warn('Creating fallback interface endpoint');
-      window.client.interface = {
-        trigger: function(event, data) {
-          console.warn('Fallback interface.trigger called:', event, data);
-          
-          // Special handling for notifications
-          if (event === 'showNotify') {
-            try {
-              // Create a simple alert for notifications
-              const message = data.message || 'Notification';
-              const type = data.type || 'info';
-              
-              console.log(`NOTIFICATION (${type}): ${message}`);
-              
-              // Create a simple notification element
-              const notificationDiv = document.createElement('div');
-              notificationDiv.style.position = 'fixed';
-              notificationDiv.style.top = '10px';
-              notificationDiv.style.right = '10px';
-              notificationDiv.style.padding = '10px 20px';
-              notificationDiv.style.borderRadius = '4px';
-              notificationDiv.style.zIndex = '9999';
-              notificationDiv.style.maxWidth = '300px';
-              
-              // Set color based on type
-              switch (type) {
-                case 'success':
-                  notificationDiv.style.backgroundColor = '#4CAF50';
-                  notificationDiv.style.color = 'white';
-                  break;
-                case 'error':
-                case 'danger':
-                  notificationDiv.style.backgroundColor = '#F44336';
-                  notificationDiv.style.color = 'white';
-                  break;
-                case 'warning':
-                  notificationDiv.style.backgroundColor = '#FF9800';
-                  notificationDiv.style.color = 'black';
-                  break;
-                default:
-                  notificationDiv.style.backgroundColor = '#2196F3';
-                  notificationDiv.style.color = 'white';
-              }
-              
-              notificationDiv.textContent = message;
-              document.body.appendChild(notificationDiv);
-              
-              // Remove after 3 seconds
-              setTimeout(() => {
-                if (notificationDiv.parentNode) {
-                  notificationDiv.parentNode.removeChild(notificationDiv);
-                }
-              }, 3000);
-            } catch (e) {
-              console.error('Error showing fallback notification:', e);
-            }
-          }
-          
-          return Promise.resolve();
-        }
-      };
-    }
-    
-    // Create iparams endpoint if it doesn't exist
-    if (!window.client.iparams) {
-      console.warn('Creating fallback iparams endpoint');
-      window.client.iparams = {
-        get: function() {
-          console.warn('Fallback iparams.get called - returning defaults');
-          return Promise.resolve({
-            freshservice_plan: 'enterprise',
-            api_safety_margin: DEFAULT_SAFETY_MARGIN.toString(),
-            inventory_type_id: DEFAULT_INVENTORY_TYPE_ID.toString(),
-            search_cache_timeout: DEFAULT_SEARCH_CACHE_TIMEOUT.toString()
-          });
-        }
-      };
-    }
-    
-    console.log('Client fallbacks setup complete');
+    document.body.innerHTML += `
+      <div style="color: red; padding: 20px; border: 1px solid red; margin: 20px; background: #fff">
+        ${message}
+      </div>
+    `;
   } catch (e) {
-    console.error('Error setting up client fallbacks:', e);
-  }
-}
-
-// Continue with app setup after client initialization
-function continueWithAppSetup(usingFallbacks = false) {
-  try {
-    console.log(`Setting up app components ${usingFallbacks ? '(using fallbacks)' : ''}...`);
-    
-    // Debug client properties
-    if (window.client) {
-      console.log('Client API methods:', Object.keys(window.client));
-      if (window.client.request) {
-        console.log('Client request methods:', Object.keys(window.client.request));
-      } else {
-        console.error('window.client.request is not available!');
-      }
-    } else {
-      console.error('window.client is not available!');
-    }
-    
-    // Manually initialize Bootstrap tabs
-    initializeBootstrapTabs();
-    
-    setupEventListeners();
-    setupChangeTypeTooltips();
-    
-    // Fetch and cache all locations and most frequently used users
-    // Wrap in try-catch to handle fallback API failures
-    try {
-      Promise.all([
-        fetchAllLocations().catch(err => {
-          console.error("Error in fetchAllLocations:", err);
-        }),
-        fetchUsers().catch(err => {
-          console.error("Error in fetchUsers:", err);
-        })
-      ]);
-    } catch (apiErr) {
-      console.error("Error starting API calls:", apiErr);
-    }
-    
-    // Only attempt to load data after setup is complete
-    setTimeout(() => {
-      try {
-        console.log('Loading saved data...');
-        // Check for client before trying to load saved data
-        if (!window.client) {
-          console.error('Client not available for loading data');
-          return;
-        }
-        
-        loadSavedData().catch(err => {
-          console.error("Error in loadSavedData promise:", err);
-        });
-      } catch (dataErr) {
-        console.error("Exception during data loading:", dataErr);
-      }
-    }, 300);
-  } catch (setupErr) {
-    console.error("Error during app setup:", setupErr);
+    console.error("Failed to show error message:", e);
   }
 }
 
@@ -1036,102 +571,10 @@ async function loadSavedData() {
     if (result && typeof result === 'object') {
       console.log('Data retrieved successfully');
       
-      // Check if this is the minimal data format
-      const isMinimalFormat = result.assetIds !== undefined;
-      
-      if (isMinimalFormat) {
-        console.log('Detected minimal data format, will need to fetch additional data');
-        showNotification('info', 'Loading saved draft (reduced format)');
-        
-        // Handle the minimal data format
-        try {
-          // Set basic data
-          changeRequestData.changeType = result.changeType || 'standard';
-          changeRequestData.plannedStart = result.plannedStart || '';
-          changeRequestData.plannedEnd = result.plannedEnd || '';
-          changeRequestData.implementationPlan = result.implementationPlan || '';
-          changeRequestData.backoutPlan = result.backoutPlan || '';
-          changeRequestData.validationPlan = result.validationPlan || '';
-          
-          // Handle risk assessment
-          if (result.riskLevel && result.riskScore) {
-            changeRequestData.riskAssessment.riskLevel = result.riskLevel;
-            changeRequestData.riskAssessment.totalScore = result.riskScore;
-          }
-          
-          // For requester and agent, we'll need to fetch the full data if possible
-          if (result.requester && result.requester.id) {
-            try {
-              const requesterData = await getUserDetails(result.requester.id);
-              if (requesterData) {
-                changeRequestData.requester = requesterData;
-              } else {
-                // Create a placeholder with the minimal data
-                changeRequestData.requester = {
-                  id: result.requester.id,
-                  first_name: result.requester.name.split(' ')[0] || '',
-                  last_name: result.requester.name.split(' ').slice(1).join(' ') || '',
-                  primary_email: ''
-                };
-              }
-            } catch (requesterErr) {
-              console.error('Error loading requester data:', requesterErr);
-            }
-          }
-          
-          if (result.agent && result.agent.id) {
-            try {
-              const agentData = await getUserDetails(result.agent.id);
-              if (agentData) {
-                changeRequestData.agent = agentData;
-              } else {
-                // Create a placeholder with the minimal data
-                changeRequestData.agent = {
-                  id: result.agent.id,
-                  first_name: result.agent.name.split(' ')[0] || '',
-                  last_name: result.agent.name.split(' ').slice(1).join(' ') || '',
-                  email: ''
-                };
-              }
-            } catch (agentErr) {
-              console.error('Error loading agent data:', agentErr);
-            }
-          }
-          
-          // For assets, we need to load each by ID
-          if (result.assetIds && result.assetIds.length > 0) {
-            changeRequestData.selectedAssets = [];
-            
-            // Try to fetch asset data in parallel
-            const assetPromises = result.assetIds.map(async (assetId) => {
-              try {
-                // Try to get asset details
-                // This is just a placeholder, actual implementation would depend on your API
-                return {
-                  id: assetId,
-                  name: `Asset ${assetId}`, // Placeholder name
-                  type: 'asset'
-                };
-              } catch (err) {
-                console.error(`Error fetching asset ${assetId}:`, err);
-                return null;
-              }
-            });
-            
-            const assets = await Promise.all(assetPromises);
-            changeRequestData.selectedAssets = assets.filter(asset => asset !== null);
-          }
-          
-        } catch (minimalDataErr) {
-          console.error('Error processing minimal format data:', minimalDataErr);
-        }
-      } else {
-        // Normal data format, update directly
-        // Update the global data object with saved values
-        Object.keys(result).forEach(key => {
-          changeRequestData[key] = result[key];
-        });
-      }
+      // Update the global data object with saved values
+      Object.keys(result).forEach(key => {
+        changeRequestData[key] = result[key];
+      });
       
       // Update the UI with saved data
       try {
@@ -1161,7 +604,6 @@ async function loadSavedData() {
 
 /**
  * Save current change request data to the data storage
- * Handles the 40KB size limit for Freshworks data storage
  */
 async function saveCurrentData() {
   // Check if client DB is available before attempting to save
@@ -1172,113 +614,18 @@ async function saveCurrentData() {
   
   try {
     console.log('Saving current form data...');
+    await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, changeRequestData);
+    console.log('Form data saved successfully');
     
-    // Create a clean copy of the data with only essential fields
-    const essentialData = {
-      // Only include the necessary fields from requester and agent
-      requester: changeRequestData.requester ? {
-        id: changeRequestData.requester.id,
-        first_name: changeRequestData.requester.first_name,
-        last_name: changeRequestData.requester.last_name,
-        email: changeRequestData.requester.email || changeRequestData.requester.primary_email
-      } : null,
-      
-      agent: changeRequestData.agent ? {
-        id: changeRequestData.agent.id,
-        first_name: changeRequestData.agent.first_name,
-        last_name: changeRequestData.agent.last_name,
-        email: changeRequestData.agent.email
-      } : null,
-      
-      // Simple properties that don't need reduction
-      changeType: changeRequestData.changeType,
-      leadTime: changeRequestData.leadTime,
-      plannedStart: changeRequestData.plannedStart,
-      plannedEnd: changeRequestData.plannedEnd,
-      
-      // Potentially large text fields - truncate if necessary
-      implementationPlan: truncateIfNeeded(changeRequestData.implementationPlan, 5000),
-      backoutPlan: truncateIfNeeded(changeRequestData.backoutPlan, 5000),
-      validationPlan: truncateIfNeeded(changeRequestData.validationPlan, 5000),
-      
-      // Risk assessment is small, can include all
-      riskAssessment: changeRequestData.riskAssessment,
-      
-      // For assets, only keep essential data
-      selectedAssets: changeRequestData.selectedAssets.map(asset => ({
-        id: asset.id,
-        name: asset.name || asset.display_name,
-        type: asset.type
-      }))
-    };
-    
-    // Check the size of the data
-    const dataString = JSON.stringify(essentialData);
-    const dataSizeKB = dataString.length / 1024;
-    console.log(`Data size: ${dataSizeKB.toFixed(2)} KB`);
-    
-    if (dataSizeKB > 38) { // Allow some buffer for the key name
-      console.warn('Data exceeds 38KB, will be using reduced storage');
-      
-      // Create a minimal version with even less data
-      const minimalData = {
-        requester: essentialData.requester ? {
-          id: essentialData.requester.id,
-          name: `${essentialData.requester.first_name} ${essentialData.requester.last_name}`
-        } : null,
-        
-        agent: essentialData.agent ? {
-          id: essentialData.agent.id,
-          name: `${essentialData.agent.first_name} ${essentialData.agent.last_name}`
-        } : null,
-        
-        changeType: essentialData.changeType,
-        plannedStart: essentialData.plannedStart,
-        plannedEnd: essentialData.plannedEnd,
-        
-        // Even shorter text fields
-        implementationPlan: truncateIfNeeded(essentialData.implementationPlan, 1000),
-        backoutPlan: truncateIfNeeded(essentialData.backoutPlan, 1000),
-        validationPlan: truncateIfNeeded(essentialData.validationPlan, 1000),
-        
-        // Just keep total score and risk level
-        riskLevel: essentialData.riskAssessment.riskLevel,
-        riskScore: essentialData.riskAssessment.totalScore,
-        
-        // Only keep IDs and names for assets
-        assetCount: essentialData.selectedAssets.length,
-        assetIds: essentialData.selectedAssets.map(a => a.id)
-      };
-      
-      const minimalDataString = JSON.stringify(minimalData);
-      const minimalSizeKB = minimalDataString.length / 1024;
-      console.log(`Minimal data size: ${minimalSizeKB.toFixed(2)} KB`);
-      
-      if (minimalSizeKB > 38) {
-        console.error('Even minimal data exceeds size limit, cannot save');
-        showNotification('error', 'Cannot save draft - too much data');
-        return false;
-      }
-      
-      await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, minimalData);
-      console.log('Minimal form data saved successfully');
-      showNotification('warning', 'Draft saved with reduced data due to size limits');
-      
-    } else {
-      // Save the essential data which is under the limit
-      await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, essentialData);
-      console.log('Form data saved successfully');
-      
-      // Only show notification 20% of the time to avoid too many notifications
-      if (Math.random() < 0.2) {
-        setTimeout(() => {
-          try {
-            showNotification('success', 'Change request draft saved');
-          } catch (notifyErr) {
-            console.warn('Could not show save notification:', notifyErr);
-          }
-        }, 300);
-      }
+    // Only show notification 20% of the time to avoid too many notifications
+    if (Math.random() < 0.2) {
+      setTimeout(() => {
+        try {
+          showNotification('success', 'Change request draft saved');
+        } catch (notifyErr) {
+          console.warn('Could not show save notification:', notifyErr);
+        }
+      }, 300);
     }
     
     return true;
@@ -1294,19 +641,6 @@ async function saveCurrentData() {
     }
     return false;
   }
-}
-
-/**
- * Helper function to truncate strings if they exceed a length
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length
- * @returns {string} - Truncated text
- */
-function truncateIfNeeded(text, maxLength) {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  
-  return text.substring(0, maxLength) + '... (truncated)';
 }
 
 /**
@@ -1550,136 +884,56 @@ function setupEventListeners() {
   // We don't need to manually handle tab switching since Bootstrap will handle it
   // Just add listeners for the Next buttons to programmatically switch tabs
 
-  console.log("Setting up event listeners...");
-
-  // Check client availability for API-dependent features
-  const clientAvailable = window.client && 
-                          window.client.request && 
-                          typeof window.client.request.invokeTemplate === 'function';
-  
-  if (!clientAvailable) {
-    console.warn("Client API not fully available - some features may not work properly");
-    showNotification('warning', 'API connection limited - some features may not work properly');
-  } else {
-    console.log("Client API available - all features should work properly");
-  }
-
   // Enhance search inputs with icons and styling
   enhanceSearchInputs();
 
   // Change Details tab
-  const requesterSearch = document.getElementById('requester-search');
-  const agentSearch = document.getElementById('agent-search');
-  
-  if (requesterSearch) {
-    requesterSearch.addEventListener('input', debounce(searchRequesters, 300));
-    console.log("Requester search event listener added");
-  }
-  
-  if (agentSearch) {
-    agentSearch.addEventListener('input', debounce(searchAgents, 300));
-    console.log("Agent search event listener added");
-  }
-  
-  const changeTypeSelect = document.getElementById('change-type');
-  if (changeTypeSelect) {
-    changeTypeSelect.addEventListener('change', updateChangeType);
-    console.log("Change type event listener added");
-  }
-  
-  const detailsNext = document.getElementById('details-next');
-  if (detailsNext) {
-    detailsNext.addEventListener('click', validateDetailsAndNext);
-    console.log("Details next button event listener added");
-  }
+  document.getElementById('requester-search').addEventListener('input', debounce(searchRequesters, 300));
+  document.getElementById('agent-search').addEventListener('input', debounce(searchAgents, 300));
+  document.getElementById('change-type').addEventListener('change', updateChangeType);
+  document.getElementById('details-next').addEventListener('click', validateDetailsAndNext);
 
   // Risk Assessment tab
   const riskRadios = document.querySelectorAll('.risk-options input[type="radio"]');
   riskRadios.forEach(radio => {
     radio.addEventListener('change', updateRiskSelection);
   });
-  console.log(`Added event listeners to ${riskRadios.length} risk radio buttons`);
-  
-  const calculateRiskBtn = document.getElementById('calculate-risk');
-  if (calculateRiskBtn) {
-    calculateRiskBtn.addEventListener('click', calculateRisk);
-    console.log("Calculate risk button event listener added");
-  }
-  
-  const riskNext = document.getElementById('risk-next');
-  if (riskNext) {
-    riskNext.addEventListener('click', validateRiskAndNext);
-    console.log("Risk next button event listener added");
-  }
+  document.getElementById('calculate-risk').addEventListener('click', calculateRisk);
+  document.getElementById('risk-next').addEventListener('click', validateRiskAndNext);
 
   // Impacted Assets tab
-  const assetSearch = document.getElementById('asset-search');
-  if (assetSearch) {
-    assetSearch.addEventListener('input', debounce(searchAssets, 300));
-    console.log("Asset search event listener added");
-  }
-  
-  const submitChange = document.getElementById('submit-change');
-  if (submitChange) {
-    submitChange.addEventListener('click', showSummary);
-    console.log("Submit change button event listener added");
-  }
+  document.getElementById('asset-search').addEventListener('input', debounce(searchAssets, 300));
+  document.getElementById('submit-change').addEventListener('click', showSummary);
 
   // Confirmation Modal
-  const editRequest = document.getElementById('edit-request');
-  if (editRequest) {
-    editRequest.addEventListener('click', closeModal);
-    console.log("Edit request button event listener added");
-  }
-  
-  const confirmSubmit = document.getElementById('confirm-submit');
-  if (confirmSubmit) {
-    confirmSubmit.addEventListener('click', submitChangeRequest);
-    console.log("Confirm submit button event listener added");
-  }
+  document.getElementById('edit-request').addEventListener('click', closeModal);
+  document.getElementById('confirm-submit').addEventListener('click', submitChangeRequest);
   
   // Form inputs with auto-save
-  const plannedStart = document.getElementById('planned-start');
-  if (plannedStart) {
-    plannedStart.addEventListener('change', function() {
-      changeRequestData.plannedStart = this.value;
-      saveCurrentData();
-    });
-  }
+  document.getElementById('planned-start').addEventListener('change', function() {
+    changeRequestData.plannedStart = this.value;
+    saveCurrentData();
+  });
   
-  const plannedEnd = document.getElementById('planned-end');
-  if (plannedEnd) {
-    plannedEnd.addEventListener('change', function() {
-      changeRequestData.plannedEnd = this.value;
-      saveCurrentData();
-    });
-  }
+  document.getElementById('planned-end').addEventListener('change', function() {
+    changeRequestData.plannedEnd = this.value;
+    saveCurrentData();
+  });
   
-  const implementationPlan = document.getElementById('implementation-plan');
-  if (implementationPlan) {
-    implementationPlan.addEventListener('input', debounce(function() {
-      changeRequestData.implementationPlan = this.value;
-      saveCurrentData();
-    }, 1000));
-  }
+  document.getElementById('implementation-plan').addEventListener('input', debounce(function() {
+    changeRequestData.implementationPlan = this.value;
+    saveCurrentData();
+  }, 1000));
   
-  const backoutPlan = document.getElementById('backout-plan');
-  if (backoutPlan) {
-    backoutPlan.addEventListener('input', debounce(function() {
-      changeRequestData.backoutPlan = this.value;
-      saveCurrentData();
-    }, 1000));
-  }
+  document.getElementById('backout-plan').addEventListener('input', debounce(function() {
+    changeRequestData.backoutPlan = this.value;
+    saveCurrentData();
+  }, 1000));
   
-  const validationPlan = document.getElementById('validation-plan');
-  if (validationPlan) {
-    validationPlan.addEventListener('input', debounce(function() {
-      changeRequestData.validationPlan = this.value;
-      saveCurrentData();
-    }, 1000));
-  }
-  
-  console.log("All event listeners setup complete");
+  document.getElementById('validation-plan').addEventListener('input', debounce(function() {
+    changeRequestData.validationPlan = this.value;
+    saveCurrentData();
+  }, 1000));
 }
 
 /**
@@ -1727,76 +981,36 @@ function setupChangeTypeTooltips() {
   const changeTypeSelect = document.getElementById('change-type');
   const changeTypeTooltip = document.getElementById('change-type-tooltip');
   
-  // Ensure tooltip container has proper styling using CSS classes
-  if (changeTypeTooltip) {
-    // Apply styling through CSS classes instead of inline styles
-    changeTypeTooltip.className = 'change-type-tooltip-container';
-  }
-  
-  // Show tooltip for the default selected change type immediately
+  // Show tooltip for the default selected change type
   updateTooltipContent(changeTypeSelect.value);
   
-  // Always display the tooltip after initialization
-  if (changeTypeTooltip) {
-    changeTypeTooltip.style.display = 'block';
-  }
-  
-  // Keep showing the tooltip on hover (doesn't hide it anymore)
+  // Show tooltip on hover or focus
   changeTypeSelect.addEventListener('mouseenter', function() {
-    if (changeTypeTooltip) {
-      changeTypeTooltip.style.display = 'block';
+    changeTypeTooltip.style.display = 'block';
+  });
+  
+  changeTypeSelect.addEventListener('mouseleave', function() {
+    if (!changeTypeSelect.matches(':focus')) {
+      changeTypeTooltip.style.display = 'none';
     }
   });
   
-  // Keep showing the tooltip on focus (doesn't hide it anymore)
   changeTypeSelect.addEventListener('focus', function() {
-    if (changeTypeTooltip) {
-      changeTypeTooltip.style.display = 'block';
-    }
+    changeTypeTooltip.style.display = 'block';
+  });
+  
+  changeTypeSelect.addEventListener('blur', function() {
+    changeTypeTooltip.style.display = 'none';
   });
   
   function updateTooltipContent(changeType) {
-    if (changeTypeTooltip) {
-      // Get tooltip content for the selected change type
-      const tooltipContent = changeTypeTooltips[changeType] || '';
-      
-      // Update tooltip content
-      changeTypeTooltip.style.display = 'block';
-      
-      // Add visual indication of selected type
-      changeTypeTooltip.className = 'change-type-tooltip-container'; // Clear existing classes
-      changeTypeTooltip.classList.add('tooltip-' + changeType);
-      
-      // Add a small indicator of the currently selected type
-      const typeLabel = document.createElement('div');
-      typeLabel.className = 'fw-bold mb-1';
-      typeLabel.textContent = 'Selected: ' + changeType.charAt(0).toUpperCase() + changeType.slice(1);
-      
-      // Wrap the tooltip text in a container
-      const tooltipContainer = document.createElement('div');
-      tooltipContainer.textContent = tooltipContent;
-      
-      // Clear the tooltip and add the new content
-      changeTypeTooltip.innerHTML = '';
-      changeTypeTooltip.appendChild(typeLabel);
-      changeTypeTooltip.appendChild(tooltipContainer);
-    }
+    changeTypeTooltip.textContent = changeTypeTooltips[changeType] || '';
+    changeTypeTooltip.style.display = 'block';
   }
   
   // Update tooltip when change type changes
   changeTypeSelect.addEventListener('change', function() {
     updateTooltipContent(this.value);
-    
-    // Update lead time text
-    const leadTimeElement = document.getElementById('lead-time');
-    if (leadTimeElement) {
-      leadTimeElement.textContent = leadTimeText[this.value] || '2 business days';
-    }
-    
-    // Always ensure tooltip is visible after changing
-    if (changeTypeTooltip) {
-      changeTypeTooltip.style.display = 'block';
-    }
   });
 }
 
@@ -1848,101 +1062,12 @@ function switchTab(tabId) {
 }
 
 /**
- * Check if search term exists in cache and is still valid
- * @param {string} searchType - Type of search ('requesters' or 'agents')
- * @param {string} searchTerm - The search term
- * @returns {Array|null} - Cached results or null if not found/expired
- */
-async function getFromSearchCache(searchType, searchTerm) {
-  if (!searchCache[searchType] || !searchCache[searchType][searchTerm]) {
-    return null;
-  }
-  
-  // Get the configured search cache timeout from installation parameters
-  const params = await getInstallationParams();
-  const searchCacheTimeout = params.searchCacheTimeout;
-  
-  const cached = searchCache[searchType][searchTerm];
-  
-  // Check if cache is still valid (within the configured timeout)
-  if (Date.now() - cached.timestamp <= searchCacheTimeout) {
-    console.log(`Using cached ${searchType} search results for: ${searchTerm} (timeout: ${searchCacheTimeout}ms)`);
-    return cached.results;
-  }
-  
-  // Cache expired
-  return null;
-}
-
-/**
- * Store search results in cache
- * @param {string} searchType - Type of search ('requesters' or 'agents')
- * @param {string} searchTerm - The search term
- * @param {Array} results - The search results
- */
-function addToSearchCache(searchType, searchTerm, results) {
-  if (!searchCache[searchType]) {
-    searchCache[searchType] = {};
-  }
-  
-  searchCache[searchType][searchTerm] = {
-    results: results,
-    timestamp: Date.now()
-  };
-  
-  console.log(`Cached ${results.length} ${searchType} search results for: ${searchTerm}`);
-}
-
-/**
  * Search for requesters using Freshservice API
  */
 function searchRequesters(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
-  // Show loading indicator
-  const resultsContainer = document.getElementById('requester-results');
-  createLoadingIndicator(resultsContainer);
-  
-  // Check cache first
-  getFromSearchCache('requesters', searchTerm).then(cachedResults => {
-    if (cachedResults) {
-      // Use cached results
-      displaySearchResults('requester-results', cachedResults, selectRequester);
-      
-      // Get the configured search cache timeout
-      getInstallationParams().then(params => {
-        const searchCacheTimeout = params.searchCacheTimeout;
-        
-        // Set a timer to check for fresh results after the timeout
-        setTimeout(() => {
-          // Only perform API call if the search term is still the current one
-          const currentSearchTerm = document.getElementById('requester-search').value.trim();
-          if (currentSearchTerm === searchTerm) {
-            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing requester search for: ${searchTerm}`);
-            performRequesterSearch(searchTerm, true);
-          }
-        }, searchCacheTimeout);
-      });
-      
-      return;
-    }
-    
-    // No cache hit, perform search immediately
-    performRequesterSearch(searchTerm);
-  }).catch(error => {
-    console.error('Error checking requester search cache:', error);
-    // Fallback to direct search on cache error
-    performRequesterSearch(searchTerm);
-  });
-}
-
-/**
- * Perform the actual API search for requesters
- * @param {string} searchTerm - The search term
- * @param {boolean} isRefresh - Whether this is a cache refresh operation
- */
-function performRequesterSearch(searchTerm, isRefresh = false) {
   // Ensure client is available
   if (!window.client || !window.client.request) {
     console.error('Client or request object not available for requester search');
@@ -1953,13 +1078,12 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
   // Try a simpler approach - direct search by name
   // Format 1: Try direct contains search
   const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
-  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, encodedQuery);
+  console.log('Requester search with query:', encodedQuery);
   
-  // Only show loading indicator for non-refresh operations
-  if (!isRefresh) {
-    const resultsContainer = document.getElementById('requester-results');
-    createLoadingIndicator(resultsContainer);
-  }
+  // Show loading indicator
+  const resultsContainer = document.getElementById('requester-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
@@ -1967,15 +1091,12 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
     const requestUrl = `/api/v2/requesters?query=${encodedQuery}&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
     
-    // Use direct GET method
     window.client.request.get(requestUrl)
     .then(function(data) {
       try {
         if (!data) {
           console.error('No data returned from requester search');
           displaySearchResults('requester-results', allResults, selectRequester);
-          // Cache even empty results to prevent repeated API calls
-          addToSearchCache('requesters', searchTerm, allResults);
           return;
         }
         
@@ -2002,16 +1123,8 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
           // Load next page
           loadPage(page + 1, combinedResults);
         } else {
-          // Cache the results
-          addToSearchCache('requesters', searchTerm, combinedResults);
-          
           // Display all results
           displaySearchResults('requester-results', combinedResults, selectRequester);
-          
-          // Add individual users to the user cache for later use
-          if (combinedResults.length > 0) {
-            cacheIndividualUsers(combinedResults, 'requester');
-          }
         }
       } catch (error) {
         console.error('Error parsing response:', error);
@@ -2020,51 +1133,8 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
     })
     .catch(function(error) {
       console.error('API request failed:', error);
-      
-      // Try using invokeTemplate as fallback
-      console.log('Falling back to invokeTemplate for requester search');
-      window.client.request.invokeTemplate("getRequesters", {
-        path_suffix: `?query=${encodedQuery}&page=${page}&per_page=30`
-      })
-      .then(function(fallbackData) {
-        try {
-          if (!fallbackData) {
-            console.error('No data returned from fallback requester search');
-            displaySearchResults('requester-results', allResults, selectRequester);
-            return;
-          }
-          
-          const fallbackResponse = JSON.parse(fallbackData.response || '{"requesters":[]}');
-          const fallbackRequesters = fallbackResponse && fallbackResponse.requesters ? fallbackResponse.requesters : [];
-          
-          // Manual filtering
-          const filteredRequesters = fallbackRequesters.filter(requester => {
-            const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
-            const email = (requester.primary_email || requester.email || '').toLowerCase();
-            const term = searchTerm.toLowerCase();
-            return fullName.includes(term) || email.includes(term);
-          });
-          
-          // Combine with previous results
-          const combinedResults = [...allResults, ...filteredRequesters];
-          
-          // Cache and display results
-          addToSearchCache('requesters', searchTerm, combinedResults);
-          displaySearchResults('requester-results', combinedResults, selectRequester);
-          
-          if (combinedResults.length > 0) {
-            cacheIndividualUsers(combinedResults, 'requester');
-          }
-        } catch (fallbackError) {
-          console.error('Error in fallback requester search:', fallbackError);
-          displaySearchResults('requester-results', allResults, selectRequester);
-        }
-      })
-      .catch(function(fallbackError) {
-        console.error('Fallback API request also failed:', fallbackError);
-        displaySearchResults('requester-results', allResults, selectRequester);
-        handleErr(error);
-      });
+      displaySearchResults('requester-results', allResults, selectRequester);
+      handleErr(error);
     });
   }
   
@@ -2073,11 +1143,12 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
 }
 
 /**
- * Perform the actual API search for agents
- * @param {string} searchTerm - The search term
- * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ * Search for agents using Freshservice API
  */
-function performAgentSearch(searchTerm, isRefresh = false) {
+function searchAgents(e) {
+  const searchTerm = e.target.value.trim();
+  if (searchTerm.length < 2) return;
+
   // Ensure client is available
   if (!window.client || !window.client.request) {
     console.error('Client or request object not available for agent search');
@@ -2087,29 +1158,27 @@ function performAgentSearch(searchTerm, isRefresh = false) {
 
   // Try a simpler approach - direct search by name
   const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
-  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} agent search with query:`, encodedQuery);
+  console.log('Agent search with query:', encodedQuery);
   
-  // Only show loading indicator for non-refresh operations
-  if (!isRefresh) {
-    const resultsContainer = document.getElementById('agent-results');
-    createLoadingIndicator(resultsContainer);
-  }
+  // Show loading indicator
+  const resultsContainer = document.getElementById('agent-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
-    // Create the request URL
-    const requestUrl = `/api/v2/agents?query=${encodedQuery}&page=${page}&per_page=30`;
+    // Use invokeTemplate with path suffix to add query parameter
+    const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
     console.log('Agent API URL:', requestUrl);
     
-    // Use direct GET method
-    window.client.request.get(requestUrl)
+    window.client.request.invokeTemplate("getAgents", {
+      path_suffix: requestUrl
+    })
     .then(function(data) {
       try {
         if (!data) {
           console.error('No data returned from agent search');
           displaySearchResults('agent-results', allResults, selectAgent);
-          // Cache even empty results to prevent repeated API calls
-          addToSearchCache('agents', searchTerm, allResults);
           return;
         }
         
@@ -2136,16 +1205,8 @@ function performAgentSearch(searchTerm, isRefresh = false) {
           // Load next page
           loadPage(page + 1, combinedResults);
         } else {
-          // Cache the results
-          addToSearchCache('agents', searchTerm, combinedResults);
-          
           // Display all results
           displaySearchResults('agent-results', combinedResults, selectAgent);
-          
-          // Add individual users to the user cache for later use
-          if (combinedResults.length > 0) {
-            cacheIndividualUsers(combinedResults, 'agent');
-          }
         }
       } catch (error) {
         console.error('Error parsing response:', error);
@@ -2154,87 +1215,13 @@ function performAgentSearch(searchTerm, isRefresh = false) {
     })
     .catch(function(error) {
       console.error('API request failed:', error);
-      
-      // Try using invokeTemplate as fallback
-      console.log('Falling back to invokeTemplate for agent search');
-      window.client.request.invokeTemplate("getAgents", {
-        path_suffix: `?query=${encodedQuery}&page=${page}&per_page=30`
-      })
-      .then(function(fallbackData) {
-        try {
-          if (!fallbackData) {
-            console.error('No data returned from fallback agent search');
-            displaySearchResults('agent-results', allResults, selectAgent);
-            return;
-          }
-          
-          const fallbackResponse = JSON.parse(fallbackData.response || '{"agents":[]}');
-          const fallbackAgents = fallbackResponse && fallbackResponse.agents ? fallbackResponse.agents : [];
-          
-          // Manual filtering
-          const filteredAgents = fallbackAgents.filter(agent => {
-            const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
-            const email = (agent.email || '').toLowerCase();
-            const term = searchTerm.toLowerCase();
-            return fullName.includes(term) || email.includes(term);
-          });
-          
-          // Combine with previous results
-          const combinedResults = [...allResults, ...filteredAgents];
-          
-          // Cache and display results
-          addToSearchCache('agents', searchTerm, combinedResults);
-          displaySearchResults('agent-results', combinedResults, selectAgent);
-          
-          if (combinedResults.length > 0) {
-            cacheIndividualUsers(combinedResults, 'agent');
-          }
-        } catch (fallbackError) {
-          console.error('Error in fallback agent search:', fallbackError);
-          displaySearchResults('agent-results', allResults, selectAgent);
-        }
-      })
-      .catch(function(fallbackError) {
-        console.error('Fallback API request also failed:', fallbackError);
-        displaySearchResults('agent-results', allResults, selectAgent);
-        handleErr(error);
-      });
+      displaySearchResults('agent-results', allResults, selectAgent);
+      handleErr(error);
     });
   }
   
   // Start loading from page 1
   loadPage(1, []);
-}
-
-/**
- * Cache individual users from search results for future reference
- * @param {Array} users - Array of user objects
- * @param {string} type - Type of user ('requester' or 'agent')
- */
-async function cacheIndividualUsers(users, type) {
-  try {
-    // Get current user cache
-    const cachedUsers = await getCachedUsers();
-    
-    // Add each user to the cache
-    users.forEach(user => {
-      if (user && user.id) {
-        const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-        cachedUsers[user.id] = {
-          name: displayName,
-          data: user,
-          timestamp: Date.now(),
-          type: type
-        };
-      }
-    });
-    
-    // Save updated cache
-    await cacheUsers(cachedUsers);
-    console.log(`Added ${users.length} ${type}s to user cache`);
-  } catch (error) {
-    console.error(`Error caching individual ${type}s:`, error);
-  }
 }
 
 /**
@@ -2346,16 +1333,12 @@ async function cacheLocations(locations) {
  */
 function displaySearchResults(containerId, results, selectionCallback) {
   const container = document.getElementById(containerId);
-  
-  // Clear existing content
-  while (container.firstChild) {
-    container.removeChild(container.firstChild);
-  }
-  
+  container.innerHTML = '';
   container.style.display = results.length ? 'block' : 'none';
   
   if (results.length === 0) {
-    createNoResultsMessage(container, 'No results found');
+    container.innerHTML = '<div class="list-group-item search-result-item no-results">No results found</div>';
+    container.style.display = 'block';
     return;
   }
   
@@ -2761,16 +1744,7 @@ function validateRiskAndNext() {
  */
 function searchAssets(e) {
   const searchTerm = e.target.value.trim();
-  
-  // Show loading indicator even for short search terms
-  const resultsContainer = document.getElementById('asset-results');
-  createLoadingIndicator(resultsContainer);
-  
-  // Don't proceed with empty search
-  if (searchTerm.length === 0) {
-    createNoResultsMessage(resultsContainer, 'Type to search');
-    return;
-  }
+  if (searchTerm.length < 2) return;
 
   // Ensure client is available
   if (!window.client || !window.client.request) {
@@ -2779,176 +1753,127 @@ function searchAssets(e) {
     return;
   }
 
-  // Get the inventory type ID from installation parameters
-  getInstallationParams().then(params => {
-    const inventoryTypeId = params.inventoryTypeId;
-    console.log(`Using inventory type ID for search: ${inventoryTypeId}`);
-
-    // Strategy: First fetch all assets of the configured type, then filter locally
-
-    // Query only for the asset type without search term restriction
-    const assetTypeQuery = `asset_type_id:${inventoryTypeId}`;
-    const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
-    const encodedAssetTypeQuery = encodeURIComponent(`"${assetTypeQuery}"`);
-    const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
-    
-    // Arrays to store all results from pagination
-    let allAssets = [];
-    let allServices = [];
-    
-    // Function to load assets from a specific page
-    function loadAssetsPage(page = 1) {
-      console.log(`Loading assets page ${page} with filter asset_type_id:${inventoryTypeId}`);
-      return window.client.request.invokeTemplate("getAssets", {
-        path_suffix: `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
-      })
-      .then(function(data) {
-        if (!data || !data.response) {
-          return { assets: [] };
-        }
-        
-        try {
-          const response = JSON.parse(data.response);
-          const assets = response && response.assets ? response.assets : [];
-          console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
-          
-          // Combine with previous results
-          allAssets = [...allAssets, ...assets];
-          
-          // If we got a full page of results, there might be more
-          if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
-            // Load next page
-            return loadAssetsPage(page + 1);
-          }
-          
-          return { assets: allAssets };
-        } catch (error) {
-          console.error('Error parsing assets response:', error);
-          return { assets: allAssets };
-        }
-      })
-      .catch(error => {
-        console.error('Asset search failed:', error);
-        return { assets: allAssets };
-      });
-    }
-    
-    // Function to load services from a specific page (unchanged)
-    function loadServicesPage(page = 1) {
-      return window.client.request.invokeTemplate("getServices", {
-        path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
-      })
-      .then(function(data) {
-        if (!data || !data.response) {
-          return { services: [] };
-        }
-        
-        try {
-          const response = JSON.parse(data.response);
-          const services = response && response.services ? response.services : [];
-          
-          // Combine with previous results
-          allServices = [...allServices, ...services];
-          
-          // If we got a full page of results, there might be more
-          if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
-            // Load next page
-            return loadServicesPage(page + 1);
-          }
-          
-          return { services: allServices };
-        } catch (error) {
-          console.error('Error parsing services response:', error);
-          return { services: allServices };
-        }
-      })
-      .catch(error => {
-        console.error('Service search failed:', error);
-        return { services: allServices };
-      });
-    }
-    
-    // Start loading both assets and services from page 1
-    Promise.all([
-      loadAssetsPage(1),
-      loadServicesPage(1)
-    ])
-    .then(function([assetsResponse, servicesResponse]) {
+  // Correctly encode the entire query string including quotes for Freshservice API
+  const assetQueryStr = `~[name|display_name]:'${searchTerm}'`;
+  const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
+  const encodedAssetQuery = encodeURIComponent(`"${assetQueryStr}"`);
+  const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
+  
+  // Show loading indicator
+  const resultsContainer = document.getElementById('asset-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Arrays to store all results from pagination
+  let allAssets = [];
+  let allServices = [];
+  
+  // Function to load assets from a specific page
+  function loadAssetsPage(page = 1) {
+    console.log(`Loading assets page ${page} with filter asset_type_id:${inventoryTypeId}`);
+    return window.client.request.get(`/api/v2/assets?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`)
+    .then(function(data) {
+      if (!data || !data.response) {
+        return { assets: [] };
+      }
+      
       try {
-        // Get assets and services from the responses
-        const assets = assetsResponse.assets || [];
-        const services = servicesResponse.services || [];
+        const response = JSON.parse(data.response);
+        const assets = response && response.assets ? response.assets : [];
+        console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
         
-        // Apply the search term filter to the assets locally
-        const filteredAssets = assets.filter(asset => {
-          const searchIn = [
-            asset.name || '',
-            asset.display_name || '',
-            asset.description || '',
-            asset.asset_tag || '',
-            asset.serial_number || '',
-            asset.product_name || '',
-            asset.vendor_name || ''
-          ].map(text => text.toLowerCase()).join(' ');
-          
-          return searchIn.includes(searchTerm.toLowerCase());
-        });
+        // Combine with previous results
+        allAssets = [...allAssets, ...assets];
         
-        console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
+        // If we got a full page of results, there might be more
+        if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
+          // Load next page
+          return loadAssetsPage(page + 1);
+        }
         
-        // Combine both results with type information
-        const combinedResults = [
-          ...filteredAssets.map(item => ({ ...item, type: 'asset' })),
-          ...services.map(item => ({ ...item, type: 'service' }))
-        ];
-        
-        // Sort results by relevance - exact name matches first
-        combinedResults.sort((a, b) => {
-          const aName = (a.name || a.display_name || '').toLowerCase();
-          const bName = (b.name || b.display_name || '').toLowerCase();
-          const searchLower = searchTerm.toLowerCase();
-          
-          // Exact matches first
-          if (aName === searchLower && bName !== searchLower) return -1;
-          if (bName === searchLower && aName !== searchLower) return 1;
-          
-          // Starts with search term next
-          if (aName.startsWith(searchLower) && !bName.startsWith(searchLower)) return -1;
-          if (bName.startsWith(searchLower) && !aName.startsWith(searchLower)) return 1;
-          
-          // Normal alphabetical sorting for the rest
-          return aName.localeCompare(bName);
-        });
-        
-        displayAssetResults('asset-results', combinedResults, selectAsset);
+        return { assets: allAssets };
       } catch (error) {
-        console.error('Error processing search results:', error);
-        displayAssetResults('asset-results', [], selectAsset);
+        console.error('Error parsing assets response:', error);
+        return { assets: allAssets };
       }
     })
-    .catch(function(error) {
-      console.error('Combined asset/service search failed:', error);
-      displayAssetResults('asset-results', [], selectAsset);
-      handleErr(error);
+    .catch(error => {
+      console.error('Asset search failed:', error);
+      return { assets: allAssets };
     });
-  }).catch(error => {
-    console.error('Error getting installation parameters:', error);
-    handleErr('Failed to load configuration settings');
+  }
+  
+  // Function to load services from a specific page
+  function loadServicesPage(page = 1) {
+    return window.client.request.get(`/api/v2/services?query=${encodedServiceQuery}&page=${page}&per_page=30`)
+    .then(function(data) {
+      if (!data || !data.response) {
+        return { services: [] };
+      }
+      
+      try {
+        const response = JSON.parse(data.response);
+        const services = response && response.services ? response.services : [];
+        
+        // Combine with previous results
+        allServices = [...allServices, ...services];
+        
+        // If we got a full page of results, there might be more
+        if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
+          // Load next page
+          return loadServicesPage(page + 1);
+        }
+        
+        return { services: allServices };
+      } catch (error) {
+        console.error('Error parsing services response:', error);
+        return { services: allServices };
+      }
+    })
+    .catch(error => {
+      console.error('Service search failed:', error);
+      return { services: allServices };
+    });
+  }
+  
+  // Start loading both assets and services from page 1
+  Promise.all([
+    loadAssetsPage(1),
+    loadServicesPage(1)
+  ])
+  .then(function([assetsResponse, servicesResponse]) {
+    try {
+      // Get assets and services from the responses
+      const assets = assetsResponse.assets || [];
+      const services = servicesResponse.services || [];
+      
+      // Combine both results with type information
+      const combinedResults = [
+        ...assets.map(item => ({ ...item, type: 'asset' })),
+        ...services.map(item => ({ ...item, type: 'service' }))
+      ];
+      
+      displayAssetResults('asset-results', combinedResults, selectAsset);
+    } catch (error) {
+      console.error('Error processing search results:', error);
+      displayAssetResults('asset-results', [], selectAsset);
+    }
+  })
+  .catch(function(error) {
+    console.error('Combined asset/service search failed:', error);
+    displayAssetResults('asset-results', [], selectAsset);
+    handleErr(error);
   });
 }
 
 function displayAssetResults(containerId, results, selectionCallback) {
   const container = document.getElementById(containerId);
-  
-  // Clear existing content
-  while (container.firstChild) {
-    container.removeChild(container.firstChild);
-  }
-  
+  container.innerHTML = '';
   container.style.display = results.length ? 'block' : 'none';
   
   if (results.length === 0) {
-    createNoResultsMessage(container, 'No results found');
+    container.innerHTML = '<div class="list-group-item search-result-item no-results">No results found</div>';
+    container.style.display = 'block';
     return;
   }
   
@@ -3076,7 +2001,7 @@ function renderSelectedAssets() {
     
     // Check if we have valid asset data
     if (!Array.isArray(changeRequestData.selectedAssets) || changeRequestData.selectedAssets.length === 0) {
-      createNoResultsMessage(container, 'No assets selected');
+      container.innerHTML = '<div class="empty-message text-secondary">No assets selected</div>';
       return;
     }
     
@@ -3185,281 +2110,67 @@ function showSummary() {
   
   const summaryContent = document.getElementById('summary-content');
   
-  // Clear existing content
-  while (summaryContent.firstChild) {
-    summaryContent.removeChild(summaryContent.firstChild);
-  }
-  
-  // Create summary using safer DOM manipulation
-  
-  // Change Details section
-  const detailsSection = document.createElement('div');
-  detailsSection.className = 'summary-section mb-4';
-  
-  const detailsTitle = document.createElement('h5');
-  detailsTitle.textContent = 'Change Details';
-  detailsSection.appendChild(detailsTitle);
-  
-  const detailsHr = document.createElement('hr');
-  detailsSection.appendChild(detailsHr);
-  
-  const detailsRow = document.createElement('div');
-  detailsRow.className = 'row';
-  
-  // Left column
-  const leftCol = document.createElement('div');
-  leftCol.className = 'col-md-6';
-  
-  // Requester info
-  const requesterPara = document.createElement('p');
-  const requesterLabel = document.createElement('strong');
-  requesterLabel.textContent = 'Requester: ';
-  requesterPara.appendChild(requesterLabel);
-  requesterPara.appendChild(document.createTextNode(
-    `${changeRequestData.requester.first_name} ${changeRequestData.requester.last_name}`
-  ));
-  leftCol.appendChild(requesterPara);
-  
-  // Agent info
-  const agentPara = document.createElement('p');
-  const agentLabel = document.createElement('strong');
-  agentLabel.textContent = 'Agent (Technical SME): ';
-  agentPara.appendChild(agentLabel);
-  agentPara.appendChild(document.createTextNode(
-    `${changeRequestData.agent.first_name} ${changeRequestData.agent.last_name}`
-  ));
-  leftCol.appendChild(agentPara);
-  
-  // Change type
-  const typePara = document.createElement('p');
-  const typeLabel = document.createElement('strong');
-  typeLabel.textContent = 'Change Type: ';
-  typePara.appendChild(typeLabel);
-  typePara.appendChild(document.createTextNode(changeRequestData.changeType));
-  leftCol.appendChild(typePara);
-  
-  // Lead time
-  const leadTimePara = document.createElement('p');
-  const leadTimeLabel = document.createElement('strong');
-  leadTimeLabel.textContent = 'Lead Time: ';
-  leadTimePara.appendChild(leadTimeLabel);
-  leadTimePara.appendChild(document.createTextNode(changeRequestData.leadTime));
-  leftCol.appendChild(leadTimePara);
-  
-  // Right column
-  const rightCol = document.createElement('div');
-  rightCol.className = 'col-md-6';
-  
-  // Planned start
-  const startPara = document.createElement('p');
-  const startLabel = document.createElement('strong');
-  startLabel.textContent = 'Planned Start: ';
-  startPara.appendChild(startLabel);
-  startPara.appendChild(document.createTextNode(formatDateTime(changeRequestData.plannedStart)));
-  rightCol.appendChild(startPara);
-  
-  // Planned end
-  const endPara = document.createElement('p');
-  const endLabel = document.createElement('strong');
-  endLabel.textContent = 'Planned End: ';
-  endPara.appendChild(endLabel);
-  endPara.appendChild(document.createTextNode(formatDateTime(changeRequestData.plannedEnd)));
-  rightCol.appendChild(endPara);
-  
-  // Add columns to row
-  detailsRow.appendChild(leftCol);
-  detailsRow.appendChild(rightCol);
-  detailsSection.appendChild(detailsRow);
-  
-  // Implementation plan
-  const implTitle = document.createElement('h6');
-  implTitle.className = 'mt-3';
-  implTitle.textContent = 'Implementation Plan';
-  detailsSection.appendChild(implTitle);
-  
-  const implPara = document.createElement('p');
-  implPara.className = 'text-secondary';
-  implPara.textContent = changeRequestData.implementationPlan || 'Not provided';
-  detailsSection.appendChild(implPara);
-  
-  // Backout plan
-  const backoutTitle = document.createElement('h6');
-  backoutTitle.className = 'mt-3';
-  backoutTitle.textContent = 'Backout (Recovery) Plan';
-  detailsSection.appendChild(backoutTitle);
-  
-  const backoutPara = document.createElement('p');
-  backoutPara.className = 'text-secondary';
-  backoutPara.textContent = changeRequestData.backoutPlan || 'Not provided';
-  detailsSection.appendChild(backoutPara);
-  
-  // Validation plan
-  const validationTitle = document.createElement('h6');
-  validationTitle.className = 'mt-3';
-  validationTitle.textContent = 'Validation Plan';
-  detailsSection.appendChild(validationTitle);
-  
-  const validationPara = document.createElement('p');
-  validationPara.className = 'text-secondary';
-  validationPara.textContent = changeRequestData.validationPlan || 'Not provided';
-  detailsSection.appendChild(validationPara);
-  
-  // Add details section to summary
-  summaryContent.appendChild(detailsSection);
-  
-  // Risk Assessment section
-  const riskSection = document.createElement('div');
-  riskSection.className = 'summary-section mb-4';
-  
-  const riskTitle = document.createElement('h5');
-  riskTitle.textContent = 'Risk Assessment';
-  riskSection.appendChild(riskTitle);
-  
-  const riskHr = document.createElement('hr');
-  riskSection.appendChild(riskHr);
-  
-  const riskRow = document.createElement('div');
-  riskRow.className = 'row';
-  
-  // Risk score column
-  const scoreCol = document.createElement('div');
-  scoreCol.className = 'col-md-6';
-  
-  const scorePara = document.createElement('p');
-  const scoreLabel = document.createElement('strong');
-  scoreLabel.textContent = 'Risk Score: ';
-  scorePara.appendChild(scoreLabel);
-  scorePara.appendChild(document.createTextNode(changeRequestData.riskAssessment.totalScore));
-  scoreCol.appendChild(scorePara);
-  
-  // Risk level column
-  const levelCol = document.createElement('div');
-  levelCol.className = 'col-md-6';
-  
-  const levelPara = document.createElement('p');
-  const levelLabel = document.createElement('strong');
-  levelLabel.textContent = 'Risk Level: ';
-  levelPara.appendChild(levelLabel);
-  
-  const levelBadge = document.createElement('span');
-  levelBadge.className = `badge ${getRiskBadgeClass(changeRequestData.riskAssessment.riskLevel)}`;
-  levelBadge.textContent = changeRequestData.riskAssessment.riskLevel;
-  levelPara.appendChild(levelBadge);
-  
-  levelCol.appendChild(levelPara);
-  
-  // Add columns to row
-  riskRow.appendChild(scoreCol);
-  riskRow.appendChild(levelCol);
-  riskSection.appendChild(riskRow);
-  
-  // Add risk section to summary
-  summaryContent.appendChild(riskSection);
-  
-  // Impacted Assets section
-  const assetsSection = document.createElement('div');
-  assetsSection.className = 'summary-section';
-  
-  const assetsTitle = document.createElement('h5');
-  assetsTitle.textContent = `Impacted Assets (${changeRequestData.selectedAssets.length})`;
-  assetsSection.appendChild(assetsTitle);
-  
-  const assetsHr = document.createElement('hr');
-  assetsSection.appendChild(assetsHr);
-  
-  const assetsList = document.createElement('ul');
-  assetsList.className = 'list-group';
-  
-  // Add each asset as a list item
-  changeRequestData.selectedAssets.forEach(asset => {
-    const assetItem = document.createElement('li');
-    assetItem.className = 'list-group-item';
-    assetItem.textContent = asset.name;
+  // Generate summary HTML with Bootstrap styling
+  summaryContent.innerHTML = `
+    <div class="summary-section mb-4">
+      <h5>Change Details</h5>
+      <hr>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Requester:</strong> ${changeRequestData.requester.first_name} ${changeRequestData.requester.last_name}</p>
+          <p><strong>Agent (Technical SME):</strong> ${changeRequestData.agent.first_name} ${changeRequestData.agent.last_name}</p>
+          <p><strong>Change Type:</strong> ${changeRequestData.changeType}</p>
+          <p><strong>Lead Time:</strong> ${changeRequestData.leadTime}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Planned Start:</strong> ${formatDateTime(changeRequestData.plannedStart)}</p>
+          <p><strong>Planned End:</strong> ${formatDateTime(changeRequestData.plannedEnd)}</p>
+        </div>
+      </div>
+      
+      <h6 class="mt-3">Implementation Plan</h6>
+      <p class="text-secondary">${changeRequestData.implementationPlan || 'Not provided'}</p>
+      
+      <h6 class="mt-3">Backout (Recovery) Plan</h6>
+      <p class="text-secondary">${changeRequestData.backoutPlan || 'Not provided'}</p>
+      
+      <h6 class="mt-3">Validation Plan</h6>
+      <p class="text-secondary">${changeRequestData.validationPlan || 'Not provided'}</p>
+    </div>
     
-    const assetBadge = document.createElement('span');
-    assetBadge.className = 'badge bg-secondary';
-    assetBadge.textContent = asset.type;
-    assetItem.appendChild(document.createTextNode(' '));
-    assetItem.appendChild(assetBadge);
+    <div class="summary-section mb-4">
+      <h5>Risk Assessment</h5>
+      <hr>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Risk Score:</strong> ${changeRequestData.riskAssessment.totalScore}</p>
+        </div>
+        <div class="col-md-6">
+          <p><strong>Risk Level:</strong> <span class="badge ${getRiskBadgeClass(changeRequestData.riskAssessment.riskLevel)}">${changeRequestData.riskAssessment.riskLevel}</span></p>
+        </div>
+      </div>
+    </div>
     
-    assetsList.appendChild(assetItem);
-  });
+    <div class="summary-section">
+      <h5>Impacted Assets (${changeRequestData.selectedAssets.length})</h5>
+      <hr>
+      <ul class="list-group">
+        ${changeRequestData.selectedAssets.map(asset => `<li class="list-group-item">${asset.name} <span class="badge bg-secondary">${asset.type}</span></li>`).join('')}
+      </ul>
+    </div>
+  `;
   
-  assetsSection.appendChild(assetsList);
-  
-  // Add assets section to summary
-  summaryContent.appendChild(assetsSection);
-  
-  // Show the modal using FDK-approved methods
-  try {
-    // Use client interface if available for showing modal
-    if (window.client && window.client.interface) {
-      window.client.interface.trigger('showModal', {
-        title: 'Change Request Summary',
-        template: 'confirmation-modal'
-      }).catch(err => {
-        console.error('Error showing modal via interface:', err);
-        // Fallback to simple class toggling without DOM creation
-        showModalFallback();
-      });
-    } else {
-      // Fallback to simple class toggling without DOM creation
-      showModalFallback();
-    }
-  } catch (error) {
-    console.error('Error showing modal:', error);
-    showNotification('error', 'Could not display summary');
-  }
-}
-
-// Modal fallback method without dynamic DOM creation
-function showModalFallback() {
+  // Show the Bootstrap modal
   const modalElement = document.getElementById('confirmation-modal');
-  if (modalElement) {
-    // Add classes but do not create new elements
-    modalElement.classList.add('show');
-    modalElement.style.display = 'block';
-    document.body.classList.add('modal-open');
-    
-    // Use existing backdrop element that should be in the HTML
-    const backdrop = document.getElementById('modal-backdrop');
-    if (backdrop) {
-      backdrop.classList.add('show');
-    }
-  }
+  const confirmationModal = new bootstrap.Modal(modalElement);
+  confirmationModal.show();
 }
 
 function closeModal() {
-  try {
-    // Use client interface if available for closing modal
-    if (window.client && window.client.interface) {
-      window.client.interface.trigger('hideModal').catch(err => {
-        console.error('Error hiding modal via interface:', err);
-        // Fallback to simple class toggling
-        closeModalFallback();
-      });
-    } else {
-      // Fallback to simple class toggling
-      closeModalFallback();
-    }
-  } catch (error) {
-    console.error('Error closing modal:', error);
-  }
-}
-
-// Modal close fallback method
-function closeModalFallback() {
   const modalElement = document.getElementById('confirmation-modal');
-  if (modalElement) {
-    modalElement.classList.remove('show');
-    modalElement.style.display = 'none';
-    document.body.classList.remove('modal-open');
-    
-    // Use existing backdrop element
-    const backdrop = document.getElementById('modal-backdrop');
-    if (backdrop) {
-      backdrop.classList.remove('show');
-    }
+  const modal = bootstrap.Modal.getInstance(modalElement);
+  if (modal) {
+    modal.hide();
   }
 }
 
@@ -3596,22 +2307,52 @@ function showNotification(type, message) {
 // DOM-based notification fallback
 function showFallbackNotification(type, message) {
   try {
-    // Log the notification instead of showing DOM elements
-    console.log(`Fallback notification (${type}): ${message}`);
-    
-    // Use client.interface if available
-    if (window.client && window.client.interface) {
-      try {
-        // Try using FDK-approved methods again
-        const notificationType = type === 'error' ? 'danger' : type;
-        window.client.interface.trigger('showNotify', { 
-          type: notificationType,
-          message: message || 'Notification'
-        });
-      } catch (e) {
-        console.error('Failed to show notification via interface:', e);
+    // Remove any existing notifications
+    const existingNotifications = document.querySelectorAll('.fallback-notification');
+    existingNotifications.forEach(note => {
+      if (note && note.parentNode) {
+        note.parentNode.removeChild(note);
       }
-    }
+    });
+    
+    // Create new notification element
+    const notification = document.createElement('div');
+    notification.className = `fallback-notification alert alert-${type === 'error' ? 'danger' : type}`;
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.right = '20px';
+    notification.style.zIndex = '9999';
+    notification.style.maxWidth = '300px';
+    notification.style.padding = '10px 15px';
+    notification.style.borderRadius = '4px';
+    notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+    notification.textContent = message || 'Notification';
+    
+    // Add close button
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close';
+    closeBtn.style.float = 'right';
+    closeBtn.style.marginLeft = '10px';
+    closeBtn.style.fontSize = '16px';
+    closeBtn.style.fontWeight = 'bold';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.onclick = function() {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    };
+    
+    notification.prepend(closeBtn);
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 5000);
   } catch (e) {
     console.error('Failed to create fallback notification:', e);
   }
@@ -3656,193 +2397,24 @@ function getRiskBadgeClass(riskLevel) {
   }
 }
 
-// CSS classes should be defined in a separate CSS file
-// For example: app/styles/styles.css
-
-/**
- * Calculate safe API request counts based on rate limits
- * @returns {Promise<Object>} - Object with calculated safe limits
- */
-async function getSafeApiLimits() {
-  // Get installation parameters
-  const params = await getInstallationParams();
-  const plan = params.freshservicePlan;
-  const safetyMargin = params.apiSafetyMargin / 100; // Convert percentage to decimal
-  
-  // Get rate limits for the current plan
-  const limits = DEFAULT_RATE_LIMITS[plan] || DEFAULT_RATE_LIMITS.enterprise;
-  
-  // Calculate safe number of requests (applying safety margin)
-  return {
-    listAgentsPageLimit: Math.floor((limits.listAgents * safetyMargin) / 100), // Each page is 100 agents
-    listRequestersPageLimit: Math.floor((limits.listRequesters * safetyMargin) / 100) // Each page is 100 requesters
-  };
-}
-
-/**
- * Get app installation parameters
- * @returns {Promise<Object>} - Installation parameters
- */
-async function getInstallationParams() {
-  try {
-    if (!window.client || typeof window.client.iparams === 'undefined') {
-      console.warn('iparams client not available, using defaults');
-      return {
-        freshservicePlan: 'enterprise',
-        apiSafetyMargin: DEFAULT_SAFETY_MARGIN,
-        inventoryTypeId: DEFAULT_INVENTORY_TYPE_ID,
-        searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
-      };
+// Add this CSS to the top of your file
+document.addEventListener('DOMContentLoaded', function() {
+  // Add custom CSS for hover effect
+  const style = document.createElement('style');
+  style.textContent = `
+    .search-item-hover {
+      transition: background-color 0.2s ease;
+      cursor: pointer;
     }
-    
-    const iparams = await window.client.iparams.get();
-    console.log('Loaded installation parameters:', iparams);
-    
-    // Ensure all numeric parameters are properly parsed as numbers
-    return {
-      freshservicePlan: (iparams.freshservice_plan || 'enterprise').toLowerCase(),
-      apiSafetyMargin: Number(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN),
-      inventoryTypeId: Number(iparams.inventory_type_id || DEFAULT_INVENTORY_TYPE_ID),
-      searchCacheTimeout: Number(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT)
-    };
-  } catch (error) {
-    console.error('Error getting installation parameters:', error);
-    return {
-      freshservicePlan: 'enterprise',
-      apiSafetyMargin: DEFAULT_SAFETY_MARGIN,
-      inventoryTypeId: DEFAULT_INVENTORY_TYPE_ID,
-      searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
-    };
-  }
-}
-
-/**
- * Creates a loading indicator without using innerHTML
- * @param {HTMLElement} container - Container to add the loading indicator to
- */
-function createLoadingIndicator(container) {
-  // Clear existing content
-  while (container.firstChild) {
-    container.removeChild(container.firstChild);
-  }
-  
-  const loadingDiv = document.createElement('div');
-  loadingDiv.className = 'text-center p-3';
-  
-  const spinner = document.createElement('div');
-  spinner.className = 'spinner-border spinner-border-sm';
-  spinner.setAttribute('role', 'status');
-  
-  const loadingText = document.createTextNode(' Loading...');
-  
-  loadingDiv.appendChild(spinner);
-  loadingDiv.appendChild(loadingText);
-  container.appendChild(loadingDiv);
-  container.style.display = 'block';
-}
-
-/**
- * Creates a "no results" message without using innerHTML
- * @param {HTMLElement} container - Container to add the message to
- * @param {string} message - Message to display
- */
-function createNoResultsMessage(container, message) {
-  // Clear existing content
-  while (container.firstChild) {
-    container.removeChild(container.firstChild);
-  }
-  
-  const messageDiv = document.createElement('div');
-  messageDiv.className = 'list-group-item search-result-item no-results';
-  messageDiv.textContent = message;
-  
-  container.appendChild(messageDiv);
-  container.style.display = 'block';
-}
-
-// Helper function to display initialization errors without relying on the client
-function displayInitError(message) {
-  try {
-    // Log error instead of DOM manipulation
-    console.error(`Initialization error: ${message}`);
-    
-    // Try to use client interface if already initialized
-    if (window.client && window.client.interface) {
-      try {
-        window.client.interface.trigger('showNotify', {
-          type: 'danger',
-          message: message || 'App initialization failed'
-        });
-      } catch (e) {
-        console.error('Failed to show error notification:', e);
-      }
-    } else {
-      // Fallback to direct DOM manipulation if no interface available
-      try {
-        const errorDiv = document.createElement('div');
-        errorDiv.style.position = 'fixed';
-        errorDiv.style.top = '10px';
-        errorDiv.style.left = '10px';
-        errorDiv.style.right = '10px';
-        errorDiv.style.padding = '15px';
-        errorDiv.style.backgroundColor = '#F44336';
-        errorDiv.style.color = 'white';
-        errorDiv.style.zIndex = '9999';
-        errorDiv.style.borderRadius = '4px';
-        errorDiv.style.textAlign = 'center';
-        errorDiv.style.fontWeight = 'bold';
-        
-        errorDiv.textContent = message || 'App initialization failed';
-        document.body.appendChild(errorDiv);
-      } catch (domErr) {
-        console.error('Failed to create error element:', domErr);
-      }
+    .search-item-hover:hover {
+      background-color: #f8f9fa;
     }
-  } catch (e) {
-    console.error("Failed to show error message:", e);
-  }
-}
-
-/**
- * Search for agents using Freshservice API
- */
-function searchAgents(e) {
-  const searchTerm = e.target.value.trim();
-  if (searchTerm.length < 2) return;
-
-  // Show loading indicator
-  const resultsContainer = document.getElementById('agent-results');
-  createLoadingIndicator(resultsContainer);
-  
-  // Check cache first
-  getFromSearchCache('agents', searchTerm).then(cachedResults => {
-    if (cachedResults) {
-      // Use cached results
-      displaySearchResults('agent-results', cachedResults, selectAgent);
-      
-      // Get the configured search cache timeout
-      getInstallationParams().then(params => {
-        const searchCacheTimeout = params.searchCacheTimeout;
-        
-        // Set a timer to check for fresh results after the timeout
-        setTimeout(() => {
-          // Only perform API call if the search term is still the current one
-          const currentSearchTerm = document.getElementById('agent-search').value.trim();
-          if (currentSearchTerm === searchTerm) {
-            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing agent search for: ${searchTerm}`);
-            performAgentSearch(searchTerm, true);
-          }
-        }, searchCacheTimeout);
-      });
-      
-      return;
+    .search-result-item {
+      border-left: 3px solid transparent;
     }
-    
-    // No cache hit, perform search immediately
-    performAgentSearch(searchTerm);
-  }).catch(error => {
-    console.error('Error checking agent search cache:', error);
-    // Fallback to direct search on cache error
-    performAgentSearch(searchTerm);
-  });
-}
+    .search-result-item:hover {
+      border-left: 3px solid #0d6efd;
+    }
+  `;
+  document.head.appendChild(style);
+});
