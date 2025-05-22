@@ -9,6 +9,7 @@ body {
   padding: 0;
   color: #333;
   line-height: 1.5;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
 }
 
 /* Bootstrap enhancing styles */
@@ -98,10 +99,14 @@ h3 {
   overflow-y: auto;
   background: white;
   z-index: 100;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
 }
 
 .search-result-item {
   cursor: pointer;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
 }
 
 .search-result-item:hover {
@@ -151,4 +156,26 @@ h3 {
 /* Utility classes */
 .hidden {
   display: none !important;
+}
+
+/* FontAwesome fallback icons */
+.icon-fallback-user:before { content: "👤"; }
+.icon-fallback-email:before { content: "✉"; }
+.icon-fallback-building:before { content: "🏢"; }
+.icon-fallback-location:before { content: "📍"; }
+.icon-fallback-desktop:before { content: "💻"; }
+.icon-fallback-times:before { content: "✕"; }
+
+/* Modal overrides to prevent conflicts */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1055;
+  display: none;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  outline: 0;
 }

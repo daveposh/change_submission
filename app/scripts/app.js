@@ -89,14 +89,94 @@ function loadFontAwesome() {
   }
 }
 
-document.onreadystatechange = function() {
-  if (document.readyState === 'interactive') {
-    console.log('Document ready, initializing app...');
-    // Load FontAwesome first
-    loadFontAwesome();
-    setTimeout(initializeApp, 500); // Add slight delay before initialization
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('App initialization started');
+  
+  // Ensure jQuery is properly loaded before continuing
+  if (typeof jQuery === 'undefined') {
+    console.error('jQuery is not loaded! Attempting to recover...');
+    const jqueryScript = document.createElement('script');
+    jqueryScript.src = 'scripts/vendor/jquery.min.js';
+    document.head.appendChild(jqueryScript);
+    
+    // Wait for jQuery to load
+    jqueryScript.onload = function() {
+      console.log('jQuery loaded dynamically');
+      initializeAfterJQuery();
+    };
+    
+    jqueryScript.onerror = function() {
+      console.error('Failed to load jQuery dynamically. App functionality will be limited.');
+      alert('Failed to initialize properly. Please refresh the page.');
+    };
+  } else {
+    console.log('jQuery already loaded');
+    initializeAfterJQuery();
   }
-};
+});
+
+function initializeAfterJQuery() {
+  // Ensure Bootstrap is properly loaded
+  if (typeof bootstrap === 'undefined') {
+    console.error('Bootstrap is not loaded! Attempting to recover...');
+    const bootstrapScript = document.createElement('script');
+    bootstrapScript.src = 'scripts/vendor/bootstrap.bundle.min.js';
+    document.head.appendChild(bootstrapScript);
+    
+    // Wait for Bootstrap to load
+    bootstrapScript.onload = function() {
+      console.log('Bootstrap loaded dynamically');
+      initializeApp();
+    };
+    
+    bootstrapScript.onerror = function() {
+      console.error('Failed to load Bootstrap dynamically. App functionality will be limited.');
+      // Continue anyway as most critical functions don't depend on Bootstrap
+      initializeApp();
+    };
+  } else {
+    console.log('Bootstrap already loaded');
+    initializeApp();
+  }
+}
+
+function initializeApp() {
+  console.log('Starting app initialization');
+  
+  // Load essential CSS dynamically if needed
+  ensureStylesheetsLoaded();
+
+  // Initialize client
+  window.client.events.on('app.initialized', initialization);
+
+  // Add fallback error handling for client initialization
+  setTimeout(function() {
+    if (!window.isInitialized) {
+      console.warn('App did not initialize in expected time, trying manual initialization');
+      initialization();
+    }
+  }, 3000);
+}
+
+function ensureStylesheetsLoaded() {
+  const requiredStylesheets = [
+    { href: 'styles/bootstrap.min.css', id: 'bootstrap-css' },
+    { href: 'styles/style.css', id: 'main-css' },
+    { href: 'styles/styles.css', id: 'app-css' }
+  ];
+  
+  requiredStylesheets.forEach(function(sheet) {
+    if (!document.getElementById(sheet.id)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.type = 'text/css';
+      link.href = sheet.href;
+      link.id = sheet.id;
+      document.head.appendChild(link);
+      console.log('Dynamically loaded stylesheet:', sheet.href);
+    }
+  });
+}
 
 /**
  * Fetch all locations from the API and store them in the cache
@@ -391,89 +471,6 @@ async function getUserName(userId) {
 async function getManagerName(managerId) {
   // Since manager IDs are just user IDs, use the user cache/lookup
   return await getUserName(managerId);
-}
-
-function initializeApp() {
-  console.log('Starting app initialization...');
-  
-  try {
-    // Make sure window is defined
-    if (typeof window === 'undefined') {
-      console.error('Window object is not available');
-      return;
-    }
-
-    // Initialize app client with proper error handling
-    if (typeof app === 'undefined') {
-      console.error('App object is not available');
-      displayInitError('App initialization failed: app object not available');
-      return;
-    }
-    
-    app.initialized()
-      .then(function getClient(_client) {
-        console.log('App client initialized successfully');
-        
-        // Ensure client is stored in the window object for global access
-        if (typeof window === 'undefined') {
-          console.error('Window object is not available for client storage');
-          return;
-        }
-        
-        window.client = _client;
-        
-        // IMPORTANT: Wait for DOM to be fully ready before setting up UI
-        setTimeout(() => {
-          try {
-            console.log('Setting up app components...');
-            
-            // Manually initialize Bootstrap tabs
-            initializeBootstrapTabs();
-            
-            setupEventListeners();
-            setupChangeTypeTooltips();
-            
-            // Fetch and cache all locations and most frequently used users
-            Promise.all([
-              fetchAllLocations().catch(err => {
-                console.error("Error in fetchAllLocations:", err);
-              }),
-              fetchUsers().catch(err => {
-                console.error("Error in fetchUsers:", err);
-              })
-            ]);
-            
-            // Only attempt to load data after setup is complete
-            setTimeout(() => {
-              try {
-                console.log('Loading saved data...');
-                // Check for client before trying to load saved data
-                if (!window.client) {
-                  console.error('Client not available for loading data');
-                  return;
-                }
-                
-                loadSavedData().catch(err => {
-                  console.error("Error in loadSavedData promise:", err);
-                });
-              } catch (dataErr) {
-                console.error("Exception during data loading:", dataErr);
-              }
-            }, 300);
-          } catch (setupErr) {
-            console.error("Error during app setup:", setupErr);
-          }
-        }, 300);
-      })
-      .catch(function(initErr) {
-        console.error("App client initialization failed:", initErr);
-        // Try to show error without using client interface
-        displayInitError('App initialization failed. Please refresh the page or contact support.');
-      });
-  } catch (e) {
-    console.error("Critical error during initialization:", e);
-    displayInitError('Critical initialization error: ' + (e.message || 'unknown error'));
-  }
 }
 
 // Helper function to display initialization errors without relying on the client
@@ -2417,4 +2414,166 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   `;
   document.head.appendChild(style);
+});
+
+/**
+ * CSS and API Troubleshooting Functions
+ * These help detect and fix common issues that could cause the page to get stuck
+ */
+function addTroubleshootingPanel() {
+  const panel = document.createElement('div');
+  panel.id = 'troubleshooting-panel';
+  panel.style.cssText = 'position:fixed; bottom:0; right:0; background:#fff; border:1px solid #ccc; padding:10px; z-index:9999; font-size:12px; max-width:300px; display:none;';
+  
+  panel.innerHTML = `
+    <h4>Troubleshooting</h4>
+    <div id="css-status">CSS Status: Checking...</div>
+    <div id="js-status">JS Status: Checking...</div>
+    <div id="api-status">API Status: Checking...</div>
+    <button id="fix-css" class="btn btn-sm btn-primary my-2">Fix CSS Issues</button>
+    <button id="fix-js" class="btn btn-sm btn-warning my-2">Fix JS Issues</button>
+    <button id="toggle-debug" class="btn btn-sm btn-info my-2">Toggle Debug Mode</button>
+  `;
+  
+  document.body.appendChild(panel);
+  
+  // Add keyboard shortcut to show panel (Alt+Shift+D)
+  document.addEventListener('keydown', function(e) {
+    if (e.altKey && e.shiftKey && e.key === 'D') {
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+  });
+  
+  // Set up button handlers
+  document.getElementById('fix-css').addEventListener('click', fixCSSIssues);
+  document.getElementById('fix-js').addEventListener('click', fixJSIssues);
+  document.getElementById('toggle-debug').addEventListener('click', toggleDebugMode);
+  
+  // Run diagnostics immediately
+  checkCSSStatus();
+  checkJSStatus();
+  checkAPIStatus();
+}
+
+function checkCSSStatus() {
+  const cssStatus = document.getElementById('css-status');
+  const stylesheets = document.styleSheets;
+  let loadedCount = 0;
+  let errorCount = 0;
+  
+  for (let i = 0; i < stylesheets.length; i++) {
+    try {
+      const rules = stylesheets[i].cssRules;
+      loadedCount++;
+    } catch (e) {
+      errorCount++;
+      console.error('CSS error in stylesheet:', stylesheets[i].href, e);
+    }
+  }
+  
+  cssStatus.textContent = `CSS Status: ${loadedCount} loaded, ${errorCount} errors`;
+  cssStatus.style.color = errorCount > 0 ? 'red' : 'green';
+}
+
+function checkJSStatus() {
+  const jsStatus = document.getElementById('js-status');
+  
+  const jqueryLoaded = typeof jQuery !== 'undefined';
+  const bootstrapLoaded = typeof bootstrap !== 'undefined';
+  
+  jsStatus.textContent = `JS Status: jQuery ${jqueryLoaded ? '✓' : '✗'}, Bootstrap ${bootstrapLoaded ? '✓' : '✗'}`;
+  jsStatus.style.color = (jqueryLoaded && bootstrapLoaded) ? 'green' : 'red';
+}
+
+function checkAPIStatus() {
+  const apiStatus = document.getElementById('api-status');
+  
+  if (!window.client || !window.client.request) {
+    apiStatus.textContent = 'API Status: Client API not available';
+    apiStatus.style.color = 'red';
+    return;
+  }
+  
+  // Test a simple API call
+  window.client.request.get('/api/v2/agents?per_page=1')
+    .then(function(response) {
+      apiStatus.textContent = 'API Status: Connection successful';
+      apiStatus.style.color = 'green';
+    })
+    .catch(function(error) {
+      apiStatus.textContent = `API Status: Error - ${error.message || 'Unknown'}`;
+      apiStatus.style.color = 'red';
+    });
+}
+
+function fixCSSIssues() {
+  // Dynamically reload all CSS files
+  const links = document.querySelectorAll('link[rel="stylesheet"]');
+  links.forEach(link => {
+    const newLink = document.createElement('link');
+    newLink.rel = 'stylesheet';
+    newLink.href = link.href.split('?')[0] + '?t=' + new Date().getTime();
+    newLink.onload = function() {
+      link.remove();
+    };
+    document.head.appendChild(newLink);
+  });
+  
+  // Add missing essential CSS
+  ensureStylesheetsLoaded();
+  
+  // Check status again
+  setTimeout(checkCSSStatus, 1000);
+}
+
+function fixJSIssues() {
+  // Reload jQuery if needed
+  if (typeof jQuery === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'scripts/vendor/jquery.min.js';
+    document.head.appendChild(script);
+  }
+  
+  // Reload Bootstrap if needed
+  if (typeof bootstrap === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'scripts/vendor/bootstrap.bundle.min.js';
+    document.head.appendChild(script);
+  }
+  
+  // Check status again
+  setTimeout(checkJSStatus, 1000);
+}
+
+function toggleDebugMode() {
+  if (!window.debugMode) {
+    window.debugMode = true;
+    console.log('Debug mode enabled');
+    
+    // Override console.log to capture logs
+    const oldLog = console.log;
+    console.log = function() {
+      const logEntry = document.createElement('div');
+      logEntry.textContent = Array.from(arguments).join(' ');
+      document.getElementById('troubleshooting-panel').appendChild(logEntry);
+      oldLog.apply(console, arguments);
+    };
+    
+    // Show more detailed error messages
+    window.onerror = function(message, source, lineno, colno, error) {
+      console.log(`Error: ${message} at ${source}:${lineno}:${colno}`);
+      return false;
+    };
+  } else {
+    window.debugMode = false;
+    console.log('Debug mode disabled');
+    // Restore original console.log
+    delete console.log;
+    window.onerror = null;
+  }
+}
+
+// Add the troubleshooting panel when the page loads
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(addTroubleshootingPanel, 2000);
 });
