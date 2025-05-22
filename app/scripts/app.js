@@ -94,7 +94,7 @@ const DEFAULT_RATE_LIMITS = {
 };
 
 // Default safety margin (percentage of rate limit to use)
-const DEFAULT_SAFETY_MARGIN = 0.7;
+const DEFAULT_SAFETY_MARGIN = 70; // Changed from 0.7 to 70 (percentage)
 
 // Default inventory software/services type ID
 const DEFAULT_INVENTORY_TYPE_ID = 33000752344;
@@ -3048,7 +3048,7 @@ async function getSafeApiLimits() {
   // Get installation parameters
   const params = await getInstallationParams();
   const plan = params.freshservicePlan;
-  const safetyMargin = params.apiSafetyMargin;
+  const safetyMargin = params.apiSafetyMargin / 100; // Convert percentage to decimal
   
   // Get rate limits for the current plan
   const limits = DEFAULT_RATE_LIMITS[plan] || DEFAULT_RATE_LIMITS.enterprise;
