@@ -116,39 +116,13 @@ const leadTimeText = {
 // Load FontAwesome if not already loaded
 function loadFontAwesome() {
   try {
-    // Check if Font Awesome is already loaded
-    if (!document.querySelector('link[href*="fontawesome"]')) {
-      console.log('Loading FontAwesome...');
-      
-      // Use FDK-friendly approach to load external resources
-      // First create the link element
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-      
-      // Add it to the head
-      document.head.appendChild(link);
-      
-      console.log('FontAwesome loaded');
-    } else {
-      console.log('FontAwesome already loaded');
-    }
-  } catch (error) {
-    // If there's an error loading Font Awesome, we'll provide fallback icons
-    console.error('Error loading FontAwesome:', error);
+    console.log('Using bundled icons instead of loading FontAwesome externally');
     
-    // Add basic fallback icons using CSS
-    const style = document.createElement('style');
-    style.textContent = `
-      /* Fallback icons using CSS */
-      .icon-fallback-user:before { content: "👤"; }
-      .icon-fallback-email:before { content: "✉"; }
-      .icon-fallback-building:before { content: "🏢"; }
-      .icon-fallback-location:before { content: "📍"; }
-      .icon-fallback-desktop:before { content: "💻"; }
-      .icon-fallback-times:before { content: "✕"; }
-    `;
-    document.head.appendChild(style);
+    // Note: Icon classes are defined in app/styles/styles.css
+    // No need to generate them here anymore
+    console.log('Icon classes are defined in CSS file');
+  } catch (error) {
+    console.error('Error setting up icons:', error);
   }
 }
 
@@ -640,11 +614,20 @@ function initializeApp() {
 // Helper function to display initialization errors without relying on the client
 function displayInitError(message) {
   try {
-    document.body.innerHTML += `
-      <div style="color: red; padding: 20px; border: 1px solid red; margin: 20px; background: #fff">
-        ${message}
-      </div>
-    `;
+    // Log error instead of DOM manipulation
+    console.error(`Initialization error: ${message}`);
+    
+    // Try to use client interface if already initialized
+    if (window.client && window.client.interface) {
+      try {
+        window.client.interface.trigger('showNotify', {
+          type: 'danger',
+          message: message || 'App initialization failed'
+        });
+      } catch (e) {
+        console.error('Failed to show error notification:', e);
+      }
+    }
   } catch (e) {
     console.error("Failed to show error message:", e);
   }
@@ -1142,17 +1125,10 @@ function setupChangeTypeTooltips() {
   const changeTypeSelect = document.getElementById('change-type');
   const changeTypeTooltip = document.getElementById('change-type-tooltip');
   
-  // Ensure tooltip container has proper styling
+  // Ensure tooltip container has proper styling using CSS classes
   if (changeTypeTooltip) {
-    // Apply better styling to the tooltip
-    changeTypeTooltip.style.padding = '10px 15px';
-    changeTypeTooltip.style.border = '1px solid #ccc';
-    changeTypeTooltip.style.borderRadius = '5px';
-    changeTypeTooltip.style.backgroundColor = '#f8f9fa';
-    changeTypeTooltip.style.marginTop = '10px';
-    changeTypeTooltip.style.fontSize = '0.9rem';
-    changeTypeTooltip.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-    changeTypeTooltip.style.maxWidth = '400px';
+    // Apply styling through CSS classes instead of inline styles
+    changeTypeTooltip.className = 'change-type-tooltip-container';
   }
   
   // Show tooltip for the default selected change type immediately
@@ -1183,13 +1159,10 @@ function setupChangeTypeTooltips() {
       const tooltipContent = changeTypeTooltips[changeType] || '';
       
       // Update tooltip content
-      changeTypeTooltip.textContent = tooltipContent;
-      
-      // Always show tooltip
       changeTypeTooltip.style.display = 'block';
       
       // Add visual indication of selected type
-      changeTypeTooltip.className = ''; // Clear any existing classes
+      changeTypeTooltip.className = 'change-type-tooltip-container'; // Clear existing classes
       changeTypeTooltip.classList.add('tooltip-' + changeType);
       
       // Add a small indicator of the currently selected type
@@ -1327,8 +1300,7 @@ function searchRequesters(e) {
 
   // Show loading indicator
   const resultsContainer = document.getElementById('requester-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
+  createLoadingIndicator(resultsContainer);
   
   // Check cache first
   getFromSearchCache('requesters', searchTerm).then(cachedResults => {
@@ -1384,8 +1356,7 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
     const resultsContainer = document.getElementById('requester-results');
-    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-    resultsContainer.style.display = 'block';
+    createLoadingIndicator(resultsContainer);
   }
   
   // Function to load results from a specific page
@@ -1466,8 +1437,7 @@ function searchAgents(e) {
 
   // Show loading indicator
   const resultsContainer = document.getElementById('agent-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
+  createLoadingIndicator(resultsContainer);
   
   // Check cache first
   getFromSearchCache('agents', searchTerm).then(cachedResults => {
@@ -1522,8 +1492,7 @@ function performAgentSearch(searchTerm, isRefresh = false) {
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
     const resultsContainer = document.getElementById('agent-results');
-    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-    resultsContainer.style.display = 'block';
+    createLoadingIndicator(resultsContainer);
   }
   
   // Function to load results from a specific page
@@ -1735,12 +1704,16 @@ async function cacheLocations(locations) {
  */
 function displaySearchResults(containerId, results, selectionCallback) {
   const container = document.getElementById(containerId);
-  container.innerHTML = '';
+  
+  // Clear existing content
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+  
   container.style.display = results.length ? 'block' : 'none';
   
   if (results.length === 0) {
-    container.innerHTML = '<div class="list-group-item search-result-item no-results">No results found</div>';
-    container.style.display = 'block';
+    createNoResultsMessage(container, 'No results found');
     return;
   }
   
@@ -2149,12 +2122,11 @@ function searchAssets(e) {
   
   // Show loading indicator even for short search terms
   const resultsContainer = document.getElementById('asset-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
+  createLoadingIndicator(resultsContainer);
   
   // Don't proceed with empty search
   if (searchTerm.length === 0) {
-    resultsContainer.innerHTML = '<div class="list-group-item search-result-item no-results">Type to search</div>';
+    createNoResultsMessage(resultsContainer, 'Type to search');
     return;
   }
 
@@ -2325,12 +2297,16 @@ function searchAssets(e) {
 
 function displayAssetResults(containerId, results, selectionCallback) {
   const container = document.getElementById(containerId);
-  container.innerHTML = '';
+  
+  // Clear existing content
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+  
   container.style.display = results.length ? 'block' : 'none';
   
   if (results.length === 0) {
-    container.innerHTML = '<div class="list-group-item search-result-item no-results">No results found</div>';
-    container.style.display = 'block';
+    createNoResultsMessage(container, 'No results found');
     return;
   }
   
@@ -2458,7 +2434,7 @@ function renderSelectedAssets() {
     
     // Check if we have valid asset data
     if (!Array.isArray(changeRequestData.selectedAssets) || changeRequestData.selectedAssets.length === 0) {
-      container.innerHTML = '<div class="empty-message text-secondary">No assets selected</div>';
+      createNoResultsMessage(container, 'No assets selected');
       return;
     }
     
@@ -2567,67 +2543,281 @@ function showSummary() {
   
   const summaryContent = document.getElementById('summary-content');
   
-  // Generate summary HTML with Bootstrap styling
-  summaryContent.innerHTML = `
-    <div class="summary-section mb-4">
-      <h5>Change Details</h5>
-      <hr>
-      <div class="row">
-        <div class="col-md-6">
-          <p><strong>Requester:</strong> ${changeRequestData.requester.first_name} ${changeRequestData.requester.last_name}</p>
-          <p><strong>Agent (Technical SME):</strong> ${changeRequestData.agent.first_name} ${changeRequestData.agent.last_name}</p>
-          <p><strong>Change Type:</strong> ${changeRequestData.changeType}</p>
-          <p><strong>Lead Time:</strong> ${changeRequestData.leadTime}</p>
-        </div>
-        <div class="col-md-6">
-          <p><strong>Planned Start:</strong> ${formatDateTime(changeRequestData.plannedStart)}</p>
-          <p><strong>Planned End:</strong> ${formatDateTime(changeRequestData.plannedEnd)}</p>
-        </div>
-      </div>
-      
-      <h6 class="mt-3">Implementation Plan</h6>
-      <p class="text-secondary">${changeRequestData.implementationPlan || 'Not provided'}</p>
-      
-      <h6 class="mt-3">Backout (Recovery) Plan</h6>
-      <p class="text-secondary">${changeRequestData.backoutPlan || 'Not provided'}</p>
-      
-      <h6 class="mt-3">Validation Plan</h6>
-      <p class="text-secondary">${changeRequestData.validationPlan || 'Not provided'}</p>
-    </div>
-    
-    <div class="summary-section mb-4">
-      <h5>Risk Assessment</h5>
-      <hr>
-      <div class="row">
-        <div class="col-md-6">
-          <p><strong>Risk Score:</strong> ${changeRequestData.riskAssessment.totalScore}</p>
-        </div>
-        <div class="col-md-6">
-          <p><strong>Risk Level:</strong> <span class="badge ${getRiskBadgeClass(changeRequestData.riskAssessment.riskLevel)}">${changeRequestData.riskAssessment.riskLevel}</span></p>
-        </div>
-      </div>
-    </div>
-    
-    <div class="summary-section">
-      <h5>Impacted Assets (${changeRequestData.selectedAssets.length})</h5>
-      <hr>
-      <ul class="list-group">
-        ${changeRequestData.selectedAssets.map(asset => `<li class="list-group-item">${asset.name} <span class="badge bg-secondary">${asset.type}</span></li>`).join('')}
-      </ul>
-    </div>
-  `;
+  // Clear existing content
+  while (summaryContent.firstChild) {
+    summaryContent.removeChild(summaryContent.firstChild);
+  }
   
-  // Show the Bootstrap modal
+  // Create summary using safer DOM manipulation
+  
+  // Change Details section
+  const detailsSection = document.createElement('div');
+  detailsSection.className = 'summary-section mb-4';
+  
+  const detailsTitle = document.createElement('h5');
+  detailsTitle.textContent = 'Change Details';
+  detailsSection.appendChild(detailsTitle);
+  
+  const detailsHr = document.createElement('hr');
+  detailsSection.appendChild(detailsHr);
+  
+  const detailsRow = document.createElement('div');
+  detailsRow.className = 'row';
+  
+  // Left column
+  const leftCol = document.createElement('div');
+  leftCol.className = 'col-md-6';
+  
+  // Requester info
+  const requesterPara = document.createElement('p');
+  const requesterLabel = document.createElement('strong');
+  requesterLabel.textContent = 'Requester: ';
+  requesterPara.appendChild(requesterLabel);
+  requesterPara.appendChild(document.createTextNode(
+    `${changeRequestData.requester.first_name} ${changeRequestData.requester.last_name}`
+  ));
+  leftCol.appendChild(requesterPara);
+  
+  // Agent info
+  const agentPara = document.createElement('p');
+  const agentLabel = document.createElement('strong');
+  agentLabel.textContent = 'Agent (Technical SME): ';
+  agentPara.appendChild(agentLabel);
+  agentPara.appendChild(document.createTextNode(
+    `${changeRequestData.agent.first_name} ${changeRequestData.agent.last_name}`
+  ));
+  leftCol.appendChild(agentPara);
+  
+  // Change type
+  const typePara = document.createElement('p');
+  const typeLabel = document.createElement('strong');
+  typeLabel.textContent = 'Change Type: ';
+  typePara.appendChild(typeLabel);
+  typePara.appendChild(document.createTextNode(changeRequestData.changeType));
+  leftCol.appendChild(typePara);
+  
+  // Lead time
+  const leadTimePara = document.createElement('p');
+  const leadTimeLabel = document.createElement('strong');
+  leadTimeLabel.textContent = 'Lead Time: ';
+  leadTimePara.appendChild(leadTimeLabel);
+  leadTimePara.appendChild(document.createTextNode(changeRequestData.leadTime));
+  leftCol.appendChild(leadTimePara);
+  
+  // Right column
+  const rightCol = document.createElement('div');
+  rightCol.className = 'col-md-6';
+  
+  // Planned start
+  const startPara = document.createElement('p');
+  const startLabel = document.createElement('strong');
+  startLabel.textContent = 'Planned Start: ';
+  startPara.appendChild(startLabel);
+  startPara.appendChild(document.createTextNode(formatDateTime(changeRequestData.plannedStart)));
+  rightCol.appendChild(startPara);
+  
+  // Planned end
+  const endPara = document.createElement('p');
+  const endLabel = document.createElement('strong');
+  endLabel.textContent = 'Planned End: ';
+  endPara.appendChild(endLabel);
+  endPara.appendChild(document.createTextNode(formatDateTime(changeRequestData.plannedEnd)));
+  rightCol.appendChild(endPara);
+  
+  // Add columns to row
+  detailsRow.appendChild(leftCol);
+  detailsRow.appendChild(rightCol);
+  detailsSection.appendChild(detailsRow);
+  
+  // Implementation plan
+  const implTitle = document.createElement('h6');
+  implTitle.className = 'mt-3';
+  implTitle.textContent = 'Implementation Plan';
+  detailsSection.appendChild(implTitle);
+  
+  const implPara = document.createElement('p');
+  implPara.className = 'text-secondary';
+  implPara.textContent = changeRequestData.implementationPlan || 'Not provided';
+  detailsSection.appendChild(implPara);
+  
+  // Backout plan
+  const backoutTitle = document.createElement('h6');
+  backoutTitle.className = 'mt-3';
+  backoutTitle.textContent = 'Backout (Recovery) Plan';
+  detailsSection.appendChild(backoutTitle);
+  
+  const backoutPara = document.createElement('p');
+  backoutPara.className = 'text-secondary';
+  backoutPara.textContent = changeRequestData.backoutPlan || 'Not provided';
+  detailsSection.appendChild(backoutPara);
+  
+  // Validation plan
+  const validationTitle = document.createElement('h6');
+  validationTitle.className = 'mt-3';
+  validationTitle.textContent = 'Validation Plan';
+  detailsSection.appendChild(validationTitle);
+  
+  const validationPara = document.createElement('p');
+  validationPara.className = 'text-secondary';
+  validationPara.textContent = changeRequestData.validationPlan || 'Not provided';
+  detailsSection.appendChild(validationPara);
+  
+  // Add details section to summary
+  summaryContent.appendChild(detailsSection);
+  
+  // Risk Assessment section
+  const riskSection = document.createElement('div');
+  riskSection.className = 'summary-section mb-4';
+  
+  const riskTitle = document.createElement('h5');
+  riskTitle.textContent = 'Risk Assessment';
+  riskSection.appendChild(riskTitle);
+  
+  const riskHr = document.createElement('hr');
+  riskSection.appendChild(riskHr);
+  
+  const riskRow = document.createElement('div');
+  riskRow.className = 'row';
+  
+  // Risk score column
+  const scoreCol = document.createElement('div');
+  scoreCol.className = 'col-md-6';
+  
+  const scorePara = document.createElement('p');
+  const scoreLabel = document.createElement('strong');
+  scoreLabel.textContent = 'Risk Score: ';
+  scorePara.appendChild(scoreLabel);
+  scorePara.appendChild(document.createTextNode(changeRequestData.riskAssessment.totalScore));
+  scoreCol.appendChild(scorePara);
+  
+  // Risk level column
+  const levelCol = document.createElement('div');
+  levelCol.className = 'col-md-6';
+  
+  const levelPara = document.createElement('p');
+  const levelLabel = document.createElement('strong');
+  levelLabel.textContent = 'Risk Level: ';
+  levelPara.appendChild(levelLabel);
+  
+  const levelBadge = document.createElement('span');
+  levelBadge.className = `badge ${getRiskBadgeClass(changeRequestData.riskAssessment.riskLevel)}`;
+  levelBadge.textContent = changeRequestData.riskAssessment.riskLevel;
+  levelPara.appendChild(levelBadge);
+  
+  levelCol.appendChild(levelPara);
+  
+  // Add columns to row
+  riskRow.appendChild(scoreCol);
+  riskRow.appendChild(levelCol);
+  riskSection.appendChild(riskRow);
+  
+  // Add risk section to summary
+  summaryContent.appendChild(riskSection);
+  
+  // Impacted Assets section
+  const assetsSection = document.createElement('div');
+  assetsSection.className = 'summary-section';
+  
+  const assetsTitle = document.createElement('h5');
+  assetsTitle.textContent = `Impacted Assets (${changeRequestData.selectedAssets.length})`;
+  assetsSection.appendChild(assetsTitle);
+  
+  const assetsHr = document.createElement('hr');
+  assetsSection.appendChild(assetsHr);
+  
+  const assetsList = document.createElement('ul');
+  assetsList.className = 'list-group';
+  
+  // Add each asset as a list item
+  changeRequestData.selectedAssets.forEach(asset => {
+    const assetItem = document.createElement('li');
+    assetItem.className = 'list-group-item';
+    assetItem.textContent = asset.name;
+    
+    const assetBadge = document.createElement('span');
+    assetBadge.className = 'badge bg-secondary';
+    assetBadge.textContent = asset.type;
+    assetItem.appendChild(document.createTextNode(' '));
+    assetItem.appendChild(assetBadge);
+    
+    assetsList.appendChild(assetItem);
+  });
+  
+  assetsSection.appendChild(assetsList);
+  
+  // Add assets section to summary
+  summaryContent.appendChild(assetsSection);
+  
+  // Show the modal using FDK-approved methods
+  try {
+    // Use client interface if available for showing modal
+    if (window.client && window.client.interface) {
+      window.client.interface.trigger('showModal', {
+        title: 'Change Request Summary',
+        template: 'confirmation-modal'
+      }).catch(err => {
+        console.error('Error showing modal via interface:', err);
+        // Fallback to simple class toggling without DOM creation
+        showModalFallback();
+      });
+    } else {
+      // Fallback to simple class toggling without DOM creation
+      showModalFallback();
+    }
+  } catch (error) {
+    console.error('Error showing modal:', error);
+    showNotification('error', 'Could not display summary');
+  }
+}
+
+// Modal fallback method without dynamic DOM creation
+function showModalFallback() {
   const modalElement = document.getElementById('confirmation-modal');
-  const confirmationModal = new bootstrap.Modal(modalElement);
-  confirmationModal.show();
+  if (modalElement) {
+    // Add classes but do not create new elements
+    modalElement.classList.add('show');
+    modalElement.style.display = 'block';
+    document.body.classList.add('modal-open');
+    
+    // Use existing backdrop element that should be in the HTML
+    const backdrop = document.getElementById('modal-backdrop');
+    if (backdrop) {
+      backdrop.classList.add('show');
+    }
+  }
 }
 
 function closeModal() {
+  try {
+    // Use client interface if available for closing modal
+    if (window.client && window.client.interface) {
+      window.client.interface.trigger('hideModal').catch(err => {
+        console.error('Error hiding modal via interface:', err);
+        // Fallback to simple class toggling
+        closeModalFallback();
+      });
+    } else {
+      // Fallback to simple class toggling
+      closeModalFallback();
+    }
+  } catch (error) {
+    console.error('Error closing modal:', error);
+  }
+}
+
+// Modal close fallback method
+function closeModalFallback() {
   const modalElement = document.getElementById('confirmation-modal');
-  const modal = bootstrap.Modal.getInstance(modalElement);
-  if (modal) {
-    modal.hide();
+  if (modalElement) {
+    modalElement.classList.remove('show');
+    modalElement.style.display = 'none';
+    document.body.classList.remove('modal-open');
+    
+    // Use existing backdrop element
+    const backdrop = document.getElementById('modal-backdrop');
+    if (backdrop) {
+      backdrop.classList.remove('show');
+    }
   }
 }
 
@@ -2764,52 +2954,22 @@ function showNotification(type, message) {
 // DOM-based notification fallback
 function showFallbackNotification(type, message) {
   try {
-    // Remove any existing notifications
-    const existingNotifications = document.querySelectorAll('.fallback-notification');
-    existingNotifications.forEach(note => {
-      if (note && note.parentNode) {
-        note.parentNode.removeChild(note);
+    // Log the notification instead of showing DOM elements
+    console.log(`Fallback notification (${type}): ${message}`);
+    
+    // Use client.interface if available
+    if (window.client && window.client.interface) {
+      try {
+        // Try using FDK-approved methods again
+        const notificationType = type === 'error' ? 'danger' : type;
+        window.client.interface.trigger('showNotify', { 
+          type: notificationType,
+          message: message || 'Notification'
+        });
+      } catch (e) {
+        console.error('Failed to show notification via interface:', e);
       }
-    });
-    
-    // Create new notification element
-    const notification = document.createElement('div');
-    notification.className = `fallback-notification alert alert-${type === 'error' ? 'danger' : type}`;
-    notification.style.position = 'fixed';
-    notification.style.top = '20px';
-    notification.style.right = '20px';
-    notification.style.zIndex = '9999';
-    notification.style.maxWidth = '300px';
-    notification.style.padding = '10px 15px';
-    notification.style.borderRadius = '4px';
-    notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
-    notification.textContent = message || 'Notification';
-    
-    // Add close button
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'btn-close';
-    closeBtn.style.float = 'right';
-    closeBtn.style.marginLeft = '10px';
-    closeBtn.style.fontSize = '16px';
-    closeBtn.style.fontWeight = 'bold';
-    closeBtn.style.cursor = 'pointer';
-    closeBtn.setAttribute('aria-label', 'Close');
-    closeBtn.onclick = function() {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    };
-    
-    notification.prepend(closeBtn);
-    document.body.appendChild(notification);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 5000);
+    }
   } catch (e) {
     console.error('Failed to create fallback notification:', e);
   }
@@ -2854,27 +3014,8 @@ function getRiskBadgeClass(riskLevel) {
   }
 }
 
-// Add this CSS to the top of your file
-document.addEventListener('DOMContentLoaded', function() {
-  // Add custom CSS for hover effect
-  const style = document.createElement('style');
-  style.textContent = `
-    .search-item-hover {
-      transition: background-color 0.2s ease;
-      cursor: pointer;
-    }
-    .search-item-hover:hover {
-      background-color: #f8f9fa;
-    }
-    .search-result-item {
-      border-left: 3px solid transparent;
-    }
-    .search-result-item:hover {
-      border-left: 3px solid #0d6efd;
-    }
-  `;
-  document.head.appendChild(style);
-});
+// CSS classes should be defined in a separate CSS file
+// For example: app/styles/styles.css
 
 /**
  * Calculate safe API request counts based on rate limits
@@ -2930,4 +3071,48 @@ async function getInstallationParams() {
       searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
     };
   }
+}
+
+/**
+ * Creates a loading indicator without using innerHTML
+ * @param {HTMLElement} container - Container to add the loading indicator to
+ */
+function createLoadingIndicator(container) {
+  // Clear existing content
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+  
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'text-center p-3';
+  
+  const spinner = document.createElement('div');
+  spinner.className = 'spinner-border spinner-border-sm';
+  spinner.setAttribute('role', 'status');
+  
+  const loadingText = document.createTextNode(' Loading...');
+  
+  loadingDiv.appendChild(spinner);
+  loadingDiv.appendChild(loadingText);
+  container.appendChild(loadingDiv);
+  container.style.display = 'block';
+}
+
+/**
+ * Creates a "no results" message without using innerHTML
+ * @param {HTMLElement} container - Container to add the message to
+ * @param {string} message - Message to display
+ */
+function createNoResultsMessage(container, message) {
+  // Clear existing content
+  while (container.firstChild) {
+    container.removeChild(container.firstChild);
+  }
+  
+  const messageDiv = document.createElement('div');
+  messageDiv.className = 'list-group-item search-result-item no-results';
+  messageDiv.textContent = message;
+  
+  container.appendChild(messageDiv);
+  container.style.display = 'block';
 }
