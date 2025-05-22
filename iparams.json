@@ -30,20 +30,20 @@
     "description": "Safety margin for API limits (0.1-1.0). Example: 0.7 means 70% of rate limits",
     "type": "number",
     "required": true,
-    "default_value": "0.7"
+    "default_value": 0.7
   },
   "inventory_type_id": {
     "display_name": "Inventory Software/Services Type ID",
     "description": "Asset Type ID to use for filtering inventory software or services",
     "type": "number",
     "required": true,
-    "default_value": "33000752344"
+    "default_value": 33000752344
   },
   "search_cache_timeout": {
     "display_name": "Search Cache Timeout",
-    "description": "Time in milliseconds to wait before refreshing search results from cache (default 7000 = 7 seconds)",
+    "description": "Time in milliseconds to wait before refreshing search results from cache (default 10000 = 10 seconds)",
     "type": "number",
     "required": true,
-    "default_value": "7000"
+    "default_value": 10000
   }
 } 

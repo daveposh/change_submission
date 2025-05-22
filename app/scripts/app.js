@@ -36,8 +36,8 @@ const STORAGE_KEYS = {
 // Cache timeout in milliseconds (24 hours)
 const CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
 
-// Default search cache timeout in milliseconds (7 seconds)
-const DEFAULT_SEARCH_CACHE_TIMEOUT = 7000;
+// Default search cache timeout in milliseconds (10 seconds)
+const DEFAULT_SEARCH_CACHE_TIMEOUT = 10000;
 
 // In-memory cache for search results
 const searchCache = {
