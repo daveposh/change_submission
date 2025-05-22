@@ -1,0 +1,86 @@
+/**
+ * Change Request App Styles
+ * CSS styles for the change request management app
+ */
+
+/* Icon replacements for FontAwesome */
+.icon-user:before { content: "U"; }
+.icon-email:before { content: "E"; }
+.icon-building:before { content: "B"; }
+.icon-location:before { content: "L"; }
+.icon-desktop:before { content: "D"; }
+.icon-times:before { content: "X"; }
+
+/* Change type tooltip styling */
+.change-type-tooltip-container {
+  padding: 10px 15px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f8f9fa;
+  margin-top: 10px;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  max-width: 400px;
+}
+
+/* Search result item hover effects */
+.search-item-hover {
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.search-item-hover:hover {
+  background-color: #f8f9fa;
+}
+
+.search-result-item {
+  border-left: 3px solid transparent;
+}
+
+.search-result-item:hover {
+  border-left: 3px solid #0d6efd;
+}
+
+/* Risk level badge colors */
+.badge.bg-success {
+  background-color: #28a745;
+}
+
+.badge.bg-warning {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.badge.bg-danger {
+  background-color: #dc3545;
+}
+
+/* Selected item containers */
+.selected-container {
+  padding: 10px;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  background-color: #f8f9fa;
+  margin-bottom: 15px;
+}
+
+/* Modal styling - to replace Bootstrap direct manipulation */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1040;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000;
+  opacity: 0.5;
+}
+
+.modal.show {
+  display: block;
+  z-index: 1050;
+}
+
+.modal-open {
+  overflow: hidden;
+} 

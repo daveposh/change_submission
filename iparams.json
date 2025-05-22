@@ -17,25 +17,13 @@
     "description": "Select your Freshservice plan to configure API rate limits",
     "type": "dropdown",
     "options": [
-      {
-        "label": "Starter",
-        "value": "starter"
-      },
-      {
-        "label": "Growth",
-        "value": "growth"
-      },
-      {
-        "label": "Pro",
-        "value": "pro"
-      },
-      {
-        "label": "Enterprise",
-        "value": "enterprise"
-      }
+      "starter",
+      "growth",
+      "pro",
+      "enterprise"
     ],
     "required": true,
-    "default_value": "enterprise"
+    "default_value": "starter"
   },
   "api_safety_margin": {
     "display_name": "API Safety Margin",

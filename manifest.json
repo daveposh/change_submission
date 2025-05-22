@@ -4,8 +4,8 @@
     "freshservice": {
       "location": {
         "full_page_app": {
-          "url": "app/index.html",
-          "icon": "app/styles/images/icon.svg",
+          "url": "index.html",
+          "icon": "styles/images/icon.svg",
           "name": "Change Request"
         }
       },
@@ -49,5 +49,5 @@
     "node": "18.19.1",
     "fdk": "9.4.2"
   },
-  "whitelisted-domains": []
+  "allowed-domains": []
 }
