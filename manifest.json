@@ -4,8 +4,8 @@
     "freshservice": {
       "location": {
         "full_page_app": {
-          "url": "index.html",
-          "icon": "styles/images/icon.svg",
+          "url": "app/index.html",
+          "icon": "app/styles/images/icon.svg",
           "name": "Change Request"
         }
       },
@@ -41,7 +41,7 @@
       },
       "config_page": {
         "url": "config.html",
-        "optional": false
+        "optional": true
       }
     }
   },
