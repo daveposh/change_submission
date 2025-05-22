@@ -165,32 +165,32 @@ async function fetchAllLocations() {
           throw new Error('Client request API not available');
         }
         
-        // Try using invokeTemplate first, as it might be more reliable
+        // Try using direct GET first
         let response;
         
         try {
-          // Check if invokeTemplate method exists
-          if (typeof window.client.request.invokeTemplate !== 'function') {
-            console.error('invokeTemplate method not available');
-            throw new Error('invokeTemplate method not available');
+          // Check if get method exists
+          if (typeof window.client.request.get !== 'function') {
+            console.error('get method not available');
+            throw new Error('get method not available');
           }
           
+          console.log('Fetching locations using request.get()');
+          response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
+        } catch (getError) {
+          console.warn('Failed to use direct GET, falling back to invokeTemplate:', getError);
+          
+          // Check if invokeTemplate method exists
+          if (typeof window.client.request.invokeTemplate !== 'function') {
+            console.error('invokeTemplate method not available either');
+            throw new Error('Both get and invokeTemplate methods not available');
+          }
+          
+          // Fallback to invokeTemplate if get fails
           console.log('Trying to fetch locations using invokeTemplate');
           response = await window.client.request.invokeTemplate("getLocations", {
             path_suffix: `?page=${pageNum}&per_page=100`
           });
-        } catch (templateError) {
-          console.warn('Failed to use template, checking if direct GET is available:', templateError);
-          
-          // Check if get method exists
-          if (typeof window.client.request.get !== 'function') {
-            console.error('get method not available either');
-            throw new Error('Both invokeTemplate and get methods not available');
-          }
-          
-          // Fallback to direct get if template fails
-          console.log('Trying to fetch locations using direct GET');
-          response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
         }
         
         if (!response || !response.response) {
@@ -295,12 +295,10 @@ async function fetchUsers() {
           return { users: [], more: false };
         }
 
-        // Use invokeTemplate which is more reliable in Freshservice
+        // Use window.client.request.get() directly as required
         try {
-          console.log('Trying to fetch requesters using invokeTemplate');
-          const response = await window.client.request.invokeTemplate("getRequesters", {
-            path_suffix: `?page=${pageNum}&per_page=100`
-          });
+          console.log('Fetching requesters using request.get()');
+          const response = await window.client.request.get(`/api/v2/requesters?page=${pageNum}&per_page=100`);
           
           if (!response || !response.response) {
             console.error('Invalid requesters response:', response);
@@ -319,13 +317,15 @@ async function fetchUsers() {
             console.error('Error parsing requesters response:', parseError);
             return { users: [], more: false };
           }
-        } catch (templateError) {
-          console.error('Error using template for requesters:', templateError);
+        } catch (getError) {
+          console.error('Error using request.get() for requesters:', getError);
           
-          // Fallback to using a simpler approach with invokeTemplate 
+          // Fallback to invokeTemplate only if get() fails
           try {
-            console.log('Falling back to alternate template method');
-            const response = await window.client.request.invokeTemplate("getRequesters", {});
+            console.log('Falling back to invokeTemplate method');
+            const response = await window.client.request.invokeTemplate("getRequesters", {
+              path_suffix: `?page=${pageNum}&per_page=100`
+            });
             
             if (!response || !response.response) {
               console.error('Invalid requesters fallback response:', response);
@@ -335,7 +335,7 @@ async function fetchUsers() {
             try {
               const parsedData = JSON.parse(response.response || '{"requesters":[]}');
               const users = parsedData.requesters || [];
-              return { users, more: false }; // Don't try pagination in fallback mode
+              return { users, more: hasMore };
             } catch (parseError) {
               console.error('Error parsing requesters fallback response:', parseError);
               return { users: [], more: false };
@@ -364,12 +364,10 @@ async function fetchUsers() {
           return { users: [], more: false };
         }
 
-        // Use invokeTemplate which is more reliable in Freshservice instead of direct GET
+        // Use window.client.request.get() directly as required
         try {
-          console.log('Trying to fetch agents using invokeTemplate');
-          const response = await window.client.request.invokeTemplate("getAgents", {
-            path_suffix: `?page=${pageNum}&per_page=100`
-          });
+          console.log('Fetching agents using request.get()');
+          const response = await window.client.request.get(`/api/v2/agents?page=${pageNum}&per_page=100`);
           
           if (!response || !response.response) {
             console.error('Invalid agents response:', response);
@@ -388,13 +386,15 @@ async function fetchUsers() {
             console.error('Error parsing agents response:', parseError);
             return { users: [], more: false };
           }
-        } catch (templateError) {
-          console.error('Error using template for agents:', templateError);
+        } catch (getError) {
+          console.error('Error using request.get() for agents:', getError);
           
-          // Fallback to using a simpler approach with invokeTemplate 
+          // Fallback to invokeTemplate only if get() fails
           try {
-            console.log('Falling back to alternate template method');
-            const response = await window.client.request.invokeTemplate("getAgents", {});
+            console.log('Falling back to invokeTemplate method');
+            const response = await window.client.request.invokeTemplate("getAgents", {
+              path_suffix: `?page=${pageNum}&per_page=100`
+            });
             
             if (!response || !response.response) {
               console.error('Invalid agents fallback response:', response);
@@ -404,7 +404,7 @@ async function fetchUsers() {
             try {
               const parsedData = JSON.parse(response.response || '{"agents":[]}');
               const users = parsedData.agents || [];
-              return { users, more: false }; // Don't try pagination in fallback mode
+              return { users, more: hasMore };
             } catch (parseError) {
               console.error('Error parsing agents fallback response:', parseError);
               return { users: [], more: false };
@@ -1963,13 +1963,12 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
-    // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
+    // Create the request URL
+    const requestUrl = `/api/v2/requesters?query=${encodedQuery}&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
     
-    window.client.request.invokeTemplate("getRequesters", {
-      path_suffix: requestUrl
-    })
+    // Use direct GET method
+    window.client.request.get(requestUrl)
     .then(function(data) {
       try {
         if (!data) {
@@ -2021,57 +2020,56 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
     })
     .catch(function(error) {
       console.error('API request failed:', error);
-      displaySearchResults('requester-results', allResults, selectRequester);
-      handleErr(error);
+      
+      // Try using invokeTemplate as fallback
+      console.log('Falling back to invokeTemplate for requester search');
+      window.client.request.invokeTemplate("getRequesters", {
+        path_suffix: `?query=${encodedQuery}&page=${page}&per_page=30`
+      })
+      .then(function(fallbackData) {
+        try {
+          if (!fallbackData) {
+            console.error('No data returned from fallback requester search');
+            displaySearchResults('requester-results', allResults, selectRequester);
+            return;
+          }
+          
+          const fallbackResponse = JSON.parse(fallbackData.response || '{"requesters":[]}');
+          const fallbackRequesters = fallbackResponse && fallbackResponse.requesters ? fallbackResponse.requesters : [];
+          
+          // Manual filtering
+          const filteredRequesters = fallbackRequesters.filter(requester => {
+            const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
+            const email = (requester.primary_email || requester.email || '').toLowerCase();
+            const term = searchTerm.toLowerCase();
+            return fullName.includes(term) || email.includes(term);
+          });
+          
+          // Combine with previous results
+          const combinedResults = [...allResults, ...filteredRequesters];
+          
+          // Cache and display results
+          addToSearchCache('requesters', searchTerm, combinedResults);
+          displaySearchResults('requester-results', combinedResults, selectRequester);
+          
+          if (combinedResults.length > 0) {
+            cacheIndividualUsers(combinedResults, 'requester');
+          }
+        } catch (fallbackError) {
+          console.error('Error in fallback requester search:', fallbackError);
+          displaySearchResults('requester-results', allResults, selectRequester);
+        }
+      })
+      .catch(function(fallbackError) {
+        console.error('Fallback API request also failed:', fallbackError);
+        displaySearchResults('requester-results', allResults, selectRequester);
+        handleErr(error);
+      });
     });
   }
   
   // Start loading from page 1
   loadPage(1, []);
-}
-
-/**
- * Search for agents using Freshservice API
- */
-function searchAgents(e) {
-  const searchTerm = e.target.value.trim();
-  if (searchTerm.length < 2) return;
-
-  // Show loading indicator
-  const resultsContainer = document.getElementById('agent-results');
-  createLoadingIndicator(resultsContainer);
-  
-  // Check cache first
-  getFromSearchCache('agents', searchTerm).then(cachedResults => {
-    if (cachedResults) {
-      // Use cached results
-      displaySearchResults('agent-results', cachedResults, selectAgent);
-      
-      // Get the configured search cache timeout
-      getInstallationParams().then(params => {
-        const searchCacheTimeout = params.searchCacheTimeout;
-        
-        // Set a timer to check for fresh results after the timeout
-        setTimeout(() => {
-          // Only perform API call if the search term is still the current one
-          const currentSearchTerm = document.getElementById('agent-search').value.trim();
-          if (currentSearchTerm === searchTerm) {
-            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing agent search for: ${searchTerm}`);
-            performAgentSearch(searchTerm, true);
-          }
-        }, searchCacheTimeout);
-      });
-      
-      return;
-    }
-    
-    // No cache hit, perform search immediately
-    performAgentSearch(searchTerm);
-  }).catch(error => {
-    console.error('Error checking agent search cache:', error);
-    // Fallback to direct search on cache error
-    performAgentSearch(searchTerm);
-  });
 }
 
 /**
@@ -2099,13 +2097,12 @@ function performAgentSearch(searchTerm, isRefresh = false) {
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
-    // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
+    // Create the request URL
+    const requestUrl = `/api/v2/agents?query=${encodedQuery}&page=${page}&per_page=30`;
     console.log('Agent API URL:', requestUrl);
     
-    window.client.request.invokeTemplate("getAgents", {
-      path_suffix: requestUrl
-    })
+    // Use direct GET method
+    window.client.request.get(requestUrl)
     .then(function(data) {
       try {
         if (!data) {
@@ -2157,8 +2154,51 @@ function performAgentSearch(searchTerm, isRefresh = false) {
     })
     .catch(function(error) {
       console.error('API request failed:', error);
-      displaySearchResults('agent-results', allResults, selectAgent);
-      handleErr(error);
+      
+      // Try using invokeTemplate as fallback
+      console.log('Falling back to invokeTemplate for agent search');
+      window.client.request.invokeTemplate("getAgents", {
+        path_suffix: `?query=${encodedQuery}&page=${page}&per_page=30`
+      })
+      .then(function(fallbackData) {
+        try {
+          if (!fallbackData) {
+            console.error('No data returned from fallback agent search');
+            displaySearchResults('agent-results', allResults, selectAgent);
+            return;
+          }
+          
+          const fallbackResponse = JSON.parse(fallbackData.response || '{"agents":[]}');
+          const fallbackAgents = fallbackResponse && fallbackResponse.agents ? fallbackResponse.agents : [];
+          
+          // Manual filtering
+          const filteredAgents = fallbackAgents.filter(agent => {
+            const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+            const email = (agent.email || '').toLowerCase();
+            const term = searchTerm.toLowerCase();
+            return fullName.includes(term) || email.includes(term);
+          });
+          
+          // Combine with previous results
+          const combinedResults = [...allResults, ...filteredAgents];
+          
+          // Cache and display results
+          addToSearchCache('agents', searchTerm, combinedResults);
+          displaySearchResults('agent-results', combinedResults, selectAgent);
+          
+          if (combinedResults.length > 0) {
+            cacheIndividualUsers(combinedResults, 'agent');
+          }
+        } catch (fallbackError) {
+          console.error('Error in fallback agent search:', fallbackError);
+          displaySearchResults('agent-results', allResults, selectAgent);
+        }
+      })
+      .catch(function(fallbackError) {
+        console.error('Fallback API request also failed:', fallbackError);
+        displaySearchResults('agent-results', allResults, selectAgent);
+        handleErr(error);
+      });
     });
   }
   
@@ -3761,4 +3801,48 @@ function displayInitError(message) {
   } catch (e) {
     console.error("Failed to show error message:", e);
   }
+}
+
+/**
+ * Search for agents using Freshservice API
+ */
+function searchAgents(e) {
+  const searchTerm = e.target.value.trim();
+  if (searchTerm.length < 2) return;
+
+  // Show loading indicator
+  const resultsContainer = document.getElementById('agent-results');
+  createLoadingIndicator(resultsContainer);
+  
+  // Check cache first
+  getFromSearchCache('agents', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      displaySearchResults('agent-results', cachedResults, selectAgent);
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout;
+        
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchTerm = document.getElementById('agent-search').value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing agent search for: ${searchTerm}`);
+            performAgentSearch(searchTerm, true);
+          }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
+    
+    // No cache hit, perform search immediately
+    performAgentSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking agent search cache:', error);
+    // Fallback to direct search on cache error
+    performAgentSearch(searchTerm);
+  });
 }
