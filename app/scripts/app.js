@@ -145,6 +145,7 @@ async function fetchAllLocations() {
   // Check for client availability
   if (!window.client || !window.client.request) {
     console.error('Client not available for locations fetch');
+    // Return an empty object without failing
     return {};
   }
 
@@ -159,21 +160,36 @@ async function fetchAllLocations() {
       
       try {
         // Check that client and request methods are available
-        if (!window.client || !window.client.request || typeof window.client.request.get !== 'function') {
-          console.error('Client request API not available');
+        if (!window.client || !window.client.request) {
+          console.error('Client request API no longer available');
           throw new Error('Client request API not available');
         }
         
         // Try using invokeTemplate first, as it might be more reliable
         let response;
+        
         try {
+          // Check if invokeTemplate method exists
+          if (typeof window.client.request.invokeTemplate !== 'function') {
+            console.error('invokeTemplate method not available');
+            throw new Error('invokeTemplate method not available');
+          }
+          
           console.log('Trying to fetch locations using invokeTemplate');
           response = await window.client.request.invokeTemplate("getLocations", {
             path_suffix: `?page=${pageNum}&per_page=100`
           });
         } catch (templateError) {
-          console.warn('Failed to use template, falling back to direct request:', templateError);
+          console.warn('Failed to use template, checking if direct GET is available:', templateError);
+          
+          // Check if get method exists
+          if (typeof window.client.request.get !== 'function') {
+            console.error('get method not available either');
+            throw new Error('Both invokeTemplate and get methods not available');
+          }
+          
           // Fallback to direct get if template fails
+          console.log('Trying to fetch locations using direct GET');
           response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
         }
         
@@ -236,6 +252,7 @@ async function fetchAllLocations() {
     return allLocations;
   } catch (error) {
     console.error('Error in fetchAllLocations:', error);
+    // Return an empty object without failing
     return {};
   }
 }
@@ -562,97 +579,304 @@ function initializeApp() {
       return;
     }
     
-    app.initialized()
-      .then(function getClient(_client) {
-        console.log('App client initialized successfully');
-        
-        // Ensure client is stored in the window object for global access
-        if (typeof window === 'undefined') {
-          console.error('Window object is not available for client storage');
-          return;
-        }
-        
-        window.client = _client;
-        
-        // IMPORTANT: Wait for DOM to be fully ready before setting up UI
-        setTimeout(() => {
-          try {
-            console.log('Setting up app components...');
+    // Try to initialize the client with retries
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    function initializeClient() {
+      console.log(`Initializing app client (attempt ${retryCount + 1})...`);
+      
+      app.initialized()
+        .then(function getClient(_client) {
+          console.log('App client initialized successfully');
+          
+          // Enhanced debug logging - log all available client methods
+          if (_client) {
+            console.log('Available client methods:', Object.keys(_client));
             
-            // Debug client properties
-            console.log('Client API methods:', Object.keys(window.client));
-            if (window.client.request) {
-              console.log('Client request methods:', Object.keys(window.client.request));
-            }
-            
-            // Manually initialize Bootstrap tabs
-            initializeBootstrapTabs();
-            
-            setupEventListeners();
-            setupChangeTypeTooltips();
-            
-            // Fetch and cache all locations and most frequently used users
-            Promise.all([
-              fetchAllLocations().catch(err => {
-                console.error("Error in fetchAllLocations:", err);
-              }),
-              fetchUsers().catch(err => {
-                console.error("Error in fetchUsers:", err);
-              })
-            ]);
-            
-            // Only attempt to load data after setup is complete
-            setTimeout(() => {
-              try {
-                console.log('Loading saved data...');
-                // Check for client before trying to load saved data
-                if (!window.client) {
-                  console.error('Client not available for loading data');
-                  return;
+            // Check for specific endpoints
+            ['events', 'request', 'db', 'interface', 'iparams'].forEach(endpoint => {
+              if (_client[endpoint]) {
+                console.log(`✓ Client endpoint '${endpoint}' is available`);
+                if (typeof _client[endpoint] === 'object') {
+                  console.log(`Methods on ${endpoint}:`, Object.keys(_client[endpoint]));
                 }
-                
-                loadSavedData().catch(err => {
-                  console.error("Error in loadSavedData promise:", err);
-                });
-              } catch (dataErr) {
-                console.error("Exception during data loading:", dataErr);
+              } else {
+                console.error(`✗ Client endpoint '${endpoint}' is NOT available`);
               }
-            }, 300);
-          } catch (setupErr) {
-            console.error("Error during app setup:", setupErr);
+            });
+          } else {
+            console.error('Client object is null or undefined!');
+            throw new Error('Client initialization returned empty client');
           }
-        }, 300);
-      })
-      .catch(function(initErr) {
-        console.error("App client initialization failed:", initErr);
-        // Try to show error without using client interface
-        displayInitError('App initialization failed. Please refresh the page or contact support.');
-      });
+          
+          // Store client in window object for global access
+          window.client = _client;
+          
+          // Setup fallback mechanisms for missing endpoints
+          setupClientFallbacks();
+          
+          // Continue with app setup
+          continueWithAppSetup();
+        })
+        .catch(function(initErr) {
+          console.error(`App client initialization failed (attempt ${retryCount + 1}):`, initErr);
+          
+          if (retryCount < maxRetries) {
+            // Retry initialization after a delay
+            retryCount++;
+            console.log(`Retrying client initialization in ${retryCount * 1000}ms...`);
+            setTimeout(initializeClient, retryCount * 1000);
+          } else {
+            console.error(`Failed to initialize client after ${maxRetries} attempts`);
+            displayInitError('App initialization failed. Please refresh the page or contact support.');
+            
+            // Try to continue with fallbacks
+            setupClientFallbacks();
+            continueWithAppSetup(true);
+          }
+        });
+    }
+    
+    // Start the initialization process
+    initializeClient();
+    
   } catch (e) {
     console.error("Critical error during initialization:", e);
     displayInitError('Critical initialization error: ' + (e.message || 'unknown error'));
   }
 }
 
-// Helper function to display initialization errors without relying on the client
-function displayInitError(message) {
+// Set up fallbacks for missing client endpoints
+function setupClientFallbacks() {
   try {
-    // Log error instead of DOM manipulation
-    console.error(`Initialization error: ${message}`);
-    
-    // Try to use client interface if already initialized
-    if (window.client && window.client.interface) {
-      try {
-        window.client.interface.trigger('showNotify', {
-          type: 'danger',
-          message: message || 'App initialization failed'
-        });
-      } catch (e) {
-        console.error('Failed to show error notification:', e);
-      }
+    // Create client object if it doesn't exist
+    if (!window.client) {
+      console.warn('Creating fallback client object');
+      window.client = {};
     }
+    
+    // Create request endpoint if it doesn't exist
+    if (!window.client.request) {
+      console.warn('Creating fallback request endpoint');
+      window.client.request = {
+        get: function(url) {
+          console.error('Fallback request.get called - API not available:', url);
+          return Promise.reject(new Error('Client API not available'));
+        },
+        post: function(url, data) {
+          console.error('Fallback request.post called - API not available:', url, data);
+          return Promise.reject(new Error('Client API not available'));
+        },
+        put: function(url, data) {
+          console.error('Fallback request.put called - API not available:', url, data);
+          return Promise.reject(new Error('Client API not available'));
+        },
+        delete: function(url) {
+          console.error('Fallback request.delete called - API not available:', url);
+          return Promise.reject(new Error('Client API not available'));
+        },
+        invokeTemplate: function(templateName, options) {
+          console.error('Fallback invokeTemplate called - API not available:', templateName, options);
+          return Promise.reject(new Error('Client API not available'));
+        }
+      };
+    }
+    
+    // Create db endpoint if it doesn't exist
+    if (!window.client.db) {
+      console.warn('Creating fallback db endpoint');
+      
+      // Use localStorage as a fallback for db if available
+      const useLocalStorage = typeof localStorage !== 'undefined';
+      
+      window.client.db = {
+        get: function(key) {
+          console.warn('Fallback db.get called - using localStorage:', key);
+          if (useLocalStorage) {
+            try {
+              const value = localStorage.getItem(`app_fallback_${key}`);
+              return Promise.resolve(value ? JSON.parse(value) : null);
+            } catch (e) {
+              console.error('Error reading from localStorage:', e);
+              return Promise.resolve(null);
+            }
+          }
+          return Promise.resolve(null);
+        },
+        set: function(key, value) {
+          console.warn('Fallback db.set called - using localStorage:', key);
+          if (useLocalStorage) {
+            try {
+              localStorage.setItem(`app_fallback_${key}`, JSON.stringify(value));
+              return Promise.resolve(true);
+            } catch (e) {
+              console.error('Error writing to localStorage:', e);
+              return Promise.resolve(false);
+            }
+          }
+          return Promise.resolve(false);
+        },
+        delete: function(key) {
+          console.warn('Fallback db.delete called - using localStorage:', key);
+          if (useLocalStorage) {
+            try {
+              localStorage.removeItem(`app_fallback_${key}`);
+              return Promise.resolve(true);
+            } catch (e) {
+              console.error('Error deleting from localStorage:', e);
+              return Promise.resolve(false);
+            }
+          }
+          return Promise.resolve(false);
+        }
+      };
+    }
+    
+    // Create interface endpoint if it doesn't exist
+    if (!window.client.interface) {
+      console.warn('Creating fallback interface endpoint');
+      window.client.interface = {
+        trigger: function(event, data) {
+          console.warn('Fallback interface.trigger called:', event, data);
+          
+          // Special handling for notifications
+          if (event === 'showNotify') {
+            try {
+              // Create a simple alert for notifications
+              const message = data.message || 'Notification';
+              const type = data.type || 'info';
+              
+              console.log(`NOTIFICATION (${type}): ${message}`);
+              
+              // Create a simple notification element
+              const notificationDiv = document.createElement('div');
+              notificationDiv.style.position = 'fixed';
+              notificationDiv.style.top = '10px';
+              notificationDiv.style.right = '10px';
+              notificationDiv.style.padding = '10px 20px';
+              notificationDiv.style.borderRadius = '4px';
+              notificationDiv.style.zIndex = '9999';
+              notificationDiv.style.maxWidth = '300px';
+              
+              // Set color based on type
+              switch (type) {
+                case 'success':
+                  notificationDiv.style.backgroundColor = '#4CAF50';
+                  notificationDiv.style.color = 'white';
+                  break;
+                case 'error':
+                case 'danger':
+                  notificationDiv.style.backgroundColor = '#F44336';
+                  notificationDiv.style.color = 'white';
+                  break;
+                case 'warning':
+                  notificationDiv.style.backgroundColor = '#FF9800';
+                  notificationDiv.style.color = 'black';
+                  break;
+                default:
+                  notificationDiv.style.backgroundColor = '#2196F3';
+                  notificationDiv.style.color = 'white';
+              }
+              
+              notificationDiv.textContent = message;
+              document.body.appendChild(notificationDiv);
+              
+              // Remove after 3 seconds
+              setTimeout(() => {
+                if (notificationDiv.parentNode) {
+                  notificationDiv.parentNode.removeChild(notificationDiv);
+                }
+              }, 3000);
+            } catch (e) {
+              console.error('Error showing fallback notification:', e);
+            }
+          }
+          
+          return Promise.resolve();
+        }
+      };
+    }
+    
+    // Create iparams endpoint if it doesn't exist
+    if (!window.client.iparams) {
+      console.warn('Creating fallback iparams endpoint');
+      window.client.iparams = {
+        get: function() {
+          console.warn('Fallback iparams.get called - returning defaults');
+          return Promise.resolve({
+            freshservice_plan: 'enterprise',
+            api_safety_margin: DEFAULT_SAFETY_MARGIN.toString(),
+            inventory_type_id: DEFAULT_INVENTORY_TYPE_ID.toString(),
+            search_cache_timeout: DEFAULT_SEARCH_CACHE_TIMEOUT.toString()
+          });
+        }
+      };
+    }
+    
+    console.log('Client fallbacks setup complete');
   } catch (e) {
-    console.error("Failed to show error message:", e);
+    console.error('Error setting up client fallbacks:', e);
+  }
+}
+
+// Continue with app setup after client initialization
+function continueWithAppSetup(usingFallbacks = false) {
+  try {
+    console.log(`Setting up app components ${usingFallbacks ? '(using fallbacks)' : ''}...`);
+    
+    // Debug client properties
+    if (window.client) {
+      console.log('Client API methods:', Object.keys(window.client));
+      if (window.client.request) {
+        console.log('Client request methods:', Object.keys(window.client.request));
+      } else {
+        console.error('window.client.request is not available!');
+      }
+    } else {
+      console.error('window.client is not available!');
+    }
+    
+    // Manually initialize Bootstrap tabs
+    initializeBootstrapTabs();
+    
+    setupEventListeners();
+    setupChangeTypeTooltips();
+    
+    // Fetch and cache all locations and most frequently used users
+    // Wrap in try-catch to handle fallback API failures
+    try {
+      Promise.all([
+        fetchAllLocations().catch(err => {
+          console.error("Error in fetchAllLocations:", err);
+        }),
+        fetchUsers().catch(err => {
+          console.error("Error in fetchUsers:", err);
+        })
+      ]);
+    } catch (apiErr) {
+      console.error("Error starting API calls:", apiErr);
+    }
+    
+    // Only attempt to load data after setup is complete
+    setTimeout(() => {
+      try {
+        console.log('Loading saved data...');
+        // Check for client before trying to load saved data
+        if (!window.client) {
+          console.error('Client not available for loading data');
+          return;
+        }
+        
+        loadSavedData().catch(err => {
+          console.error("Error in loadSavedData promise:", err);
+        });
+      } catch (dataErr) {
+        console.error("Exception during data loading:", dataErr);
+      }
+    }, 300);
+  } catch (setupErr) {
+    console.error("Error during app setup:", setupErr);
   }
 }
 
@@ -3139,4 +3363,47 @@ function createNoResultsMessage(container, message) {
   
   container.appendChild(messageDiv);
   container.style.display = 'block';
+}
+
+// Helper function to display initialization errors without relying on the client
+function displayInitError(message) {
+  try {
+    // Log error instead of DOM manipulation
+    console.error(`Initialization error: ${message}`);
+    
+    // Try to use client interface if already initialized
+    if (window.client && window.client.interface) {
+      try {
+        window.client.interface.trigger('showNotify', {
+          type: 'danger',
+          message: message || 'App initialization failed'
+        });
+      } catch (e) {
+        console.error('Failed to show error notification:', e);
+      }
+    } else {
+      // Fallback to direct DOM manipulation if no interface available
+      try {
+        const errorDiv = document.createElement('div');
+        errorDiv.style.position = 'fixed';
+        errorDiv.style.top = '10px';
+        errorDiv.style.left = '10px';
+        errorDiv.style.right = '10px';
+        errorDiv.style.padding = '15px';
+        errorDiv.style.backgroundColor = '#F44336';
+        errorDiv.style.color = 'white';
+        errorDiv.style.zIndex = '9999';
+        errorDiv.style.borderRadius = '4px';
+        errorDiv.style.textAlign = 'center';
+        errorDiv.style.fontWeight = 'bold';
+        
+        errorDiv.textContent = message || 'App initialization failed';
+        document.body.appendChild(errorDiv);
+      } catch (domErr) {
+        console.error('Failed to create error element:', domErr);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to show error message:", e);
+  }
 }
