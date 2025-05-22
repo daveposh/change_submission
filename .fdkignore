@@ -1,0 +1,3 @@
+app/scripts/vendor/
+*.min.js
+*.min.css 
