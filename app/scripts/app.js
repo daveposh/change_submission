@@ -2146,7 +2146,17 @@ function validateRiskAndNext() {
  */
 function searchAssets(e) {
   const searchTerm = e.target.value.trim();
-  if (searchTerm.length < 2) return;
+  
+  // Show loading indicator even for short search terms
+  const resultsContainer = document.getElementById('asset-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Don't proceed with empty search
+  if (searchTerm.length === 0) {
+    resultsContainer.innerHTML = '<div class="list-group-item search-result-item no-results">Type to search</div>';
+    return;
+  }
 
   // Ensure client is available
   if (!window.client || !window.client.request) {
@@ -2160,17 +2170,13 @@ function searchAssets(e) {
     const inventoryTypeId = params.inventoryTypeId;
     console.log(`Using inventory type ID for search: ${inventoryTypeId}`);
 
-    // Correctly encode the entire query string including quotes for Freshservice API
-    // Using the configured inventory type ID from installation parameters
-    const assetQueryStr = `asset_type_id:${inventoryTypeId} AND ~[name|display_name]:'${searchTerm}'`;
+    // Strategy: First fetch all assets of the configured type, then filter locally
+
+    // Query only for the asset type without search term restriction
+    const assetTypeQuery = `asset_type_id:${inventoryTypeId}`;
     const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
-    const encodedAssetQuery = encodeURIComponent(`"${assetQueryStr}"`);
+    const encodedAssetTypeQuery = encodeURIComponent(`"${assetTypeQuery}"`);
     const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
-    
-    // Show loading indicator
-    const resultsContainer = document.getElementById('asset-results');
-    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-    resultsContainer.style.display = 'block';
     
     // Arrays to store all results from pagination
     let allAssets = [];
@@ -2180,7 +2186,7 @@ function searchAssets(e) {
     function loadAssetsPage(page = 1) {
       console.log(`Loading assets page ${page} with filter asset_type_id:${inventoryTypeId}`);
       return window.client.request.invokeTemplate("getAssets", {
-        path_suffix: `?query=${encodedAssetQuery}&page=${page}&per_page=30`
+        path_suffix: `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
       })
       .then(function(data) {
         if (!data || !data.response) {
@@ -2196,7 +2202,7 @@ function searchAssets(e) {
           allAssets = [...allAssets, ...assets];
           
           // If we got a full page of results, there might be more
-          if (assets.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
+          if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
             // Load next page
             return loadAssetsPage(page + 1);
           }
@@ -2213,7 +2219,7 @@ function searchAssets(e) {
       });
     }
     
-    // Function to load services from a specific page
+    // Function to load services from a specific page (unchanged)
     function loadServicesPage(page = 1) {
       return window.client.request.invokeTemplate("getServices", {
         path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
@@ -2259,11 +2265,46 @@ function searchAssets(e) {
         const assets = assetsResponse.assets || [];
         const services = servicesResponse.services || [];
         
+        // Apply the search term filter to the assets locally
+        const filteredAssets = assets.filter(asset => {
+          const searchIn = [
+            asset.name || '',
+            asset.display_name || '',
+            asset.description || '',
+            asset.asset_tag || '',
+            asset.serial_number || '',
+            asset.product_name || '',
+            asset.vendor_name || ''
+          ].map(text => text.toLowerCase()).join(' ');
+          
+          return searchIn.includes(searchTerm.toLowerCase());
+        });
+        
+        console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
+        
         // Combine both results with type information
         const combinedResults = [
-          ...assets.map(item => ({ ...item, type: 'asset' })),
+          ...filteredAssets.map(item => ({ ...item, type: 'asset' })),
           ...services.map(item => ({ ...item, type: 'service' }))
         ];
+        
+        // Sort results by relevance - exact name matches first
+        combinedResults.sort((a, b) => {
+          const aName = (a.name || a.display_name || '').toLowerCase();
+          const bName = (b.name || b.display_name || '').toLowerCase();
+          const searchLower = searchTerm.toLowerCase();
+          
+          // Exact matches first
+          if (aName === searchLower && bName !== searchLower) return -1;
+          if (bName === searchLower && aName !== searchLower) return 1;
+          
+          // Starts with search term next
+          if (aName.startsWith(searchLower) && !bName.startsWith(searchLower)) return -1;
+          if (bName.startsWith(searchLower) && !aName.startsWith(searchLower)) return 1;
+          
+          // Normal alphabetical sorting for the rest
+          return aName.localeCompare(bName);
+        });
         
         displayAssetResults('asset-results', combinedResults, selectAsset);
       } catch (error) {

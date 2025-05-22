@@ -37,5 +37,12 @@
     "type": "number",
     "required": true,
     "default_value": "33000752344"
+  },
+  "search_cache_timeout": {
+    "display_name": "Search Cache Timeout",
+    "description": "Time in milliseconds to wait before refreshing search results from cache (default 7000 = 7 seconds)",
+    "type": "number",
+    "required": true,
+    "default_value": "7000"
   }
 } 

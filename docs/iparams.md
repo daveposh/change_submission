@@ -24,6 +24,12 @@ To configure these parameters, you need to edit the `iparams.json` file in the a
 - **Description**: The asset type ID to use when filtering inventory software or services during asset searches
 - **Default**: 33000752344
 
+#### 4. Search Cache Timeout
+- **Parameter name**: `search_cache_timeout`
+- **Description**: Time in milliseconds to wait before refreshing search results from cache
+- **Default**: 7000 (7 seconds)
+- **Details**: This controls how long the app will wait before performing a background API call to refresh cached search results for requesters and agents.
+
 ## Finding Your Asset Type ID
 
 To find the correct asset type ID for your Inventory Software/Services:
@@ -78,6 +84,13 @@ Below is an example `iparams.json` file:
     "type": "number",
     "required": true,
     "default_value": "33000752344"
+  },
+  "search_cache_timeout": {
+    "display_name": "Search Cache Timeout",
+    "description": "Time in milliseconds to wait before refreshing search results from cache (default 7000 = 7 seconds)",
+    "type": "number",
+    "required": true,
+    "default_value": "7000"
   }
 }
 ``` 
