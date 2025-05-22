@@ -287,27 +287,63 @@ async function fetchUsers() {
       console.log(`Loading requesters page ${pageNum}`);
       
       try {
-        // Use invokeTemplate which is more reliable in Freshservice
-        const response = await window.client.request.invokeTemplate("getRequesters", {
-          path_suffix: `?page=${pageNum}&per_page=100`
-        });
-        
-        if (!response || !response.response) {
-          console.error('Invalid requesters response:', response);
+        // Debug client methods
+        if (window.client && window.client.request) {
+          console.log('Available client.request methods:', Object.keys(window.client.request));
+        } else {
+          console.error('Client request object not available:', window.client);
           return { users: [], more: false };
         }
-        
+
+        // Use invokeTemplate which is more reliable in Freshservice
         try {
-          const parsedData = JSON.parse(response.response || '{"requesters":[]}');
-          const users = parsedData.requesters || [];
+          console.log('Trying to fetch requesters using invokeTemplate');
+          const response = await window.client.request.invokeTemplate("getRequesters", {
+            path_suffix: `?page=${pageNum}&per_page=100`
+          });
           
-          // Check if we might have more pages (received full page of results)
-          const hasMore = users.length === 100;
+          if (!response || !response.response) {
+            console.error('Invalid requesters response:', response);
+            return { users: [], more: false };
+          }
           
-          return { users, more: hasMore };
-        } catch (parseError) {
-          console.error('Error parsing requesters response:', parseError);
-          return { users: [], more: false };
+          try {
+            const parsedData = JSON.parse(response.response || '{"requesters":[]}');
+            const users = parsedData.requesters || [];
+            
+            // Check if we might have more pages (received full page of results)
+            const hasMore = users.length === 100;
+            
+            return { users, more: hasMore };
+          } catch (parseError) {
+            console.error('Error parsing requesters response:', parseError);
+            return { users: [], more: false };
+          }
+        } catch (templateError) {
+          console.error('Error using template for requesters:', templateError);
+          
+          // Fallback to using a simpler approach with invokeTemplate 
+          try {
+            console.log('Falling back to alternate template method');
+            const response = await window.client.request.invokeTemplate("getRequesters", {});
+            
+            if (!response || !response.response) {
+              console.error('Invalid requesters fallback response:', response);
+              return { users: [], more: false };
+            }
+            
+            try {
+              const parsedData = JSON.parse(response.response || '{"requesters":[]}');
+              const users = parsedData.requesters || [];
+              return { users, more: false }; // Don't try pagination in fallback mode
+            } catch (parseError) {
+              console.error('Error parsing requesters fallback response:', parseError);
+              return { users: [], more: false };
+            }
+          } catch (fallbackError) {
+            console.error('Complete failure fetching requesters:', fallbackError);
+            return { users: [], more: false };
+          }
         }
       } catch (error) {
         console.error(`Error fetching requesters page ${pageNum}:`, error);
@@ -320,25 +356,63 @@ async function fetchUsers() {
       console.log(`Loading agents page ${pageNum}`);
       
       try {
-        // Use direct API call instead of template
-        const response = await window.client.request.get(`/api/v2/agents?page=${pageNum}&per_page=100`);
-        
-        if (!response || !response.response) {
-          console.error('Invalid agents response:', response);
+        // Debug client methods
+        if (window.client && window.client.request) {
+          console.log('Available client.request methods:', Object.keys(window.client.request));
+        } else {
+          console.error('Client request object not available:', window.client);
           return { users: [], more: false };
         }
-        
+
+        // Use invokeTemplate which is more reliable in Freshservice instead of direct GET
         try {
-          const parsedData = JSON.parse(response.response || '{"agents":[]}');
-          const users = parsedData.agents || [];
+          console.log('Trying to fetch agents using invokeTemplate');
+          const response = await window.client.request.invokeTemplate("getAgents", {
+            path_suffix: `?page=${pageNum}&per_page=100`
+          });
           
-          // Check if we might have more pages (received full page of results)
-          const hasMore = users.length === 100;
+          if (!response || !response.response) {
+            console.error('Invalid agents response:', response);
+            return { users: [], more: false };
+          }
           
-          return { users, more: hasMore };
-        } catch (parseError) {
-          console.error('Error parsing agents response:', parseError);
-          return { users: [], more: false };
+          try {
+            const parsedData = JSON.parse(response.response || '{"agents":[]}');
+            const users = parsedData.agents || [];
+            
+            // Check if we might have more pages (received full page of results)
+            const hasMore = users.length === 100;
+            
+            return { users, more: hasMore };
+          } catch (parseError) {
+            console.error('Error parsing agents response:', parseError);
+            return { users: [], more: false };
+          }
+        } catch (templateError) {
+          console.error('Error using template for agents:', templateError);
+          
+          // Fallback to using a simpler approach with invokeTemplate 
+          try {
+            console.log('Falling back to alternate template method');
+            const response = await window.client.request.invokeTemplate("getAgents", {});
+            
+            if (!response || !response.response) {
+              console.error('Invalid agents fallback response:', response);
+              return { users: [], more: false };
+            }
+            
+            try {
+              const parsedData = JSON.parse(response.response || '{"agents":[]}');
+              const users = parsedData.agents || [];
+              return { users, more: false }; // Don't try pagination in fallback mode
+            } catch (parseError) {
+              console.error('Error parsing agents fallback response:', parseError);
+              return { users: [], more: false };
+            }
+          } catch (fallbackError) {
+            console.error('Complete failure fetching agents:', fallbackError);
+            return { users: [], more: false };
+          }
         }
       } catch (error) {
         console.error(`Error fetching agents page ${pageNum}:`, error);
@@ -1275,56 +1349,136 @@ function setupEventListeners() {
   // We don't need to manually handle tab switching since Bootstrap will handle it
   // Just add listeners for the Next buttons to programmatically switch tabs
 
+  console.log("Setting up event listeners...");
+
+  // Check client availability for API-dependent features
+  const clientAvailable = window.client && 
+                          window.client.request && 
+                          typeof window.client.request.invokeTemplate === 'function';
+  
+  if (!clientAvailable) {
+    console.warn("Client API not fully available - some features may not work properly");
+    showNotification('warning', 'API connection limited - some features may not work properly');
+  } else {
+    console.log("Client API available - all features should work properly");
+  }
+
   // Enhance search inputs with icons and styling
   enhanceSearchInputs();
 
   // Change Details tab
-  document.getElementById('requester-search').addEventListener('input', debounce(searchRequesters, 300));
-  document.getElementById('agent-search').addEventListener('input', debounce(searchAgents, 300));
-  document.getElementById('change-type').addEventListener('change', updateChangeType);
-  document.getElementById('details-next').addEventListener('click', validateDetailsAndNext);
+  const requesterSearch = document.getElementById('requester-search');
+  const agentSearch = document.getElementById('agent-search');
+  
+  if (requesterSearch) {
+    requesterSearch.addEventListener('input', debounce(searchRequesters, 300));
+    console.log("Requester search event listener added");
+  }
+  
+  if (agentSearch) {
+    agentSearch.addEventListener('input', debounce(searchAgents, 300));
+    console.log("Agent search event listener added");
+  }
+  
+  const changeTypeSelect = document.getElementById('change-type');
+  if (changeTypeSelect) {
+    changeTypeSelect.addEventListener('change', updateChangeType);
+    console.log("Change type event listener added");
+  }
+  
+  const detailsNext = document.getElementById('details-next');
+  if (detailsNext) {
+    detailsNext.addEventListener('click', validateDetailsAndNext);
+    console.log("Details next button event listener added");
+  }
 
   // Risk Assessment tab
   const riskRadios = document.querySelectorAll('.risk-options input[type="radio"]');
   riskRadios.forEach(radio => {
     radio.addEventListener('change', updateRiskSelection);
   });
-  document.getElementById('calculate-risk').addEventListener('click', calculateRisk);
-  document.getElementById('risk-next').addEventListener('click', validateRiskAndNext);
+  console.log(`Added event listeners to ${riskRadios.length} risk radio buttons`);
+  
+  const calculateRiskBtn = document.getElementById('calculate-risk');
+  if (calculateRiskBtn) {
+    calculateRiskBtn.addEventListener('click', calculateRisk);
+    console.log("Calculate risk button event listener added");
+  }
+  
+  const riskNext = document.getElementById('risk-next');
+  if (riskNext) {
+    riskNext.addEventListener('click', validateRiskAndNext);
+    console.log("Risk next button event listener added");
+  }
 
   // Impacted Assets tab
-  document.getElementById('asset-search').addEventListener('input', debounce(searchAssets, 300));
-  document.getElementById('submit-change').addEventListener('click', showSummary);
+  const assetSearch = document.getElementById('asset-search');
+  if (assetSearch) {
+    assetSearch.addEventListener('input', debounce(searchAssets, 300));
+    console.log("Asset search event listener added");
+  }
+  
+  const submitChange = document.getElementById('submit-change');
+  if (submitChange) {
+    submitChange.addEventListener('click', showSummary);
+    console.log("Submit change button event listener added");
+  }
 
   // Confirmation Modal
-  document.getElementById('edit-request').addEventListener('click', closeModal);
-  document.getElementById('confirm-submit').addEventListener('click', submitChangeRequest);
+  const editRequest = document.getElementById('edit-request');
+  if (editRequest) {
+    editRequest.addEventListener('click', closeModal);
+    console.log("Edit request button event listener added");
+  }
+  
+  const confirmSubmit = document.getElementById('confirm-submit');
+  if (confirmSubmit) {
+    confirmSubmit.addEventListener('click', submitChangeRequest);
+    console.log("Confirm submit button event listener added");
+  }
   
   // Form inputs with auto-save
-  document.getElementById('planned-start').addEventListener('change', function() {
-    changeRequestData.plannedStart = this.value;
-    saveCurrentData();
-  });
+  const plannedStart = document.getElementById('planned-start');
+  if (plannedStart) {
+    plannedStart.addEventListener('change', function() {
+      changeRequestData.plannedStart = this.value;
+      saveCurrentData();
+    });
+  }
   
-  document.getElementById('planned-end').addEventListener('change', function() {
-    changeRequestData.plannedEnd = this.value;
-    saveCurrentData();
-  });
+  const plannedEnd = document.getElementById('planned-end');
+  if (plannedEnd) {
+    plannedEnd.addEventListener('change', function() {
+      changeRequestData.plannedEnd = this.value;
+      saveCurrentData();
+    });
+  }
   
-  document.getElementById('implementation-plan').addEventListener('input', debounce(function() {
-    changeRequestData.implementationPlan = this.value;
-    saveCurrentData();
-  }, 1000));
+  const implementationPlan = document.getElementById('implementation-plan');
+  if (implementationPlan) {
+    implementationPlan.addEventListener('input', debounce(function() {
+      changeRequestData.implementationPlan = this.value;
+      saveCurrentData();
+    }, 1000));
+  }
   
-  document.getElementById('backout-plan').addEventListener('input', debounce(function() {
-    changeRequestData.backoutPlan = this.value;
-    saveCurrentData();
-  }, 1000));
+  const backoutPlan = document.getElementById('backout-plan');
+  if (backoutPlan) {
+    backoutPlan.addEventListener('input', debounce(function() {
+      changeRequestData.backoutPlan = this.value;
+      saveCurrentData();
+    }, 1000));
+  }
   
-  document.getElementById('validation-plan').addEventListener('input', debounce(function() {
-    changeRequestData.validationPlan = this.value;
-    saveCurrentData();
-  }, 1000));
+  const validationPlan = document.getElementById('validation-plan');
+  if (validationPlan) {
+    validationPlan.addEventListener('input', debounce(function() {
+      changeRequestData.validationPlan = this.value;
+      saveCurrentData();
+    }, 1000));
+  }
+  
+  console.log("All event listeners setup complete");
 }
 
 /**
