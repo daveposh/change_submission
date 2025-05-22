@@ -36,8 +36,8 @@ const STORAGE_KEYS = {
 // Cache timeout in milliseconds (24 hours)
 const CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
 
-// Search cache with short timeout (7 seconds)
-const SEARCH_CACHE_TIMEOUT = 7000;
+// Default search cache timeout in milliseconds (7 seconds)
+const DEFAULT_SEARCH_CACHE_TIMEOUT = 7000;
 
 // In-memory cache for search results
 const searchCache = {
@@ -95,6 +95,9 @@ const DEFAULT_RATE_LIMITS = {
 
 // Default safety margin (percentage of rate limit to use)
 const DEFAULT_SAFETY_MARGIN = 0.7;
+
+// Default inventory software/services type ID
+const DEFAULT_INVENTORY_TYPE_ID = 33000752344;
 
 const changeTypeTooltips = {
   'standard': 'Standard Changes: All changes to critical assets > automate predefined/repeatable changes as much as possible',
@@ -1275,16 +1278,20 @@ function switchTab(tabId) {
  * @param {string} searchTerm - The search term
  * @returns {Array|null} - Cached results or null if not found/expired
  */
-function getFromSearchCache(searchType, searchTerm) {
+async function getFromSearchCache(searchType, searchTerm) {
   if (!searchCache[searchType] || !searchCache[searchType][searchTerm]) {
     return null;
   }
   
+  // Get the configured search cache timeout from installation parameters
+  const params = await getInstallationParams();
+  const searchCacheTimeout = params.searchCacheTimeout;
+  
   const cached = searchCache[searchType][searchTerm];
   
-  // Check if cache is still valid (within 7 seconds)
-  if (Date.now() - cached.timestamp <= SEARCH_CACHE_TIMEOUT) {
-    console.log(`Using cached ${searchType} search results for: ${searchTerm}`);
+  // Check if cache is still valid (within the configured timeout)
+  if (Date.now() - cached.timestamp <= searchCacheTimeout) {
+    console.log(`Using cached ${searchType} search results for: ${searchTerm} (timeout: ${searchCacheTimeout}ms)`);
     return cached.results;
   }
   
@@ -1324,26 +1331,36 @@ function searchRequesters(e) {
   resultsContainer.style.display = 'block';
   
   // Check cache first
-  const cachedResults = getFromSearchCache('requesters', searchTerm);
-  if (cachedResults) {
-    // Use cached results
-    displaySearchResults('requester-results', cachedResults, selectRequester);
+  getFromSearchCache('requesters', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      displaySearchResults('requester-results', cachedResults, selectRequester);
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout;
+        
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchTerm = document.getElementById('requester-search').value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing requester search for: ${searchTerm}`);
+            performRequesterSearch(searchTerm, true);
+          }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
     
-    // Set a timer to check for fresh results after 7 seconds
-    setTimeout(() => {
-      // Only perform API call if the search term is still the current one
-      const currentSearchTerm = document.getElementById('requester-search').value.trim();
-      if (currentSearchTerm === searchTerm) {
-        console.log(`Cache timeout reached, refreshing requester search for: ${searchTerm}`);
-        performRequesterSearch(searchTerm, true);
-      }
-    }, SEARCH_CACHE_TIMEOUT);
-    
-    return;
-  }
-  
-  // No cache hit, perform search immediately
-  performRequesterSearch(searchTerm);
+    // No cache hit, perform search immediately
+    performRequesterSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking requester search cache:', error);
+    // Fallback to direct search on cache error
+    performRequesterSearch(searchTerm);
+  });
 }
 
 /**
@@ -1453,26 +1470,36 @@ function searchAgents(e) {
   resultsContainer.style.display = 'block';
   
   // Check cache first
-  const cachedResults = getFromSearchCache('agents', searchTerm);
-  if (cachedResults) {
-    // Use cached results
-    displaySearchResults('agent-results', cachedResults, selectAgent);
+  getFromSearchCache('agents', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      displaySearchResults('agent-results', cachedResults, selectAgent);
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout;
+        
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchTerm = document.getElementById('agent-search').value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing agent search for: ${searchTerm}`);
+            performAgentSearch(searchTerm, true);
+          }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
     
-    // Set a timer to check for fresh results after 7 seconds
-    setTimeout(() => {
-      // Only perform API call if the search term is still the current one
-      const currentSearchTerm = document.getElementById('agent-search').value.trim();
-      if (currentSearchTerm === searchTerm) {
-        console.log(`Cache timeout reached, refreshing agent search for: ${searchTerm}`);
-        performAgentSearch(searchTerm, true);
-      }
-    }, SEARCH_CACHE_TIMEOUT);
-    
-    return;
-  }
-  
-  // No cache hit, perform search immediately
-  performAgentSearch(searchTerm);
+    // No cache hit, perform search immediately
+    performAgentSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking agent search cache:', error);
+    // Fallback to direct search on cache error
+    performAgentSearch(searchTerm);
+  });
 }
 
 /**
@@ -2128,121 +2155,130 @@ function searchAssets(e) {
     return;
   }
 
-  // Correctly encode the entire query string including quotes for Freshservice API
-  // Adding asset_type_id=33000752344 filter to search only specific asset type
-  const assetQueryStr = `asset_type_id:33000752344 AND ~[name|display_name]:'${searchTerm}'`;
-  const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
-  const encodedAssetQuery = encodeURIComponent(`"${assetQueryStr}"`);
-  const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
-  
-  // Show loading indicator
-  const resultsContainer = document.getElementById('asset-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
-  
-  // Arrays to store all results from pagination
-  let allAssets = [];
-  let allServices = [];
-  
-  // Function to load assets from a specific page
-  function loadAssetsPage(page = 1) {
-    console.log(`Loading assets page ${page} with filter asset_type_id:33000752344`);
-    return window.client.request.invokeTemplate("getAssets", {
-      path_suffix: `?query=${encodedAssetQuery}&page=${page}&per_page=30`
-    })
-    .then(function(data) {
-      if (!data || !data.response) {
-        return { assets: [] };
-      }
-      
-      try {
-        const response = JSON.parse(data.response);
-        const assets = response && response.assets ? response.assets : [];
-        console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
-        
-        // Combine with previous results
-        allAssets = [...allAssets, ...assets];
-        
-        // If we got a full page of results, there might be more
-        if (assets.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
-          // Load next page
-          return loadAssetsPage(page + 1);
+  // Get the inventory type ID from installation parameters
+  getInstallationParams().then(params => {
+    const inventoryTypeId = params.inventoryTypeId;
+    console.log(`Using inventory type ID for search: ${inventoryTypeId}`);
+
+    // Correctly encode the entire query string including quotes for Freshservice API
+    // Using the configured inventory type ID from installation parameters
+    const assetQueryStr = `asset_type_id:${inventoryTypeId} AND ~[name|display_name]:'${searchTerm}'`;
+    const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
+    const encodedAssetQuery = encodeURIComponent(`"${assetQueryStr}"`);
+    const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
+    
+    // Show loading indicator
+    const resultsContainer = document.getElementById('asset-results');
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.style.display = 'block';
+    
+    // Arrays to store all results from pagination
+    let allAssets = [];
+    let allServices = [];
+    
+    // Function to load assets from a specific page
+    function loadAssetsPage(page = 1) {
+      console.log(`Loading assets page ${page} with filter asset_type_id:${inventoryTypeId}`);
+      return window.client.request.invokeTemplate("getAssets", {
+        path_suffix: `?query=${encodedAssetQuery}&page=${page}&per_page=30`
+      })
+      .then(function(data) {
+        if (!data || !data.response) {
+          return { assets: [] };
         }
         
-        return { assets: allAssets };
-      } catch (error) {
-        console.error('Error parsing assets response:', error);
-        return { assets: allAssets };
-      }
-    })
-    .catch(error => {
-      console.error('Asset search failed:', error);
-      return { assets: allAssets };
-    });
-  }
-  
-  // Function to load services from a specific page
-  function loadServicesPage(page = 1) {
-    return window.client.request.invokeTemplate("getServices", {
-      path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
-    })
-    .then(function(data) {
-      if (!data || !data.response) {
-        return { services: [] };
-      }
-      
-      try {
-        const response = JSON.parse(data.response);
-        const services = response && response.services ? response.services : [];
-        
-        // Combine with previous results
-        allServices = [...allServices, ...services];
-        
-        // If we got a full page of results, there might be more
-        if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
-          // Load next page
-          return loadServicesPage(page + 1);
+        try {
+          const response = JSON.parse(data.response);
+          const assets = response && response.assets ? response.assets : [];
+          console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
+          
+          // Combine with previous results
+          allAssets = [...allAssets, ...assets];
+          
+          // If we got a full page of results, there might be more
+          if (assets.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
+            // Load next page
+            return loadAssetsPage(page + 1);
+          }
+          
+          return { assets: allAssets };
+        } catch (error) {
+          console.error('Error parsing assets response:', error);
+          return { assets: allAssets };
         }
-        
-        return { services: allServices };
-      } catch (error) {
-        console.error('Error parsing services response:', error);
-        return { services: allServices };
-      }
-    })
-    .catch(error => {
-      console.error('Service search failed:', error);
-      return { services: allServices };
-    });
-  }
-  
-  // Start loading both assets and services from page 1
-  Promise.all([
-    loadAssetsPage(1),
-    loadServicesPage(1)
-  ])
-  .then(function([assetsResponse, servicesResponse]) {
-    try {
-      // Get assets and services from the responses
-      const assets = assetsResponse.assets || [];
-      const services = servicesResponse.services || [];
-      
-      // Combine both results with type information
-      const combinedResults = [
-        ...assets.map(item => ({ ...item, type: 'asset' })),
-        ...services.map(item => ({ ...item, type: 'service' }))
-      ];
-      
-      displayAssetResults('asset-results', combinedResults, selectAsset);
-    } catch (error) {
-      console.error('Error processing search results:', error);
-      displayAssetResults('asset-results', [], selectAsset);
+      })
+      .catch(error => {
+        console.error('Asset search failed:', error);
+        return { assets: allAssets };
+      });
     }
-  })
-  .catch(function(error) {
-    console.error('Combined asset/service search failed:', error);
-    displayAssetResults('asset-results', [], selectAsset);
-    handleErr(error);
+    
+    // Function to load services from a specific page
+    function loadServicesPage(page = 1) {
+      return window.client.request.invokeTemplate("getServices", {
+        path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
+      })
+      .then(function(data) {
+        if (!data || !data.response) {
+          return { services: [] };
+        }
+        
+        try {
+          const response = JSON.parse(data.response);
+          const services = response && response.services ? response.services : [];
+          
+          // Combine with previous results
+          allServices = [...allServices, ...services];
+          
+          // If we got a full page of results, there might be more
+          if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
+            // Load next page
+            return loadServicesPage(page + 1);
+          }
+          
+          return { services: allServices };
+        } catch (error) {
+          console.error('Error parsing services response:', error);
+          return { services: allServices };
+        }
+      })
+      .catch(error => {
+        console.error('Service search failed:', error);
+        return { services: allServices };
+      });
+    }
+    
+    // Start loading both assets and services from page 1
+    Promise.all([
+      loadAssetsPage(1),
+      loadServicesPage(1)
+    ])
+    .then(function([assetsResponse, servicesResponse]) {
+      try {
+        // Get assets and services from the responses
+        const assets = assetsResponse.assets || [];
+        const services = servicesResponse.services || [];
+        
+        // Combine both results with type information
+        const combinedResults = [
+          ...assets.map(item => ({ ...item, type: 'asset' })),
+          ...services.map(item => ({ ...item, type: 'service' }))
+        ];
+        
+        displayAssetResults('asset-results', combinedResults, selectAsset);
+      } catch (error) {
+        console.error('Error processing search results:', error);
+        displayAssetResults('asset-results', [], selectAsset);
+      }
+    })
+    .catch(function(error) {
+      console.error('Combined asset/service search failed:', error);
+      displayAssetResults('asset-results', [], selectAsset);
+      handleErr(error);
+    });
+  }).catch(error => {
+    console.error('Error getting installation parameters:', error);
+    handleErr('Failed to load configuration settings');
   });
 }
 
@@ -2829,7 +2865,9 @@ async function getInstallationParams() {
       console.warn('iparams client not available, using defaults');
       return {
         freshservicePlan: 'enterprise',
-        apiSafetyMargin: DEFAULT_SAFETY_MARGIN
+        apiSafetyMargin: DEFAULT_SAFETY_MARGIN,
+        inventoryTypeId: DEFAULT_INVENTORY_TYPE_ID,
+        searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
       };
     }
     
@@ -2838,13 +2876,17 @@ async function getInstallationParams() {
     
     return {
       freshservicePlan: (iparams.freshservice_plan || 'enterprise').toLowerCase(),
-      apiSafetyMargin: parseFloat(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN)
+      apiSafetyMargin: parseFloat(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN),
+      inventoryTypeId: iparams.inventory_type_id || DEFAULT_INVENTORY_TYPE_ID,
+      searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT)
     };
   } catch (error) {
     console.error('Error getting installation parameters:', error);
     return {
       freshservicePlan: 'enterprise',
-      apiSafetyMargin: DEFAULT_SAFETY_MARGIN
+      apiSafetyMargin: DEFAULT_SAFETY_MARGIN,
+      inventoryTypeId: DEFAULT_INVENTORY_TYPE_ID,
+      searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
     };
   }
 }
