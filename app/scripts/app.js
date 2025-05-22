@@ -3079,11 +3079,12 @@ async function getInstallationParams() {
     const iparams = await window.client.iparams.get();
     console.log('Loaded installation parameters:', iparams);
     
+    // Ensure all numeric parameters are properly parsed as numbers
     return {
       freshservicePlan: (iparams.freshservice_plan || 'enterprise').toLowerCase(),
-      apiSafetyMargin: parseFloat(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN),
-      inventoryTypeId: iparams.inventory_type_id || DEFAULT_INVENTORY_TYPE_ID,
-      searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT)
+      apiSafetyMargin: Number(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN),
+      inventoryTypeId: Number(iparams.inventory_type_id || DEFAULT_INVENTORY_TYPE_ID),
+      searchCacheTimeout: Number(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT)
     };
   } catch (error) {
     console.error('Error getting installation parameters:', error);
