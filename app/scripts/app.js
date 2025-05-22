@@ -140,7 +140,7 @@ document.onreadystatechange = function() {
  * @returns {Promise<Object>} - Cached locations
  */
 async function fetchAllLocations() {
-  console.log('Fetching all locations from API');
+  console.log('Fetching locations from API');
   
   // Check for client availability
   if (!window.client || !window.client.request) {
@@ -158,8 +158,24 @@ async function fetchAllLocations() {
       console.log(`Loading locations page ${pageNum}`);
       
       try {
-        // Use raw request instead of invokeTemplate to access locations API
-        const response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
+        // Check that client and request methods are available
+        if (!window.client || !window.client.request || typeof window.client.request.get !== 'function') {
+          console.error('Client request API not available');
+          throw new Error('Client request API not available');
+        }
+        
+        // Try using invokeTemplate first, as it might be more reliable
+        let response;
+        try {
+          console.log('Trying to fetch locations using invokeTemplate');
+          response = await window.client.request.invokeTemplate("getLocations", {
+            path_suffix: `?page=${pageNum}&per_page=100`
+          });
+        } catch (templateError) {
+          console.warn('Failed to use template, falling back to direct request:', templateError);
+          // Fallback to direct get if template fails
+          response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
+        }
         
         if (!response || !response.response) {
           console.error('Invalid locations response:', response);
@@ -528,6 +544,7 @@ async function getManagerName(managerId) {
   return await getUserName(managerId);
 }
 
+// Make sure app initialization properly loads the client API
 function initializeApp() {
   console.log('Starting app initialization...');
   
@@ -561,6 +578,12 @@ function initializeApp() {
         setTimeout(() => {
           try {
             console.log('Setting up app components...');
+            
+            // Debug client properties
+            console.log('Client API methods:', Object.keys(window.client));
+            if (window.client.request) {
+              console.log('Client request methods:', Object.keys(window.client.request));
+            }
             
             // Manually initialize Bootstrap tabs
             initializeBootstrapTabs();
