@@ -36,6 +36,15 @@ const STORAGE_KEYS = {
 // Cache timeout in milliseconds (24 hours)
 const CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
 
+// Search cache with short timeout (7 seconds)
+const SEARCH_CACHE_TIMEOUT = 7000;
+
+// In-memory cache for search results
+const searchCache = {
+  requesters: {}, // Map of search term -> { results, timestamp }
+  agents: {}      // Map of search term -> { results, timestamp }
+};
+
 // Default rate limits if not configured during installation
 const DEFAULT_RATE_LIMITS = {
   starter: {
@@ -1261,12 +1270,88 @@ function switchTab(tabId) {
 }
 
 /**
+ * Check if search term exists in cache and is still valid
+ * @param {string} searchType - Type of search ('requesters' or 'agents')
+ * @param {string} searchTerm - The search term
+ * @returns {Array|null} - Cached results or null if not found/expired
+ */
+function getFromSearchCache(searchType, searchTerm) {
+  if (!searchCache[searchType] || !searchCache[searchType][searchTerm]) {
+    return null;
+  }
+  
+  const cached = searchCache[searchType][searchTerm];
+  
+  // Check if cache is still valid (within 7 seconds)
+  if (Date.now() - cached.timestamp <= SEARCH_CACHE_TIMEOUT) {
+    console.log(`Using cached ${searchType} search results for: ${searchTerm}`);
+    return cached.results;
+  }
+  
+  // Cache expired
+  return null;
+}
+
+/**
+ * Store search results in cache
+ * @param {string} searchType - Type of search ('requesters' or 'agents')
+ * @param {string} searchTerm - The search term
+ * @param {Array} results - The search results
+ */
+function addToSearchCache(searchType, searchTerm, results) {
+  if (!searchCache[searchType]) {
+    searchCache[searchType] = {};
+  }
+  
+  searchCache[searchType][searchTerm] = {
+    results: results,
+    timestamp: Date.now()
+  };
+  
+  console.log(`Cached ${results.length} ${searchType} search results for: ${searchTerm}`);
+}
+
+/**
  * Search for requesters using Freshservice API
  */
 function searchRequesters(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
+  // Show loading indicator
+  const resultsContainer = document.getElementById('requester-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Check cache first
+  const cachedResults = getFromSearchCache('requesters', searchTerm);
+  if (cachedResults) {
+    // Use cached results
+    displaySearchResults('requester-results', cachedResults, selectRequester);
+    
+    // Set a timer to check for fresh results after 7 seconds
+    setTimeout(() => {
+      // Only perform API call if the search term is still the current one
+      const currentSearchTerm = document.getElementById('requester-search').value.trim();
+      if (currentSearchTerm === searchTerm) {
+        console.log(`Cache timeout reached, refreshing requester search for: ${searchTerm}`);
+        performRequesterSearch(searchTerm, true);
+      }
+    }, SEARCH_CACHE_TIMEOUT);
+    
+    return;
+  }
+  
+  // No cache hit, perform search immediately
+  performRequesterSearch(searchTerm);
+}
+
+/**
+ * Perform the actual API search for requesters
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function performRequesterSearch(searchTerm, isRefresh = false) {
   // Ensure client is available
   if (!window.client || !window.client.request) {
     console.error('Client or request object not available for requester search');
@@ -1277,12 +1362,14 @@ function searchRequesters(e) {
   // Try a simpler approach - direct search by name
   // Format 1: Try direct contains search
   const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
-  console.log('Requester search with query:', encodedQuery);
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, encodedQuery);
   
-  // Show loading indicator
-  const resultsContainer = document.getElementById('requester-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('requester-results');
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.style.display = 'block';
+  }
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
@@ -1298,6 +1385,8 @@ function searchRequesters(e) {
         if (!data) {
           console.error('No data returned from requester search');
           displaySearchResults('requester-results', allResults, selectRequester);
+          // Cache even empty results to prevent repeated API calls
+          addToSearchCache('requesters', searchTerm, allResults);
           return;
         }
         
@@ -1324,8 +1413,16 @@ function searchRequesters(e) {
           // Load next page
           loadPage(page + 1, combinedResults);
         } else {
+          // Cache the results
+          addToSearchCache('requesters', searchTerm, combinedResults);
+          
           // Display all results
           displaySearchResults('requester-results', combinedResults, selectRequester);
+          
+          // Add individual users to the user cache for later use
+          if (combinedResults.length > 0) {
+            cacheIndividualUsers(combinedResults, 'requester');
+          }
         }
       } catch (error) {
         console.error('Error parsing response:', error);
@@ -1350,6 +1447,40 @@ function searchAgents(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
+  // Show loading indicator
+  const resultsContainer = document.getElementById('agent-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Check cache first
+  const cachedResults = getFromSearchCache('agents', searchTerm);
+  if (cachedResults) {
+    // Use cached results
+    displaySearchResults('agent-results', cachedResults, selectAgent);
+    
+    // Set a timer to check for fresh results after 7 seconds
+    setTimeout(() => {
+      // Only perform API call if the search term is still the current one
+      const currentSearchTerm = document.getElementById('agent-search').value.trim();
+      if (currentSearchTerm === searchTerm) {
+        console.log(`Cache timeout reached, refreshing agent search for: ${searchTerm}`);
+        performAgentSearch(searchTerm, true);
+      }
+    }, SEARCH_CACHE_TIMEOUT);
+    
+    return;
+  }
+  
+  // No cache hit, perform search immediately
+  performAgentSearch(searchTerm);
+}
+
+/**
+ * Perform the actual API search for agents
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function performAgentSearch(searchTerm, isRefresh = false) {
   // Ensure client is available
   if (!window.client || !window.client.request) {
     console.error('Client or request object not available for agent search');
@@ -1359,12 +1490,14 @@ function searchAgents(e) {
 
   // Try a simpler approach - direct search by name
   const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
-  console.log('Agent search with query:', encodedQuery);
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} agent search with query:`, encodedQuery);
   
-  // Show loading indicator
-  const resultsContainer = document.getElementById('agent-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('agent-results');
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.style.display = 'block';
+  }
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
@@ -1380,6 +1513,8 @@ function searchAgents(e) {
         if (!data) {
           console.error('No data returned from agent search');
           displaySearchResults('agent-results', allResults, selectAgent);
+          // Cache even empty results to prevent repeated API calls
+          addToSearchCache('agents', searchTerm, allResults);
           return;
         }
         
@@ -1406,8 +1541,16 @@ function searchAgents(e) {
           // Load next page
           loadPage(page + 1, combinedResults);
         } else {
+          // Cache the results
+          addToSearchCache('agents', searchTerm, combinedResults);
+          
           // Display all results
           displaySearchResults('agent-results', combinedResults, selectAgent);
+          
+          // Add individual users to the user cache for later use
+          if (combinedResults.length > 0) {
+            cacheIndividualUsers(combinedResults, 'agent');
+          }
         }
       } catch (error) {
         console.error('Error parsing response:', error);
@@ -1423,6 +1566,37 @@ function searchAgents(e) {
   
   // Start loading from page 1
   loadPage(1, []);
+}
+
+/**
+ * Cache individual users from search results for future reference
+ * @param {Array} users - Array of user objects
+ * @param {string} type - Type of user ('requester' or 'agent')
+ */
+async function cacheIndividualUsers(users, type) {
+  try {
+    // Get current user cache
+    const cachedUsers = await getCachedUsers();
+    
+    // Add each user to the cache
+    users.forEach(user => {
+      if (user && user.id) {
+        const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+        cachedUsers[user.id] = {
+          name: displayName,
+          data: user,
+          timestamp: Date.now(),
+          type: type
+        };
+      }
+    });
+    
+    // Save updated cache
+    await cacheUsers(cachedUsers);
+    console.log(`Added ${users.length} ${type}s to user cache`);
+  } catch (error) {
+    console.error(`Error caching individual ${type}s:`, error);
+  }
 }
 
 /**
