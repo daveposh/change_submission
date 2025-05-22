@@ -1036,10 +1036,102 @@ async function loadSavedData() {
     if (result && typeof result === 'object') {
       console.log('Data retrieved successfully');
       
-      // Update the global data object with saved values
-      Object.keys(result).forEach(key => {
-        changeRequestData[key] = result[key];
-      });
+      // Check if this is the minimal data format
+      const isMinimalFormat = result.assetIds !== undefined;
+      
+      if (isMinimalFormat) {
+        console.log('Detected minimal data format, will need to fetch additional data');
+        showNotification('info', 'Loading saved draft (reduced format)');
+        
+        // Handle the minimal data format
+        try {
+          // Set basic data
+          changeRequestData.changeType = result.changeType || 'standard';
+          changeRequestData.plannedStart = result.plannedStart || '';
+          changeRequestData.plannedEnd = result.plannedEnd || '';
+          changeRequestData.implementationPlan = result.implementationPlan || '';
+          changeRequestData.backoutPlan = result.backoutPlan || '';
+          changeRequestData.validationPlan = result.validationPlan || '';
+          
+          // Handle risk assessment
+          if (result.riskLevel && result.riskScore) {
+            changeRequestData.riskAssessment.riskLevel = result.riskLevel;
+            changeRequestData.riskAssessment.totalScore = result.riskScore;
+          }
+          
+          // For requester and agent, we'll need to fetch the full data if possible
+          if (result.requester && result.requester.id) {
+            try {
+              const requesterData = await getUserDetails(result.requester.id);
+              if (requesterData) {
+                changeRequestData.requester = requesterData;
+              } else {
+                // Create a placeholder with the minimal data
+                changeRequestData.requester = {
+                  id: result.requester.id,
+                  first_name: result.requester.name.split(' ')[0] || '',
+                  last_name: result.requester.name.split(' ').slice(1).join(' ') || '',
+                  primary_email: ''
+                };
+              }
+            } catch (requesterErr) {
+              console.error('Error loading requester data:', requesterErr);
+            }
+          }
+          
+          if (result.agent && result.agent.id) {
+            try {
+              const agentData = await getUserDetails(result.agent.id);
+              if (agentData) {
+                changeRequestData.agent = agentData;
+              } else {
+                // Create a placeholder with the minimal data
+                changeRequestData.agent = {
+                  id: result.agent.id,
+                  first_name: result.agent.name.split(' ')[0] || '',
+                  last_name: result.agent.name.split(' ').slice(1).join(' ') || '',
+                  email: ''
+                };
+              }
+            } catch (agentErr) {
+              console.error('Error loading agent data:', agentErr);
+            }
+          }
+          
+          // For assets, we need to load each by ID
+          if (result.assetIds && result.assetIds.length > 0) {
+            changeRequestData.selectedAssets = [];
+            
+            // Try to fetch asset data in parallel
+            const assetPromises = result.assetIds.map(async (assetId) => {
+              try {
+                // Try to get asset details
+                // This is just a placeholder, actual implementation would depend on your API
+                return {
+                  id: assetId,
+                  name: `Asset ${assetId}`, // Placeholder name
+                  type: 'asset'
+                };
+              } catch (err) {
+                console.error(`Error fetching asset ${assetId}:`, err);
+                return null;
+              }
+            });
+            
+            const assets = await Promise.all(assetPromises);
+            changeRequestData.selectedAssets = assets.filter(asset => asset !== null);
+          }
+          
+        } catch (minimalDataErr) {
+          console.error('Error processing minimal format data:', minimalDataErr);
+        }
+      } else {
+        // Normal data format, update directly
+        // Update the global data object with saved values
+        Object.keys(result).forEach(key => {
+          changeRequestData[key] = result[key];
+        });
+      }
       
       // Update the UI with saved data
       try {
@@ -1069,6 +1161,7 @@ async function loadSavedData() {
 
 /**
  * Save current change request data to the data storage
+ * Handles the 40KB size limit for Freshworks data storage
  */
 async function saveCurrentData() {
   // Check if client DB is available before attempting to save
@@ -1079,18 +1172,113 @@ async function saveCurrentData() {
   
   try {
     console.log('Saving current form data...');
-    await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, changeRequestData);
-    console.log('Form data saved successfully');
     
-    // Only show notification 20% of the time to avoid too many notifications
-    if (Math.random() < 0.2) {
-      setTimeout(() => {
-        try {
-          showNotification('success', 'Change request draft saved');
-        } catch (notifyErr) {
-          console.warn('Could not show save notification:', notifyErr);
-        }
-      }, 300);
+    // Create a clean copy of the data with only essential fields
+    const essentialData = {
+      // Only include the necessary fields from requester and agent
+      requester: changeRequestData.requester ? {
+        id: changeRequestData.requester.id,
+        first_name: changeRequestData.requester.first_name,
+        last_name: changeRequestData.requester.last_name,
+        email: changeRequestData.requester.email || changeRequestData.requester.primary_email
+      } : null,
+      
+      agent: changeRequestData.agent ? {
+        id: changeRequestData.agent.id,
+        first_name: changeRequestData.agent.first_name,
+        last_name: changeRequestData.agent.last_name,
+        email: changeRequestData.agent.email
+      } : null,
+      
+      // Simple properties that don't need reduction
+      changeType: changeRequestData.changeType,
+      leadTime: changeRequestData.leadTime,
+      plannedStart: changeRequestData.plannedStart,
+      plannedEnd: changeRequestData.plannedEnd,
+      
+      // Potentially large text fields - truncate if necessary
+      implementationPlan: truncateIfNeeded(changeRequestData.implementationPlan, 5000),
+      backoutPlan: truncateIfNeeded(changeRequestData.backoutPlan, 5000),
+      validationPlan: truncateIfNeeded(changeRequestData.validationPlan, 5000),
+      
+      // Risk assessment is small, can include all
+      riskAssessment: changeRequestData.riskAssessment,
+      
+      // For assets, only keep essential data
+      selectedAssets: changeRequestData.selectedAssets.map(asset => ({
+        id: asset.id,
+        name: asset.name || asset.display_name,
+        type: asset.type
+      }))
+    };
+    
+    // Check the size of the data
+    const dataString = JSON.stringify(essentialData);
+    const dataSizeKB = dataString.length / 1024;
+    console.log(`Data size: ${dataSizeKB.toFixed(2)} KB`);
+    
+    if (dataSizeKB > 38) { // Allow some buffer for the key name
+      console.warn('Data exceeds 38KB, will be using reduced storage');
+      
+      // Create a minimal version with even less data
+      const minimalData = {
+        requester: essentialData.requester ? {
+          id: essentialData.requester.id,
+          name: `${essentialData.requester.first_name} ${essentialData.requester.last_name}`
+        } : null,
+        
+        agent: essentialData.agent ? {
+          id: essentialData.agent.id,
+          name: `${essentialData.agent.first_name} ${essentialData.agent.last_name}`
+        } : null,
+        
+        changeType: essentialData.changeType,
+        plannedStart: essentialData.plannedStart,
+        plannedEnd: essentialData.plannedEnd,
+        
+        // Even shorter text fields
+        implementationPlan: truncateIfNeeded(essentialData.implementationPlan, 1000),
+        backoutPlan: truncateIfNeeded(essentialData.backoutPlan, 1000),
+        validationPlan: truncateIfNeeded(essentialData.validationPlan, 1000),
+        
+        // Just keep total score and risk level
+        riskLevel: essentialData.riskAssessment.riskLevel,
+        riskScore: essentialData.riskAssessment.totalScore,
+        
+        // Only keep IDs and names for assets
+        assetCount: essentialData.selectedAssets.length,
+        assetIds: essentialData.selectedAssets.map(a => a.id)
+      };
+      
+      const minimalDataString = JSON.stringify(minimalData);
+      const minimalSizeKB = minimalDataString.length / 1024;
+      console.log(`Minimal data size: ${minimalSizeKB.toFixed(2)} KB`);
+      
+      if (minimalSizeKB > 38) {
+        console.error('Even minimal data exceeds size limit, cannot save');
+        showNotification('error', 'Cannot save draft - too much data');
+        return false;
+      }
+      
+      await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, minimalData);
+      console.log('Minimal form data saved successfully');
+      showNotification('warning', 'Draft saved with reduced data due to size limits');
+      
+    } else {
+      // Save the essential data which is under the limit
+      await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, essentialData);
+      console.log('Form data saved successfully');
+      
+      // Only show notification 20% of the time to avoid too many notifications
+      if (Math.random() < 0.2) {
+        setTimeout(() => {
+          try {
+            showNotification('success', 'Change request draft saved');
+          } catch (notifyErr) {
+            console.warn('Could not show save notification:', notifyErr);
+          }
+        }, 300);
+      }
     }
     
     return true;
@@ -1106,6 +1294,19 @@ async function saveCurrentData() {
     }
     return false;
   }
+}
+
+/**
+ * Helper function to truncate strings if they exceed a length
+ * @param {string} text - Text to truncate
+ * @param {number} maxLength - Maximum length
+ * @returns {string} - Truncated text
+ */
+function truncateIfNeeded(text, maxLength) {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  
+  return text.substring(0, maxLength) + '... (truncated)';
 }
 
 /**
