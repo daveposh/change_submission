@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Change Request App Configuration</title>
+  <link rel="stylesheet" type="text/css" href="https://static.freshdev.io/fdk/2.0/assets/freshservice.css">
+  <script src="https://static.freshdev.io/fdk/2.0/assets/fresh_client.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      color: #333;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background-color: #ffffff;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .footer {
+      margin-top: 30px;
+      text-align: center;
+      color: #888;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Change Request App Configuration</h1>
+    
+    <div class="card">
+      <p>This app uses the installation parameters configured during installation:</p>
+      <ul>
+        <li><strong>Freshservice Plan</strong>: Configures API rate limits based on your plan</li>
+        <li><strong>API Safety Margin</strong>: Sets a safety margin to prevent hitting API limits</li>
+        <li><strong>Inventory Software/Services Type ID</strong>: Determines which asset types to display</li>
+        <li><strong>Search Cache Timeout</strong>: Controls how long search results are cached</li>
+      </ul>
+      <p>To modify these settings, please reinstall the app or contact your administrator.</p>
+    </div>
+
+    <div class="footer">
+      <p>Change Request App v1.0</p>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      app.initialized()
+        .then(function(_client) {
+          window.client = _client;
+          client.instance.resize({ height: "500px" });
+        })
+        .catch(function(error) {
+          console.error('Error during app initialization:', error);
+        });
+    });
+  </script>
+</body>
+</html> 

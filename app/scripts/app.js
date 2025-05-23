@@ -28,8 +28,76 @@ const changeRequestData = {
 // Data storage keys
 const STORAGE_KEYS = {
   CHANGE_DATA: 'change_request_data',
-  DRAFT_ID: 'change_request_draft_id'
+  DRAFT_ID: 'change_request_draft_id',
+  LOCATION_CACHE: 'location_cache',
+  USER_CACHE: 'user_cache'
 };
+
+// Cache timeout in milliseconds (24 hours)
+const CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
+
+// Default search cache timeout in milliseconds (7 seconds)
+const DEFAULT_SEARCH_CACHE_TIMEOUT = 7000;
+
+// In-memory cache for search results
+const searchCache = {
+  requesters: {}, // Map of search term -> { results, timestamp }
+  agents: {}      // Map of search term -> { results, timestamp }
+};
+
+// Default rate limits if not configured during installation
+const DEFAULT_RATE_LIMITS = {
+  starter: {
+    overall: 100,
+    listTickets: 40,
+    viewTicket: 50,
+    createTicket: 50,
+    updateTicket: 50,
+    listAssets: 40,
+    updateAsset: 50,
+    listAgents: 40,
+    listRequesters: 40
+  },
+  growth: {
+    overall: 200,
+    listTickets: 70,
+    viewTicket: 80,
+    createTicket: 80,
+    updateTicket: 80,
+    listAssets: 70,
+    updateAsset: 80,
+    listAgents: 70,
+    listRequesters: 70
+  },
+  pro: {
+    overall: 400,
+    listTickets: 120,
+    viewTicket: 140,
+    createTicket: 140,
+    updateTicket: 140,
+    listAssets: 120,
+    updateAsset: 140,
+    listAgents: 120,
+    listRequesters: 120
+  },
+  enterprise: {
+    overall: 500,
+    listTickets: 140,
+    viewTicket: 160,
+    createTicket: 160,
+    updateTicket: 160,
+    listAssets: 140,
+    updateAsset: 160,
+    listAgents: 140,
+    listRequesters: 140
+  }
+};
+
+// Default safety margin (percentage of rate limit to use)
+const DEFAULT_SAFETY_MARGIN = 0.7;
+
+// Default inventory software/services type ID
+const DEFAULT_INVENTORY_TYPE_ID = 33000752344;
 
 const changeTypeTooltips = {
   'standard': 'Standard Changes: All changes to critical assets > automate predefined/repeatable changes as much as possible',
@@ -93,6 +161,399 @@ document.onreadystatechange = function() {
   }
 };
 
+/**
+ * Fetch all locations from the API and store them in the cache
+ * @returns {Promise<Object>} - Cached locations
+ */
+async function fetchAllLocations() {
+  console.log('Fetching all locations from API');
+  
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for locations fetch');
+    return {};
+  }
+
+  try {
+    const allLocations = {};
+    let page = 1;
+    let hasMorePages = true;
+    
+    // Function to load locations from a specific page
+    async function loadLocationsPage(pageNum) {
+      console.log(`Loading locations page ${pageNum}`);
+      
+      try {
+        // Use raw request instead of invokeTemplate to access locations API
+        const response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
+        
+        if (!response || !response.response) {
+          console.error('Invalid locations response:', response);
+          return { locations: [], more: false };
+        }
+        
+        try {
+          const parsedData = JSON.parse(response.response || '{"locations":[]}');
+          const locations = parsedData.locations || [];
+          
+          // Check if we might have more pages (received full page of results)
+          const hasMore = locations.length === 100;
+          
+          return { locations, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing locations response:', parseError);
+          return { locations: [], more: false };
+        }
+      } catch (error) {
+        console.error(`Error fetching locations page ${pageNum}:`, error);
+        return { locations: [], more: false };
+      }
+    }
+    
+    // Load all pages of locations
+    while (hasMorePages) {
+      const { locations, more } = await loadLocationsPage(page);
+      
+      // Process locations and add to cache
+      locations.forEach(location => {
+        if (location && location.id && location.name) {
+          allLocations[location.id] = {
+            name: location.name,
+            timestamp: Date.now()
+          };
+        }
+      });
+      
+      // Check if we should load more pages
+      hasMorePages = more;
+      page++;
+      
+      // Safety check to prevent infinite loops
+      if (page > 10) {
+        console.warn('Reached maximum number of location pages (10)');
+        break;
+      }
+    }
+    
+    // Save all locations to cache
+    if (Object.keys(allLocations).length > 0) {
+      console.log(`Caching ${Object.keys(allLocations).length} locations`);
+      await cacheLocations(allLocations);
+    } else {
+      console.warn('No locations found to cache');
+    }
+    
+    return allLocations;
+  } catch (error) {
+    console.error('Error in fetchAllLocations:', error);
+    return {};
+  }
+}
+
+/**
+ * Fetch all users from the API and store them in the cache
+ * This may not fetch ALL users as there could be thousands
+ * but will pre-fetch a reasonable number to reduce API calls
+ * @returns {Promise<Object>} - Cached users
+ */
+async function fetchUsers() {
+  console.log('Fetching users from API');
+  
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for users fetch');
+    return {};
+  }
+
+  try {
+    // Get safe API limits based on plan settings
+    const apiLimits = await getSafeApiLimits();
+    const requesterPageLimit = apiLimits.listRequestersPageLimit || 1;
+    const agentPageLimit = apiLimits.listAgentsPageLimit || 1;
+    
+    console.log(`Using rate limits: ${requesterPageLimit} requester pages, ${agentPageLimit} agent pages`);
+    
+    const allUsers = {};
+    
+    // Function to load requesters from a specific page
+    async function loadRequestersPage(pageNum) {
+      console.log(`Loading requesters page ${pageNum}`);
+      
+      try {
+        // Use invokeTemplate which is more reliable in Freshservice
+        const response = await window.client.request.invokeTemplate("getRequesters", {
+          path_suffix: `?page=${pageNum}&per_page=100`
+        });
+        
+        if (!response || !response.response) {
+          console.error('Invalid requesters response:', response);
+          return { users: [], more: false };
+        }
+        
+        try {
+          const parsedData = JSON.parse(response.response || '{"requesters":[]}');
+          const users = parsedData.requesters || [];
+          
+          // Check if we might have more pages (received full page of results)
+          const hasMore = users.length === 100;
+          
+          return { users, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing requesters response:', parseError);
+          return { users: [], more: false };
+        }
+      } catch (error) {
+        console.error(`Error fetching requesters page ${pageNum}:`, error);
+        return { users: [], more: false };
+      }
+    }
+    
+    // Function to load agents from a specific page
+    async function loadAgentsPage(pageNum) {
+      console.log(`Loading agents page ${pageNum}`);
+      
+      try {
+        // Use direct API call instead of template
+        const response = await window.client.request.get(`/api/v2/agents?page=${pageNum}&per_page=100`);
+        
+        if (!response || !response.response) {
+          console.error('Invalid agents response:', response);
+          return { users: [], more: false };
+        }
+        
+        try {
+          const parsedData = JSON.parse(response.response || '{"agents":[]}');
+          const users = parsedData.agents || [];
+          
+          // Check if we might have more pages (received full page of results)
+          const hasMore = users.length === 100;
+          
+          return { users, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing agents response:', parseError);
+          return { users: [], more: false };
+        }
+      } catch (error) {
+        console.error(`Error fetching agents page ${pageNum}:`, error);
+        return { users: [], more: false };
+      }
+    }
+    
+    // Fetch requesters
+    let requesterPage = 1;
+    let hasMoreRequesters = true;
+    
+    while (hasMoreRequesters && requesterPage <= requesterPageLimit) {
+      const { users, more } = await loadRequestersPage(requesterPage);
+      
+      // Process requesters and add to cache
+      users.forEach(user => {
+        if (user && user.id) {
+          const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          allUsers[user.id] = {
+            name: displayName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'requester'
+          };
+        }
+      });
+      
+      hasMoreRequesters = more;
+      requesterPage++;
+    }
+    
+    // Fetch agents
+    let agentPage = 1;
+    let hasMoreAgents = true;
+    
+    while (hasMoreAgents && agentPage <= agentPageLimit) {
+      const { users, more } = await loadAgentsPage(agentPage);
+      
+      // Process agents and add to cache
+      users.forEach(user => {
+        if (user && user.id) {
+          const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          allUsers[user.id] = {
+            name: displayName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'agent'
+          };
+        }
+      });
+      
+      hasMoreAgents = more;
+      agentPage++;
+    }
+    
+    // Save all users to cache
+    if (Object.keys(allUsers).length > 0) {
+      console.log(`Caching ${Object.keys(allUsers).length} users (${requesterPage-1} requester pages, ${agentPage-1} agent pages)`);
+      await cacheUsers(allUsers);
+    } else {
+      console.warn('No users found to cache');
+    }
+    
+    return allUsers;
+  } catch (error) {
+    console.error('Error in fetchUsers:', error);
+    return {};
+  }
+}
+
+/**
+ * Get cached users from storage
+ * @returns {Promise<Object>} - Cached users
+ */
+async function getCachedUsers() {
+  try {
+    // Try to get cached users
+    const result = await window.client.db.get(STORAGE_KEYS.USER_CACHE);
+    return result || {};
+  } catch (error) {
+    // If error or not found, return empty cache
+    console.log('No user cache found or error:', error);
+    return {};
+  }
+}
+
+/**
+ * Save users to cache
+ * @param {Object} users - Users to cache
+ * @returns {Promise<boolean>} - Success status
+ */
+async function cacheUsers(users) {
+  try {
+    await window.client.db.set(STORAGE_KEYS.USER_CACHE, users);
+    console.log('User cache updated');
+    return true;
+  } catch (error) {
+    console.error('Failed to save user cache:', error);
+    return false;
+  }
+}
+
+/**
+ * Get user details by ID with caching
+ * @param {number} userId - User ID 
+ * @returns {Promise<Object>} - User data or null
+ */
+async function getUserDetails(userId) {
+  if (!userId) return null;
+  
+  // Check for client availability
+  if (!window.client || !window.client.db) {
+    console.error('Client not available for user lookup');
+    return null;
+  }
+
+  try {
+    // Check cache first
+    const cachedUsers = await getCachedUsers();
+    
+    // If user is in cache and not expired, use it
+    if (cachedUsers[userId] && 
+        cachedUsers[userId].timestamp > Date.now() - CACHE_TIMEOUT) {
+      console.log(`Using cached user data: ${cachedUsers[userId].name}`);
+      return cachedUsers[userId].data;
+    }
+    
+    // If not in cache or expired, fetch from API
+    console.log(`Fetching user ${userId} from API`);
+    
+    // First try to get the user as a requester
+    try {
+      const response = await window.client.request.invokeTemplate("getRequesterDetails", {
+        context: {
+          requester_id: userId
+        }
+      });
+      
+      if (response && response.response) {
+        const parsedData = JSON.parse(response.response || '{}');
+        if (parsedData && parsedData.requester) {
+          const user = parsedData.requester;
+          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          
+          // Update cache
+          cachedUsers[userId] = {
+            name: userName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'requester'
+          };
+          await cacheUsers(cachedUsers);
+          
+          console.log(`Found user ${userId} as requester: ${userName}`);
+          return user;
+        }
+      }
+    } catch (requesterErr) {
+      console.log(`User ${userId} not found as requester, trying as agent...`);
+    }
+    
+    // If not found as requester, try as an agent using direct API call instead of template
+    try {
+      // Use direct GET request since the template isn't available
+      const response = await window.client.request.get(`/api/v2/agents/${userId}`);
+      
+      if (response && response.response) {
+        const parsedData = JSON.parse(response.response || '{}');
+        if (parsedData && parsedData.agent) {
+          const user = parsedData.agent;
+          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          
+          // Update cache
+          cachedUsers[userId] = {
+            name: userName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'agent'
+          };
+          await cacheUsers(cachedUsers);
+          
+          console.log(`Found user ${userId} as agent: ${userName}`);
+          return user;
+        }
+      }
+    } catch (agentErr) {
+      console.error(`User ${userId} not found as agent either:`, agentErr);
+    }
+    
+    console.error(`User ${userId} not found as either requester or agent`);
+    return null;
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
+  }
+}
+
+/**
+ * Get user or manager name by ID with caching
+ * @param {number} userId - User ID 
+ * @returns {Promise<string>} - User name
+ */
+async function getUserName(userId) {
+  if (!userId) return 'N/A';
+  
+  const user = await getUserDetails(userId);
+  if (user) {
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+  }
+  return 'Unknown';
+}
+
+/**
+ * Get reporting manager name by ID with caching
+ * @param {number} managerId - Manager ID 
+ * @returns {Promise<string>} - Manager name
+ */
+async function getManagerName(managerId) {
+  // Since manager IDs are just user IDs, use the user cache/lookup
+  return await getUserName(managerId);
+}
+
 function initializeApp() {
   console.log('Starting app initialization...');
   
@@ -132,6 +593,16 @@ function initializeApp() {
             
             setupEventListeners();
             setupChangeTypeTooltips();
+            
+            // Fetch and cache all locations and most frequently used users
+            Promise.all([
+              fetchAllLocations().catch(err => {
+                console.error("Error in fetchAllLocations:", err);
+              }),
+              fetchUsers().catch(err => {
+                console.error("Error in fetchUsers:", err);
+              })
+            ]);
             
             // Only attempt to load data after setup is complete
             setTimeout(() => {
@@ -671,36 +1142,86 @@ function setupChangeTypeTooltips() {
   const changeTypeSelect = document.getElementById('change-type');
   const changeTypeTooltip = document.getElementById('change-type-tooltip');
   
-  // Show tooltip for the default selected change type
+  // Ensure tooltip container has proper styling
+  if (changeTypeTooltip) {
+    // Apply better styling to the tooltip
+    changeTypeTooltip.style.padding = '10px 15px';
+    changeTypeTooltip.style.border = '1px solid #ccc';
+    changeTypeTooltip.style.borderRadius = '5px';
+    changeTypeTooltip.style.backgroundColor = '#f8f9fa';
+    changeTypeTooltip.style.marginTop = '10px';
+    changeTypeTooltip.style.fontSize = '0.9rem';
+    changeTypeTooltip.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+    changeTypeTooltip.style.maxWidth = '400px';
+  }
+  
+  // Show tooltip for the default selected change type immediately
   updateTooltipContent(changeTypeSelect.value);
   
-  // Show tooltip on hover or focus
-  changeTypeSelect.addEventListener('mouseenter', function() {
+  // Always display the tooltip after initialization
+  if (changeTypeTooltip) {
     changeTypeTooltip.style.display = 'block';
-  });
+  }
   
-  changeTypeSelect.addEventListener('mouseleave', function() {
-    if (!changeTypeSelect.matches(':focus')) {
-      changeTypeTooltip.style.display = 'none';
+  // Keep showing the tooltip on hover (doesn't hide it anymore)
+  changeTypeSelect.addEventListener('mouseenter', function() {
+    if (changeTypeTooltip) {
+      changeTypeTooltip.style.display = 'block';
     }
   });
   
+  // Keep showing the tooltip on focus (doesn't hide it anymore)
   changeTypeSelect.addEventListener('focus', function() {
-    changeTypeTooltip.style.display = 'block';
-  });
-  
-  changeTypeSelect.addEventListener('blur', function() {
-    changeTypeTooltip.style.display = 'none';
+    if (changeTypeTooltip) {
+      changeTypeTooltip.style.display = 'block';
+    }
   });
   
   function updateTooltipContent(changeType) {
-    changeTypeTooltip.textContent = changeTypeTooltips[changeType] || '';
-    changeTypeTooltip.style.display = 'block';
+    if (changeTypeTooltip) {
+      // Get tooltip content for the selected change type
+      const tooltipContent = changeTypeTooltips[changeType] || '';
+      
+      // Update tooltip content
+      changeTypeTooltip.textContent = tooltipContent;
+      
+      // Always show tooltip
+      changeTypeTooltip.style.display = 'block';
+      
+      // Add visual indication of selected type
+      changeTypeTooltip.className = ''; // Clear any existing classes
+      changeTypeTooltip.classList.add('tooltip-' + changeType);
+      
+      // Add a small indicator of the currently selected type
+      const typeLabel = document.createElement('div');
+      typeLabel.className = 'fw-bold mb-1';
+      typeLabel.textContent = 'Selected: ' + changeType.charAt(0).toUpperCase() + changeType.slice(1);
+      
+      // Wrap the tooltip text in a container
+      const tooltipContainer = document.createElement('div');
+      tooltipContainer.textContent = tooltipContent;
+      
+      // Clear the tooltip and add the new content
+      changeTypeTooltip.innerHTML = '';
+      changeTypeTooltip.appendChild(typeLabel);
+      changeTypeTooltip.appendChild(tooltipContainer);
+    }
   }
   
   // Update tooltip when change type changes
   changeTypeSelect.addEventListener('change', function() {
     updateTooltipContent(this.value);
+    
+    // Update lead time text
+    const leadTimeElement = document.getElementById('lead-time');
+    if (leadTimeElement) {
+      leadTimeElement.textContent = leadTimeText[this.value] || '2 business days';
+    }
+    
+    // Always ensure tooltip is visible after changing
+    if (changeTypeTooltip) {
+      changeTypeTooltip.style.display = 'block';
+    }
   });
 }
 
@@ -752,12 +1273,102 @@ function switchTab(tabId) {
 }
 
 /**
+ * Check if search term exists in cache and is still valid
+ * @param {string} searchType - Type of search ('requesters' or 'agents')
+ * @param {string} searchTerm - The search term
+ * @returns {Array|null} - Cached results or null if not found/expired
+ */
+async function getFromSearchCache(searchType, searchTerm) {
+  if (!searchCache[searchType] || !searchCache[searchType][searchTerm]) {
+    return null;
+  }
+  
+  // Get the configured search cache timeout from installation parameters
+  const params = await getInstallationParams();
+  const searchCacheTimeout = params.searchCacheTimeout;
+  
+  const cached = searchCache[searchType][searchTerm];
+  
+  // Check if cache is still valid (within the configured timeout)
+  if (Date.now() - cached.timestamp <= searchCacheTimeout) {
+    console.log(`Using cached ${searchType} search results for: ${searchTerm} (timeout: ${searchCacheTimeout}ms)`);
+    return cached.results;
+  }
+  
+  // Cache expired
+  return null;
+}
+
+/**
+ * Store search results in cache
+ * @param {string} searchType - Type of search ('requesters' or 'agents')
+ * @param {string} searchTerm - The search term
+ * @param {Array} results - The search results
+ */
+function addToSearchCache(searchType, searchTerm, results) {
+  if (!searchCache[searchType]) {
+    searchCache[searchType] = {};
+  }
+  
+  searchCache[searchType][searchTerm] = {
+    results: results,
+    timestamp: Date.now()
+  };
+  
+  console.log(`Cached ${results.length} ${searchType} search results for: ${searchTerm}`);
+}
+
+/**
  * Search for requesters using Freshservice API
  */
 function searchRequesters(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
+  // Show loading indicator
+  const resultsContainer = document.getElementById('requester-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Check cache first
+  getFromSearchCache('requesters', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      displaySearchResults('requester-results', cachedResults, selectRequester);
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout;
+        
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchTerm = document.getElementById('requester-search').value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing requester search for: ${searchTerm}`);
+            performRequesterSearch(searchTerm, true);
+          }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
+    
+    // No cache hit, perform search immediately
+    performRequesterSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking requester search cache:', error);
+    // Fallback to direct search on cache error
+    performRequesterSearch(searchTerm);
+  });
+}
+
+/**
+ * Perform the actual API search for requesters
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function performRequesterSearch(searchTerm, isRefresh = false) {
   // Ensure client is available
   if (!window.client || !window.client.request) {
     console.error('Client or request object not available for requester search');
@@ -768,12 +1379,14 @@ function searchRequesters(e) {
   // Try a simpler approach - direct search by name
   // Format 1: Try direct contains search
   const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
-  console.log('Requester search with query:', encodedQuery);
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, encodedQuery);
   
-  // Show loading indicator
-  const resultsContainer = document.getElementById('requester-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('requester-results');
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.style.display = 'block';
+  }
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
@@ -789,6 +1402,8 @@ function searchRequesters(e) {
         if (!data) {
           console.error('No data returned from requester search');
           displaySearchResults('requester-results', allResults, selectRequester);
+          // Cache even empty results to prevent repeated API calls
+          addToSearchCache('requesters', searchTerm, allResults);
           return;
         }
         
@@ -815,8 +1430,16 @@ function searchRequesters(e) {
           // Load next page
           loadPage(page + 1, combinedResults);
         } else {
+          // Cache the results
+          addToSearchCache('requesters', searchTerm, combinedResults);
+          
           // Display all results
           displaySearchResults('requester-results', combinedResults, selectRequester);
+          
+          // Add individual users to the user cache for later use
+          if (combinedResults.length > 0) {
+            cacheIndividualUsers(combinedResults, 'requester');
+          }
         }
       } catch (error) {
         console.error('Error parsing response:', error);
@@ -841,6 +1464,50 @@ function searchAgents(e) {
   const searchTerm = e.target.value.trim();
   if (searchTerm.length < 2) return;
 
+  // Show loading indicator
+  const resultsContainer = document.getElementById('agent-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Check cache first
+  getFromSearchCache('agents', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      displaySearchResults('agent-results', cachedResults, selectAgent);
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout;
+        
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchTerm = document.getElementById('agent-search').value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing agent search for: ${searchTerm}`);
+            performAgentSearch(searchTerm, true);
+          }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
+    
+    // No cache hit, perform search immediately
+    performAgentSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking agent search cache:', error);
+    // Fallback to direct search on cache error
+    performAgentSearch(searchTerm);
+  });
+}
+
+/**
+ * Perform the actual API search for agents
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function performAgentSearch(searchTerm, isRefresh = false) {
   // Ensure client is available
   if (!window.client || !window.client.request) {
     console.error('Client or request object not available for agent search');
@@ -850,12 +1517,14 @@ function searchAgents(e) {
 
   // Try a simpler approach - direct search by name
   const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
-  console.log('Agent search with query:', encodedQuery);
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} agent search with query:`, encodedQuery);
   
-  // Show loading indicator
-  const resultsContainer = document.getElementById('agent-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('agent-results');
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.style.display = 'block';
+  }
   
   // Function to load results from a specific page
   function loadPage(page = 1, allResults = []) {
@@ -871,6 +1540,8 @@ function searchAgents(e) {
         if (!data) {
           console.error('No data returned from agent search');
           displaySearchResults('agent-results', allResults, selectAgent);
+          // Cache even empty results to prevent repeated API calls
+          addToSearchCache('agents', searchTerm, allResults);
           return;
         }
         
@@ -897,8 +1568,16 @@ function searchAgents(e) {
           // Load next page
           loadPage(page + 1, combinedResults);
         } else {
+          // Cache the results
+          addToSearchCache('agents', searchTerm, combinedResults);
+          
           // Display all results
           displaySearchResults('agent-results', combinedResults, selectAgent);
+          
+          // Add individual users to the user cache for later use
+          if (combinedResults.length > 0) {
+            cacheIndividualUsers(combinedResults, 'agent');
+          }
         }
       } catch (error) {
         console.error('Error parsing response:', error);
@@ -917,7 +1596,38 @@ function searchAgents(e) {
 }
 
 /**
- * Get location name by ID
+ * Cache individual users from search results for future reference
+ * @param {Array} users - Array of user objects
+ * @param {string} type - Type of user ('requester' or 'agent')
+ */
+async function cacheIndividualUsers(users, type) {
+  try {
+    // Get current user cache
+    const cachedUsers = await getCachedUsers();
+    
+    // Add each user to the cache
+    users.forEach(user => {
+      if (user && user.id) {
+        const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+        cachedUsers[user.id] = {
+          name: displayName,
+          data: user,
+          timestamp: Date.now(),
+          type: type
+        };
+      }
+    });
+    
+    // Save updated cache
+    await cacheUsers(cachedUsers);
+    console.log(`Added ${users.length} ${type}s to user cache`);
+  } catch (error) {
+    console.error(`Error caching individual ${type}s:`, error);
+  }
+}
+
+/**
+ * Get location name by ID with caching
  * @param {number} locationId - Location ID 
  * @returns {Promise<string>} - Location name
  */
@@ -925,17 +1635,38 @@ async function getLocationName(locationId) {
   if (!locationId) return 'N/A';
   
   // Check for client availability
-  if (!window.client || !window.client.request) {
+  if (!window.client || !window.client.db) {
     console.error('Client not available for location lookup');
     return 'Unknown';
   }
-  
+
   try {
-    const response = await window.client.request.invokeTemplate("getLocation", {
-      context: {
-        location_id: locationId
+    // Check cache first
+    const cachedLocations = await getCachedLocations();
+    
+    // If location is in cache and not expired, use it
+    if (cachedLocations[locationId] && 
+        cachedLocations[locationId].timestamp > Date.now() - CACHE_TIMEOUT) {
+      console.log(`Using cached location: ${cachedLocations[locationId].name}`);
+      return cachedLocations[locationId].name;
+    }
+    
+    // If not in cache or expired, fetch from API
+    // But first, check if we can trigger a full refresh to benefit other locations too
+    if (Object.keys(cachedLocations).length === 0 || 
+        Object.values(cachedLocations).some(loc => loc.timestamp < Date.now() - CACHE_TIMEOUT)) {
+      console.log('Location cache expired or empty, fetching all locations');
+      const allLocations = await fetchAllLocations();
+      
+      // Check if our target location was included in the refresh
+      if (allLocations[locationId]) {
+        return allLocations[locationId].name;
       }
-    });
+    }
+    
+    // If we still don't have the location after a refresh attempt, get it individually
+    console.log(`Fetching individual location ${locationId} from API`);
+    const response = await window.client.request.get(`/api/v2/locations/${locationId}`);
     
     if (!response || !response.response) {
       console.error('Invalid location response:', response);
@@ -945,7 +1676,16 @@ async function getLocationName(locationId) {
     try {
       const parsedData = JSON.parse(response.response || '{}');
       if (parsedData && parsedData.location && parsedData.location.name) {
-        return parsedData.location.name;
+        const locationName = parsedData.location.name;
+        
+        // Update cache
+        cachedLocations[locationId] = {
+          name: locationName,
+          timestamp: Date.now()
+        };
+        await cacheLocations(cachedLocations);
+        
+        return locationName;
       }
       return 'Unknown';
     } catch (parseError) {
@@ -959,45 +1699,34 @@ async function getLocationName(locationId) {
 }
 
 /**
- * Get reporting manager name by ID
- * @param {number} managerId - Manager ID 
- * @returns {Promise<string>} - Manager name
+ * Get cached locations from storage
+ * @returns {Promise<Object>} - Cached locations
  */
-async function getManagerName(managerId) {
-  if (!managerId) return 'N/A';
-  
-  // Check for client availability
-  if (!window.client || !window.client.request) {
-    console.error('Client not available for manager lookup');
-    return 'Unknown';
-  }
-  
+async function getCachedLocations() {
   try {
-    const response = await window.client.request.invokeTemplate("getRequesterDetails", {
-      context: {
-        requester_id: managerId
-      }
-    });
-    
-    if (!response || !response.response) {
-      console.error('Invalid manager response:', response);
-      return 'Unknown';
-    }
-    
-    try {
-      const parsedData = JSON.parse(response.response || '{}');
-      if (parsedData && parsedData.requester) {
-        const manager = parsedData.requester;
-        return `${manager.first_name || ''} ${manager.last_name || ''}`.trim() || 'Unknown';
-      }
-      return 'Unknown';
-    } catch (parseError) {
-      console.error('Error parsing manager response:', parseError);
-      return 'Unknown';
-    }
+    // Try to get cached locations
+    const result = await window.client.db.get(STORAGE_KEYS.LOCATION_CACHE);
+    return result || {};
   } catch (error) {
-    console.error('Error fetching manager:', error);
-    return 'Unknown';
+    // If error or not found, return empty cache
+    console.log('No location cache found or error:', error);
+    return {};
+  }
+}
+
+/**
+ * Save locations to cache
+ * @param {Object} locations - Locations to cache
+ * @returns {Promise<boolean>} - Success status
+ */
+async function cacheLocations(locations) {
+  try {
+    await window.client.db.set(STORAGE_KEYS.LOCATION_CACHE, locations);
+    console.log('Location cache updated');
+    return true;
+  } catch (error) {
+    console.error('Failed to save location cache:', error);
+    return false;
   }
 }
 
@@ -1015,89 +1744,116 @@ function displaySearchResults(containerId, results, selectionCallback) {
     return;
   }
   
-  results.forEach(result => {
-    const resultItem = document.createElement('div');
-    resultItem.className = 'list-group-item search-result-item d-flex flex-column';
-    
-    // Basic information
-    const email = result.email || result.primary_email || '';
-    
-    // Create a container for name and badges
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'd-flex justify-content-between align-items-center w-100';
-    
-    // Name with proper styling
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'fw-bold';
-    nameDiv.textContent = `${result.first_name} ${result.last_name}`;
-    headerDiv.appendChild(nameDiv);
-    
-    // Role/type badge
-    const roleDiv = document.createElement('div');
-    const type = containerId.includes('agent') ? 'Agent' : 'Requester';
-    roleDiv.innerHTML = `<span class="badge ${type === 'Agent' ? 'bg-info' : 'bg-primary'}">${type}</span>`;
-    headerDiv.appendChild(roleDiv);
-    
-    resultItem.appendChild(headerDiv);
-    
-    // Email
-    const emailDiv = document.createElement('div');
-    emailDiv.className = 'text-secondary small';
-    emailDiv.innerHTML = `<i class="fas fa-envelope me-1"></i>${email}`;
-    resultItem.appendChild(emailDiv);
-    
-    // Details container for additional info
-    const detailsContainer = document.createElement('div');
-    detailsContainer.className = 'mt-2 d-flex flex-wrap gap-2';
-    
-    // Add job title badge if available
-    if (result.job_title) {
-      const jobTitleBadge = document.createElement('span');
-      jobTitleBadge.className = 'badge bg-light text-dark border';
-      jobTitleBadge.innerHTML = `<i class="fas fa-briefcase me-1"></i>${result.job_title}`;
-      detailsContainer.appendChild(jobTitleBadge);
+  // First enhance all contacts with location and manager information
+  Promise.all(results.map(async (result) => {
+    // Only fetch additional info if we have IDs but don't have names yet
+    if ((result.location_id && !result.location_name) || 
+        (result.reporting_manager_id && !result.manager_name)) {
+      return await enhanceContactInfo(result);
     }
-    
-    // Add department badge if available
-    if (result.department_names && result.department_names.length > 0) {
-      const deptBadge = document.createElement('span');
-      deptBadge.className = 'badge bg-light text-dark border';
-      deptBadge.innerHTML = `<i class="fas fa-building me-1"></i>${result.department_names[0]}`;
-      detailsContainer.appendChild(deptBadge);
-    }
-    
-    // Add location badge if available
-    if (result.location_name) {
-      const locBadge = document.createElement('span');
-      locBadge.className = 'badge bg-light text-dark border';
-      locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
-      detailsContainer.appendChild(locBadge);
-    }
-    
-    // Only add details container if we have any badges
-    if (detailsContainer.children.length > 0) {
-      resultItem.appendChild(detailsContainer);
-    }
-    
-    // Add hover effect and clickable styling
-    resultItem.classList.add('search-item-hover');
-    
-    // Store the full result object for selection
-    resultItem.addEventListener('click', () => {
-      // Add location and manager info when selected
-      if (result.location_id || result.reporting_manager_id) {
-        enhanceContactInfo(result)
-          .then(enhancedResult => selectionCallback(enhancedResult))
-          .catch(err => {
-            console.error('Error enhancing contact info:', err);
-            selectionCallback(result);
-          });
-      } else {
-        selectionCallback(result);
+    return result;
+  }))
+  .then(enhancedResults => {
+    // Now render with the enhanced data
+    enhancedResults.forEach(result => {
+      const resultItem = document.createElement('div');
+      resultItem.className = 'list-group-item search-result-item d-flex flex-column';
+      
+      // Basic information
+      const email = result.email || result.primary_email || '';
+      
+      // Create a container for name and badges
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'd-flex justify-content-between align-items-center w-100';
+      
+      // Name with proper styling
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'fw-bold';
+      nameDiv.textContent = `${result.first_name} ${result.last_name}`;
+      headerDiv.appendChild(nameDiv);
+      
+      // Role/type badge
+      const roleDiv = document.createElement('div');
+      const type = containerId.includes('agent') ? 'Agent' : 'Requester';
+      roleDiv.innerHTML = `<span class="badge ${type === 'Agent' ? 'bg-info' : 'bg-primary'}">${type}</span>`;
+      headerDiv.appendChild(roleDiv);
+      
+      resultItem.appendChild(headerDiv);
+      
+      // Email
+      const emailDiv = document.createElement('div');
+      emailDiv.className = 'text-secondary small';
+      emailDiv.innerHTML = `<i class="fas fa-envelope me-1"></i>${email}`;
+      resultItem.appendChild(emailDiv);
+      
+      // Details container for additional info
+      const detailsContainer = document.createElement('div');
+      detailsContainer.className = 'mt-2 d-flex flex-wrap gap-2';
+      
+      // Add job title badge if available
+      if (result.job_title) {
+        const jobTitleBadge = document.createElement('span');
+        jobTitleBadge.className = 'badge bg-light text-dark border';
+        jobTitleBadge.innerHTML = `<i class="fas fa-briefcase me-1"></i>${result.job_title}`;
+        detailsContainer.appendChild(jobTitleBadge);
       }
+      
+      // Add department badge if available
+      if (result.department_names && result.department_names.length > 0) {
+        const deptBadge = document.createElement('span');
+        deptBadge.className = 'badge bg-light text-dark border';
+        deptBadge.innerHTML = `<i class="fas fa-building me-1"></i>${result.department_names[0]}`;
+        detailsContainer.appendChild(deptBadge);
+      }
+      
+      // Add location badge if available (enhanced info)
+      if (result.location_name) {
+        const locBadge = document.createElement('span');
+        locBadge.className = 'badge bg-light text-dark border';
+        locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
+        detailsContainer.appendChild(locBadge);
+      } else if (result.location_id) {
+        // Display "Loading..." if we have a location ID but no name yet
+        const locBadge = document.createElement('span');
+        locBadge.className = 'badge bg-light text-dark border';
+        locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>Loading...`;
+        detailsContainer.appendChild(locBadge);
+      }
+      
+      // Add manager badge if available (enhanced info)
+      if (result.manager_name) {
+        const mgrBadge = document.createElement('span');
+        mgrBadge.className = 'badge bg-light text-dark border';
+        mgrBadge.innerHTML = `<i class="fas fa-user-tie me-1"></i>${result.manager_name}`;
+        detailsContainer.appendChild(mgrBadge);
+      }
+      
+      // Only add details container if we have any badges
+      if (detailsContainer.children.length > 0) {
+        resultItem.appendChild(detailsContainer);
+      }
+      
+      // Add hover effect and clickable styling
+      resultItem.classList.add('search-item-hover');
+      
+      // Store the full result object for selection
+      resultItem.addEventListener('click', () => {
+        selectionCallback(result);
+      });
+      
+      container.appendChild(resultItem);
     });
-    
-    container.appendChild(resultItem);
+  })
+  .catch(error => {
+    console.error('Error enhancing search results:', error);
+    // Fallback to basic display without enhancement
+    results.forEach(result => {
+      const resultItem = document.createElement('div');
+      resultItem.className = 'list-group-item search-result-item';
+      resultItem.innerHTML = `<div class="fw-bold">${result.first_name} ${result.last_name}</div>`;
+      resultItem.addEventListener('click', () => selectionCallback(result));
+      container.appendChild(resultItem);
+    });
   });
 }
 
@@ -1109,14 +1865,16 @@ async function enhanceContactInfo(contact) {
     // Make a copy to avoid modifying the original
     const enhancedContact = { ...contact };
     
-    // Add location name if location ID exists
-    if (contact.location_id) {
+    // Add location name if location ID exists and location_name doesn't already exist
+    if (contact.location_id && !contact.location_name) {
       enhancedContact.location_name = await getLocationName(contact.location_id);
+      console.log(`Enhanced contact with location: ${enhancedContact.location_name}`);
     }
     
-    // Add manager name if manager ID exists
-    if (contact.reporting_manager_id) {
-      enhancedContact.manager_name = await getManagerName(contact.reporting_manager_id);
+    // Add manager name if manager ID exists and manager_name doesn't already exist
+    if (contact.reporting_manager_id && !contact.manager_name) {
+      enhancedContact.manager_name = await getUserName(contact.reporting_manager_id);
+      console.log(`Enhanced contact with manager: ${enhancedContact.manager_name}`);
     }
     
     return enhancedContact;
@@ -1388,7 +2146,17 @@ function validateRiskAndNext() {
  */
 function searchAssets(e) {
   const searchTerm = e.target.value.trim();
-  if (searchTerm.length < 2) return;
+  
+  // Show loading indicator even for short search terms
+  const resultsContainer = document.getElementById('asset-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Don't proceed with empty search
+  if (searchTerm.length === 0) {
+    resultsContainer.innerHTML = '<div class="list-group-item search-result-item no-results">Type to search</div>';
+    return;
+  }
 
   // Ensure client is available
   if (!window.client || !window.client.request) {
@@ -1397,118 +2165,161 @@ function searchAssets(e) {
     return;
   }
 
-  // Correctly encode the entire query string including quotes for Freshservice API
-  const assetQueryStr = `~[name|display_name]:'${searchTerm}'`;
-  const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
-  const encodedAssetQuery = encodeURIComponent(`"${assetQueryStr}"`);
-  const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
-  
-  // Show loading indicator
-  const resultsContainer = document.getElementById('asset-results');
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
-  
-  // Arrays to store all results from pagination
-  let allAssets = [];
-  let allServices = [];
-  
-  // Function to load assets from a specific page
-  function loadAssetsPage(page = 1) {
-    return window.client.request.invokeTemplate("getAssets", {
-      path_suffix: `?query=${encodedAssetQuery}&page=${page}&per_page=30`
-    })
-    .then(function(data) {
-      if (!data || !data.response) {
-        return { assets: [] };
-      }
-      
-      try {
-        const response = JSON.parse(data.response);
-        const assets = response && response.assets ? response.assets : [];
-        
-        // Combine with previous results
-        allAssets = [...allAssets, ...assets];
-        
-        // If we got a full page of results, there might be more
-        if (assets.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
-          // Load next page
-          return loadAssetsPage(page + 1);
+  // Get the inventory type ID from installation parameters
+  getInstallationParams().then(params => {
+    const inventoryTypeId = params.inventoryTypeId;
+    console.log(`Using inventory type ID for search: ${inventoryTypeId}`);
+
+    // Strategy: First fetch all assets of the configured type, then filter locally
+
+    // Query only for the asset type without search term restriction
+    const assetTypeQuery = `asset_type_id:${inventoryTypeId}`;
+    const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
+    const encodedAssetTypeQuery = encodeURIComponent(`"${assetTypeQuery}"`);
+    const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
+    
+    // Arrays to store all results from pagination
+    let allAssets = [];
+    let allServices = [];
+    
+    // Function to load assets from a specific page
+    function loadAssetsPage(page = 1) {
+      console.log(`Loading assets page ${page} with filter asset_type_id:${inventoryTypeId}`);
+      return window.client.request.invokeTemplate("getAssets", {
+        path_suffix: `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
+      })
+      .then(function(data) {
+        if (!data || !data.response) {
+          return { assets: [] };
         }
         
-        return { assets: allAssets };
-      } catch (error) {
-        console.error('Error parsing assets response:', error);
-        return { assets: allAssets };
-      }
-    })
-    .catch(error => {
-      console.error('Asset search failed:', error);
-      return { assets: allAssets };
-    });
-  }
-  
-  // Function to load services from a specific page
-  function loadServicesPage(page = 1) {
-    return window.client.request.invokeTemplate("getServices", {
-      path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
-    })
-    .then(function(data) {
-      if (!data || !data.response) {
-        return { services: [] };
-      }
-      
-      try {
-        const response = JSON.parse(data.response);
-        const services = response && response.services ? response.services : [];
-        
-        // Combine with previous results
-        allServices = [...allServices, ...services];
-        
-        // If we got a full page of results, there might be more
-        if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
-          // Load next page
-          return loadServicesPage(page + 1);
+        try {
+          const response = JSON.parse(data.response);
+          const assets = response && response.assets ? response.assets : [];
+          console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
+          
+          // Combine with previous results
+          allAssets = [...allAssets, ...assets];
+          
+          // If we got a full page of results, there might be more
+          if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
+            // Load next page
+            return loadAssetsPage(page + 1);
+          }
+          
+          return { assets: allAssets };
+        } catch (error) {
+          console.error('Error parsing assets response:', error);
+          return { assets: allAssets };
         }
-        
-        return { services: allServices };
-      } catch (error) {
-        console.error('Error parsing services response:', error);
-        return { services: allServices };
-      }
-    })
-    .catch(error => {
-      console.error('Service search failed:', error);
-      return { services: allServices };
-    });
-  }
-  
-  // Start loading both assets and services from page 1
-  Promise.all([
-    loadAssetsPage(1),
-    loadServicesPage(1)
-  ])
-  .then(function([assetsResponse, servicesResponse]) {
-    try {
-      // Get assets and services from the responses
-      const assets = assetsResponse.assets || [];
-      const services = servicesResponse.services || [];
-      
-      // Combine both results with type information
-      const combinedResults = [
-        ...assets.map(item => ({ ...item, type: 'asset' })),
-        ...services.map(item => ({ ...item, type: 'service' }))
-      ];
-      
-      displayAssetResults('asset-results', combinedResults, selectAsset);
-    } catch (error) {
-      console.error('Error processing search results:', error);
-      displayAssetResults('asset-results', [], selectAsset);
+      })
+      .catch(error => {
+        console.error('Asset search failed:', error);
+        return { assets: allAssets };
+      });
     }
-  })
-  .catch(function(error) {
-    console.error('Combined asset/service search failed:', error);
-    displayAssetResults('asset-results', [], selectAsset);
-    handleErr(error);
+    
+    // Function to load services from a specific page (unchanged)
+    function loadServicesPage(page = 1) {
+      return window.client.request.invokeTemplate("getServices", {
+        path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
+      })
+      .then(function(data) {
+        if (!data || !data.response) {
+          return { services: [] };
+        }
+        
+        try {
+          const response = JSON.parse(data.response);
+          const services = response && response.services ? response.services : [];
+          
+          // Combine with previous results
+          allServices = [...allServices, ...services];
+          
+          // If we got a full page of results, there might be more
+          if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
+            // Load next page
+            return loadServicesPage(page + 1);
+          }
+          
+          return { services: allServices };
+        } catch (error) {
+          console.error('Error parsing services response:', error);
+          return { services: allServices };
+        }
+      })
+      .catch(error => {
+        console.error('Service search failed:', error);
+        return { services: allServices };
+      });
+    }
+    
+    // Start loading both assets and services from page 1
+    Promise.all([
+      loadAssetsPage(1),
+      loadServicesPage(1)
+    ])
+    .then(function([assetsResponse, servicesResponse]) {
+      try {
+        // Get assets and services from the responses
+        const assets = assetsResponse.assets || [];
+        const services = servicesResponse.services || [];
+        
+        // Apply the search term filter to the assets locally
+        const filteredAssets = assets.filter(asset => {
+          const searchIn = [
+            asset.name || '',
+            asset.display_name || '',
+            asset.description || '',
+            asset.asset_tag || '',
+            asset.serial_number || '',
+            asset.product_name || '',
+            asset.vendor_name || ''
+          ].map(text => text.toLowerCase()).join(' ');
+          
+          return searchIn.includes(searchTerm.toLowerCase());
+        });
+        
+        console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
+        
+        // Combine both results with type information
+        const combinedResults = [
+          ...filteredAssets.map(item => ({ ...item, type: 'asset' })),
+          ...services.map(item => ({ ...item, type: 'service' }))
+        ];
+        
+        // Sort results by relevance - exact name matches first
+        combinedResults.sort((a, b) => {
+          const aName = (a.name || a.display_name || '').toLowerCase();
+          const bName = (b.name || b.display_name || '').toLowerCase();
+          const searchLower = searchTerm.toLowerCase();
+          
+          // Exact matches first
+          if (aName === searchLower && bName !== searchLower) return -1;
+          if (bName === searchLower && aName !== searchLower) return 1;
+          
+          // Starts with search term next
+          if (aName.startsWith(searchLower) && !bName.startsWith(searchLower)) return -1;
+          if (bName.startsWith(searchLower) && !aName.startsWith(searchLower)) return 1;
+          
+          // Normal alphabetical sorting for the rest
+          return aName.localeCompare(bName);
+        });
+        
+        displayAssetResults('asset-results', combinedResults, selectAsset);
+      } catch (error) {
+        console.error('Error processing search results:', error);
+        displayAssetResults('asset-results', [], selectAsset);
+      }
+    })
+    .catch(function(error) {
+      console.error('Combined asset/service search failed:', error);
+      displayAssetResults('asset-results', [], selectAsset);
+      handleErr(error);
+    });
+  }).catch(error => {
+    console.error('Error getting installation parameters:', error);
+    handleErr('Failed to load configuration settings');
   });
 }
 
@@ -2064,3 +2875,59 @@ document.addEventListener('DOMContentLoaded', function() {
   `;
   document.head.appendChild(style);
 });
+
+/**
+ * Calculate safe API request counts based on rate limits
+ * @returns {Promise<Object>} - Object with calculated safe limits
+ */
+async function getSafeApiLimits() {
+  // Get installation parameters
+  const params = await getInstallationParams();
+  const plan = params.freshservicePlan;
+  const safetyMargin = params.apiSafetyMargin;
+  
+  // Get rate limits for the current plan
+  const limits = DEFAULT_RATE_LIMITS[plan] || DEFAULT_RATE_LIMITS.enterprise;
+  
+  // Calculate safe number of requests (applying safety margin)
+  return {
+    listAgentsPageLimit: Math.floor((limits.listAgents * safetyMargin) / 100), // Each page is 100 agents
+    listRequestersPageLimit: Math.floor((limits.listRequesters * safetyMargin) / 100) // Each page is 100 requesters
+  };
+}
+
+/**
+ * Get app installation parameters
+ * @returns {Promise<Object>} - Installation parameters
+ */
+async function getInstallationParams() {
+  try {
+    if (!window.client || typeof window.client.iparams === 'undefined') {
+      console.warn('iparams client not available, using defaults');
+      return {
+        freshservicePlan: 'enterprise',
+        apiSafetyMargin: DEFAULT_SAFETY_MARGIN,
+        inventoryTypeId: DEFAULT_INVENTORY_TYPE_ID,
+        searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
+      };
+    }
+    
+    const iparams = await window.client.iparams.get();
+    console.log('Loaded installation parameters:', iparams);
+    
+    return {
+      freshservicePlan: (iparams.freshservice_plan || 'enterprise').toLowerCase(),
+      apiSafetyMargin: parseFloat(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN),
+      inventoryTypeId: iparams.inventory_type_id || DEFAULT_INVENTORY_TYPE_ID,
+      searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT)
+    };
+  } catch (error) {
+    console.error('Error getting installation parameters:', error);
+    return {
+      freshservicePlan: 'enterprise',
+      apiSafetyMargin: DEFAULT_SAFETY_MARGIN,
+      inventoryTypeId: DEFAULT_INVENTORY_TYPE_ID,
+      searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
+    };
+  }
+}
