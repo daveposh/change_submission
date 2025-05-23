@@ -244,16 +244,28 @@
         }
       };
       
-      // Apply defaults button handler
-      document.getElementById('apply-defaults').addEventListener('click', function() {
-        const selectedPlan = document.getElementById('plan_type').value;
-        const limits = DEFAULT_RATE_LIMITS[selectedPlan] || DEFAULT_RATE_LIMITS.starter;
+      // Function to apply rate limits based on plan
+      function applyRateLimitsByPlan(planType) {
+        const limits = DEFAULT_RATE_LIMITS[planType] || DEFAULT_RATE_LIMITS.starter;
         
         document.getElementById('rate_limit_overall').value = limits.overall;
         document.getElementById('rate_limit_list_tickets').value = limits.listTickets;
         document.getElementById('rate_limit_list_assets').value = limits.listAssets;
         document.getElementById('rate_limit_list_agents').value = limits.listAgents;
         document.getElementById('rate_limit_list_requesters').value = limits.listRequesters;
+      }
+      
+      // Apply defaults button handler
+      document.getElementById('apply-defaults').addEventListener('click', function() {
+        const selectedPlan = document.getElementById('plan_type').value;
+        applyRateLimitsByPlan(selectedPlan);
+      });
+      
+      // Listen for plan type changes
+      document.getElementById('plan_type').addEventListener('change', function() {
+        if(confirm('Do you want to apply default rate limits for the selected plan?')) {
+          applyRateLimitsByPlan(this.value);
+        }
       });
       
       // Toggle API key visibility
@@ -325,32 +337,49 @@
             document.getElementById('api_key').value = iparams.api_key;
           }
           
+          // First set plan_type
+          let planType = 'starter';
           if (iparams.plan_type) {
-            document.getElementById('plan_type').value = iparams.plan_type;
+            planType = iparams.plan_type;
+            document.getElementById('plan_type').value = planType;
+          }
+          
+          // Apply default rate limits if values are not set
+          const shouldApplyDefaults = 
+            !iparams.rate_limit_overall ||
+            !iparams.rate_limit_list_tickets ||
+            !iparams.rate_limit_list_assets ||
+            !iparams.rate_limit_list_agents ||
+            !iparams.rate_limit_list_requesters;
+            
+          if (shouldApplyDefaults) {
+            // Apply defaults based on selected plan
+            applyRateLimitsByPlan(planType);
+          } else {
+            // Set individual values from saved settings
+            if (iparams.rate_limit_overall) {
+              document.getElementById('rate_limit_overall').value = iparams.rate_limit_overall;
+            }
+            
+            if (iparams.rate_limit_list_tickets) {
+              document.getElementById('rate_limit_list_tickets').value = iparams.rate_limit_list_tickets;
+            }
+            
+            if (iparams.rate_limit_list_assets) {
+              document.getElementById('rate_limit_list_assets').value = iparams.rate_limit_list_assets;
+            }
+            
+            if (iparams.rate_limit_list_agents) {
+              document.getElementById('rate_limit_list_agents').value = iparams.rate_limit_list_agents;
+            }
+            
+            if (iparams.rate_limit_list_requesters) {
+              document.getElementById('rate_limit_list_requesters').value = iparams.rate_limit_list_requesters;
+            }
           }
           
           if (iparams.api_safety_margin) {
             document.getElementById('api_safety_margin').value = iparams.api_safety_margin;
-          }
-          
-          if (iparams.rate_limit_overall) {
-            document.getElementById('rate_limit_overall').value = iparams.rate_limit_overall;
-          }
-          
-          if (iparams.rate_limit_list_tickets) {
-            document.getElementById('rate_limit_list_tickets').value = iparams.rate_limit_list_tickets;
-          }
-          
-          if (iparams.rate_limit_list_assets) {
-            document.getElementById('rate_limit_list_assets').value = iparams.rate_limit_list_assets;
-          }
-          
-          if (iparams.rate_limit_list_agents) {
-            document.getElementById('rate_limit_list_agents').value = iparams.rate_limit_list_agents;
-          }
-          
-          if (iparams.rate_limit_list_requesters) {
-            document.getElementById('rate_limit_list_requesters').value = iparams.rate_limit_list_requesters;
           }
           
           if (iparams.search_cache_timeout) {
