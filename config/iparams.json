@@ -22,10 +22,10 @@
   },
   "api_safety_margin": {
     "display_name": "API Safety Margin",
-    "description": "Safety margin for API limits (0.1-1.0). Example: 0.7 means 70% of rate limits",
+    "description": "Safety margin for API limits (10-100). Example: 70 means 70% of rate limits",
     "type": "number",
     "required": true,
-    "default_value": 0.7
+    "default_value": 70
   },
   "rate_limit_overall": {
     "display_name": "Overall API Rate Limit",

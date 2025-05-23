@@ -93,8 +93,8 @@ const DEFAULT_RATE_LIMITS = {
   }
 };
 
-// Default safety margin (percentage of rate limit to use)
-const DEFAULT_SAFETY_MARGIN = 0.7;
+// Default safety margin for API rate limiting (70%)
+const DEFAULT_SAFETY_MARGIN = 70;
 
 // Default inventory software/services type ID
 const DEFAULT_INVENTORY_TYPE_ID = 33000752344;
@@ -2884,7 +2884,7 @@ async function getSafeApiLimits() {
   try {
     // Get installation parameters
     const params = await getInstallationParams();
-    const safetyMargin = parseFloat(params.apiSafetyMargin) || DEFAULT_SAFETY_MARGIN;
+    const safetyMargin = parseInt(params.apiSafetyMargin) / 100 || DEFAULT_SAFETY_MARGIN / 100;
     
     // Get custom rate limits from settings
     const overallLimit = parseInt(params.rateLimitOverall) || DEFAULT_RATE_LIMITS.starter.overall;
@@ -2892,6 +2892,8 @@ async function getSafeApiLimits() {
     const listRequestersLimit = parseInt(params.rateLimitListRequesters) || DEFAULT_RATE_LIMITS.starter.listRequesters;
     const listAssetsLimit = parseInt(params.rateLimitListAssets) || DEFAULT_RATE_LIMITS.starter.listAssets;
     const listTicketsLimit = parseInt(params.rateLimitListTickets) || DEFAULT_RATE_LIMITS.starter.listTickets;
+    
+    console.log(`Using safety margin: ${params.apiSafetyMargin}% (${safetyMargin})`);
     
     // Calculate safe number of requests (applying safety margin)
     return {
@@ -2903,13 +2905,14 @@ async function getSafeApiLimits() {
     };
   } catch (error) {
     console.error('Error calculating API limits:', error);
-    // Return default safe limits
+    // Return default safe limits based on percentage safety margin
+    const defaultSafetyMargin = DEFAULT_SAFETY_MARGIN / 100;
     return {
-      overallLimit: Math.floor(DEFAULT_RATE_LIMITS.starter.overall * DEFAULT_SAFETY_MARGIN),
-      listAgentsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listAgents * DEFAULT_SAFETY_MARGIN) / 100),
-      listRequestersPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listRequesters * DEFAULT_SAFETY_MARGIN) / 100),
-      listAssetsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listAssets * DEFAULT_SAFETY_MARGIN) / 100),
-      listTicketsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listTickets * DEFAULT_SAFETY_MARGIN) / 100)
+      overallLimit: Math.floor(DEFAULT_RATE_LIMITS.starter.overall * defaultSafetyMargin),
+      listAgentsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listAgents * defaultSafetyMargin) / 100),
+      listRequestersPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listRequesters * defaultSafetyMargin) / 100),
+      listAssetsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listAssets * defaultSafetyMargin) / 100),
+      listTicketsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listTickets * defaultSafetyMargin) / 100)
     };
   }
 }
@@ -2943,7 +2946,7 @@ async function getInstallationParams() {
       freshserviceDomain: iparams.freshservice_domain || '',
       apiKey: iparams.api_key || '',
       planType: (iparams.plan_type || 'starter').toLowerCase(),
-      apiSafetyMargin: parseFloat(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN),
+      apiSafetyMargin: parseInt(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN),
       rateLimitOverall: parseInt(iparams.rate_limit_overall || DEFAULT_RATE_LIMITS.starter.overall),
       rateLimitListTickets: parseInt(iparams.rate_limit_list_tickets || DEFAULT_RATE_LIMITS.starter.listTickets),
       rateLimitListAssets: parseInt(iparams.rate_limit_list_assets || DEFAULT_RATE_LIMITS.starter.listAssets),
