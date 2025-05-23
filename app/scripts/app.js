@@ -1376,9 +1376,8 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
     return;
   }
 
-  // Try a simpler approach - direct search by name
-  // Format 1: Try direct contains search
-  const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
+  // Format the query using the specified format
+  const encodedQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
   console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, encodedQuery);
   
   // Only show loading indicator for non-refresh operations
@@ -1388,8 +1387,20 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
     resultsContainer.style.display = 'block';
   }
   
-  // Function to load results from a specific page
-  function loadPage(page = 1, allResults = []) {
+  // Search both requesters and agents, and then combine results
+  searchRequestersOnly(searchTerm, encodedQuery, isRefresh, []);
+}
+
+/**
+ * Search for requesters only, then proceed to search for agents
+ * @param {string} searchTerm - Original search term
+ * @param {string} encodedQuery - Encoded query string
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ * @param {Array} existingResults - Results collected so far
+ */
+function searchRequestersOnly(searchTerm, encodedQuery, isRefresh, existingResults) {
+  // Function to load requester results from a specific page
+  function loadRequestersPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
     const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
@@ -1401,9 +1412,8 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
       try {
         if (!data) {
           console.error('No data returned from requester search');
-          displaySearchResults('requester-results', allResults, selectRequester);
-          // Cache even empty results to prevent repeated API calls
-          addToSearchCache('requesters', searchTerm, allResults);
+          // Proceed to search agents
+          searchAgentsOnly(searchTerm, encodedQuery, isRefresh, allResults);
           return;
         }
         
@@ -1428,33 +1438,114 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
         // If we got a full page of results, there might be more
         if (requesters.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
           // Load next page
-          loadPage(page + 1, combinedResults);
+          loadRequestersPage(page + 1, combinedResults);
         } else {
-          // Cache the results
-          addToSearchCache('requesters', searchTerm, combinedResults);
-          
-          // Display all results
-          displaySearchResults('requester-results', combinedResults, selectRequester);
-          
-          // Add individual users to the user cache for later use
-          if (combinedResults.length > 0) {
-            cacheIndividualUsers(combinedResults, 'requester');
-          }
+          // Proceed to search agents
+          searchAgentsOnly(searchTerm, encodedQuery, isRefresh, combinedResults);
         }
       } catch (error) {
         console.error('Error parsing response:', error);
-        displaySearchResults('requester-results', allResults, selectRequester);
+        // Proceed to search agents even if there was an error
+        searchAgentsOnly(searchTerm, encodedQuery, isRefresh, allResults);
       }
     })
     .catch(function(error) {
       console.error('API request failed:', error);
-      displaySearchResults('requester-results', allResults, selectRequester);
-      handleErr(error);
+      // Proceed to search agents even if there was an error
+      searchAgentsOnly(searchTerm, encodedQuery, isRefresh, allResults);
     });
   }
   
   // Start loading from page 1
-  loadPage(1, []);
+  loadRequestersPage(1, existingResults);
+}
+
+/**
+ * Search for agents and combine with requester results
+ * @param {string} searchTerm - Original search term
+ * @param {string} encodedQuery - Encoded query string
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ * @param {Array} requesterResults - Results from requester search
+ */
+function searchAgentsOnly(searchTerm, encodedQuery, isRefresh, requesterResults) {
+  // Function to load agent results from a specific page
+  function loadAgentsPage(page = 1, allResults = []) {
+    // Use invokeTemplate with path suffix to add query parameter
+    const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
+    console.log('Agent API URL for requester search:', requestUrl);
+    
+    window.client.request.invokeTemplate("getAgents", {
+      path_suffix: requestUrl
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from agent search');
+          // Complete the search with existing results
+          finalizeRequesterSearch(searchTerm, [...requesterResults, ...allResults], isRefresh);
+          return;
+        }
+        
+        console.log('Agent search raw response for requester search:', data.response);
+        const response = JSON.parse(data.response || '{"agents":[]}');
+        const agents = response && response.agents ? response.agents : [];
+        console.log(`Agent search for requester returned ${agents.length} results`);
+        
+        // Manual filtering if the API filtering isn't working
+        const filteredAgents = agents.filter(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredAgents.length} agent results for requester search`);
+        
+        // Combine with previous agent results
+        const combinedAgentResults = [...allResults, ...filteredAgents];
+        
+        // If we got a full page of results, there might be more
+        if (agents.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
+          // Load next page
+          loadAgentsPage(page + 1, combinedAgentResults);
+        } else {
+          // Complete the search with combined results
+          finalizeRequesterSearch(searchTerm, [...requesterResults, ...combinedAgentResults], isRefresh);
+        }
+      } catch (error) {
+        console.error('Error parsing agent response for requester search:', error);
+        // Complete with existing results
+        finalizeRequesterSearch(searchTerm, [...requesterResults, ...allResults], isRefresh);
+      }
+    })
+    .catch(function(error) {
+      console.error('Agent API request failed for requester search:', error);
+      // Complete with existing results
+      finalizeRequesterSearch(searchTerm, [...requesterResults, ...allResults], isRefresh);
+    });
+  }
+  
+  // Start loading from page 1
+  loadAgentsPage(1, []);
+}
+
+/**
+ * Finalize requester search with combined results
+ * @param {string} searchTerm - Original search term
+ * @param {Array} combinedResults - Combined requester and agent results
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function finalizeRequesterSearch(searchTerm, combinedResults, isRefresh) {
+  // Cache the results
+  addToSearchCache('requesters', searchTerm, combinedResults);
+  
+  // Display all results
+  displaySearchResults('requester-results', combinedResults, selectRequester);
+  
+  // Add individual users to the user cache for later use
+  if (combinedResults.length > 0) {
+    cacheIndividualUsers(combinedResults, 'requester');
+  }
 }
 
 /**
@@ -1515,8 +1606,8 @@ function performAgentSearch(searchTerm, isRefresh = false) {
     return;
   }
 
-  // Try a simpler approach - direct search by name
-  const encodedQuery = encodeURIComponent(`"${searchTerm}"`);
+  // Format the query using the specified format
+  const encodedQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
   console.log(`${isRefresh ? 'Refreshing' : 'Performing'} agent search with query:`, encodedQuery);
   
   // Only show loading indicator for non-refresh operations
@@ -1772,9 +1863,12 @@ function displaySearchResults(containerId, results, selectionCallback) {
       nameDiv.textContent = `${result.first_name} ${result.last_name}`;
       headerDiv.appendChild(nameDiv);
       
-      // Role/type badge
+      // Role/type badge - determine type based on object properties
       const roleDiv = document.createElement('div');
-      const type = containerId.includes('agent') ? 'Agent' : 'Requester';
+      // Check if the result is an agent by looking for agent-specific properties
+      // Agents typically have 'email' property while requesters have 'primary_email'
+      const isAgent = result.hasOwnProperty('email') && !result.hasOwnProperty('primary_email');
+      const type = containerId.includes('agent') || isAgent ? 'Agent' : 'Requester';
       roleDiv.innerHTML = `<span class="badge ${type === 'Agent' ? 'bg-info' : 'bg-primary'}">${type}</span>`;
       headerDiv.appendChild(roleDiv);
       
