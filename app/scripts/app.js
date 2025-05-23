@@ -1376,9 +1376,12 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
     return;
   }
 
-  // Format the query using the specified format
-  const encodedQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
-  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, encodedQuery);
+  // Use simple quoted format for requesters API (it doesn't support field-specific syntax)
+  const requesterQuery = encodeURIComponent(`"${searchTerm}"`);
+  // Use field-specific format for agents API  
+  const agentQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with requester query:`, requesterQuery, 'and agent query:', agentQuery);
   
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
@@ -1388,21 +1391,22 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
   }
   
   // Search both requesters and agents, and then combine results
-  searchRequestersOnly(searchTerm, encodedQuery, isRefresh, []);
+  searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh, []);
 }
 
 /**
  * Search for requesters only, then proceed to search for agents
  * @param {string} searchTerm - Original search term
- * @param {string} encodedQuery - Encoded query string
+ * @param {string} requesterQuery - Encoded query string for requesters
+ * @param {string} agentQuery - Encoded query string for agents
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
  * @param {Array} existingResults - Results collected so far
  */
-function searchRequestersOnly(searchTerm, encodedQuery, isRefresh, existingResults) {
+function searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh, existingResults) {
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
+    const requestUrl = `?query=${requesterQuery}&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
     
     window.client.request.invokeTemplate("getRequesters", {
@@ -1413,7 +1417,7 @@ function searchRequestersOnly(searchTerm, encodedQuery, isRefresh, existingResul
         if (!data) {
           console.error('No data returned from requester search');
           // Proceed to search agents
-          searchAgentsOnly(searchTerm, encodedQuery, isRefresh, allResults);
+          searchAgentsOnly(searchTerm, agentQuery, isRefresh, allResults);
           return;
         }
         
@@ -1441,18 +1445,18 @@ function searchRequestersOnly(searchTerm, encodedQuery, isRefresh, existingResul
           loadRequestersPage(page + 1, combinedResults);
         } else {
           // Proceed to search agents
-          searchAgentsOnly(searchTerm, encodedQuery, isRefresh, combinedResults);
+          searchAgentsOnly(searchTerm, agentQuery, isRefresh, combinedResults);
         }
       } catch (error) {
         console.error('Error parsing response:', error);
         // Proceed to search agents even if there was an error
-        searchAgentsOnly(searchTerm, encodedQuery, isRefresh, allResults);
+        searchAgentsOnly(searchTerm, agentQuery, isRefresh, allResults);
       }
     })
     .catch(function(error) {
       console.error('API request failed:', error);
       // Proceed to search agents even if there was an error
-      searchAgentsOnly(searchTerm, encodedQuery, isRefresh, allResults);
+      searchAgentsOnly(searchTerm, agentQuery, isRefresh, allResults);
     });
   }
   
@@ -1463,15 +1467,15 @@ function searchRequestersOnly(searchTerm, encodedQuery, isRefresh, existingResul
 /**
  * Search for agents and combine with requester results
  * @param {string} searchTerm - Original search term
- * @param {string} encodedQuery - Encoded query string
+ * @param {string} agentQuery - Encoded query string for agents
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
  * @param {Array} requesterResults - Results from requester search
  */
-function searchAgentsOnly(searchTerm, encodedQuery, isRefresh, requesterResults) {
+function searchAgentsOnly(searchTerm, agentQuery, isRefresh, requesterResults) {
   // Function to load agent results from a specific page
   function loadAgentsPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
+    const requestUrl = `?query=${agentQuery}&page=${page}&per_page=30`;
     console.log('Agent API URL for requester search:', requestUrl);
     
     window.client.request.invokeTemplate("getAgents", {
