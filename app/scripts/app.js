@@ -1407,7 +1407,7 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
  */
 function searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh, existingResults) {
   // Function to load requester results from a specific page
-  function loadRequestersPage(page = 1, allResults = []) {
+  async function loadRequestersPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
     const requestUrl = `?query=${requesterQuery}&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
@@ -1445,13 +1445,21 @@ function searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh,
         // If we got a full page of results, there might be more
         if (requesters.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
           // Load next page
-          const params = await getInstallationParams();
-          const paginationDelay = params.paginationDelay;
-          
-          updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
-          setTimeout(() => {
-            loadRequestersPage(page + 1, combinedResults);
-          }, paginationDelay);
+          (async function() {
+            const params = await getInstallationParams();
+            const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+            
+            updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
+            setTimeout(() => {
+              loadRequestersPage(page + 1, combinedResults);
+            }, paginationDelay);
+          })().catch(err => {
+            console.error('Error getting pagination delay:', err);
+            // Default delay if error
+            setTimeout(() => {
+              loadRequestersPage(page + 1, combinedResults);
+            }, DEFAULT_PAGINATION_DELAY);
+          });
         } else {
           // Proceed to search agents
           searchAgentsOnly(searchTerm, agentQuery, isRefresh, combinedResults);
@@ -1482,7 +1490,7 @@ function searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh,
  */
 function searchAgentsOnly(searchTerm, agentQuery, isRefresh, requesterResults) {
   // Function to load agent results from a specific page
-  function loadAgentsPage(page = 1, allResults = []) {
+  async function loadAgentsPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
     const requestUrl = `?query=${agentQuery}&page=${page}&per_page=30`;
     console.log('Agent API URL for requester search:', requestUrl);
@@ -1519,8 +1527,24 @@ function searchAgentsOnly(searchTerm, agentQuery, isRefresh, requesterResults) {
         
         // If we got a full page of results, there might be more
         if (agents.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
-          // Load next page
-          loadAgentsPage(page + 1, combinedAgentResults);
+          // Load next page with pagination delay
+          (async function() {
+            try {
+              const params = await getInstallationParams();
+              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              
+              updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
+              setTimeout(() => {
+                loadAgentsPage(page + 1, combinedAgentResults);
+              }, paginationDelay);
+            } catch (err) {
+              console.error('Error getting pagination delay:', err);
+              // Default delay if error
+              setTimeout(() => {
+                loadAgentsPage(page + 1, combinedAgentResults);
+              }, DEFAULT_PAGINATION_DELAY);
+            }
+          })();
         } else {
           // Complete the search with combined results
           finalizeRequesterSearch(searchTerm, [...requesterResults, ...combinedAgentResults], isRefresh);
@@ -1631,7 +1655,7 @@ function performAgentSearch(searchTerm, isRefresh = false) {
   }
   
   // Function to load results from a specific page
-  function loadPage(page = 1, allResults = []) {
+  async function loadPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
     const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
     console.log('Agent API URL:', requestUrl);
@@ -1669,8 +1693,24 @@ function performAgentSearch(searchTerm, isRefresh = false) {
         
         // If we got a full page of results, there might be more
         if (agents.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
-          // Load next page
-          loadPage(page + 1, combinedResults);
+          // Load next page with pagination delay
+          (async function() {
+            try {
+              const params = await getInstallationParams();
+              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              
+              updateLoadingMessage('agent-results', `Loading more results... (page ${page + 1})`);
+              setTimeout(() => {
+                loadPage(page + 1, combinedResults);
+              }, paginationDelay);
+            } catch (err) {
+              console.error('Error getting pagination delay:', err);
+              // Default delay if error
+              setTimeout(() => {
+                loadPage(page + 1, combinedResults);
+              }, DEFAULT_PAGINATION_DELAY);
+            }
+          })();
         } else {
           // Cache the results
           addToSearchCache('agents', searchTerm, combinedResults);
@@ -2290,12 +2330,13 @@ function searchAssets(e) {
     let allServices = [];
     
     // Function to load assets from a specific page
-    function loadAssetsPage(page = 1) {
+    async function loadAssetsPage(page = 1) {
       console.log(`Loading assets page ${page} with filter asset_type_id:${inventoryTypeId}`);
-      return window.client.request.invokeTemplate("getAssets", {
-        path_suffix: `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
-      })
-      .then(function(data) {
+      try {
+        const data = await window.client.request.invokeTemplate("getAssets", {
+          path_suffix: `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
+        });
+        
         if (!data || !data.response) {
           return { assets: [] };
         }
@@ -2310,8 +2351,14 @@ function searchAssets(e) {
           
           // If we got a full page of results, there might be more
           if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
+            // Add pagination delay before loading the next page
+            const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+            
+            // Wait for the delay before loading the next page
+            await new Promise(resolve => setTimeout(resolve, paginationDelay));
+            
             // Load next page
-            return loadAssetsPage(page + 1);
+            return await loadAssetsPage(page + 1);
           }
           
           return { assets: allAssets };
@@ -2319,19 +2366,19 @@ function searchAssets(e) {
           console.error('Error parsing assets response:', error);
           return { assets: allAssets };
         }
-      })
-      .catch(error => {
+      } catch (error) {
         console.error('Asset search failed:', error);
         return { assets: allAssets };
-      });
+      }
     }
     
-    // Function to load services from a specific page (unchanged)
-    function loadServicesPage(page = 1) {
-      return window.client.request.invokeTemplate("getServices", {
-        path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
-      })
-      .then(function(data) {
+    // Function to load services from a specific page
+    async function loadServicesPage(page = 1) {
+      try {
+        const data = await window.client.request.invokeTemplate("getServices", {
+          path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
+        });
+        
         if (!data || !data.response) {
           return { services: [] };
         }
@@ -2345,8 +2392,14 @@ function searchAssets(e) {
           
           // If we got a full page of results, there might be more
           if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
+            // Add pagination delay before loading the next page
+            const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+            
+            // Wait for the delay before loading the next page
+            await new Promise(resolve => setTimeout(resolve, paginationDelay));
+            
             // Load next page
-            return loadServicesPage(page + 1);
+            return await loadServicesPage(page + 1);
           }
           
           return { services: allServices };
@@ -2354,11 +2407,10 @@ function searchAssets(e) {
           console.error('Error parsing services response:', error);
           return { services: allServices };
         }
-      })
-      .catch(error => {
+      } catch (error) {
         console.error('Service search failed:', error);
         return { services: allServices };
-      });
+      }
     }
     
     // Start loading both assets and services from page 1
