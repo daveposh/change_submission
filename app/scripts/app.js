@@ -39,6 +39,9 @@ const CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
 // Default search cache timeout in milliseconds (7 seconds)
 const DEFAULT_SEARCH_CACHE_TIMEOUT = 7000;
 
+// Pagination delay in milliseconds (500ms between requests)
+const DEFAULT_PAGINATION_DELAY = 500;
+
 // In-memory cache for search results
 const searchCache = {
   requesters: {}, // Map of search term -> { results, timestamp }
@@ -1442,7 +1445,12 @@ function searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh,
         // If we got a full page of results, there might be more
         if (requesters.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
           // Load next page
-          loadRequestersPage(page + 1, combinedResults);
+          const params = await getInstallationParams();
+          const paginationDelay = params.paginationDelay;
+          
+          setTimeout(() => {
+            loadRequestersPage(page + 1, combinedResults);
+          }, paginationDelay);
         } else {
           // Proceed to search agents
           searchAgentsOnly(searchTerm, agentQuery, isRefresh, combinedResults);
@@ -3033,7 +3041,8 @@ async function getInstallationParams() {
         rateLimitListAssets: DEFAULT_RATE_LIMITS.starter.listAssets,
         rateLimitListAgents: DEFAULT_RATE_LIMITS.starter.listAgents,
         rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
-        searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
+        searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
+        paginationDelay: DEFAULT_PAGINATION_DELAY
       };
     }
     
