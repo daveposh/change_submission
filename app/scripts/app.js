@@ -1448,6 +1448,7 @@ function searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh,
           const params = await getInstallationParams();
           const paginationDelay = params.paginationDelay;
           
+          updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
           setTimeout(() => {
             loadRequestersPage(page + 1, combinedResults);
           }, paginationDelay);
@@ -3075,5 +3076,13 @@ async function getInstallationParams() {
       rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
       searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
     };
+  }
+}
+
+// Add this helper function
+function updateLoadingMessage(containerId, message) {
+  const container = document.getElementById(containerId);
+  if (container) {
+    container.innerHTML = `<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> ${message}</div>`;
   }
 }
