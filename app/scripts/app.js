@@ -2881,19 +2881,37 @@ document.addEventListener('DOMContentLoaded', function() {
  * @returns {Promise<Object>} - Object with calculated safe limits
  */
 async function getSafeApiLimits() {
-  // Get installation parameters
-  const params = await getInstallationParams();
-  const plan = params.freshservicePlan;
-  const safetyMargin = params.apiSafetyMargin;
-  
-  // Get rate limits for the current plan
-  const limits = DEFAULT_RATE_LIMITS[plan] || DEFAULT_RATE_LIMITS.enterprise;
-  
-  // Calculate safe number of requests (applying safety margin)
-  return {
-    listAgentsPageLimit: Math.floor((limits.listAgents * safetyMargin) / 100), // Each page is 100 agents
-    listRequestersPageLimit: Math.floor((limits.listRequesters * safetyMargin) / 100) // Each page is 100 requesters
-  };
+  try {
+    // Get installation parameters
+    const params = await getInstallationParams();
+    const safetyMargin = parseFloat(params.apiSafetyMargin) || DEFAULT_SAFETY_MARGIN;
+    
+    // Get custom rate limits from settings
+    const overallLimit = parseInt(params.rateLimitOverall) || DEFAULT_RATE_LIMITS.starter.overall;
+    const listAgentsLimit = parseInt(params.rateLimitListAgents) || DEFAULT_RATE_LIMITS.starter.listAgents;
+    const listRequestersLimit = parseInt(params.rateLimitListRequesters) || DEFAULT_RATE_LIMITS.starter.listRequesters;
+    const listAssetsLimit = parseInt(params.rateLimitListAssets) || DEFAULT_RATE_LIMITS.starter.listAssets;
+    const listTicketsLimit = parseInt(params.rateLimitListTickets) || DEFAULT_RATE_LIMITS.starter.listTickets;
+    
+    // Calculate safe number of requests (applying safety margin)
+    return {
+      overallLimit: Math.floor(overallLimit * safetyMargin),
+      listAgentsPageLimit: Math.floor((listAgentsLimit * safetyMargin) / 100), // Each page is 100 agents
+      listRequestersPageLimit: Math.floor((listRequestersLimit * safetyMargin) / 100), // Each page is 100 requesters
+      listAssetsPageLimit: Math.floor((listAssetsLimit * safetyMargin) / 100), // Each page is 100 assets
+      listTicketsPageLimit: Math.floor((listTicketsLimit * safetyMargin) / 100) // Each page is 100 tickets
+    };
+  } catch (error) {
+    console.error('Error calculating API limits:', error);
+    // Return default safe limits
+    return {
+      overallLimit: Math.floor(DEFAULT_RATE_LIMITS.starter.overall * DEFAULT_SAFETY_MARGIN),
+      listAgentsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listAgents * DEFAULT_SAFETY_MARGIN) / 100),
+      listRequestersPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listRequesters * DEFAULT_SAFETY_MARGIN) / 100),
+      listAssetsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listAssets * DEFAULT_SAFETY_MARGIN) / 100),
+      listTicketsPageLimit: Math.floor((DEFAULT_RATE_LIMITS.starter.listTickets * DEFAULT_SAFETY_MARGIN) / 100)
+    };
+  }
 }
 
 /**
@@ -2905,9 +2923,15 @@ async function getInstallationParams() {
     if (!window.client || typeof window.client.iparams === 'undefined') {
       console.warn('iparams client not available, using defaults');
       return {
-        freshservicePlan: 'enterprise',
+        freshserviceDomain: '',
+        apiKey: '',
+        planType: 'starter',
         apiSafetyMargin: DEFAULT_SAFETY_MARGIN,
-        inventoryTypeId: DEFAULT_INVENTORY_TYPE_ID,
+        rateLimitOverall: DEFAULT_RATE_LIMITS.starter.overall,
+        rateLimitListTickets: DEFAULT_RATE_LIMITS.starter.listTickets,
+        rateLimitListAssets: DEFAULT_RATE_LIMITS.starter.listAssets,
+        rateLimitListAgents: DEFAULT_RATE_LIMITS.starter.listAgents,
+        rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
         searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
       };
     }
@@ -2916,17 +2940,29 @@ async function getInstallationParams() {
     console.log('Loaded installation parameters:', iparams);
     
     return {
-      freshservicePlan: (iparams.freshservice_plan || 'enterprise').toLowerCase(),
+      freshserviceDomain: iparams.freshservice_domain || '',
+      apiKey: iparams.api_key || '',
+      planType: (iparams.plan_type || 'starter').toLowerCase(),
       apiSafetyMargin: parseFloat(iparams.api_safety_margin || DEFAULT_SAFETY_MARGIN),
-      inventoryTypeId: iparams.inventory_type_id || DEFAULT_INVENTORY_TYPE_ID,
+      rateLimitOverall: parseInt(iparams.rate_limit_overall || DEFAULT_RATE_LIMITS.starter.overall),
+      rateLimitListTickets: parseInt(iparams.rate_limit_list_tickets || DEFAULT_RATE_LIMITS.starter.listTickets),
+      rateLimitListAssets: parseInt(iparams.rate_limit_list_assets || DEFAULT_RATE_LIMITS.starter.listAssets),
+      rateLimitListAgents: parseInt(iparams.rate_limit_list_agents || DEFAULT_RATE_LIMITS.starter.listAgents),
+      rateLimitListRequesters: parseInt(iparams.rate_limit_list_requesters || DEFAULT_RATE_LIMITS.starter.listRequesters),
       searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT)
     };
   } catch (error) {
     console.error('Error getting installation parameters:', error);
     return {
-      freshservicePlan: 'enterprise',
+      freshserviceDomain: '',
+      apiKey: '',
+      planType: 'starter',
       apiSafetyMargin: DEFAULT_SAFETY_MARGIN,
-      inventoryTypeId: DEFAULT_INVENTORY_TYPE_ID,
+      rateLimitOverall: DEFAULT_RATE_LIMITS.starter.overall,
+      rateLimitListTickets: DEFAULT_RATE_LIMITS.starter.listTickets,
+      rateLimitListAssets: DEFAULT_RATE_LIMITS.starter.listAssets,
+      rateLimitListAgents: DEFAULT_RATE_LIMITS.starter.listAgents,
+      rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
       searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
     };
   }

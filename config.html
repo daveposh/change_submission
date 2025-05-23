@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>Change Request App Configuration</title>
   <link rel="stylesheet" type="text/css" href="https://static.freshdev.io/fdk/2.0/assets/freshservice.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
   <script src="https://static.freshdev.io/fdk/2.0/assets/fresh_client.js"></script>
   <style>
     body {
@@ -12,7 +13,7 @@
       padding: 20px;
     }
     .container {
-      max-width: 800px;
+      max-width: 900px;
       margin: 0 auto;
     }
     h1 {
@@ -32,6 +33,42 @@
       color: #888;
       font-size: 14px;
     }
+    .rate-limit-card {
+      border-left: 4px solid #0d6efd;
+      transition: all 0.3s ease;
+    }
+    .rate-limit-card:hover {
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+    }
+    .settings-label {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .limit-input {
+      max-width: 120px;
+    }
+    .info-text {
+      color: #666;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .save-btn {
+      margin-top: 20px;
+    }
+    .spinner-border {
+      width: 1rem;
+      height: 1rem;
+      margin-right: 8px;
+    }
+    .plan-select {
+      max-width: 200px;
+    }
+    .api-safety {
+      max-width: 100px;
+    }
+    .alert {
+      margin-top: 20px;
+    }
   </style>
 </head>
 
@@ -39,15 +76,131 @@
   <div class="container">
     <h1>Change Request App Configuration</h1>
     
-    <div class="card">
-      <p>This app uses the installation parameters configured during installation:</p>
-      <ul>
-        <li><strong>Freshservice Plan</strong>: Configures API rate limits based on your plan</li>
-        <li><strong>API Safety Margin</strong>: Sets a safety margin to prevent hitting API limits</li>
-        <li><strong>Inventory Software/Services Type ID</strong>: Determines which asset types to display</li>
-        <li><strong>Search Cache Timeout</strong>: Controls how long search results are cached</li>
-      </ul>
-      <p>To modify these settings, please reinstall the app or contact your administrator.</p>
+    <div class="card mb-4">
+      <h5>API Connection Settings</h5>
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <div class="settings-label">Freshservice Domain</div>
+          <div class="input-group">
+            <input type="text" class="form-control" id="freshservice_domain" placeholder="your-domain.freshservice.com">
+          </div>
+          <div class="info-text">Your Freshservice domain without http/https</div>
+        </div>
+        <div class="col-md-6">
+          <div class="settings-label">API Key</div>
+          <div class="input-group">
+            <input type="password" class="form-control" id="api_key" placeholder="API Key">
+            <button class="btn btn-outline-secondary" type="button" id="toggle-key">
+              <span class="toggle-icon">👁️</span>
+            </button>
+          </div>
+          <div class="info-text">Find this in your profile settings</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card mb-4">
+      <h5>Rate Limiting Configuration</h5>
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <div class="settings-label">Freshservice Plan</div>
+          <select class="form-select plan-select" id="plan_type">
+            <option value="starter">Starter</option>
+            <option value="growth">Growth</option>
+            <option value="pro">Pro</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+          <div class="info-text">Select your Freshservice plan to apply default rate limits</div>
+        </div>
+        <div class="col-md-6">
+          <div class="settings-label">API Safety Margin</div>
+          <div class="input-group">
+            <input type="number" class="form-control api-safety" id="api_safety_margin" min="0.1" max="1.0" step="0.1" value="0.7">
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="info-text">Percentage of rate limits to utilize (0.1-1.0)</div>
+        </div>
+      </div>
+      <div class="mb-3">
+        <button class="btn btn-outline-primary btn-sm" id="apply-defaults">Apply Default Limits for Selected Plan</button>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card rate-limit-card mb-3">
+            <div class="settings-label">Overall Rate Limit</div>
+            <div class="input-group">
+              <input type="number" class="form-control limit-input" id="rate_limit_overall" min="1" max="1000" value="100">
+              <span class="input-group-text">per minute</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card rate-limit-card mb-3">
+            <div class="settings-label">List Tickets Rate Limit</div>
+            <div class="input-group">
+              <input type="number" class="form-control limit-input" id="rate_limit_list_tickets" min="1" max="500" value="40">
+              <span class="input-group-text">per minute</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card rate-limit-card mb-3">
+            <div class="settings-label">List Assets Rate Limit</div>
+            <div class="input-group">
+              <input type="number" class="form-control limit-input" id="rate_limit_list_assets" min="1" max="500" value="40">
+              <span class="input-group-text">per minute</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card rate-limit-card mb-3">
+            <div class="settings-label">List Agents Rate Limit</div>
+            <div class="input-group">
+              <input type="number" class="form-control limit-input" id="rate_limit_list_agents" min="1" max="500" value="40">
+              <span class="input-group-text">per minute</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col-md-6">
+          <div class="card rate-limit-card mb-3">
+            <div class="settings-label">List Requesters Rate Limit</div>
+            <div class="input-group">
+              <input type="number" class="form-control limit-input" id="rate_limit_list_requesters" min="1" max="500" value="40">
+              <span class="input-group-text">per minute</span>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card rate-limit-card mb-3">
+            <div class="settings-label">Search Cache Timeout</div>
+            <div class="input-group">
+              <input type="number" class="form-control limit-input" id="search_cache_timeout" min="1000" max="60000" value="7000">
+              <span class="input-group-text">milliseconds</span>
+            </div>
+            <div class="info-text">Cached search results expire after this time</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <button class="btn btn-primary save-btn" id="save-settings">
+      <span class="spinner-border d-none" id="save-spinner" role="status" aria-hidden="true"></span>
+      Save Configuration
+    </button>
+    
+    <div class="alert alert-success d-none" id="success-alert">
+      Configuration saved successfully!
+    </div>
+    
+    <div class="alert alert-danger d-none" id="error-alert">
+      Error saving configuration. Please try again.
     </div>
 
     <div class="footer">
@@ -57,10 +210,152 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
+      let client;
+      
+      // Default rate limits by plan
+      const DEFAULT_RATE_LIMITS = {
+        starter: {
+          overall: 100,
+          listTickets: 40,
+          listAssets: 40,
+          listAgents: 40,
+          listRequesters: 40
+        },
+        growth: {
+          overall: 200,
+          listTickets: 70,
+          listAssets: 70,
+          listAgents: 70,
+          listRequesters: 70
+        },
+        pro: {
+          overall: 400,
+          listTickets: 120,
+          listAssets: 120,
+          listAgents: 120,
+          listRequesters: 120
+        },
+        enterprise: {
+          overall: 500,
+          listTickets: 140,
+          listAssets: 140,
+          listAgents: 140,
+          listRequesters: 140
+        }
+      };
+      
+      // Apply defaults button handler
+      document.getElementById('apply-defaults').addEventListener('click', function() {
+        const selectedPlan = document.getElementById('plan_type').value;
+        const limits = DEFAULT_RATE_LIMITS[selectedPlan] || DEFAULT_RATE_LIMITS.starter;
+        
+        document.getElementById('rate_limit_overall').value = limits.overall;
+        document.getElementById('rate_limit_list_tickets').value = limits.listTickets;
+        document.getElementById('rate_limit_list_assets').value = limits.listAssets;
+        document.getElementById('rate_limit_list_agents').value = limits.listAgents;
+        document.getElementById('rate_limit_list_requesters').value = limits.listRequesters;
+      });
+      
+      // Toggle API key visibility
+      document.getElementById('toggle-key').addEventListener('click', function() {
+        const input = document.getElementById('api_key');
+        if (input.type === 'password') {
+          input.type = 'text';
+          this.querySelector('.toggle-icon').textContent = '🔒';
+        } else {
+          input.type = 'password';
+          this.querySelector('.toggle-icon').textContent = '👁️';
+        }
+      });
+      
+      // Save settings button handler
+      document.getElementById('save-settings').addEventListener('click', function() {
+        // Show spinner
+        document.getElementById('save-spinner').classList.remove('d-none');
+        document.getElementById('success-alert').classList.add('d-none');
+        document.getElementById('error-alert').classList.add('d-none');
+        
+        // Get all settings
+        const settings = {
+          freshservice_domain: document.getElementById('freshservice_domain').value,
+          api_key: document.getElementById('api_key').value,
+          plan_type: document.getElementById('plan_type').value,
+          api_safety_margin: document.getElementById('api_safety_margin').value,
+          rate_limit_overall: document.getElementById('rate_limit_overall').value,
+          rate_limit_list_tickets: document.getElementById('rate_limit_list_tickets').value,
+          rate_limit_list_assets: document.getElementById('rate_limit_list_assets').value,
+          rate_limit_list_agents: document.getElementById('rate_limit_list_agents').value,
+          rate_limit_list_requesters: document.getElementById('rate_limit_list_requesters').value,
+          search_cache_timeout: document.getElementById('search_cache_timeout').value
+        };
+        
+        // Save settings
+        client.iparams.set(settings)
+          .then(function() {
+            document.getElementById('save-spinner').classList.add('d-none');
+            document.getElementById('success-alert').classList.remove('d-none');
+            setTimeout(() => {
+              document.getElementById('success-alert').classList.add('d-none');
+            }, 5000);
+          })
+          .catch(function(error) {
+            console.error('Error saving settings:', error);
+            document.getElementById('save-spinner').classList.add('d-none');
+            document.getElementById('error-alert').classList.remove('d-none');
+            document.getElementById('error-alert').textContent = 'Error saving configuration: ' + (error.message || 'Unknown error');
+          });
+      });
+      
+      // Initialize the client and load existing settings
       app.initialized()
         .then(function(_client) {
-          window.client = _client;
-          client.instance.resize({ height: "500px" });
+          client = _client;
+          client.instance.resize({ height: "700px" });
+          
+          // Load existing settings
+          return client.iparams.get();
+        })
+        .then(function(iparams) {
+          // Set values in form
+          if (iparams.freshservice_domain) {
+            document.getElementById('freshservice_domain').value = iparams.freshservice_domain;
+          }
+          
+          if (iparams.api_key) {
+            document.getElementById('api_key').value = iparams.api_key;
+          }
+          
+          if (iparams.plan_type) {
+            document.getElementById('plan_type').value = iparams.plan_type;
+          }
+          
+          if (iparams.api_safety_margin) {
+            document.getElementById('api_safety_margin').value = iparams.api_safety_margin;
+          }
+          
+          if (iparams.rate_limit_overall) {
+            document.getElementById('rate_limit_overall').value = iparams.rate_limit_overall;
+          }
+          
+          if (iparams.rate_limit_list_tickets) {
+            document.getElementById('rate_limit_list_tickets').value = iparams.rate_limit_list_tickets;
+          }
+          
+          if (iparams.rate_limit_list_assets) {
+            document.getElementById('rate_limit_list_assets').value = iparams.rate_limit_list_assets;
+          }
+          
+          if (iparams.rate_limit_list_agents) {
+            document.getElementById('rate_limit_list_agents').value = iparams.rate_limit_list_agents;
+          }
+          
+          if (iparams.rate_limit_list_requesters) {
+            document.getElementById('rate_limit_list_requesters').value = iparams.rate_limit_list_requesters;
+          }
+          
+          if (iparams.search_cache_timeout) {
+            document.getElementById('search_cache_timeout').value = iparams.search_cache_timeout;
+          }
         })
         .catch(function(error) {
           console.error('Error during app initialization:', error);

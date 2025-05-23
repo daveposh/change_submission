@@ -11,5 +11,79 @@
     "type": "text",
     "required": true,
     "secure": true
+  },
+  "plan_type": {
+    "display_name": "Freshservice Plan",
+    "description": "Select your Freshservice plan to configure API rate limits",
+    "type": "dropdown",
+    "options": [
+      {
+        "label": "Starter",
+        "value": "starter"
+      },
+      {
+        "label": "Growth",
+        "value": "growth"
+      },
+      {
+        "label": "Pro",
+        "value": "pro"
+      },
+      {
+        "label": "Enterprise",
+        "value": "enterprise"
+      }
+    ],
+    "required": true,
+    "default_value": "starter"
+  },
+  "api_safety_margin": {
+    "display_name": "API Safety Margin",
+    "description": "Safety margin for API limits (0.1-1.0). Example: 0.7 means 70% of rate limits",
+    "type": "number",
+    "required": true,
+    "default_value": "0.7"
+  },
+  "rate_limit_overall": {
+    "display_name": "Overall API Rate Limit",
+    "description": "Overall API rate limit per minute",
+    "type": "number",
+    "required": true,
+    "default_value": "100"
+  },
+  "rate_limit_list_tickets": {
+    "display_name": "List Tickets Rate Limit",
+    "description": "Rate limit for listing tickets",
+    "type": "number",
+    "required": true,
+    "default_value": "40"
+  },
+  "rate_limit_list_assets": {
+    "display_name": "List Assets Rate Limit",
+    "description": "Rate limit for listing assets",
+    "type": "number",
+    "required": true,
+    "default_value": "40"
+  },
+  "rate_limit_list_agents": {
+    "display_name": "List Agents Rate Limit",
+    "description": "Rate limit for listing agents",
+    "type": "number",
+    "required": true,
+    "default_value": "40"
+  },
+  "rate_limit_list_requesters": {
+    "display_name": "List Requesters Rate Limit",
+    "description": "Rate limit for listing requesters",
+    "type": "number",
+    "required": true,
+    "default_value": "40"
+  },
+  "search_cache_timeout": {
+    "display_name": "Search Cache Timeout",
+    "description": "Time in milliseconds to wait before refreshing search results from cache (default 7000 = 7 seconds)",
+    "type": "number",
+    "required": true,
+    "default_value": "7000"
   }
 }
