@@ -2457,7 +2457,10 @@ function performAssetSearch(searchTerm, isRefresh = false) {
           asset_type_name: asset.asset_type_name,
           product_name: asset.product_name,
           location_name: asset.location_name,
-          department_name: asset.department_name
+          department_name: asset.department_name,
+          environment: asset.custom_fields?.environment || asset.environment || 'N/A',
+          ip_address: asset.custom_fields?.ip_address || asset.ip_address || asset.ip || 'N/A',
+          managed_by: asset.custom_fields?.managed_by || asset.managed_by || 'N/A'
         }));
         
         // Cache the results
@@ -2496,10 +2499,10 @@ function displayAssetResults(containerId, results, selectionCallback) {
     const headerDiv = document.createElement('div');
     headerDiv.className = 'd-flex justify-content-between align-items-center w-100';
     
-    // Name with proper styling
+    // Name with proper styling (using display_name as priority)
     const nameDiv = document.createElement('div');
     nameDiv.className = 'fw-bold';
-    nameDiv.textContent = result.name || result.display_name || 'Unnamed';
+    nameDiv.textContent = result.display_name || result.name || 'Unnamed';
     headerDiv.appendChild(nameDiv);
     
     // Type badge - different colors for asset vs service
@@ -2514,33 +2517,44 @@ function displayAssetResults(containerId, results, selectionCallback) {
     const detailsContainer = document.createElement('div');
     detailsContainer.className = 'mt-2 d-flex flex-wrap gap-2';
     
-    // Different badges for different properties
-    if (result.asset_type_name) {
-      const typeBadge = document.createElement('span');
-      typeBadge.className = 'badge bg-light text-dark border';
-      typeBadge.innerHTML = `<i class="fas fa-tag me-1"></i>${result.asset_type_name}`;
-      detailsContainer.appendChild(typeBadge);
+    // Environment badge
+    if (result.environment && result.environment !== 'N/A') {
+      const envBadge = document.createElement('span');
+      envBadge.className = 'badge bg-light text-dark border';
+      envBadge.innerHTML = `<i class="fas fa-server me-1"></i>${result.environment}`;
+      detailsContainer.appendChild(envBadge);
     }
     
-    if (result.product_name) {
-      const productBadge = document.createElement('span');
-      productBadge.className = 'badge bg-light text-dark border';
-      productBadge.innerHTML = `<i class="fas fa-box me-1"></i>${result.product_name}`;
-      detailsContainer.appendChild(productBadge);
+    // IP address badge
+    if (result.ip_address && result.ip_address !== 'N/A') {
+      const ipBadge = document.createElement('span');
+      ipBadge.className = 'badge bg-light text-dark border';
+      ipBadge.innerHTML = `<i class="fas fa-network-wired me-1"></i>${result.ip_address}`;
+      detailsContainer.appendChild(ipBadge);
     }
     
-    if (result.department_name) {
-      const deptBadge = document.createElement('span');
-      deptBadge.className = 'badge bg-light text-dark border';
-      deptBadge.innerHTML = `<i class="fas fa-building me-1"></i>${result.department_name}`;
-      detailsContainer.appendChild(deptBadge);
-    }
-    
+    // Location badge
     if (result.location_name) {
       const locBadge = document.createElement('span');
       locBadge.className = 'badge bg-light text-dark border';
       locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
       detailsContainer.appendChild(locBadge);
+    }
+    
+    // Managed by badge
+    if (result.managed_by && result.managed_by !== 'N/A') {
+      const managedBadge = document.createElement('span');
+      managedBadge.className = 'badge bg-light text-dark border';
+      managedBadge.innerHTML = `<i class="fas fa-user-cog me-1"></i>${result.managed_by}`;
+      detailsContainer.appendChild(managedBadge);
+    }
+    
+    // Asset type badge (as secondary information)
+    if (result.asset_type_name) {
+      const typeBadge = document.createElement('span');
+      typeBadge.className = 'badge bg-light text-dark border';
+      typeBadge.innerHTML = `<i class="fas fa-tag me-1"></i>${result.asset_type_name}`;
+      detailsContainer.appendChild(typeBadge);
     }
     
     // Only add details container if we have any badges
@@ -2634,27 +2648,48 @@ function renderSelectedAssets() {
       detailsContainer.className = 'd-flex flex-wrap gap-2 mt-2';
       let hasDetails = false;
       
-      if (asset.asset_type_name) {
+      // Environment badge
+      if (asset.environment && asset.environment !== 'N/A') {
         hasDetails = true;
         const badge = document.createElement('span');
         badge.className = 'badge bg-light text-dark border';
-        badge.innerHTML = `<i class="fas fa-tag me-1"></i>${asset.asset_type_name}`;
+        badge.innerHTML = `<i class="fas fa-server me-1"></i>${asset.environment}`;
         detailsContainer.appendChild(badge);
       }
       
-      if (asset.product_name) {
+      // IP address badge
+      if (asset.ip_address && asset.ip_address !== 'N/A') {
         hasDetails = true;
         const badge = document.createElement('span');
         badge.className = 'badge bg-light text-dark border';
-        badge.innerHTML = `<i class="fas fa-box me-1"></i>${asset.product_name}`;
+        badge.innerHTML = `<i class="fas fa-network-wired me-1"></i>${asset.ip_address}`;
         detailsContainer.appendChild(badge);
       }
       
+      // Location badge
       if (asset.location_name) {
         hasDetails = true;
         const badge = document.createElement('span');
         badge.className = 'badge bg-light text-dark border';
         badge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${asset.location_name}`;
+        detailsContainer.appendChild(badge);
+      }
+      
+      // Managed by badge
+      if (asset.managed_by && asset.managed_by !== 'N/A') {
+        hasDetails = true;
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-light text-dark border';
+        badge.innerHTML = `<i class="fas fa-user-cog me-1"></i>${asset.managed_by}`;
+        detailsContainer.appendChild(badge);
+      }
+      
+      // Asset type badge (as secondary information)
+      if (asset.asset_type_name) {
+        hasDetails = true;
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-light text-dark border';
+        badge.innerHTML = `<i class="fas fa-tag me-1"></i>${asset.asset_type_name}`;
         detailsContainer.appendChild(badge);
       }
       
