@@ -2382,7 +2382,7 @@ function performAssetSearch(searchTerm, isRefresh = false) {
     console.log(`Loading assets page ${page} with filter asset_type_id:${assetTypeId}`);
     try {
       const data = await window.client.request.invokeTemplate("getAssets", {
-        path_suffix: `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
+        path_suffix: `?include=type_fields&query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
       });
       
       if (!data || !data.response) {
@@ -2393,6 +2393,17 @@ function performAssetSearch(searchTerm, isRefresh = false) {
         const response = JSON.parse(data.response);
         const assets = response && response.assets ? response.assets : [];
         console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
+        
+        // Log a sample asset to see the structure (if available)
+        if (assets.length > 0) {
+          console.log('Sample asset structure:', {
+            id: assets[0].id,
+            name: assets[0].name,
+            display_name: assets[0].display_name,
+            type_fields: assets[0].type_fields,
+            custom_fields: assets[0].custom_fields
+          });
+        }
         
         // Combine with previous results
         allAssets = [...allAssets, ...assets];
@@ -2448,20 +2459,41 @@ function performAssetSearch(searchTerm, isRefresh = false) {
         console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
         
         // Process assets to include only display name and ID
-        const processedAssets = filteredAssets.map(asset => ({
-          id: asset.id,
-          name: asset.display_name || asset.name || 'Unnamed Asset',
-          display_name: asset.display_name || asset.name || 'Unnamed Asset',
-          type: 'asset',
-          asset_type_id: asset.asset_type_id,
-          asset_type_name: asset.asset_type_name,
-          product_name: asset.product_name,
-          location_name: asset.location_name,
-          department_name: asset.department_name,
-          environment: asset.custom_fields?.environment || asset.environment || 'N/A',
-          ip_address: asset.custom_fields?.ip_address || asset.ip_address || asset.ip || 'N/A',
-          managed_by: asset.custom_fields?.managed_by || asset.managed_by || 'N/A'
-        }));
+        const processedAssets = filteredAssets.map(asset => {
+          // Extract fields from type_fields if available
+          const typeFields = asset.type_fields || {};
+          
+          return {
+            id: asset.id,
+            name: asset.display_name || asset.name || 'Unnamed Asset',
+            display_name: asset.display_name || asset.name || 'Unnamed Asset',
+            type: 'asset',
+            asset_type_id: asset.asset_type_id,
+            asset_type_name: asset.asset_type_name,
+            product_name: asset.product_name,
+            location_name: asset.location_name,
+            department_name: asset.department_name,
+            // Try to get environment from multiple possible locations
+            environment: typeFields.environment || 
+                        asset.custom_fields?.environment || 
+                        asset.environment || 
+                        'N/A',
+            // Try to get IP address from multiple possible locations
+            ip_address: typeFields.ip_address || 
+                       typeFields.ip || 
+                       asset.custom_fields?.ip_address || 
+                       asset.ip_address || 
+                       asset.ip || 
+                       'N/A',
+            // Try to get managed by from multiple possible locations
+            managed_by: typeFields.managed_by || 
+                       typeFields.owner || 
+                       asset.custom_fields?.managed_by || 
+                       asset.managed_by || 
+                       asset.owner || 
+                       'N/A'
+          };
+        });
         
         // Cache the results
         addToSearchCache('assets', searchTerm, processedAssets);
