@@ -2699,17 +2699,17 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
         
         // Add the filter parameter for asset_type_id (don't use the query parameter for this)
         if (assetTypeId && assetTypeId > 0) {
-          queryParam += `&filter=asset_type_id:${assetTypeId}`;
+          // Add the filter parameter for asset_type_id according to Freshservice API format
+          queryParam += `&filter="asset_type_id:${assetTypeId}"`;
           console.log(`Using asset type filter: asset_type_id:${assetTypeId}`);
         }
         
         // Add search parameter for the search term if provided
         if (searchTerm) {
-          // Make search more flexible - look for the term in name field or generally
-          const formattedSearch = searchTerm.includes(' ') ? 
-            `"${searchTerm}"` : // Use simple quoted format for multi-word searches
-            `"name:'${searchTerm}'"`;  // Use field-specific format for single words
-          
+          // Format search parameter according to Freshservice API documentation
+          // The format should be: search="query_string"
+          // For exact name matches: search="name:'term'"
+          const formattedSearch = `"name:'${searchTerm}'"`;
           queryParam += `&search=${encodeURIComponent(formattedSearch)}`;
           console.log(`Using search parameter: ${formattedSearch}`);
         }
