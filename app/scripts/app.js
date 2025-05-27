@@ -56,7 +56,13 @@ const assetTypeCache = {
   timestamp: 0 // Last update timestamp
 };
 
-// Asset type cache timeout (24 hours)
+// Default safety margin for API rate limiting (70%)
+const DEFAULT_SAFETY_MARGIN = 70;
+
+// Default inventory software/services type ID
+const DEFAULT_INVENTORY_TYPE_ID = 37000374722;
+
+// Default asset type timeout
 const ASSET_TYPE_CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
 
 // Default rate limits if not configured during installation
@@ -106,12 +112,6 @@ const DEFAULT_RATE_LIMITS = {
     listRequesters: 140
   }
 };
-
-// Default safety margin for API rate limiting (70%)
-const DEFAULT_SAFETY_MARGIN = 70;
-
-// Default inventory software/services type ID
-const DEFAULT_INVENTORY_TYPE_ID = 33000752344;
 
 const changeTypeTooltips = {
   'standard': 'Standard Changes: All changes to critical assets > automate predefined/repeatable changes as much as possible',
@@ -2447,243 +2447,288 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
     resultsContainer.style.display = 'block';
   }
   
-  // Use fixed asset_type_id: 37000374722 as specified
-  const assetTypeId = 37000374722;
-  // Log asset type ID
-  console.log(`Using specified asset type ID for search: ${assetTypeId}`);
-
-  // Query for the specific asset type and filter by search term
-  const assetTypeQuery = `asset_type_id:${assetTypeId}`;
-  const encodedAssetTypeQuery = encodeURIComponent(`"${assetTypeQuery}"`);
-  
-  // Array to store results from this page
-  let pageAssets = [];
-  
-  // Function to load assets from a specific page
-  async function loadAssetsPage(page = 1) {
-    console.log(`Loading assets page ${page} with filter asset_type_id:${assetTypeId}`);
-    try {
-      const data = await window.client.request.invokeTemplate("getAssets", {
-        path_suffix: `?include=type_fields&query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
-      });
-      
-      if (!data || !data.response) {
-        return { assets: [] };
-      }
-      
-      try {
-        const response = JSON.parse(data.response);
-        const assets = response && response.assets ? response.assets : [];
-        console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
-        
-        // Log a sample asset to see the structure (if available)
-        if (assets.length > 0) {
-          console.log('Sample asset structure:', {
-            id: assets[0].id,
-            name: assets[0].name,
-            display_name: assets[0].display_name,
-            type_fields: assets[0].type_fields,
-            custom_fields: assets[0].custom_fields
-          });
-        }
-        
-        // Store the results for this page
-        pageAssets = assets;
-        
-        // Check if we have more results
-        assetSearchState.hasMoreResults = assets.length === 100;
-        
-        // If this was called for infinite scroll, we're done with just this page
-        if (pageNum > 1) {
-          return { assets: assets };
-        }
-        
-        // For normal search or refresh, we continue with pagination
-        // If we got a full page of results, there might be more
-        if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max for initial load
-          // Get pagination delay from params
-          const params = await getInstallationParams();
-          const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-          
-          updateLoadingMessage('asset-results', `Loading more results... (page ${page + 1})`);
-          
-          // Wait for the delay before loading the next page
-          await new Promise(resolve => setTimeout(resolve, paginationDelay));
-          
-          // Load next page
-          return await loadAssetsPage(page + 1);
-        }
-        
-        return { assets: pageAssets };
-      } catch (error) {
-        console.error('Error parsing assets response:', error);
-        return { assets: pageAssets };
-      }
-    } catch (error) {
-      console.error('Asset search failed:', error);
-      return { assets: pageAssets };
+  // Get the asset type ID from configuration
+  getInstallationParams().then(params => {
+    const assetTypeId = params.assetTypeId;
+    console.log(`Using configured asset type ID for search: ${assetTypeId}`);
+    
+    // Query for the specific asset type
+    let assetQuery = '';
+    
+    // Only apply asset_type_id filter if it's configured
+    if (assetTypeId && assetTypeId > 0) {
+      assetQuery = `asset_type_id:${assetTypeId}`;
     }
-  }
-  
-  // Start loading assets from the specified page
-  loadAssetsPage(pageNum)
-    .then(function(assetsResponse) {
+    
+    // Encode the query, including both asset type filter and search term if both exist
+    let encodedQuery = '';
+    if (assetQuery && searchTerm) {
+      // Combine asset type filter with search term
+      encodedQuery = encodeURIComponent(`"${assetQuery}" "${searchTerm}"`);
+    } else if (assetQuery) {
+      // Just asset type filter
+      encodedQuery = encodeURIComponent(`"${assetQuery}"`);
+    } else if (searchTerm) {
+      // Just search term
+      encodedQuery = encodeURIComponent(`"${searchTerm}"`);
+    } else {
+      // No filters
+      encodedQuery = '';
+    }
+    
+    console.log(`Asset search query: ${encodedQuery}`);
+    
+    // Array to store results from this page
+    let pageAssets = [];
+    
+    // Function to load assets from a specific page
+    async function loadAssetsPage(page = 1) {
+      console.log(`Loading assets page ${page}${assetQuery ? ' with filter ' + assetQuery : ''}`);
       try {
-        // Get assets from the response
-        const assets = assetsResponse.assets || [];
-        
-        // Apply the search term filter to the assets locally
-        const filteredAssets = assets.filter(asset => {
-          const searchIn = [
-            asset.name || '',
-            asset.display_name || '',
-            asset.description || '',
-            asset.asset_tag || '',
-            asset.serial_number || '',
-            asset.product_name || '',
-            asset.vendor_name || ''
-          ].map(text => text.toLowerCase()).join(' ');
-          
-          return searchIn.includes(searchTerm.toLowerCase());
+        const data = await window.client.request.invokeTemplate("getAssets", {
+          path_suffix: `?include=type_fields&query=${encodedQuery}&page=${page}&per_page=100`
         });
         
-        console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
+        if (!data || !data.response) {
+          return { assets: [] };
+        }
         
-        // Process assets to include only the fields we need
-        const processedAssets = filteredAssets.map(asset => {
-          // Extract fields from type_fields if available
-          const typeFields = asset.type_fields || {};
-          const assetTypeId = asset.asset_type_id;
+        try {
+          const response = JSON.parse(data.response);
+          const assets = response && response.assets ? response.assets : [];
+          console.log(`Asset search returned ${assets.length} results`);
           
-          // Helper function to find the correct type field with asset_type_id suffix
-          const getTypeField = (fieldPrefix) => {
-            // Try with suffix first
-            const suffixedKey = Object.keys(typeFields).find(key => 
-              key.startsWith(fieldPrefix) && key.endsWith(`_${assetTypeId}`));
+          // Log a sample asset to see the structure (if available)
+          if (assets.length > 0) {
+            console.log('Sample asset structure:', {
+              id: assets[0].id,
+              name: assets[0].name,
+              display_name: assets[0].display_name,
+              asset_type_id: assets[0].asset_type_id,
+              type_fields: assets[0].type_fields,
+              custom_fields: assets[0].custom_fields
+            });
+          }
+          
+          // Store the results for this page
+          pageAssets = assets;
+          
+          // Check if we have more results
+          assetSearchState.hasMoreResults = assets.length === 100;
+          
+          // If this was called for infinite scroll, we're done with just this page
+          if (pageNum > 1) {
+            return { assets: assets };
+          }
+          
+          // For normal search or refresh, we continue with pagination
+          // If we got a full page of results, there might be more
+          if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max for initial load
+            // Get pagination delay from params
+            const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
             
-            // Return the value if found, otherwise null
-            return suffixedKey ? typeFields[suffixedKey] : null;
-          };
-          
-          return {
-            id: asset.id,
-            display_id: asset.display_id,
-            name: asset.name || 'Unnamed Asset',
-            display_name: asset.name || 'Unnamed Asset',
-            type: 'asset',
-            asset_type_id: asset.asset_type_id,
-            asset_type_name: asset.asset_type_name,
-            product_name: asset.product_name,
-            location_name: asset.location_name,
-            department_name: asset.department_name,
-            asset_tag: asset.asset_tag,
-            description: asset.description,
-            // Try to get environment from suffixed type fields first
-            environment: getTypeField('environment') || 
-                        typeFields.environment || 
-                        asset.custom_fields?.environment || 
-                        asset.environment || 
-                        'N/A',
-            // Try to get IP address from suffixed type fields first
-            ip_address: getTypeField('ip_address') || 
-                       getTypeField('ip') || 
-                       typeFields.ip_address || 
-                       typeFields.ip || 
-                       asset.custom_fields?.ip_address || 
-                       asset.ip_address || 
-                       asset.ip || 
-                       'N/A',
-            // Try to get managed by information - could be agent name, vendor, or owner
-            managed_by: getTypeField('managed_by') || 
-                       getTypeField('vendor') || 
-                       typeFields.managed_by || 
-                       typeFields.vendor || 
-                       asset.custom_fields?.managed_by || 
-                       asset.managed_by || 
-                       asset.vendor_name || 
-                       'N/A',
-            // Add hosting model if available
-            hosting_model: getTypeField('hosting_model') ||
-                          typeFields.hosting_model ||
-                          asset.custom_fields?.hosting_model ||
-                          'N/A'
-          };
-        });
-        
-        // For infinite scroll (page > 1), append to existing results
-        if (pageNum > 1) {
-          // Get existing cached results
-          getFromSearchCache('assets', searchTerm).then(existingResults => {
-            // Remove the loading indicator
-            const loadingIndicator = document.getElementById('load-more-indicator');
-            if (loadingIndicator) {
-              loadingIndicator.remove();
-            }
+            updateLoadingMessage('asset-results', `Loading more results... (page ${page + 1})`);
             
-            // If we have existing results, merge them with new ones
-            if (existingResults && existingResults.length > 0) {
-              // Create a set of existing IDs for deduplication
-              const existingIds = new Set(existingResults.map(item => item.id));
-              
-              // Find new results that don't exist in the cache
-              const newResults = processedAssets.filter(item => !existingIds.has(item.id));
-              
-              if (newResults.length > 0) {
-                console.log(`Found ${newResults.length} new unique results`);
-                
-                // Combine existing and new results
-                const combinedResults = [...existingResults, ...newResults];
-                
-                // Update the cache
-                addToSearchCache('assets', searchTerm, combinedResults);
-                
-                // Append only the new results to the display
-                displayAdditionalAssetResults('asset-results', newResults, selectAsset);
-                
-                // Update the total count
-                assetSearchState.totalResults += newResults.length;
-              } else {
-                console.log('No new unique results found');
-                
-                // Update UI to show no more results
-                const resultsContainer = document.getElementById('asset-results');
-                const noMoreMessage = document.createElement('div');
-                noMoreMessage.className = 'text-center p-3 text-muted';
-                noMoreMessage.textContent = 'No more results';
-                resultsContainer.appendChild(noMoreMessage);
-                
-                // Mark as no more results
-                assetSearchState.hasMoreResults = false;
-              }
-            } else {
-              // No existing results, use the new ones
-              addToSearchCache('assets', searchTerm, processedAssets);
-              displayAssetResults('asset-results', processedAssets, selectAsset);
-              assetSearchState.totalResults = processedAssets.length;
-            }
+            // Wait for the delay before loading the next page
+            await new Promise(resolve => setTimeout(resolve, paginationDelay));
             
-            // Reset loading state
-            assetSearchState.isLoading = false;
-          }).catch(error => {
-            console.error('Error getting cached results:', error);
-            assetSearchState.isLoading = false;
-          });
-        } else {
-          // Initial search or refresh
-          // Cache the results
-          addToSearchCache('assets', searchTerm, processedAssets);
+            // Load next page
+            return await loadAssetsPage(page + 1);
+          }
           
-          // Display the results
-          displayAssetResults('asset-results', processedAssets, selectAsset);
-          
-          // Setup scroll event listener after initial results are displayed
-          setupAssetSearchScroll();
-          
-          // Update the total count
-          assetSearchState.totalResults = processedAssets.length;
+          return { assets: pageAssets };
+        } catch (error) {
+          console.error('Error parsing assets response:', error);
+          return { assets: pageAssets };
         }
       } catch (error) {
-        console.error('Error processing asset search results:', error);
+        console.error('Asset search failed:', error);
+        return { assets: pageAssets };
+      }
+    }
+    
+    // Start loading assets from the specified page
+    loadAssetsPage(pageNum)
+      .then(function(assetsResponse) {
+        try {
+          // Get assets from the response
+          const assets = assetsResponse.assets || [];
+          
+          // Apply the search term filter to the assets locally if needed
+          let filteredAssets = assets;
+          
+          // Only apply manual filtering if we didn't use search term in the API query
+          if (searchTerm && !encodedQuery.includes(searchTerm)) {
+            filteredAssets = assets.filter(asset => {
+              const searchIn = [
+                asset.name || '',
+                asset.display_name || '',
+                asset.description || '',
+                asset.asset_tag || '',
+                asset.serial_number || '',
+                asset.product_name || '',
+                asset.vendor_name || ''
+              ].map(text => text.toLowerCase()).join(' ');
+              
+              return searchIn.includes(searchTerm.toLowerCase());
+            });
+            
+            console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
+          }
+          
+          // Process assets to include only the fields we need
+          const processedAssets = filteredAssets.map(asset => {
+            // Extract fields from type_fields if available
+            const typeFields = asset.type_fields || {};
+            const assetTypeId = asset.asset_type_id;
+            
+            // Helper function to find the correct type field with asset_type_id suffix
+            const getTypeField = (fieldPrefix) => {
+              // Try with suffix first
+              const suffixedKey = Object.keys(typeFields).find(key => 
+                key.startsWith(fieldPrefix) && key.endsWith(`_${assetTypeId}`));
+              
+              // Return the value if found, otherwise null
+              return suffixedKey ? typeFields[suffixedKey] : null;
+            };
+            
+            return {
+              id: asset.id,
+              display_id: asset.display_id,
+              name: asset.name || 'Unnamed Asset',
+              display_name: asset.name || 'Unnamed Asset',
+              type: 'asset',
+              asset_type_id: asset.asset_type_id,
+              asset_type_name: asset.asset_type_name,
+              product_name: asset.product_name,
+              location_name: asset.location_name,
+              department_name: asset.department_name,
+              asset_tag: asset.asset_tag,
+              description: asset.description,
+              // Try to get environment from suffixed type fields first
+              environment: getTypeField('environment') || 
+                          typeFields.environment || 
+                          asset.custom_fields?.environment || 
+                          asset.environment || 
+                          'N/A',
+              // Try to get IP address from suffixed type fields first
+              ip_address: getTypeField('ip_address') || 
+                         getTypeField('ip') || 
+                         typeFields.ip_address || 
+                         typeFields.ip || 
+                         asset.custom_fields?.ip_address || 
+                         asset.ip_address || 
+                         asset.ip || 
+                         'N/A',
+              // Try to get managed by information - could be agent name, vendor, or owner
+              managed_by: getTypeField('managed_by') || 
+                         getTypeField('vendor') || 
+                         typeFields.managed_by || 
+                         typeFields.vendor || 
+                         asset.custom_fields?.managed_by || 
+                         asset.managed_by || 
+                         asset.vendor_name || 
+                         'N/A',
+              // Add hosting model if available
+              hosting_model: getTypeField('hosting_model') ||
+                            typeFields.hosting_model ||
+                            asset.custom_fields?.hosting_model ||
+                            'N/A'
+            };
+          });
+          
+          // For infinite scroll (page > 1), append to existing results
+          if (pageNum > 1) {
+            // Get existing cached results
+            getFromSearchCache('assets', searchTerm).then(existingResults => {
+              // Remove the loading indicator
+              const loadingIndicator = document.getElementById('load-more-indicator');
+              if (loadingIndicator) {
+                loadingIndicator.remove();
+              }
+              
+              // If we have existing results, merge them with new ones
+              if (existingResults && existingResults.length > 0) {
+                // Create a set of existing IDs for deduplication
+                const existingIds = new Set(existingResults.map(item => item.id));
+                
+                // Find new results that don't exist in the cache
+                const newResults = processedAssets.filter(item => !existingIds.has(item.id));
+                
+                if (newResults.length > 0) {
+                  console.log(`Found ${newResults.length} new unique results`);
+                  
+                  // Combine existing and new results
+                  const combinedResults = [...existingResults, ...newResults];
+                  
+                  // Update the cache
+                  addToSearchCache('assets', searchTerm, combinedResults);
+                  
+                  // Append only the new results to the display
+                  displayAdditionalAssetResults('asset-results', newResults, selectAsset);
+                  
+                  // Update the total count
+                  assetSearchState.totalResults += newResults.length;
+                } else {
+                  console.log('No new unique results found');
+                  
+                  // Update UI to show no more results
+                  const resultsContainer = document.getElementById('asset-results');
+                  const noMoreMessage = document.createElement('div');
+                  noMoreMessage.className = 'text-center p-3 text-muted';
+                  noMoreMessage.textContent = 'No more results';
+                  resultsContainer.appendChild(noMoreMessage);
+                  
+                  // Mark as no more results
+                  assetSearchState.hasMoreResults = false;
+                }
+              } else {
+                // No existing results, use the new ones
+                addToSearchCache('assets', searchTerm, processedAssets);
+                displayAssetResults('asset-results', processedAssets, selectAsset);
+                assetSearchState.totalResults = processedAssets.length;
+              }
+              
+              // Reset loading state
+              assetSearchState.isLoading = false;
+            }).catch(error => {
+              console.error('Error getting cached results:', error);
+              assetSearchState.isLoading = false;
+            });
+          } else {
+            // Initial search or refresh
+            // Cache the results
+            addToSearchCache('assets', searchTerm, processedAssets);
+            
+            // Display the results
+            displayAssetResults('asset-results', processedAssets, selectAsset);
+            
+            // Setup scroll event listener after initial results are displayed
+            setupAssetSearchScroll();
+            
+            // Update the total count
+            assetSearchState.totalResults = processedAssets.length;
+          }
+        } catch (error) {
+          console.error('Error processing asset search results:', error);
+          
+          // Remove the loading indicator if it exists
+          const loadingIndicator = document.getElementById('load-more-indicator');
+          if (loadingIndicator) {
+            loadingIndicator.remove();
+          }
+          
+          // Reset loading state
+          assetSearchState.isLoading = false;
+          
+          if (pageNum === 1) {
+            // For initial search, display empty results
+            displayAssetResults('asset-results', [], selectAsset);
+          }
+        }
+      })
+      .catch(function(error) {
+        console.error('Asset search failed:', error);
         
         // Remove the loading indicator if it exists
         const loadingIndicator = document.getElementById('load-more-indicator');
@@ -2697,27 +2742,22 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
         if (pageNum === 1) {
           // For initial search, display empty results
           displayAssetResults('asset-results', [], selectAsset);
+          handleErr(error);
         }
-      }
-    })
-    .catch(function(error) {
-      console.error('Asset search failed:', error);
-      
-      // Remove the loading indicator if it exists
-      const loadingIndicator = document.getElementById('load-more-indicator');
-      if (loadingIndicator) {
-        loadingIndicator.remove();
-      }
-      
-      // Reset loading state
-      assetSearchState.isLoading = false;
-      
-      if (pageNum === 1) {
-        // For initial search, display empty results
-        displayAssetResults('asset-results', [], selectAsset);
-        handleErr(error);
-      }
-    });
+      });
+  }).catch(error => {
+    console.error('Error getting installation parameters:', error);
+    
+    // Use default asset type ID as fallback
+    console.log(`Using default asset type ID for search: ${DEFAULT_INVENTORY_TYPE_ID}`);
+    
+    // Reset loading state
+    assetSearchState.isLoading = false;
+    
+    // For initial search, display empty results
+    displayAssetResults('asset-results', [], selectAsset);
+    handleErr('Failed to load configuration. Please refresh and try again.');
+  });
 }
 
 function displayAssetResults(containerId, results, selectionCallback) {
@@ -3426,7 +3466,8 @@ async function getInstallationParams() {
         rateLimitListAgents: DEFAULT_RATE_LIMITS.starter.listAgents,
         rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
         searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
-        paginationDelay: DEFAULT_PAGINATION_DELAY
+        paginationDelay: DEFAULT_PAGINATION_DELAY,
+        assetTypeId: DEFAULT_INVENTORY_TYPE_ID
       };
     }
     
@@ -3443,7 +3484,9 @@ async function getInstallationParams() {
       rateLimitListAssets: parseInt(iparams.rate_limit_list_assets || DEFAULT_RATE_LIMITS.starter.listAssets),
       rateLimitListAgents: parseInt(iparams.rate_limit_list_agents || DEFAULT_RATE_LIMITS.starter.listAgents),
       rateLimitListRequesters: parseInt(iparams.rate_limit_list_requesters || DEFAULT_RATE_LIMITS.starter.listRequesters),
-      searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT)
+      searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT),
+      paginationDelay: parseInt(iparams.pagination_delay || DEFAULT_PAGINATION_DELAY),
+      assetTypeId: parseInt(iparams.asset_type_id || DEFAULT_INVENTORY_TYPE_ID)
     };
   } catch (error) {
     console.error('Error getting installation parameters:', error);
@@ -3457,7 +3500,9 @@ async function getInstallationParams() {
       rateLimitListAssets: DEFAULT_RATE_LIMITS.starter.listAssets,
       rateLimitListAgents: DEFAULT_RATE_LIMITS.starter.listAgents,
       rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
-      searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT
+      searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
+      paginationDelay: DEFAULT_PAGINATION_DELAY,
+      assetTypeId: DEFAULT_INVENTORY_TYPE_ID
     };
   }
 }

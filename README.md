@@ -56,6 +56,17 @@ This app is built using:
 During installation, you'll need to provide:
 - Your Freshservice domain
 - A valid Freshservice API key with appropriate permissions
+- Asset Type ID for asset/service searches (default: 37000374722)
+- API rate limit settings based on your Freshservice plan
+
+### Asset Type Configuration
+
+The app uses a configurable asset type ID to filter assets in the search. By default, it uses ID 37000374722, but this can be changed in the installation parameters:
+
+1. During installation, enter your preferred asset type ID in the `asset_type_id` field
+2. You can find available asset type IDs by accessing `/api/v2/asset_types` in your Freshservice instance
+3. If left blank, the app will use the default asset type ID
+4. Set to `0` to disable asset type filtering and search across all asset types
 
 ## Usage
 
