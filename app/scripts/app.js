@@ -2699,13 +2699,17 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
         
         // Add the filter parameter for asset_type_id (don't use the query parameter for this)
         if (assetTypeId && assetTypeId > 0) {
-          queryParam += `&filter="asset_type_id:${assetTypeId}"`;
+          queryParam += `&filter=asset_type_id:${assetTypeId}`;
           console.log(`Using asset type filter: asset_type_id:${assetTypeId}`);
         }
         
         // Add search parameter for the search term if provided
         if (searchTerm) {
-          const formattedSearch = `"name:'${searchTerm}'"`;
+          // Make search more flexible - look for the term in name field or generally
+          const formattedSearch = searchTerm.includes(' ') ? 
+            `"${searchTerm}"` : // Use simple quoted format for multi-word searches
+            `"name:'${searchTerm}'"`;  // Use field-specific format for single words
+          
           queryParam += `&search=${encodeURIComponent(formattedSearch)}`;
           console.log(`Using search parameter: ${formattedSearch}`);
         }
@@ -2798,8 +2802,17 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
           
           // If filtered_assets strategy, filter by asset type if API didn't do it
           if (searchStrategy === 'filtered_assets' && assetTypeId) {
-            filteredAssets = assets.filter(asset => asset.asset_type_id === assetTypeId);
-            console.log(`Manual asset type filtering: ${filteredAssets.length} of ${assets.length} assets remain`);
+            const exactMatches = assets.filter(asset => asset.asset_type_id === assetTypeId);
+            console.log(`Manual asset type filtering: ${exactMatches.length} of ${assets.length} assets match exact type ID ${assetTypeId}`);
+            
+            // If no exact matches found but we have results, show all results instead
+            if (exactMatches.length === 0 && assets.length > 0) {
+              console.log(`No exact asset type matches found. Showing all ${assets.length} matching assets instead.`);
+              showNotification('info', `No exact asset type matches found. Showing all ${assets.length} matching assets instead.`);
+              filteredAssets = assets;
+            } else {
+              filteredAssets = exactMatches;
+            }
           }
           
           // Further filter by search term if provided
