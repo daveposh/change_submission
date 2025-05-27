@@ -45,7 +45,8 @@ const DEFAULT_PAGINATION_DELAY = 500;
 // In-memory cache for search results
 const searchCache = {
   requesters: {}, // Map of search term -> { results, timestamp }
-  agents: {}      // Map of search term -> { results, timestamp }
+  agents: {},     // Map of search term -> { results, timestamp }
+  assets: {}      // Map of search term -> { results, timestamp }
 };
 
 // Default rate limits if not configured during installation
@@ -2312,117 +2313,115 @@ function searchAssets(e) {
     return;
   }
 
-  // Get the inventory type ID from installation parameters
-  getInstallationParams().then(params => {
-    const inventoryTypeId = params.inventoryTypeId;
-    console.log(`Using inventory type ID for search: ${inventoryTypeId}`);
-
-    // Strategy: First fetch all assets of the configured type, then filter locally
-
-    // Query only for the asset type without search term restriction
-    const assetTypeQuery = `asset_type_id:${inventoryTypeId}`;
-    const serviceQueryStr = `~[name|display_name]:'${searchTerm}'`;
-    const encodedAssetTypeQuery = encodeURIComponent(`"${assetTypeQuery}"`);
-    const encodedServiceQuery = encodeURIComponent(`"${serviceQueryStr}"`);
-    
-    // Arrays to store all results from pagination
-    let allAssets = [];
-    let allServices = [];
-    
-    // Function to load assets from a specific page
-    async function loadAssetsPage(page = 1) {
-      console.log(`Loading assets page ${page} with filter asset_type_id:${inventoryTypeId}`);
-      try {
-        const data = await window.client.request.invokeTemplate("getAssets", {
-          path_suffix: `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
-        });
+  // Check cache first
+  getFromSearchCache('assets', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      displayAssetResults('asset-results', cachedResults, selectAsset);
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout;
         
-        if (!data || !data.response) {
-          return { assets: [] };
-        }
-        
-        try {
-          const response = JSON.parse(data.response);
-          const assets = response && response.assets ? response.assets : [];
-          console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
-          
-          // Combine with previous results
-          allAssets = [...allAssets, ...assets];
-          
-          // If we got a full page of results, there might be more
-          if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
-            // Add pagination delay before loading the next page
-            const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-            
-            // Wait for the delay before loading the next page
-            await new Promise(resolve => setTimeout(resolve, paginationDelay));
-            
-            // Load next page
-            return await loadAssetsPage(page + 1);
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchTerm = document.getElementById('asset-search').value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
+            performAssetSearch(searchTerm, true);
           }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
+    
+    // No cache hit, perform search immediately
+    performAssetSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking asset search cache:', error);
+    // Fallback to direct search on cache error
+    performAssetSearch(searchTerm);
+  });
+}
+
+/**
+ * Perform the actual API search for assets
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function performAssetSearch(searchTerm, isRefresh = false) {
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('asset-results');
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.style.display = 'block';
+  }
+  
+  // Use fixed asset_type_id: 37000374722 as specified
+  const assetTypeId = 37000374722;
+  console.log(`Using specified asset type ID for search: ${assetTypeId}`);
+
+  // Query for the specific asset type and filter by search term
+  const assetTypeQuery = `asset_type_id:${assetTypeId}`;
+  const encodedAssetTypeQuery = encodeURIComponent(`"${assetTypeQuery}"`);
+  
+  // Arrays to store all results from pagination
+  let allAssets = [];
+  
+  // Function to load assets from a specific page
+  async function loadAssetsPage(page = 1) {
+    console.log(`Loading assets page ${page} with filter asset_type_id:${assetTypeId}`);
+    try {
+      const data = await window.client.request.invokeTemplate("getAssets", {
+        path_suffix: `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`
+      });
+      
+      if (!data || !data.response) {
+        return { assets: [] };
+      }
+      
+      try {
+        const response = JSON.parse(data.response);
+        const assets = response && response.assets ? response.assets : [];
+        console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
+        
+        // Combine with previous results
+        allAssets = [...allAssets, ...assets];
+        
+        // If we got a full page of results, there might be more
+        if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
+          // Get pagination delay from params
+          const params = await getInstallationParams();
+          const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
           
-          return { assets: allAssets };
-        } catch (error) {
-          console.error('Error parsing assets response:', error);
-          return { assets: allAssets };
+          updateLoadingMessage('asset-results', `Loading more results... (page ${page + 1})`);
+          
+          // Wait for the delay before loading the next page
+          await new Promise(resolve => setTimeout(resolve, paginationDelay));
+          
+          // Load next page
+          return await loadAssetsPage(page + 1);
         }
+        
+        return { assets: allAssets };
       } catch (error) {
-        console.error('Asset search failed:', error);
+        console.error('Error parsing assets response:', error);
         return { assets: allAssets };
       }
+    } catch (error) {
+      console.error('Asset search failed:', error);
+      return { assets: allAssets };
     }
-    
-    // Function to load services from a specific page
-    async function loadServicesPage(page = 1) {
+  }
+  
+  // Start loading assets from page 1
+  loadAssetsPage(1)
+    .then(function(assetsResponse) {
       try {
-        const data = await window.client.request.invokeTemplate("getServices", {
-          path_suffix: `?query=${encodedServiceQuery}&page=${page}&per_page=30`
-        });
-        
-        if (!data || !data.response) {
-          return { services: [] };
-        }
-        
-        try {
-          const response = JSON.parse(data.response);
-          const services = response && response.services ? response.services : [];
-          
-          // Combine with previous results
-          allServices = [...allServices, ...services];
-          
-          // If we got a full page of results, there might be more
-          if (services.length === 30 && page < 2) { // Limit to 2 pages (60 results) max
-            // Add pagination delay before loading the next page
-            const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-            
-            // Wait for the delay before loading the next page
-            await new Promise(resolve => setTimeout(resolve, paginationDelay));
-            
-            // Load next page
-            return await loadServicesPage(page + 1);
-          }
-          
-          return { services: allServices };
-        } catch (error) {
-          console.error('Error parsing services response:', error);
-          return { services: allServices };
-        }
-      } catch (error) {
-        console.error('Service search failed:', error);
-        return { services: allServices };
-      }
-    }
-    
-    // Start loading both assets and services from page 1
-    Promise.all([
-      loadAssetsPage(1),
-      loadServicesPage(1)
-    ])
-    .then(function([assetsResponse, servicesResponse]) {
-      try {
-        // Get assets and services from the responses
+        // Get assets from the response
         const assets = assetsResponse.assets || [];
-        const services = servicesResponse.services || [];
         
         // Apply the search term filter to the assets locally
         const filteredAssets = assets.filter(asset => {
@@ -2441,45 +2440,34 @@ function searchAssets(e) {
         
         console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
         
-        // Combine both results with type information
-        const combinedResults = [
-          ...filteredAssets.map(item => ({ ...item, type: 'asset' })),
-          ...services.map(item => ({ ...item, type: 'service' }))
-        ];
+        // Process assets to include only display name and ID
+        const processedAssets = filteredAssets.map(asset => ({
+          id: asset.id,
+          name: asset.display_name || asset.name || 'Unnamed Asset',
+          display_name: asset.display_name || asset.name || 'Unnamed Asset',
+          type: 'asset',
+          asset_type_id: asset.asset_type_id,
+          asset_type_name: asset.asset_type_name,
+          product_name: asset.product_name,
+          location_name: asset.location_name,
+          department_name: asset.department_name
+        }));
         
-        // Sort results by relevance - exact name matches first
-        combinedResults.sort((a, b) => {
-          const aName = (a.name || a.display_name || '').toLowerCase();
-          const bName = (b.name || b.display_name || '').toLowerCase();
-          const searchLower = searchTerm.toLowerCase();
-          
-          // Exact matches first
-          if (aName === searchLower && bName !== searchLower) return -1;
-          if (bName === searchLower && aName !== searchLower) return 1;
-          
-          // Starts with search term next
-          if (aName.startsWith(searchLower) && !bName.startsWith(searchLower)) return -1;
-          if (bName.startsWith(searchLower) && !aName.startsWith(searchLower)) return 1;
-          
-          // Normal alphabetical sorting for the rest
-          return aName.localeCompare(bName);
-        });
+        // Cache the results
+        addToSearchCache('assets', searchTerm, processedAssets);
         
-        displayAssetResults('asset-results', combinedResults, selectAsset);
+        // Display the results
+        displayAssetResults('asset-results', processedAssets, selectAsset);
       } catch (error) {
-        console.error('Error processing search results:', error);
+        console.error('Error processing asset search results:', error);
         displayAssetResults('asset-results', [], selectAsset);
       }
     })
     .catch(function(error) {
-      console.error('Combined asset/service search failed:', error);
+      console.error('Asset search failed:', error);
       displayAssetResults('asset-results', [], selectAsset);
       handleErr(error);
     });
-  }).catch(error => {
-    console.error('Error getting installation parameters:', error);
-    handleErr('Failed to load configuration settings');
-  });
 }
 
 function displayAssetResults(containerId, results, selectionCallback) {
@@ -2546,34 +2534,6 @@ function displayAssetResults(containerId, results, selectionCallback) {
       locBadge.className = 'badge bg-light text-dark border';
       locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
       detailsContainer.appendChild(locBadge);
-    }
-    
-    // Service-specific badges
-    if (!isAsset && result.category_name) {
-      const categoryBadge = document.createElement('span');
-      categoryBadge.className = 'badge bg-light text-dark border';
-      categoryBadge.innerHTML = `<i class="fas fa-folder me-1"></i>${result.category_name}`;
-      detailsContainer.appendChild(categoryBadge);
-    }
-    
-    // Status badge with appropriate color
-    if (result.status) {
-      const statusBadge = document.createElement('span');
-      let statusClass = 'bg-secondary';
-      
-      if (result.status.toLowerCase().includes('active') || 
-          result.status.toLowerCase().includes('in use')) {
-        statusClass = 'bg-success';
-      } else if (result.status.toLowerCase().includes('retired') || 
-                result.status.toLowerCase().includes('end')) {
-        statusClass = 'bg-danger';
-      } else if (result.status.toLowerCase().includes('pending')) {
-        statusClass = 'bg-warning text-dark';
-      }
-      
-      statusBadge.className = `badge ${statusClass}`;
-      statusBadge.innerHTML = `<i class="fas fa-circle me-1"></i>${result.status}`;
-      detailsContainer.appendChild(statusBadge);
     }
     
     // Only add details container if we have any badges
@@ -3131,7 +3091,11 @@ async function getInstallationParams() {
   }
 }
 
-// Add this helper function
+/**
+ * Update loading message in a container
+ * @param {string} containerId - ID of container element
+ * @param {string} message - Message to display
+ */
 function updateLoadingMessage(containerId, message) {
   const container = document.getElementById(containerId);
   if (container) {
