@@ -2462,36 +2462,60 @@ function performAssetSearch(searchTerm, isRefresh = false) {
         const processedAssets = filteredAssets.map(asset => {
           // Extract fields from type_fields if available
           const typeFields = asset.type_fields || {};
+          const assetTypeId = asset.asset_type_id;
+          
+          // Helper function to find the correct type field with asset_type_id suffix
+          const getTypeField = (fieldPrefix) => {
+            // Try with suffix first
+            const suffixedKey = Object.keys(typeFields).find(key => 
+              key.startsWith(fieldPrefix) && key.endsWith(`_${assetTypeId}`));
+            
+            // Return the value if found, otherwise null
+            return suffixedKey ? typeFields[suffixedKey] : null;
+          };
           
           return {
             id: asset.id,
-            name: asset.display_name || asset.name || 'Unnamed Asset',
-            display_name: asset.display_name || asset.name || 'Unnamed Asset',
+            display_id: asset.display_id,
+            name: asset.name || 'Unnamed Asset',
+            display_name: asset.name || 'Unnamed Asset',
             type: 'asset',
             asset_type_id: asset.asset_type_id,
             asset_type_name: asset.asset_type_name,
             product_name: asset.product_name,
             location_name: asset.location_name,
             department_name: asset.department_name,
-            // Try to get environment from multiple possible locations
-            environment: typeFields.environment || 
+            asset_tag: asset.asset_tag,
+            description: asset.description,
+            // Try to get environment from suffixed type fields first
+            environment: getTypeField('environment') || 
+                        typeFields.environment || 
                         asset.custom_fields?.environment || 
                         asset.environment || 
                         'N/A',
-            // Try to get IP address from multiple possible locations
-            ip_address: typeFields.ip_address || 
+            // Try to get IP address from suffixed type fields first
+            ip_address: getTypeField('ip_address') || 
+                       getTypeField('ip') || 
+                       typeFields.ip_address || 
                        typeFields.ip || 
                        asset.custom_fields?.ip_address || 
                        asset.ip_address || 
                        asset.ip || 
                        'N/A',
-            // Try to get managed by from multiple possible locations
-            managed_by: typeFields.managed_by || 
-                       typeFields.owner || 
+            // Try to get managed by information - could be agent name, vendor, or owner
+            managed_by: getTypeField('managed_by') || 
+                       getTypeField('vendor') || 
+                       typeFields.managed_by || 
+                       typeFields.vendor || 
                        asset.custom_fields?.managed_by || 
                        asset.managed_by || 
-                       asset.owner || 
-                       'N/A'
+                       asset.vendor_name || 
+                       'N/A',
+            // Add hosting model if available
+            hosting_model: getTypeField('hosting_model') ||
+                          typeFields.hosting_model ||
+                          asset.custom_fields?.hosting_model ||
+                          'N/A'
           };
         });
         
@@ -2535,6 +2559,16 @@ function displayAssetResults(containerId, results, selectionCallback) {
     const nameDiv = document.createElement('div');
     nameDiv.className = 'fw-bold';
     nameDiv.textContent = result.display_name || result.name || 'Unnamed';
+    
+    // Add display ID/asset tag if available
+    if (result.display_id || result.asset_tag) {
+      const idSpan = document.createElement('span');
+      idSpan.className = 'text-secondary ms-2';
+      idSpan.style.fontSize = '0.9em';
+      idSpan.textContent = result.asset_tag ? `#${result.asset_tag}` : `#${result.display_id}`;
+      nameDiv.appendChild(idSpan);
+    }
+    
     headerDiv.appendChild(nameDiv);
     
     // Type badge - different colors for asset vs service
@@ -2555,6 +2589,14 @@ function displayAssetResults(containerId, results, selectionCallback) {
       envBadge.className = 'badge bg-light text-dark border';
       envBadge.innerHTML = `<i class="fas fa-server me-1"></i>${result.environment}`;
       detailsContainer.appendChild(envBadge);
+    }
+    
+    // Hosting model badge
+    if (result.hosting_model && result.hosting_model !== 'N/A') {
+      const hostingBadge = document.createElement('span');
+      hostingBadge.className = 'badge bg-light text-dark border';
+      hostingBadge.innerHTML = `<i class="fas fa-cloud me-1"></i>${result.hosting_model}`;
+      detailsContainer.appendChild(hostingBadge);
     }
     
     // IP address badge
@@ -2592,6 +2634,19 @@ function displayAssetResults(containerId, results, selectionCallback) {
     // Only add details container if we have any badges
     if (detailsContainer.children.length > 0) {
       resultItem.appendChild(detailsContainer);
+    }
+    
+    // Add truncated description if available
+    if (result.description) {
+      const descriptionDiv = document.createElement('div');
+      descriptionDiv.className = 'text-muted small mt-1';
+      
+      // Strip HTML tags and truncate if needed
+      const textDescription = result.description.replace(/<[^>]*>/g, '');
+      descriptionDiv.textContent = textDescription.length > 100 ? 
+        textDescription.substring(0, 100) + '...' : textDescription;
+      
+      resultItem.appendChild(descriptionDiv);
     }
     
     resultItem.addEventListener('click', () => selectionCallback(result));
@@ -2642,7 +2697,7 @@ function renderSelectedAssets() {
       }
       
       // Safely get asset properties
-      const assetName = asset.name || 'Unnamed Asset';
+      const assetName = asset.display_name || asset.name || 'Unnamed Asset';
       const assetType = asset.type || 'unknown';
       const isAsset = assetType === 'asset';
       
@@ -2655,6 +2710,15 @@ function renderSelectedAssets() {
       const nameSpan = document.createElement('span');
       nameSpan.className = 'fw-bold';
       nameSpan.textContent = assetName;
+      
+      // Add display ID/asset tag if available
+      if (asset.display_id || asset.asset_tag) {
+        const idSpan = document.createElement('span');
+        idSpan.className = 'text-secondary ms-2';
+        idSpan.style.fontSize = '0.9em';
+        idSpan.textContent = asset.asset_tag ? `#${asset.asset_tag}` : `#${asset.display_id}`;
+        nameSpan.appendChild(idSpan);
+      }
       
       const badgeSpan = document.createElement('span');
       badgeSpan.className = `badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'} me-2`;
@@ -2686,6 +2750,15 @@ function renderSelectedAssets() {
         const badge = document.createElement('span');
         badge.className = 'badge bg-light text-dark border';
         badge.innerHTML = `<i class="fas fa-server me-1"></i>${asset.environment}`;
+        detailsContainer.appendChild(badge);
+      }
+      
+      // Hosting model badge
+      if (asset.hosting_model && asset.hosting_model !== 'N/A') {
+        hasDetails = true;
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-light text-dark border';
+        badge.innerHTML = `<i class="fas fa-cloud me-1"></i>${asset.hosting_model}`;
         detailsContainer.appendChild(badge);
       }
       
@@ -2727,6 +2800,19 @@ function renderSelectedAssets() {
       
       if (hasDetails) {
         assetItem.appendChild(detailsContainer);
+      }
+      
+      // Add truncated description if available
+      if (asset.description) {
+        const descriptionDiv = document.createElement('div');
+        descriptionDiv.className = 'text-muted small mt-1';
+        
+        // Strip HTML tags and truncate if needed
+        const textDescription = asset.description.replace(/<[^>]*>/g, '');
+        descriptionDiv.textContent = textDescription.length > 100 ? 
+          textDescription.substring(0, 100) + '...' : textDescription;
+        
+        assetItem.appendChild(descriptionDiv);
       }
       
       container.appendChild(assetItem);
