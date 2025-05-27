@@ -4108,4 +4108,22 @@ function processAssetResults(assets) {
 }
 
 // Risk Assessment tab
+document.getElementById('risk-next').addEventListener('click', validateRiskAndNext);
 
+// Impacted Assets tab
+document.getElementById('asset-search').addEventListener('input', debounce(searchAssets, 300));
+document.getElementById('show-all-assets').addEventListener('click', function() {
+  // Trigger asset search with empty search term to show all assets of configured type
+  searchAssets({ target: { value: '' } });
+});
+document.getElementById('submit-change').addEventListener('click', showSummary);
+
+// Load assets automatically when the Assets tab is shown
+document.getElementById('assets-tab').addEventListener('shown.bs.tab', function() {
+  // Only load if we haven't already loaded assets
+  if (document.getElementById('asset-results').children.length <= 1) {
+    console.log('Assets tab shown - loading initial asset listing');
+    // Trigger the show all assets function
+    searchAssets({ target: { value: '' } });
+  }
+});
