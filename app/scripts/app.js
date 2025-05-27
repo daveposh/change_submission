@@ -49,6 +49,16 @@ const searchCache = {
   assets: {}      // Map of search term -> { results, timestamp }
 };
 
+// Asset type cache
+const assetTypeCache = {
+  byId: {}, // Map of asset_type_id -> { name, timestamp }
+  list: [],  // List of all asset types
+  timestamp: 0 // Last update timestamp
+};
+
+// Asset type cache timeout (24 hours)
+const ASSET_TYPE_CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
+
 // Default rate limits if not configured during installation
 const DEFAULT_RATE_LIMITS = {
   starter: {
@@ -610,6 +620,9 @@ function initializeApp() {
               }),
               fetchUsers().catch(err => {
                 console.error("Error in fetchUsers:", err);
+              }),
+              fetchAllAssetTypes().catch(err => {
+                console.error("Error in fetchAllAssetTypes:", err);
               })
             ]);
             
@@ -2301,6 +2314,13 @@ function validateRiskAndNext() {
 function searchAssets(e) {
   const searchTerm = e.target.value.trim();
   
+  // Reset search state for new search
+  assetSearchState.currentSearchTerm = searchTerm;
+  assetSearchState.currentPage = 1;
+  assetSearchState.isLoading = false;
+  assetSearchState.hasMoreResults = true;
+  assetSearchState.totalResults = 0;
+  
   // Show loading indicator even for short search terms
   const resultsContainer = document.getElementById('asset-results');
   resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
@@ -2324,6 +2344,10 @@ function searchAssets(e) {
     if (cachedResults) {
       // Use cached results
       displayAssetResults('asset-results', cachedResults, selectAsset);
+      assetSearchState.totalResults = cachedResults.length;
+      
+      // Setup scroll event for infinite scroll after displaying results
+      setupAssetSearchScroll();
       
       // Get the configured search cache timeout
       getInstallationParams().then(params => {
@@ -2332,8 +2356,7 @@ function searchAssets(e) {
         // Set a timer to check for fresh results after the timeout
         setTimeout(() => {
           // Only perform API call if the search term is still the current one
-          const currentSearchTerm = document.getElementById('asset-search').value.trim();
-          if (currentSearchTerm === searchTerm) {
+          if (assetSearchState.currentSearchTerm === searchTerm) {
             console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
             performAssetSearch(searchTerm, true);
           }
@@ -2353,13 +2376,72 @@ function searchAssets(e) {
 }
 
 /**
+ * Setup scroll event listener for asset search results
+ */
+function setupAssetSearchScroll() {
+  const resultsContainer = document.getElementById('asset-results');
+  
+  // Remove any existing scroll listener
+  if (resultsContainer._scrollHandler) {
+    resultsContainer.removeEventListener('scroll', resultsContainer._scrollHandler);
+  }
+  
+  // Define the scroll handler
+  resultsContainer._scrollHandler = function() {
+    // Check if we're near the bottom (within 100px)
+    const scrollPosition = resultsContainer.scrollTop + resultsContainer.clientHeight;
+    const scrollThreshold = resultsContainer.scrollHeight - 100;
+    
+    if (scrollPosition >= scrollThreshold && 
+        !assetSearchState.isLoading && 
+        assetSearchState.hasMoreResults) {
+      console.log('Reached scroll threshold, loading more asset results...');
+      loadMoreAssetResults();
+    }
+  };
+  
+  // Add the scroll listener
+  resultsContainer.addEventListener('scroll', resultsContainer._scrollHandler);
+}
+
+/**
+ * Load more asset results when scrolling
+ */
+function loadMoreAssetResults() {
+  // Prevent multiple simultaneous loads
+  if (assetSearchState.isLoading || !assetSearchState.hasMoreResults) {
+    return;
+  }
+  
+  // Set loading state
+  assetSearchState.isLoading = true;
+  
+  // Increment page number
+  assetSearchState.currentPage++;
+  
+  // Show loading indicator at the bottom of results
+  const resultsContainer = document.getElementById('asset-results');
+  const loadingIndicator = document.createElement('div');
+  loadingIndicator.id = 'load-more-indicator';
+  loadingIndicator.className = 'text-center p-3';
+  loadingIndicator.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Loading more...';
+  resultsContainer.appendChild(loadingIndicator);
+  
+  console.log(`Loading more asset results, page ${assetSearchState.currentPage}`);
+  
+  // Call the API with the next page
+  performAssetSearch(assetSearchState.currentSearchTerm, false, assetSearchState.currentPage);
+}
+
+/**
  * Perform the actual API search for assets
  * @param {string} searchTerm - The search term
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ * @param {number} pageNum - The page number to load (for infinite scroll)
  */
-function performAssetSearch(searchTerm, isRefresh = false) {
-  // Only show loading indicator for non-refresh operations
-  if (!isRefresh) {
+function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
+  // Only show loading indicator for new searches (not infinite scroll or refresh)
+  if (!isRefresh && pageNum === 1) {
     const resultsContainer = document.getElementById('asset-results');
     resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
     resultsContainer.style.display = 'block';
@@ -2374,8 +2456,8 @@ function performAssetSearch(searchTerm, isRefresh = false) {
   const assetTypeQuery = `asset_type_id:${assetTypeId}`;
   const encodedAssetTypeQuery = encodeURIComponent(`"${assetTypeQuery}"`);
   
-  // Arrays to store all results from pagination
-  let allAssets = [];
+  // Array to store results from this page
+  let pageAssets = [];
   
   // Function to load assets from a specific page
   async function loadAssetsPage(page = 1) {
@@ -2405,11 +2487,20 @@ function performAssetSearch(searchTerm, isRefresh = false) {
           });
         }
         
-        // Combine with previous results
-        allAssets = [...allAssets, ...assets];
+        // Store the results for this page
+        pageAssets = assets;
         
+        // Check if we have more results
+        assetSearchState.hasMoreResults = assets.length === 100;
+        
+        // If this was called for infinite scroll, we're done with just this page
+        if (pageNum > 1) {
+          return { assets: assets };
+        }
+        
+        // For normal search or refresh, we continue with pagination
         // If we got a full page of results, there might be more
-        if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
+        if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max for initial load
           // Get pagination delay from params
           const params = await getInstallationParams();
           const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
@@ -2423,19 +2514,19 @@ function performAssetSearch(searchTerm, isRefresh = false) {
           return await loadAssetsPage(page + 1);
         }
         
-        return { assets: allAssets };
+        return { assets: pageAssets };
       } catch (error) {
         console.error('Error parsing assets response:', error);
-        return { assets: allAssets };
+        return { assets: pageAssets };
       }
     } catch (error) {
       console.error('Asset search failed:', error);
-      return { assets: allAssets };
+      return { assets: pageAssets };
     }
   }
   
-  // Start loading assets from page 1
-  loadAssetsPage(1)
+  // Start loading assets from the specified page
+  loadAssetsPage(pageNum)
     .then(function(assetsResponse) {
       try {
         // Get assets from the response
@@ -2458,7 +2549,7 @@ function performAssetSearch(searchTerm, isRefresh = false) {
         
         console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
         
-        // Process assets to include only display name and ID
+        // Process assets to include only the fields we need
         const processedAssets = filteredAssets.map(asset => {
           // Extract fields from type_fields if available
           const typeFields = asset.type_fields || {};
@@ -2519,20 +2610,113 @@ function performAssetSearch(searchTerm, isRefresh = false) {
           };
         });
         
-        // Cache the results
-        addToSearchCache('assets', searchTerm, processedAssets);
-        
-        // Display the results
-        displayAssetResults('asset-results', processedAssets, selectAsset);
+        // For infinite scroll (page > 1), append to existing results
+        if (pageNum > 1) {
+          // Get existing cached results
+          getFromSearchCache('assets', searchTerm).then(existingResults => {
+            // Remove the loading indicator
+            const loadingIndicator = document.getElementById('load-more-indicator');
+            if (loadingIndicator) {
+              loadingIndicator.remove();
+            }
+            
+            // If we have existing results, merge them with new ones
+            if (existingResults && existingResults.length > 0) {
+              // Create a set of existing IDs for deduplication
+              const existingIds = new Set(existingResults.map(item => item.id));
+              
+              // Find new results that don't exist in the cache
+              const newResults = processedAssets.filter(item => !existingIds.has(item.id));
+              
+              if (newResults.length > 0) {
+                console.log(`Found ${newResults.length} new unique results`);
+                
+                // Combine existing and new results
+                const combinedResults = [...existingResults, ...newResults];
+                
+                // Update the cache
+                addToSearchCache('assets', searchTerm, combinedResults);
+                
+                // Append only the new results to the display
+                displayAdditionalAssetResults('asset-results', newResults, selectAsset);
+                
+                // Update the total count
+                assetSearchState.totalResults += newResults.length;
+              } else {
+                console.log('No new unique results found');
+                
+                // Update UI to show no more results
+                const resultsContainer = document.getElementById('asset-results');
+                const noMoreMessage = document.createElement('div');
+                noMoreMessage.className = 'text-center p-3 text-muted';
+                noMoreMessage.textContent = 'No more results';
+                resultsContainer.appendChild(noMoreMessage);
+                
+                // Mark as no more results
+                assetSearchState.hasMoreResults = false;
+              }
+            } else {
+              // No existing results, use the new ones
+              addToSearchCache('assets', searchTerm, processedAssets);
+              displayAssetResults('asset-results', processedAssets, selectAsset);
+              assetSearchState.totalResults = processedAssets.length;
+            }
+            
+            // Reset loading state
+            assetSearchState.isLoading = false;
+          }).catch(error => {
+            console.error('Error getting cached results:', error);
+            assetSearchState.isLoading = false;
+          });
+        } else {
+          // Initial search or refresh
+          // Cache the results
+          addToSearchCache('assets', searchTerm, processedAssets);
+          
+          // Display the results
+          displayAssetResults('asset-results', processedAssets, selectAsset);
+          
+          // Setup scroll event listener after initial results are displayed
+          setupAssetSearchScroll();
+          
+          // Update the total count
+          assetSearchState.totalResults = processedAssets.length;
+        }
       } catch (error) {
         console.error('Error processing asset search results:', error);
-        displayAssetResults('asset-results', [], selectAsset);
+        
+        // Remove the loading indicator if it exists
+        const loadingIndicator = document.getElementById('load-more-indicator');
+        if (loadingIndicator) {
+          loadingIndicator.remove();
+        }
+        
+        // Reset loading state
+        assetSearchState.isLoading = false;
+        
+        if (pageNum === 1) {
+          // For initial search, display empty results
+          displayAssetResults('asset-results', [], selectAsset);
+        }
       }
     })
     .catch(function(error) {
       console.error('Asset search failed:', error);
-      displayAssetResults('asset-results', [], selectAsset);
-      handleErr(error);
+      
+      // Remove the loading indicator if it exists
+      const loadingIndicator = document.getElementById('load-more-indicator');
+      if (loadingIndicator) {
+        loadingIndicator.remove();
+      }
+      
+      // Reset loading state
+      assetSearchState.isLoading = false;
+      
+      if (pageNum === 1) {
+        // For initial search, display empty results
+        displayAssetResults('asset-results', [], selectAsset);
+        handleErr(error);
+      }
     });
 }
 
@@ -3161,6 +3345,23 @@ document.addEventListener('DOMContentLoaded', function() {
     .search-result-item:hover {
       border-left: 3px solid #0d6efd;
     }
+    /* Styles for scrollable results container */
+    #asset-results {
+      max-height: 400px;
+      overflow-y: auto;
+      position: relative;
+      scroll-behavior: smooth;
+    }
+    #requester-results, #agent-results {
+      max-height: 350px;
+      overflow-y: auto;
+    }
+    /* Loading indicator styles */
+    #load-more-indicator {
+      border-top: 1px solid #eee;
+      background-color: #f8f9fa;
+      font-size: 0.9em;
+    }
   `;
   document.head.appendChild(style);
 });
@@ -3271,4 +3472,298 @@ function updateLoadingMessage(containerId, message) {
   if (container) {
     container.innerHTML = `<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> ${message}</div>`;
   }
+}
+
+/**
+ * Fetch all asset types from the API and store them in the cache
+ * @returns {Promise<Array>} - Cached asset types
+ */
+async function fetchAllAssetTypes() {
+  console.log('Fetching all asset types from API');
+  
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for asset types fetch');
+    return [];
+  }
+
+  try {
+    let allTypes = [];
+    let page = 1;
+    let hasMorePages = true;
+    
+    // Function to load asset types from a specific page
+    async function loadAssetTypesPage(pageNum) {
+      console.log(`Loading asset types page ${pageNum}`);
+      
+      try {
+        // Use raw request to access asset types API
+        const response = await window.client.request.get(`/api/v2/asset_types?page=${pageNum}&per_page=100`);
+        
+        if (!response || !response.response) {
+          console.error('Invalid asset types response:', response);
+          return { types: [], more: false };
+        }
+        
+        try {
+          const parsedData = JSON.parse(response.response || '{"asset_types":[]}');
+          const types = parsedData.asset_types || [];
+          
+          // Check if we might have more pages (received full page of results)
+          const hasMore = types.length === 100;
+          
+          return { types, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing asset types response:', parseError);
+          return { types: [], more: false };
+        }
+      } catch (error) {
+        console.error(`Error fetching asset types page ${pageNum}:`, error);
+        return { types: [], more: false };
+      }
+    }
+    
+    // Load all pages of asset types
+    while (hasMorePages) {
+      const { types, more } = await loadAssetTypesPage(page);
+      
+      // Process types and add to list
+      allTypes = [...allTypes, ...types];
+      
+      // Check if we should load more pages
+      hasMorePages = more;
+      page++;
+      
+      // Safety check to prevent infinite loops
+      if (page > 10) {
+        console.warn('Reached maximum number of asset type pages (10)');
+        break;
+      }
+    }
+    
+    // Save all asset types to cache
+    if (allTypes.length > 0) {
+      console.log(`Caching ${allTypes.length} asset types`);
+      cacheAssetTypes(allTypes);
+    } else {
+      console.warn('No asset types found to cache');
+    }
+    
+    return allTypes;
+  } catch (error) {
+    console.error('Error in fetchAllAssetTypes:', error);
+    return [];
+  }
+}
+
+/**
+ * Save asset types to cache
+ * @param {Array} types - Asset types to cache
+ * @returns {boolean} - Success status
+ */
+function cacheAssetTypes(types) {
+  try {
+    // Update the list cache
+    assetTypeCache.list = types;
+    
+    // Update the byId cache
+    types.forEach(type => {
+      if (type && type.id) {
+        assetTypeCache.byId[type.id] = {
+          name: type.name,
+          description: type.description,
+          data: type
+        };
+      }
+    });
+    
+    // Update the timestamp
+    assetTypeCache.timestamp = Date.now();
+    console.log('Asset type cache updated with', types.length, 'types');
+    return true;
+  } catch (error) {
+    console.error('Failed to save asset type cache:', error);
+    return false;
+  }
+}
+
+/**
+ * Get asset type by ID with caching
+ * @param {number} typeId - Asset type ID 
+ * @returns {Object} - Asset type data or null
+ */
+async function getAssetType(typeId) {
+  if (!typeId) return null;
+  
+  // Check if we need to refresh the cache
+  if (assetTypeCache.timestamp === 0 || 
+      Date.now() - assetTypeCache.timestamp > ASSET_TYPE_CACHE_TIMEOUT ||
+      Object.keys(assetTypeCache.byId).length === 0) {
+    console.log('Asset type cache expired or empty, refreshing...');
+    await fetchAllAssetTypes();
+  }
+  
+  // Return from cache if available
+  if (assetTypeCache.byId[typeId]) {
+    return assetTypeCache.byId[typeId];
+  }
+  
+  // If not in cache, try to fetch just this one type
+  try {
+    console.log(`Asset type ${typeId} not found in cache, fetching individually...`);
+    const response = await window.client.request.get(`/api/v2/asset_types/${typeId}`);
+    
+    if (!response || !response.response) {
+      console.error('Invalid asset type response:', response);
+      return null;
+    }
+    
+    const parsedData = JSON.parse(response.response || '{}');
+    if (parsedData && parsedData.asset_type) {
+      const assetType = parsedData.asset_type;
+      
+      // Add to cache
+      assetTypeCache.byId[typeId] = {
+        name: assetType.name,
+        description: assetType.description,
+        data: assetType
+      };
+      
+      return assetTypeCache.byId[typeId];
+    }
+  } catch (error) {
+    console.error(`Error fetching individual asset type ${typeId}:`, error);
+  }
+  
+  return null;
+}
+
+// Variables to track current search state for infinite scroll
+const assetSearchState = {
+  currentSearchTerm: '',
+  currentPage: 1,
+  isLoading: false,
+  hasMoreResults: true,
+  totalResults: 0
+};
+
+/**
+ * Display additional asset results when scrolling (appends to existing results)
+ * @param {string} containerId - ID of container element
+ * @param {Array} results - New results to append
+ * @param {Function} selectionCallback - Callback for when an item is selected
+ */
+function displayAdditionalAssetResults(containerId, results, selectionCallback) {
+  const container = document.getElementById(containerId);
+  
+  if (!container || results.length === 0) {
+    return;
+  }
+  
+  // Create elements for each new result
+  results.forEach(result => {
+    const resultItem = document.createElement('div');
+    resultItem.className = 'list-group-item search-result-item d-flex flex-column search-item-hover';
+    
+    // Create a container for name and type badge
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'd-flex justify-content-between align-items-center w-100';
+    
+    // Name with proper styling (using display_name as priority)
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'fw-bold';
+    nameDiv.textContent = result.display_name || result.name || 'Unnamed';
+    
+    // Add display ID/asset tag if available
+    if (result.display_id || result.asset_tag) {
+      const idSpan = document.createElement('span');
+      idSpan.className = 'text-secondary ms-2';
+      idSpan.style.fontSize = '0.9em';
+      idSpan.textContent = result.asset_tag ? `#${result.asset_tag}` : `#${result.display_id}`;
+      nameDiv.appendChild(idSpan);
+    }
+    
+    headerDiv.appendChild(nameDiv);
+    
+    // Type badge - different colors for asset vs service
+    const typeDiv = document.createElement('div');
+    const isAsset = result.type === 'asset';
+    typeDiv.innerHTML = `<span class="badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'}">${isAsset ? 'Asset' : 'Service'}</span>`;
+    headerDiv.appendChild(typeDiv);
+    
+    resultItem.appendChild(headerDiv);
+    
+    // Additional information based on asset type
+    const detailsContainer = document.createElement('div');
+    detailsContainer.className = 'mt-2 d-flex flex-wrap gap-2';
+    
+    // Environment badge
+    if (result.environment && result.environment !== 'N/A') {
+      const envBadge = document.createElement('span');
+      envBadge.className = 'badge bg-light text-dark border';
+      envBadge.innerHTML = `<i class="fas fa-server me-1"></i>${result.environment}`;
+      detailsContainer.appendChild(envBadge);
+    }
+    
+    // Hosting model badge
+    if (result.hosting_model && result.hosting_model !== 'N/A') {
+      const hostingBadge = document.createElement('span');
+      hostingBadge.className = 'badge bg-light text-dark border';
+      hostingBadge.innerHTML = `<i class="fas fa-cloud me-1"></i>${result.hosting_model}`;
+      detailsContainer.appendChild(hostingBadge);
+    }
+    
+    // IP address badge
+    if (result.ip_address && result.ip_address !== 'N/A') {
+      const ipBadge = document.createElement('span');
+      ipBadge.className = 'badge bg-light text-dark border';
+      ipBadge.innerHTML = `<i class="fas fa-network-wired me-1"></i>${result.ip_address}`;
+      detailsContainer.appendChild(ipBadge);
+    }
+    
+    // Location badge
+    if (result.location_name) {
+      const locBadge = document.createElement('span');
+      locBadge.className = 'badge bg-light text-dark border';
+      locBadge.innerHTML = `<i class="fas fa-map-marker-alt me-1"></i>${result.location_name}`;
+      detailsContainer.appendChild(locBadge);
+    }
+    
+    // Managed by badge
+    if (result.managed_by && result.managed_by !== 'N/A') {
+      const managedBadge = document.createElement('span');
+      managedBadge.className = 'badge bg-light text-dark border';
+      managedBadge.innerHTML = `<i class="fas fa-user-cog me-1"></i>${result.managed_by}`;
+      detailsContainer.appendChild(managedBadge);
+    }
+    
+    // Asset type badge (as secondary information)
+    if (result.asset_type_name) {
+      const typeBadge = document.createElement('span');
+      typeBadge.className = 'badge bg-light text-dark border';
+      typeBadge.innerHTML = `<i class="fas fa-tag me-1"></i>${result.asset_type_name}`;
+      detailsContainer.appendChild(typeBadge);
+    }
+    
+    // Only add details container if we have any badges
+    if (detailsContainer.children.length > 0) {
+      resultItem.appendChild(detailsContainer);
+    }
+    
+    // Add truncated description if available
+    if (result.description) {
+      const descriptionDiv = document.createElement('div');
+      descriptionDiv.className = 'text-muted small mt-1';
+      
+      // Strip HTML tags and truncate if needed
+      const textDescription = result.description.replace(/<[^>]*>/g, '');
+      descriptionDiv.textContent = textDescription.length > 100 ? 
+        textDescription.substring(0, 100) + '...' : textDescription;
+      
+      resultItem.appendChild(descriptionDiv);
+    }
+    
+    resultItem.addEventListener('click', () => selectionCallback(result));
+    container.appendChild(resultItem);
+  });
 }
