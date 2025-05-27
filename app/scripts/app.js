@@ -2699,29 +2699,23 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
     async function loadAssetsPage(page = 1) {
       console.log(`Loading assets page ${page}${assetQuery ? ' with filter ' + assetQuery : ''}`);
       try {
-        // Construct the query parameter - always include type_fields
-        // Add the asset_type_id filter if configured
-        const searchParam = encodedQuery ? `query=${encodedQuery}` : '';
+        // Start with base parameters - only include type_fields and pagination
         let queryParam = `?include=type_fields&page=${page}&per_page=100`;
         
-        if (searchParam) {
-          queryParam += `&${searchParam}`;
+        // Add the filter parameter for asset_type_id (don't use the query parameter for this)
+        if (assetTypeId && assetTypeId > 0) {
+          queryParam += `&filter="asset_type_id:${assetTypeId}"`;
+          console.log(`Using asset type filter: asset_type_id:${assetTypeId}`);
         }
         
-        // Add the filter parameter if available
-        if (assetTypeFilter) {
-          queryParam += assetTypeFilter;
-          console.log('Using asset type filter:', assetTypeFilter);
+        // Add search parameter for the search term if provided
+        if (searchTerm) {
+          const formattedSearch = `"name:'${searchTerm}'"`;
+          queryParam += `&search=${encodeURIComponent(formattedSearch)}`;
+          console.log(`Using search parameter: ${formattedSearch}`);
         }
         
         console.log(`API request path: ${queryParam}`);
-        
-        // Special search parameter for user's search term with exact format
-        const searchQueryParam = searchTerm ? `&search=${encodeURIComponent(`"name:'${searchTerm}'"`)}` : '';
-        if (searchQueryParam) {
-          queryParam += searchQueryParam;
-          console.log('Using search parameter:', searchQueryParam);
-        }
         
         const data = await window.client.request.invokeTemplate("getAssets", {
           path_suffix: queryParam
