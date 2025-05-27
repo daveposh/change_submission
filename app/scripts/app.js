@@ -748,76 +748,119 @@ function initializeBootstrapTabs() {
 
 /**
  * Load saved change request data from the data storage
+ * Tries client DB first, then falls back to localStorage
  */
 async function loadSavedData() {
   console.log('Attempting to load saved data...');
+  let dataLoaded = false;
   
-  // First check if client is properly initialized
-  if (!window.client || !window.client.db || typeof window.client.db.get !== 'function') {
-    console.error('Client DB API not available for loading data');
-    return;
-  }
-  
-  try {
-    // Try to get data with proper error handling
-    console.log('Requesting data from storage...');
-    const result = await window.client.db.get(STORAGE_KEYS.CHANGE_DATA);
-    
-    // Check if we have valid data
-    if (result && typeof result === 'object') {
-      console.log('Data retrieved successfully');
+  // First try to load from client DB
+  if (window.client && window.client.db && typeof window.client.db.get === 'function') {
+    try {
+      console.log('Requesting data from client DB...');
+      const result = await window.client.db.get(STORAGE_KEYS.CHANGE_DATA);
       
-      // Update the global data object with saved values
-      Object.keys(result).forEach(key => {
-        changeRequestData[key] = result[key];
-      });
-      
-      // Update the UI with saved data
-      try {
-        console.log('Populating form fields with saved data');
-        populateFormFields();
+      // Check if we have valid data
+      if (result && typeof result === 'object') {
+        console.log('Data retrieved successfully from client DB');
         
-        // Only show notification after successfully populating the form
-        setTimeout(() => {
-          showNotification('info', 'Draft change request data loaded');
-        }, 500);
+        // Update the global data object with saved values
+        Object.keys(result).forEach(key => {
+          changeRequestData[key] = result[key];
+        });
         
-        return true; // Indicate success
-      } catch (formError) {
-        console.error('Error populating form with saved data:', formError);
+        dataLoaded = true;
+      } else {
+        console.log('No saved data found in client DB');
       }
-    } else {
-      console.log('No saved data found in storage');
-      return false;
+    } catch (error) {
+      console.log('Error accessing client DB:', error);
     }
-  } catch (error) {
-    // Handle storage error but don't break the app
-    console.log('Error accessing saved data:', error);
-    // Don't show error notification as this is a normal condition for first-time users
-    return false;
+  } else {
+    console.warn('Client DB API not available for loading data');
   }
+  
+  // If client DB failed, try localStorage
+  if (!dataLoaded) {
+    try {
+      console.log('Trying to load data from localStorage...');
+      const savedDataString = localStorage.getItem(STORAGE_KEYS.CHANGE_DATA);
+      
+      if (savedDataString) {
+        const savedData = JSON.parse(savedDataString);
+        
+        if (savedData && typeof savedData === 'object') {
+          console.log('Data retrieved successfully from localStorage');
+          
+          // Update the global data object with saved values
+          Object.keys(savedData).forEach(key => {
+            changeRequestData[key] = savedData[key];
+          });
+          
+          dataLoaded = true;
+        } else {
+          console.log('No valid saved data found in localStorage');
+        }
+      } else {
+        console.log('No saved data found in localStorage');
+      }
+    } catch (localStorageError) {
+      console.error('Error accessing localStorage:', localStorageError);
+    }
+  }
+  
+  // Update UI if we loaded data from either source
+  if (dataLoaded) {
+    try {
+      console.log('Populating form fields with saved data');
+      populateFormFields();
+      
+      // Only show notification after successfully populating the form
+      setTimeout(() => {
+        showNotification('info', 'Draft change request data loaded');
+      }, 500);
+      
+      return true;
+    } catch (formError) {
+      console.error('Error populating form with saved data:', formError);
+    }
+  }
+  
+  return false;
 }
 
 /**
  * Save current change request data to the data storage
+ * Uses both Freshservice client DB and localStorage for redundancy
  */
 async function saveCurrentData() {
-  // Check if client DB is available before attempting to save
-  if (!window.client || !window.client.db || typeof window.client.db.set !== 'function') {
-    console.error('Client DB API not available for saving data');
-    return false;
+  let savedToClientDB = false;
+  
+  // First try to save to client DB
+  if (window.client && window.client.db && typeof window.client.db.set === 'function') {
+    try {
+      console.log('Saving form data to client DB...');
+      await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, changeRequestData);
+      console.log('Form data saved successfully to client DB');
+      savedToClientDB = true;
+    } catch (error) {
+      console.error('Failed to save draft to client DB:', error);
+    }
+  } else {
+    console.warn('Client DB API not available for saving data');
   }
   
+  // Always save to localStorage as backup/fallback
   try {
-    console.log('Saving current form data...');
-    await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, changeRequestData);
-    console.log('Form data saved successfully');
+    console.log('Saving form data to localStorage...');
+    localStorage.setItem(STORAGE_KEYS.CHANGE_DATA, JSON.stringify(changeRequestData));
+    console.log('Form data saved successfully to localStorage');
     
     // Only show notification 20% of the time to avoid too many notifications
     if (Math.random() < 0.2) {
       setTimeout(() => {
         try {
-          showNotification('success', 'Change request draft saved');
+          showNotification('success', 'Change request draft saved locally');
         } catch (notifyErr) {
           console.warn('Could not show save notification:', notifyErr);
         }
@@ -825,17 +868,19 @@ async function saveCurrentData() {
     }
     
     return true;
-  } catch (error) {
-    console.error('Failed to save draft:', error);
-    // Don't show error notification every time to avoid flooding user
-    if (Math.random() < 0.3) {
+  } catch (localStorageError) {
+    console.error('Failed to save draft to localStorage:', localStorageError);
+    
+    // Only show error if we failed to save to both storage mechanisms
+    if (!savedToClientDB && Math.random() < 0.3) {
       try {
         showNotification('error', 'Failed to save draft');
       } catch (notifyErr) {
         console.warn('Could not show error notification:', notifyErr);
       }
     }
-    return false;
+    
+    return savedToClientDB; // Return true if at least client DB save worked
   }
 }
 
@@ -848,6 +893,36 @@ async function clearSavedData() {
     console.log('Saved data cleared');
   } catch (error) {
     console.error('Error clearing saved data', error);
+  }
+}
+
+/**
+ * Clear saved data from all storage locations
+ */
+async function clearSavedData() {
+  let clientDBCleared = false;
+  
+  // Clear from client DB if available
+  if (window.client && window.client.db && typeof window.client.db.delete === 'function') {
+    try {
+      await window.client.db.delete(STORAGE_KEYS.CHANGE_DATA);
+      console.log('Saved data cleared from client DB');
+      clientDBCleared = true;
+    } catch (error) {
+      console.error('Error clearing saved data from client DB:', error);
+    }
+  } else {
+    console.warn('Client DB API not available for clearing data');
+  }
+  
+  // Always clear from localStorage as well
+  try {
+    localStorage.removeItem(STORAGE_KEYS.CHANGE_DATA);
+    console.log('Saved data cleared from localStorage');
+    return true;
+  } catch (localStorageError) {
+    console.error('Error clearing saved data from localStorage:', localStorageError);
+    return clientDBCleared; // Return true if at least client DB was cleared
   }
 }
 
@@ -1082,6 +1157,9 @@ function setupEventListeners() {
 
   // Enhance search inputs with icons and styling
   enhanceSearchInputs();
+  
+  // Add standalone clear buttons for agent and requester fields
+  addClearButtons();
 
   // Change Details tab
   document.getElementById('requester-search').addEventListener('input', debounce(searchRequesters, 300));
@@ -4237,5 +4315,46 @@ function addAssetsToTypeCache(searchTerm, assetTypeId, results) {
   };
   
   console.log(`Cached ${results.length} assets for type ${assetTypeId}, term "${cacheKey}"`);
+}
+
+/**
+ * Function to add standalone clear buttons for agent and requester fields
+ */
+function addClearButtons() {
+  // Create and add the clear requester button
+  const requesterContainer = document.querySelector('.form-group:has(#requester-search)');
+  if (requesterContainer) {
+    const clearRequesterBtn = document.createElement('button');
+    clearRequesterBtn.className = 'btn btn-outline-danger mt-2';
+    clearRequesterBtn.type = 'button';
+    clearRequesterBtn.innerHTML = '<i class="fas fa-times me-1"></i> Clear Requester';
+    clearRequesterBtn.addEventListener('click', clearRequester);
+    
+    // Find the right place to insert the button
+    const selectedRequesterContainer = document.getElementById('selected-requester');
+    if (selectedRequesterContainer) {
+      selectedRequesterContainer.parentNode.insertBefore(clearRequesterBtn, selectedRequesterContainer.nextSibling);
+    } else {
+      requesterContainer.appendChild(clearRequesterBtn);
+    }
+  }
+  
+  // Create and add the clear agent button
+  const agentContainer = document.querySelector('.form-group:has(#agent-search)');
+  if (agentContainer) {
+    const clearAgentBtn = document.createElement('button');
+    clearAgentBtn.className = 'btn btn-outline-danger mt-2';
+    clearAgentBtn.type = 'button';
+    clearAgentBtn.innerHTML = '<i class="fas fa-times me-1"></i> Clear Agent';
+    clearAgentBtn.addEventListener('click', clearAgent);
+    
+    // Find the right place to insert the button
+    const selectedAgentContainer = document.getElementById('selected-agent');
+    if (selectedAgentContainer) {
+      selectedAgentContainer.parentNode.insertBefore(clearAgentBtn, selectedAgentContainer.nextSibling);
+    } else {
+      agentContainer.appendChild(clearAgentBtn);
+    }
+  }
 }
 
