@@ -1086,6 +1086,10 @@ function setupEventListeners() {
 
   // Impacted Assets tab
   document.getElementById('asset-search').addEventListener('input', debounce(searchAssets, 300));
+  document.getElementById('show-all-assets').addEventListener('click', function() {
+    // Trigger asset search with empty search term to show all assets of configured type
+    searchAssets({ target: { value: '' } });
+  });
   document.getElementById('submit-change').addEventListener('click', showSummary);
 
   // Confirmation Modal
@@ -2310,9 +2314,11 @@ function validateRiskAndNext() {
 
 /**
  * Search for assets using Freshservice API
+ * @param {Event|Object} e - Event object from input or click
  */
 function searchAssets(e) {
-  const searchTerm = e.target.value.trim();
+  // Get search term if available, might be empty for initial asset listing
+  const searchTerm = e.target.value ? e.target.value.trim() : '';
   
   // Reset search state for new search
   assetSearchState.currentSearchTerm = searchTerm;
@@ -2320,16 +2326,9 @@ function searchAssets(e) {
   assetSearchState.isLoading = false;
   assetSearchState.hasMoreResults = true;
   assetSearchState.totalResults = 0;
+  assetSearchState.initialLoad = !searchTerm; // Flag to indicate initial asset listing
   
-  // Don't proceed with empty search
-  if (searchTerm.length === 0) {
-    const resultsContainer = document.getElementById('asset-results');
-    resultsContainer.innerHTML = '<div class="list-group-item search-result-item no-results">Type to search</div>';
-    resultsContainer.style.display = 'block';
-    return;
-  }
-
-  // Show loading indicator even for short search terms
+  // Clear search results container
   const resultsContainer = document.getElementById('asset-results');
   resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
   resultsContainer.style.display = 'block';
@@ -2344,6 +2343,42 @@ function searchAssets(e) {
     return;
   }
 
+  // For initial load (no search term), use asset_type_id search only
+  if (!searchTerm) {
+    console.log('Initial asset listing - showing all assets of configured type');
+    
+    // Skip cache check for initial load if force refresh is requested
+    if (!isForceRefresh) {
+      // Use special cache key for initial asset listing
+      getFromSearchCache('assets', 'initial_asset_listing').then(cachedResults => {
+        if (cachedResults) {
+          // Use cached results
+          console.log(`Using CACHED results for initial asset listing (${cachedResults.length} items)`);
+          displayAssetResults('asset-results', cachedResults, selectAsset, true);
+          assetSearchState.totalResults = cachedResults.length;
+          
+          // Setup scroll event for infinite scroll after displaying results
+          setupAssetSearchScroll();
+          return;
+        }
+        
+        // No cache hit, perform initial asset listing
+        console.log('No cache found for initial asset listing, querying API...');
+        performInitialAssetListing();
+      }).catch(error => {
+        console.error('Error checking asset search cache:', error);
+        // Fallback to direct search on cache error
+        performInitialAssetListing();
+      });
+    } else {
+      // Skip cache for forced refresh
+      console.log('Forced refresh requested for initial asset listing, bypassing cache...');
+      performInitialAssetListing();
+    }
+    return;
+  }
+
+  // Regular search with search term
   // Check cache first (unless forced refresh)
   if (!isForceRefresh) {
     getFromSearchCache('assets', searchTerm).then(cachedResults => {
@@ -2386,6 +2421,120 @@ function searchAssets(e) {
     console.log(`Forced refresh requested for "${searchTerm}", bypassing cache...`);
     performAssetSearch(searchTerm, false);
   }
+}
+
+/**
+ * Perform the initial asset listing without search term
+ */
+function performInitialAssetListing() {
+  getInstallationParams().then(params => {
+    const assetTypeId = params.assetTypeId;
+    
+    // Only proceed if asset type ID is configured
+    if (!assetTypeId || assetTypeId <= 0) {
+      console.log('No asset type ID configured, showing empty results');
+      displayAssetResults('asset-results', [], selectAsset);
+      return;
+    }
+    
+    console.log(`Loading initial asset listing for type ID: ${assetTypeId}`);
+    
+    // Format the query to get all assets of the configured type
+    const assetQuery = `asset_type_id:${assetTypeId}`;
+    const encodedQuery = encodeURIComponent(`"${assetQuery}"`);
+    
+    // Function to load assets page
+    async function loadAssetsPage(page = 1, allResults = []) {
+      try {
+        console.log(`Loading initial assets page ${page} with filter ${assetQuery}`);
+        
+        const data = await window.client.request.invokeTemplate("getAssets", {
+          path_suffix: `?include=type_fields&query=${encodedQuery}&page=${page}&per_page=100`
+        });
+        
+        if (!data || !data.response) {
+          return { assets: allResults };
+        }
+        
+        const response = JSON.parse(data.response);
+        const assets = response && response.assets ? response.assets : [];
+        
+        console.log(`Initial asset listing returned ${assets.length} results for page ${page}`);
+        
+        // Log sample asset and check asset type IDs
+        if (assets.length > 0) {
+          console.log('Sample asset:', {
+            id: assets[0].id,
+            name: assets[0].name,
+            display_name: assets[0].display_name,
+            asset_type_id: assets[0].asset_type_id
+          });
+          
+          // Check if assets match the requested type
+          const matchingAssets = assets.filter(a => a.asset_type_id === assetTypeId);
+          console.log(`FILTERING: ${matchingAssets.length} of ${assets.length} assets match type ID ${assetTypeId}`);
+          
+          if (matchingAssets.length === 0 && assets.length > 0) {
+            const uniqueTypes = [...new Set(assets.map(a => a.asset_type_id))];
+            console.log(`Found these asset types instead: ${uniqueTypes.join(', ')}`);
+          }
+        }
+        
+        // API not filtering correctly, so we need to do it manually
+        const filteredAssets = assets.filter(a => a.asset_type_id === assetTypeId);
+        
+        // Combine with previous results
+        const combinedResults = [...allResults, ...filteredAssets];
+        
+        // Continue loading more pages if needed
+        if (assets.length === 100 && page < 3) {
+          await new Promise(resolve => setTimeout(resolve, params.paginationDelay || 500));
+          return await loadAssetsPage(page + 1, combinedResults);
+        }
+        
+        return { assets: combinedResults };
+      } catch (error) {
+        console.error('Error loading initial assets:', error);
+        return { assets: allResults };
+      }
+    }
+    
+    // Start loading from page 1
+    loadAssetsPage(1)
+      .then(response => {
+        const assets = response.assets || [];
+        
+        if (assets.length === 0) {
+          console.log('No assets found of the configured type, showing empty results');
+          displayAssetResults('asset-results', [], selectAsset);
+          return;
+        }
+        
+        // Process assets with needed fields
+        const processedAssets = processAssetResults(assets);
+        
+        // Cache the results for future use
+        addToSearchCache('assets', 'initial_asset_listing', processedAssets);
+        
+        // Display the results
+        displayAssetResults('asset-results', processedAssets, selectAsset);
+        
+        // Setup scroll event
+        setupAssetSearchScroll();
+        
+        // Update total count
+        assetSearchState.totalResults = processedAssets.length;
+      })
+      .catch(error => {
+        console.error('Initial asset listing failed:', error);
+        displayAssetResults('asset-results', [], selectAsset);
+        handleErr('Failed to load initial asset listing. Please try again.');
+      });
+  }).catch(error => {
+    console.error('Failed to get installation params:', error);
+    displayAssetResults('asset-results', [], selectAsset);
+    handleErr('Failed to load configuration. Please refresh and try again.');
+  });
 }
 
 /**
@@ -2465,29 +2614,26 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
     const assetTypeId = params.assetTypeId;
     console.log(`Using configured asset type ID for search: ${assetTypeId}`);
     
-    // Query for the specific asset type
+    // Determine search strategy based on asset type ID and search term
+    let searchStrategy = 'all_assets'; // Default to searching all assets
+    
+    if (assetTypeId && assetTypeId > 0) {
+      searchStrategy = 'filtered_assets'; // If asset type ID is configured, filter by it
+    }
+    
+    console.log(`Search strategy: ${searchStrategy}, Term: "${searchTerm}"`);
+    
+    // Construct the query
     let assetQuery = '';
     
-    // Only apply asset_type_id filter if it's configured
-    if (assetTypeId && assetTypeId > 0) {
+    if (searchStrategy === 'filtered_assets') {
       assetQuery = `asset_type_id:${assetTypeId}`;
     }
     
-    // Encode the query, including both asset type filter and search term if both exist
-    let encodedQuery = '';
-    if (assetQuery && searchTerm) {
-      // Combine asset type filter with search term
-      encodedQuery = encodeURIComponent(`"${assetQuery}" "${searchTerm}"`);
-    } else if (assetQuery) {
-      // Just asset type filter
-      encodedQuery = encodeURIComponent(`"${assetQuery}"`);
-    } else if (searchTerm) {
-      // Just search term
-      encodedQuery = encodeURIComponent(`"${searchTerm}"`);
-    } else {
-      // No filters
-      encodedQuery = '';
-    }
+    // Encode the query
+    const encodedQuery = assetQuery ? 
+      encodeURIComponent(`"${assetQuery}"`) : 
+      '';
     
     console.log(`Asset search query: ${encodedQuery}`);
     
@@ -2498,8 +2644,13 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
     async function loadAssetsPage(page = 1) {
       console.log(`Loading assets page ${page}${assetQuery ? ' with filter ' + assetQuery : ''}`);
       try {
+        // Construct the query parameter
+        const queryParam = encodedQuery ? 
+          `?include=type_fields&query=${encodedQuery}&page=${page}&per_page=100` : 
+          `?include=type_fields&page=${page}&per_page=100`;
+        
         const data = await window.client.request.invokeTemplate("getAssets", {
-          path_suffix: `?include=type_fields&query=${encodedQuery}&page=${page}&per_page=100`
+          path_suffix: queryParam
         });
         
         if (!data || !data.response) {
@@ -2579,12 +2730,19 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
           // Get assets from the response
           const assets = assetsResponse.assets || [];
           
-          // Apply the search term filter to the assets locally if needed
+          // Apply filters based on search strategy
           let filteredAssets = assets;
           
-          // Only apply manual filtering if we didn't use search term in the API query
-          if (searchTerm && !encodedQuery.includes(searchTerm)) {
-            filteredAssets = assets.filter(asset => {
+          // If filtered_assets strategy, filter by asset type if API didn't do it
+          if (searchStrategy === 'filtered_assets' && assetTypeId) {
+            filteredAssets = assets.filter(asset => asset.asset_type_id === assetTypeId);
+            console.log(`Manual asset type filtering: ${filteredAssets.length} of ${assets.length} assets remain`);
+          }
+          
+          // Further filter by search term if provided
+          if (searchTerm) {
+            const initialCount = filteredAssets.length;
+            filteredAssets = filteredAssets.filter(asset => {
               const searchIn = [
                 asset.name || '',
                 asset.display_name || '',
@@ -2593,74 +2751,16 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
                 asset.serial_number || '',
                 asset.product_name || '',
                 asset.vendor_name || ''
-              ].map(text => text.toLowerCase()).join(' ');
+              ].map(text => String(text).toLowerCase()).join(' ');
               
               return searchIn.includes(searchTerm.toLowerCase());
             });
             
-            console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
+            console.log(`Search term filtering "${searchTerm}": ${filteredAssets.length} of ${initialCount} assets remain`);
           }
           
           // Process assets to include only the fields we need
-          const processedAssets = filteredAssets.map(asset => {
-            // Extract fields from type_fields if available
-            const typeFields = asset.type_fields || {};
-            const assetTypeId = asset.asset_type_id;
-            
-            // Helper function to find the correct type field with asset_type_id suffix
-            const getTypeField = (fieldPrefix) => {
-              // Try with suffix first
-              const suffixedKey = Object.keys(typeFields).find(key => 
-                key.startsWith(fieldPrefix) && key.endsWith(`_${assetTypeId}`));
-              
-              // Return the value if found, otherwise null
-              return suffixedKey ? typeFields[suffixedKey] : null;
-            };
-            
-            return {
-              id: asset.id,
-              display_id: asset.display_id,
-              name: asset.name || 'Unnamed Asset',
-              display_name: asset.name || 'Unnamed Asset',
-              type: 'asset',
-              asset_type_id: asset.asset_type_id,
-              asset_type_name: asset.asset_type_name,
-              product_name: asset.product_name,
-              location_name: asset.location_name,
-              department_name: asset.department_name,
-              asset_tag: asset.asset_tag,
-              description: asset.description,
-              // Try to get environment from suffixed type fields first
-              environment: getTypeField('environment') || 
-                          typeFields.environment || 
-                          asset.custom_fields?.environment || 
-                          asset.environment || 
-                          'N/A',
-              // Try to get IP address from suffixed type fields first
-              ip_address: getTypeField('ip_address') || 
-                         getTypeField('ip') || 
-                         typeFields.ip_address || 
-                         typeFields.ip || 
-                         asset.custom_fields?.ip_address || 
-                         asset.ip_address || 
-                         asset.ip || 
-                         'N/A',
-              // Try to get managed by information - could be agent name, vendor, or owner
-              managed_by: getTypeField('managed_by') || 
-                         getTypeField('vendor') || 
-                         typeFields.managed_by || 
-                         typeFields.vendor || 
-                         asset.custom_fields?.managed_by || 
-                         asset.managed_by || 
-                         asset.vendor_name || 
-                         'N/A',
-              // Add hosting model if available
-              hosting_model: getTypeField('hosting_model') ||
-                            typeFields.hosting_model ||
-                            asset.custom_fields?.hosting_model ||
-                            'N/A'
-            };
-          });
+          const processedAssets = processAssetResults(filteredAssets);
           
           // For infinite scroll (page > 1), append to existing results
           if (pageNum > 1) {
@@ -3921,5 +4021,72 @@ function displayAdditionalAssetResults(containerId, results, selectionCallback) 
     
     resultItem.addEventListener('click', () => selectionCallback(result));
     container.appendChild(resultItem);
+  });
+}
+
+/**
+ * Process asset results to extract needed fields
+ * @param {Array} assets - Raw assets from API
+ * @returns {Array} - Processed assets with extracted fields
+ */
+function processAssetResults(assets) {
+  return assets.map(asset => {
+    // Extract fields from type_fields if available
+    const typeFields = asset.type_fields || {};
+    const assetTypeId = asset.asset_type_id;
+    
+    // Helper function to find the correct type field with asset_type_id suffix
+    const getTypeField = (fieldPrefix) => {
+      // Try with suffix first
+      const suffixedKey = Object.keys(typeFields).find(key => 
+        key.startsWith(fieldPrefix) && key.endsWith(`_${assetTypeId}`));
+      
+      // Return the value if found, otherwise null
+      return suffixedKey ? typeFields[suffixedKey] : null;
+    };
+    
+    return {
+      id: asset.id,
+      display_id: asset.display_id,
+      name: asset.name || 'Unnamed Asset',
+      display_name: asset.name || 'Unnamed Asset',
+      type: 'asset',
+      asset_type_id: asset.asset_type_id,
+      asset_type_name: asset.asset_type_name,
+      product_name: asset.product_name,
+      location_name: asset.location_name,
+      department_name: asset.department_name,
+      asset_tag: asset.asset_tag,
+      description: asset.description,
+      // Try to get environment from suffixed type fields first
+      environment: getTypeField('environment') || 
+                  typeFields.environment || 
+                  asset.custom_fields?.environment || 
+                  asset.environment || 
+                  'N/A',
+      // Try to get IP address from suffixed type fields first
+      ip_address: getTypeField('ip_address') || 
+                 getTypeField('ip') || 
+                 typeFields.ip_address || 
+                 typeFields.ip || 
+                 asset.custom_fields?.ip_address || 
+                 asset.ip_address || 
+                 asset.ip || 
+                 'N/A',
+      // Try to get managed by information - could be agent name, vendor, or owner
+      managed_by: getTypeField('managed_by') || 
+                 getTypeField('vendor') || 
+                 typeFields.managed_by || 
+                 typeFields.vendor || 
+                 asset.custom_fields?.managed_by || 
+                 asset.managed_by || 
+                 asset.vendor_name || 
+                 'N/A',
+      // Add hosting model if available
+      hosting_model: getTypeField('hosting_model') ||
+                    typeFields.hosting_model ||
+                    asset.custom_fields?.hosting_model ||
+                    'N/A'
+    };
   });
 }
