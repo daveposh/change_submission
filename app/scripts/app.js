@@ -2321,16 +2321,21 @@ function searchAssets(e) {
   assetSearchState.hasMoreResults = true;
   assetSearchState.totalResults = 0;
   
+  // Don't proceed with empty search
+  if (searchTerm.length === 0) {
+    const resultsContainer = document.getElementById('asset-results');
+    resultsContainer.innerHTML = '<div class="list-group-item search-result-item no-results">Type to search</div>';
+    resultsContainer.style.display = 'block';
+    return;
+  }
+
   // Show loading indicator even for short search terms
   const resultsContainer = document.getElementById('asset-results');
   resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
   resultsContainer.style.display = 'block';
   
-  // Don't proceed with empty search
-  if (searchTerm.length === 0) {
-    resultsContainer.innerHTML = '<div class="list-group-item search-result-item no-results">Type to search</div>';
-    return;
-  }
+  // Check if forced refresh is requested (via button click)
+  const isForceRefresh = e.forceRefresh === true;
 
   // Ensure client is available
   if (!window.client || !window.client.request) {
@@ -2339,40 +2344,48 @@ function searchAssets(e) {
     return;
   }
 
-  // Check cache first
-  getFromSearchCache('assets', searchTerm).then(cachedResults => {
-    if (cachedResults) {
-      // Use cached results
-      displayAssetResults('asset-results', cachedResults, selectAsset);
-      assetSearchState.totalResults = cachedResults.length;
-      
-      // Setup scroll event for infinite scroll after displaying results
-      setupAssetSearchScroll();
-      
-      // Get the configured search cache timeout
-      getInstallationParams().then(params => {
-        const searchCacheTimeout = params.searchCacheTimeout;
+  // Check cache first (unless forced refresh)
+  if (!isForceRefresh) {
+    getFromSearchCache('assets', searchTerm).then(cachedResults => {
+      if (cachedResults) {
+        // Use cached results
+        console.log(`Using CACHED results for "${searchTerm}" (${cachedResults.length} items)`);
+        displayAssetResults('asset-results', cachedResults, selectAsset, true);
+        assetSearchState.totalResults = cachedResults.length;
         
-        // Set a timer to check for fresh results after the timeout
-        setTimeout(() => {
-          // Only perform API call if the search term is still the current one
-          if (assetSearchState.currentSearchTerm === searchTerm) {
-            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
-            performAssetSearch(searchTerm, true);
-          }
-        }, searchCacheTimeout);
-      });
+        // Setup scroll event for infinite scroll after displaying results
+        setupAssetSearchScroll();
+        
+        // Get the configured search cache timeout
+        getInstallationParams().then(params => {
+          const searchCacheTimeout = params.searchCacheTimeout;
+          
+          // Set a timer to check for fresh results after the timeout
+          setTimeout(() => {
+            // Only perform API call if the search term is still the current one
+            if (assetSearchState.currentSearchTerm === searchTerm) {
+              console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
+              performAssetSearch(searchTerm, true);
+            }
+          }, searchCacheTimeout);
+        });
+        
+        return;
+      }
       
-      return;
-    }
-    
-    // No cache hit, perform search immediately
-    performAssetSearch(searchTerm);
-  }).catch(error => {
-    console.error('Error checking asset search cache:', error);
-    // Fallback to direct search on cache error
-    performAssetSearch(searchTerm);
-  });
+      // No cache hit, perform search immediately
+      console.log(`No cache found for "${searchTerm}", querying API...`);
+      performAssetSearch(searchTerm);
+    }).catch(error => {
+      console.error('Error checking asset search cache:', error);
+      // Fallback to direct search on cache error
+      performAssetSearch(searchTerm);
+    });
+  } else {
+    // Skip cache for forced refresh
+    console.log(`Forced refresh requested for "${searchTerm}", bypassing cache...`);
+    performAssetSearch(searchTerm, false);
+  }
 }
 
 /**
@@ -2508,6 +2521,18 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
               type_fields: assets[0].type_fields,
               custom_fields: assets[0].custom_fields
             });
+            
+            // Check if the assets match the requested asset type
+            if (assetTypeId && assetTypeId > 0) {
+              const matchingAssets = assets.filter(a => a.asset_type_id === assetTypeId);
+              console.log(`ASSET TYPE FILTERING: ${matchingAssets.length} of ${assets.length} assets match requested type ID ${assetTypeId}`);
+              
+              if (matchingAssets.length === 0 && assets.length > 0) {
+                // Log all unique asset types returned to help troubleshoot
+                const uniqueTypes = [...new Set(assets.map(a => a.asset_type_id))];
+                console.log(`Found these asset types instead: ${uniqueTypes.join(', ')}`);
+              }
+            }
           }
           
           // Store the results for this page
@@ -2760,10 +2785,51 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
   });
 }
 
-function displayAssetResults(containerId, results, selectionCallback) {
+/**
+ * Display asset search results
+ * @param {string} containerId - ID of container element
+ * @param {Array} results - Results to display
+ * @param {Function} selectionCallback - Callback for when an item is selected
+ * @param {boolean} isFromCache - Whether results are from cache
+ */
+function displayAssetResults(containerId, results, selectionCallback, isFromCache = false) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
   container.style.display = results.length ? 'block' : 'none';
+  
+  // Add refresh button and cache indicator at top
+  if (results.length > 0) {
+    const headerRow = document.createElement('div');
+    headerRow.className = 'd-flex justify-content-between align-items-center mb-2 p-2 bg-light border-bottom search-header';
+    
+    // Create count and cache indicator
+    const resultsCount = document.createElement('div');
+    resultsCount.className = 'small text-secondary';
+    
+    if (isFromCache) {
+      resultsCount.innerHTML = `<i class="fas fa-database me-1"></i> ${results.length} cached results`;
+    } else {
+      resultsCount.innerHTML = `<i class="fas fa-search me-1"></i> ${results.length} results`;
+    }
+    
+    // Create refresh button
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'btn btn-sm btn-outline-secondary';
+    refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Refresh';
+    refreshBtn.title = 'Force refresh from API';
+    refreshBtn.onclick = function(e) {
+      e.stopPropagation();
+      // Call searchAssets with force refresh flag
+      searchAssets({
+        target: { value: assetSearchState.currentSearchTerm },
+        forceRefresh: true
+      });
+    };
+    
+    headerRow.appendChild(resultsCount);
+    headerRow.appendChild(refreshBtn);
+    container.appendChild(headerRow);
+  }
   
   if (results.length === 0) {
     container.innerHTML = '<div class="list-group-item search-result-item no-results">No results found</div>';
@@ -2795,12 +2861,28 @@ function displayAssetResults(containerId, results, selectionCallback) {
     
     headerDiv.appendChild(nameDiv);
     
-    // Type badge - different colors for asset vs service
-    const typeDiv = document.createElement('div');
-    const isAsset = result.type === 'asset';
-    typeDiv.innerHTML = `<span class="badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'}">${isAsset ? 'Asset' : 'Service'}</span>`;
-    headerDiv.appendChild(typeDiv);
+    // Type badge and badges container
+    const badgesDiv = document.createElement('div');
+    badgesDiv.className = 'd-flex align-items-center gap-2';
     
+    // Asset Type ID badge to help troubleshoot
+    if (result.asset_type_id) {
+      const typeIdBadge = document.createElement('span');
+      typeIdBadge.className = 'badge bg-secondary text-white';
+      typeIdBadge.title = 'Asset Type ID';
+      typeIdBadge.textContent = `Type: ${result.asset_type_id}`;
+      typeIdBadge.style.fontSize = '0.7em';
+      badgesDiv.appendChild(typeIdBadge);
+    }
+    
+    // Type badge - different colors for asset vs service
+    const typeDiv = document.createElement('span');
+    const isAsset = result.type === 'asset';
+    typeDiv.className = `badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'}`;
+    typeDiv.textContent = isAsset ? 'Asset' : 'Service';
+    badgesDiv.appendChild(typeDiv);
+    
+    headerDiv.appendChild(badgesDiv);
     resultItem.appendChild(headerDiv);
     
     // Additional information based on asset type
@@ -3402,6 +3484,19 @@ document.addEventListener('DOMContentLoaded', function() {
       background-color: #f8f9fa;
       font-size: 0.9em;
     }
+    /* Asset type badge styles */
+    .badge.bg-secondary {
+      font-weight: normal;
+      opacity: 0.8;
+    }
+    /* Cache indicator styles */
+    .search-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background-color: #f8f9fa;
+      border-bottom: 1px solid #dee2e6;
+    }
   `;
   document.head.appendChild(style);
 });
@@ -3730,12 +3825,28 @@ function displayAdditionalAssetResults(containerId, results, selectionCallback) 
     
     headerDiv.appendChild(nameDiv);
     
-    // Type badge - different colors for asset vs service
-    const typeDiv = document.createElement('div');
-    const isAsset = result.type === 'asset';
-    typeDiv.innerHTML = `<span class="badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'}">${isAsset ? 'Asset' : 'Service'}</span>`;
-    headerDiv.appendChild(typeDiv);
+    // Type badge and badges container
+    const badgesDiv = document.createElement('div');
+    badgesDiv.className = 'd-flex align-items-center gap-2';
     
+    // Asset Type ID badge to help troubleshoot
+    if (result.asset_type_id) {
+      const typeIdBadge = document.createElement('span');
+      typeIdBadge.className = 'badge bg-secondary text-white';
+      typeIdBadge.title = 'Asset Type ID';
+      typeIdBadge.textContent = `Type: ${result.asset_type_id}`;
+      typeIdBadge.style.fontSize = '0.7em';
+      badgesDiv.appendChild(typeIdBadge);
+    }
+    
+    // Type badge - different colors for asset vs service
+    const typeDiv = document.createElement('span');
+    const isAsset = result.type === 'asset';
+    typeDiv.className = `badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'}`;
+    typeDiv.textContent = isAsset ? 'Asset' : 'Service';
+    badgesDiv.appendChild(typeDiv);
+    
+    headerDiv.appendChild(badgesDiv);
     resultItem.appendChild(headerDiv);
     
     // Additional information based on asset type
