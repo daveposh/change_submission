@@ -1,0 +1,7 @@
+   // Encode the query 
+    const encodedQuery = assetQuery ? 
+      encodeURIComponent(`"${assetQuery}"`) : 
+      ''; 
+ 
+    console.log(`Asset search query: ${encodedQuery}`); 
+    console.log(`Full API path will be: assets?include=type_fields&query=${encodedQuery}`); 

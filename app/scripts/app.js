@@ -2684,11 +2684,6 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
       encodeURIComponent(`"${assetQuery}"`) : 
       '';
       
-    // Create the filter parameter for the specific asset_type_id
-    const assetTypeFilter = assetTypeId && assetTypeId > 0 ? 
-      `&filter="asset_type_id:${assetTypeId}"` : 
-      '';
-    
     console.log(`Asset search query: ${encodedQuery}`);
     console.log(`Full API path will be: assets?include=type_fields&query=${encodedQuery}`);
     
