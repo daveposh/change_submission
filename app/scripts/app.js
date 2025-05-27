@@ -30,7 +30,8 @@ const STORAGE_KEYS = {
   CHANGE_DATA: 'change_request_data',
   DRAFT_ID: 'change_request_draft_id',
   LOCATION_CACHE: 'location_cache',
-  USER_CACHE: 'user_cache'
+  USER_CACHE: 'user_cache',
+  ASSET_TYPE_CACHE: 'asset_type_cache'
 };
 
 // Cache timeout in milliseconds (24 hours)
@@ -105,14 +106,12 @@ const DEFAULT_INVENTORY_TYPE_ID = 33000752344;
 
 const changeTypeTooltips = {
   'standard': 'Standard Changes: All changes to critical assets > automate predefined/repeatable changes as much as possible',
-  'non-production': 'Non-Production Changes: used for non-prod designated assets, such as a dev server for ceifx, or amptest',
   'emergency': 'Emergency Changes: Changes arise from an unexpected error/issue and need to be addressed immediately to restore service for customers or employees, or to secure a system against a threat',
   'non-standard': 'Non-standard change: any change that requires an exception to the policy'
 };
 
 const leadTimeText = {
   'standard': '2 business days',
-  'non-production': 'No lead time required, based on availability',
   'emergency': 'No lead time required',
   'non-standard': '2 business days'
 };
@@ -251,6 +250,253 @@ async function fetchAllLocations() {
   } catch (error) {
     console.error('Error in fetchAllLocations:', error);
     return {};
+  }
+}
+
+/**
+ * Fetch all asset types from the API and store them in the cache
+ * @returns {Promise<Object>} - Cached asset types
+ */
+async function fetchAllAssetTypes() {
+  console.log('Fetching all asset types from API');
+  
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for asset types fetch');
+    return {};
+  }
+
+  try {
+    const allAssetTypes = {};
+    let page = 1;
+    let hasMorePages = true;
+    
+    // Function to load asset types from a specific page
+    async function loadAssetTypesPage(pageNum) {
+      console.log(`Loading asset types page ${pageNum}`);
+      
+      try {
+        // Use raw request to access asset types API
+        const response = await window.client.request.get(`/api/v2/asset_types?page=${pageNum}&per_page=100`);
+        
+        if (!response || !response.response) {
+          console.error('Invalid asset types response:', response);
+          return { assetTypes: [], more: false };
+        }
+        
+        try {
+          const parsedData = JSON.parse(response.response || '{"asset_types":[]}');
+          const assetTypes = parsedData.asset_types || [];
+          
+          // Check if we might have more pages (received full page of results)
+          const hasMore = assetTypes.length === 100;
+          
+          return { assetTypes, more: hasMore };
+        } catch (parseError) {
+          console.error('Error parsing asset types response:', parseError);
+          return { assetTypes: [], more: false };
+        }
+      } catch (error) {
+        console.error(`Error fetching asset types page ${pageNum}:`, error);
+        return { assetTypes: [], more: false };
+      }
+    }
+    
+    // Load all pages of asset types
+    while (hasMorePages) {
+      const { assetTypes, more } = await loadAssetTypesPage(page);
+      
+      // Process asset types and add to cache
+      assetTypes.forEach(assetType => {
+        if (assetType && assetType.id && assetType.name) {
+          allAssetTypes[assetType.id] = {
+            name: assetType.name,
+            description: assetType.description || '',
+            visible: assetType.visible || false,
+            timestamp: Date.now()
+          };
+        }
+      });
+      
+      // Check if we should load more pages
+      hasMorePages = more;
+      page++;
+      
+      // Safety check to prevent infinite loops
+      if (page > 10) {
+        console.warn('Reached maximum number of asset type pages (10)');
+        break;
+      }
+      
+      // Add pagination delay if we're loading more pages
+      if (hasMorePages) {
+        const params = await getInstallationParams();
+        const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+        await new Promise(resolve => setTimeout(resolve, paginationDelay));
+      }
+    }
+    
+    // Save all asset types to cache
+    if (Object.keys(allAssetTypes).length > 0) {
+      console.log(`Caching ${Object.keys(allAssetTypes).length} asset types`);
+      await cacheAssetTypes(allAssetTypes);
+    } else {
+      console.warn('No asset types found to cache');
+    }
+    
+    return allAssetTypes;
+  } catch (error) {
+    console.error('Error in fetchAllAssetTypes:', error);
+    return {};
+  }
+}
+
+/**
+ * Get cached asset types from storage
+ * @returns {Promise<Object>} - Cached asset types
+ */
+async function getCachedAssetTypes() {
+  try {
+    // Try to get cached asset types
+    const result = await window.client.db.get(STORAGE_KEYS.ASSET_TYPE_CACHE);
+    return result || {};
+  } catch (error) {
+    // If error or not found, return empty cache
+    console.log('No asset type cache found or error:', error);
+    return {};
+  }
+}
+
+/**
+ * Save asset types to cache
+ * @param {Object} assetTypes - Asset types to cache
+ * @returns {Promise<boolean>} - Success status
+ */
+async function cacheAssetTypes(assetTypes) {
+  try {
+    await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, assetTypes);
+    console.log('Asset type cache updated');
+    return true;
+  } catch (error) {
+    console.error('Failed to save asset type cache:', error);
+    return false;
+  }
+}
+
+/**
+ * Get asset type name by ID with caching
+ * @param {number} assetTypeId - Asset type ID 
+ * @returns {Promise<string>} - Asset type name
+ */
+async function getAssetTypeName(assetTypeId) {
+  if (!assetTypeId) return 'Unknown';
+  
+  // Check for client availability
+  if (!window.client || !window.client.db) {
+    console.error('Client not available for asset type lookup');
+    return 'Unknown';
+  }
+
+  try {
+    // Check cache first
+    const cachedAssetTypes = await getCachedAssetTypes();
+    
+    // If asset type is in cache and not expired, use it
+    if (cachedAssetTypes[assetTypeId] && 
+        cachedAssetTypes[assetTypeId].timestamp > Date.now() - CACHE_TIMEOUT) {
+      console.log(`Using cached asset type: ${cachedAssetTypes[assetTypeId].name}`);
+      return cachedAssetTypes[assetTypeId].name;
+    }
+    
+    // If not in cache or expired, fetch from API
+    // But first, check if we can trigger a full refresh to benefit other asset types too
+    if (Object.keys(cachedAssetTypes).length === 0 || 
+        Object.values(cachedAssetTypes).some(type => type.timestamp < Date.now() - CACHE_TIMEOUT)) {
+      console.log('Asset type cache expired or empty, fetching all asset types');
+      const allAssetTypes = await fetchAllAssetTypes();
+      
+      // Check if our target asset type was included in the refresh
+      if (allAssetTypes[assetTypeId]) {
+        return allAssetTypes[assetTypeId].name;
+      }
+    }
+    
+    // If we still don't have the asset type after a refresh attempt, get it individually
+    console.log(`Fetching individual asset type ${assetTypeId} from API`);
+    const response = await window.client.request.get(`/api/v2/asset_types/${assetTypeId}`);
+    
+    if (!response || !response.response) {
+      console.error('Invalid asset type response:', response);
+      return 'Unknown';
+    }
+    
+    try {
+      const parsedData = JSON.parse(response.response || '{}');
+      if (parsedData && parsedData.asset_type && parsedData.asset_type.name) {
+        const assetTypeName = parsedData.asset_type.name;
+        
+        // Update cache
+        cachedAssetTypes[assetTypeId] = {
+          name: assetTypeName,
+          description: parsedData.asset_type.description || '',
+          visible: parsedData.asset_type.visible || false,
+          timestamp: Date.now()
+        };
+        await cacheAssetTypes(cachedAssetTypes);
+        
+        return assetTypeName;
+      }
+      return 'Unknown';
+    } catch (parseError) {
+      console.error('Error parsing asset type response:', parseError);
+      return 'Unknown';
+    }
+  } catch (error) {
+    console.error('Error fetching asset type:', error);
+    return 'Unknown';
+  }
+}
+
+/**
+ * Find the software/services asset type ID from cached asset types
+ * @returns {Promise<number|null>} - Asset type ID for software/services or null if not found
+ */
+async function findSoftwareServicesAssetTypeId() {
+  try {
+    const cachedAssetTypes = await getCachedAssetTypes();
+    
+    // If cache is empty or expired, fetch fresh data
+    if (Object.keys(cachedAssetTypes).length === 0 || 
+        Object.values(cachedAssetTypes).some(type => type.timestamp < Date.now() - CACHE_TIMEOUT)) {
+      console.log('Fetching asset types to find software/services type');
+      await fetchAllAssetTypes();
+      // Get the updated cache
+      const updatedCache = await getCachedAssetTypes();
+      Object.assign(cachedAssetTypes, updatedCache);
+    }
+    
+    // Look for asset types that might be software/services
+    // Common names include: Software, Service, Application, etc.
+    const softwareKeywords = ['software', 'service', 'application', 'app', 'system', 'platform'];
+    
+    for (const [id, assetType] of Object.entries(cachedAssetTypes)) {
+      const name = assetType.name.toLowerCase();
+      const description = (assetType.description || '').toLowerCase();
+      
+      // Check if the name or description contains software/service keywords
+      if (softwareKeywords.some(keyword => 
+          name.includes(keyword) || description.includes(keyword))) {
+        console.log(`Found potential software/services asset type: ${assetType.name} (ID: ${id})`);
+        return parseInt(id);
+      }
+    }
+    
+    // If no specific software/services type found, fall back to default
+    console.warn('No specific software/services asset type found, using default');
+    return DEFAULT_INVENTORY_TYPE_ID;
+  } catch (error) {
+    console.error('Error finding software/services asset type:', error);
+    return DEFAULT_INVENTORY_TYPE_ID;
   }
 }
 
@@ -603,13 +849,16 @@ function initializeApp() {
             setupEventListeners();
             setupChangeTypeTooltips();
             
-            // Fetch and cache all locations and most frequently used users
+            // Fetch and cache all locations, users, and asset types
             Promise.all([
               fetchAllLocations().catch(err => {
                 console.error("Error in fetchAllLocations:", err);
               }),
               fetchUsers().catch(err => {
                 console.error("Error in fetchUsers:", err);
+              }),
+              fetchAllAssetTypes().catch(err => {
+                console.error("Error in fetchAllAssetTypes:", err);
               })
             ]);
             
@@ -1127,7 +1376,7 @@ function enhanceSearchInputs() {
   }
   
   if (assetSearch) {
-    assetSearch.placeholder = 'Search for assets or services...';
+    assetSearch.placeholder = 'Search for software and services...';
     assetSearch.classList.add('form-control');
   }
   
@@ -1135,7 +1384,7 @@ function enhanceSearchInputs() {
   // This avoids complex DOM manipulation that might cause FDK issues
   addIconLabel('requester-search-label', 'fas fa-user', 'Requester');
   addIconLabel('agent-search-label', 'fas fa-user-tie', 'Agent');
-  addIconLabel('asset-search-label', 'fas fa-desktop', 'Assets/Services');
+  addIconLabel('asset-search-label', 'fas fa-cogs', 'Software/Services');
 }
 
 // Helper to add icon labels
@@ -2357,7 +2606,7 @@ function searchAssets(e) {
  * @param {string} searchTerm - The search term
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
  */
-function performAssetSearch(searchTerm, isRefresh = false) {
+async function performAssetSearch(searchTerm, isRefresh = false) {
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
     const resultsContainer = document.getElementById('asset-results');
@@ -2365,10 +2614,10 @@ function performAssetSearch(searchTerm, isRefresh = false) {
     resultsContainer.style.display = 'block';
   }
   
-  // Use fixed asset_type_id: 37000374722 as specified
-  const assetTypeId = 37000374722;
+  // Find the correct software/services asset type ID from cache
+  const assetTypeId = await findSoftwareServicesAssetTypeId();
   // Log asset type ID
-  console.log(`Using specified asset type ID for search: ${assetTypeId}`);
+  console.log(`Using software/services asset type ID for search: ${assetTypeId}`);
 
   // Query for the specific asset type and filter by search term
   const assetTypeQuery = `asset_type_id:${assetTypeId}`;
@@ -2425,7 +2674,7 @@ function performAssetSearch(searchTerm, isRefresh = false) {
   
   // Start loading assets from page 1
   loadAssetsPage(1)
-    .then(function(assetsResponse) {
+    .then(async function(assetsResponse) {
       try {
         // Get assets from the response
         const assets = assetsResponse.assets || [];
@@ -2448,20 +2697,20 @@ function performAssetSearch(searchTerm, isRefresh = false) {
         console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
         
         // Process assets to include only display name and ID
-        const processedAssets = filteredAssets.map(asset => ({
+        const processedAssets = await Promise.all(filteredAssets.map(async asset => ({
           id: asset.id,
-          name: asset.display_name || asset.name || 'Unnamed Asset',
-          display_name: asset.display_name || asset.name || 'Unnamed Asset',
-          type: 'asset',
+          name: asset.display_name || asset.name || 'Unnamed Service',
+          display_name: asset.display_name || asset.name || 'Unnamed Service',
+          type: 'service', // Mark as service since we're filtering for software/services
           asset_type_id: asset.asset_type_id,
-          asset_type_name: asset.asset_type_name,
+          asset_type_name: asset.asset_type_name || await getAssetTypeName(asset.asset_type_id),
           product_name: asset.product_name,
           location_name: asset.location_name,
           department_name: asset.department_name,
           environment: asset.custom_fields?.environment || asset.environment || 'N/A',
           ip_address: asset.custom_fields?.ip_address || asset.ip_address || asset.ip || 'N/A',
           managed_by: asset.custom_fields?.managed_by || asset.managed_by || 'N/A'
-        }));
+        })));
         
         // Cache the results
         addToSearchCache('assets', searchTerm, processedAssets);
@@ -2507,8 +2756,8 @@ function displayAssetResults(containerId, results, selectionCallback) {
     
     // Type badge - different colors for asset vs service
     const typeDiv = document.createElement('div');
-    const isAsset = result.type === 'asset';
-    typeDiv.innerHTML = `<span class="badge ${isAsset ? 'bg-success' : 'bg-warning text-dark'}">${isAsset ? 'Asset' : 'Service'}</span>`;
+    const isService = result.type === 'service';
+    typeDiv.innerHTML = `<span class="badge ${isService ? 'bg-warning text-dark' : 'bg-success'}">${isService ? 'Service' : 'Asset'}</span>`;
     headerDiv.appendChild(typeDiv);
     
     resultItem.appendChild(headerDiv);
@@ -2722,7 +2971,7 @@ function renderSelectedAssets() {
 
 function showSummary() {
   if (changeRequestData.selectedAssets.length === 0) {
-    showNotification('error', 'Please select at least one impacted asset');
+    showNotification('error', 'Please select at least one impacted service or asset');
     return;
   }
   
@@ -2770,10 +3019,10 @@ function showSummary() {
     </div>
     
     <div class="summary-section">
-      <h5>Impacted Assets (${changeRequestData.selectedAssets.length})</h5>
+      <h5>Impacted Services/Assets (${changeRequestData.selectedAssets.length})</h5>
       <hr>
       <ul class="list-group">
-        ${changeRequestData.selectedAssets.map(asset => `<li class="list-group-item">${asset.name} <span class="badge bg-secondary">${asset.type}</span></li>`).join('')}
+        ${changeRequestData.selectedAssets.map(asset => `<li class="list-group-item">${asset.name} <span class="badge ${asset.type === 'service' ? 'bg-warning text-dark' : 'bg-success'}">${asset.type === 'service' ? 'Service' : 'Asset'}</span></li>`).join('')}
       </ul>
     </div>
   `;

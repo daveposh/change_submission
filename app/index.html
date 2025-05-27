@@ -23,7 +23,7 @@
             <button class="nav-link" id="risk-tab" data-bs-toggle="tab" data-bs-target="#risk-assessment" type="button" role="tab" aria-controls="risk-assessment" aria-selected="false">Risk Assessment</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="assets-tab" data-bs-toggle="tab" data-bs-target="#impacted-assets" type="button" role="tab" aria-controls="impacted-assets" aria-selected="false">Impacted Assets</button>
+            <button class="nav-link" id="assets-tab" data-bs-toggle="tab" data-bs-target="#impacted-assets" type="button" role="tab" aria-controls="impacted-assets" aria-selected="false">Impacted Services</button>
           </li>
         </ul>
 
@@ -54,7 +54,6 @@
                 <label for="change-type" class="form-label">Change Type:</label>
                 <select id="change-type" class="form-select">
                   <option value="standard">Standard Change</option>
-                  <option value="non-production">Non-Production Change</option>
                   <option value="emergency">Emergency Change</option>
                   <option value="non-standard">Non-standard Change</option>
                 </select>
@@ -243,18 +242,18 @@
 
           <!-- Impacted Assets Tab -->
           <div class="tab-pane fade" id="impacted-assets" role="tabpanel" aria-labelledby="assets-tab">
-            <h3 class="mb-4">Impacted Assets</h3>
+            <h3 class="mb-4">Impacted Services/Assets</h3>
             
             <div class="form-group mb-4">
-              <label class="form-label">Search for Assets or Services:</label>
+              <label class="form-label">Search for Software/Services:</label>
               <div class="search-input-container">
-                <input type="text" id="asset-search" class="form-control" placeholder="Search for assets or services">
+                <input type="text" id="asset-search" class="form-control" placeholder="Search for software and services">
                 <div id="asset-results" class="search-results list-group"></div>
               </div>
             </div>
 
             <div class="selected-assets-container mb-4">
-              <h4 class="mb-3">Selected Assets</h4>
+              <h4 class="mb-3">Selected Services/Assets</h4>
               <div id="selected-assets" class="selected-assets-list p-3 border rounded"></div>
             </div>
 
