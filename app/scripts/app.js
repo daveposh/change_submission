@@ -885,18 +885,6 @@ async function saveCurrentData() {
 }
 
 /**
- * Clear saved data from storage
- */
-async function clearSavedData() {
-  try {
-    await window.client.db.delete(STORAGE_KEYS.CHANGE_DATA);
-    console.log('Saved data cleared');
-  } catch (error) {
-    console.error('Error clearing saved data', error);
-  }
-}
-
-/**
  * Clear saved data from all storage locations
  */
 async function clearSavedData() {
