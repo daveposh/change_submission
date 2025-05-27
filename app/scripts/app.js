@@ -46,7 +46,8 @@ const DEFAULT_PAGINATION_DELAY = 500;
 const searchCache = {
   requesters: {}, // Map of search term -> { results, timestamp }
   agents: {},     // Map of search term -> { results, timestamp }
-  assets: {}      // Map of search term -> { results, timestamp }
+  assets: {},     // Map of search term -> { results, timestamp }
+  assetsByType: {} // Map of assetTypeId -> search term -> { results, timestamp }
 };
 
 // Asset type cache
@@ -613,7 +614,7 @@ function initializeApp() {
             setupEventListeners();
             setupChangeTypeTooltips();
             
-            // Fetch and cache all locations and most frequently used users
+            // Fetch and cache all locations, users, and asset types
             Promise.all([
               fetchAllLocations().catch(err => {
                 console.error("Error in fetchAllLocations:", err);
@@ -621,6 +622,7 @@ function initializeApp() {
               fetchUsers().catch(err => {
                 console.error("Error in fetchUsers:", err);
               }),
+              // Pre-cache asset types - this will load all asset types for display and filtering
               fetchAllAssetTypes().catch(err => {
                 console.error("Error in fetchAllAssetTypes:", err);
               })
@@ -636,9 +638,20 @@ function initializeApp() {
                   return;
                 }
                 
+                // Load saved form data
                 loadSavedData().catch(err => {
                   console.error("Error in loadSavedData promise:", err);
                 });
+                
+                // Pre-load asset search results in the background (will use cached asset types)
+                setTimeout(() => {
+                  try {
+                    // Initial search with empty term (will use asset_type_id from config)
+                    searchAssets({ target: { value: '' } });
+                  } catch (assetErr) {
+                    console.error("Error pre-loading assets:", assetErr);
+                  }
+                }, 500);
               } catch (dataErr) {
                 console.error("Exception during data loading:", dataErr);
               }
@@ -1091,6 +1104,16 @@ function setupEventListeners() {
     searchAssets({ target: { value: '' } });
   });
   document.getElementById('submit-change').addEventListener('click', showSummary);
+  
+  // Load assets automatically when the Assets tab is shown
+  document.getElementById('assets-tab').addEventListener('shown.bs.tab', function() {
+    // Only load if we haven't already loaded assets
+    if (document.getElementById('asset-results').children.length <= 1) {
+      console.log('Assets tab shown - loading initial asset listing');
+      // Trigger the show all assets function
+      searchAssets({ target: { value: '' } });
+    }
+  });
   
   // Load assets automatically when the Assets tab is shown
   document.getElementById('assets-tab').addEventListener('shown.bs.tab', function() {
@@ -2359,25 +2382,34 @@ function searchAssets(e) {
     
     // Skip cache check for initial load if force refresh is requested
     if (!isForceRefresh) {
-      // Use special cache key for initial asset listing
-      getFromSearchCache('assets', 'initial_asset_listing').then(cachedResults => {
-        if (cachedResults) {
-          // Use cached results
-          console.log(`Using CACHED results for initial asset listing (${cachedResults.length} items)`);
-          displayAssetResults('asset-results', cachedResults, selectAsset, true);
-          assetSearchState.totalResults = cachedResults.length;
-          
-          // Setup scroll event for infinite scroll after displaying results
-          setupAssetSearchScroll();
-          return;
-        }
+      // Get the asset type ID from configuration
+      getInstallationParams().then(params => {
+        const assetTypeId = params.assetTypeId;
         
-        // No cache hit, perform initial asset listing
-        console.log('No cache found for initial asset listing, querying API...');
-        performInitialAssetListing();
+        // Use special cache key for initial asset listing with asset type ID
+        getAssetsByTypeFromCache('initial_asset_listing', assetTypeId).then(cachedResults => {
+          if (cachedResults) {
+            // Use cached results
+            console.log(`Using CACHED results for initial asset listing type ${assetTypeId} (${cachedResults.length} items)`);
+            displayAssetResults('asset-results', cachedResults, selectAsset, true);
+            assetSearchState.totalResults = cachedResults.length;
+            
+            // Setup scroll event for infinite scroll after displaying results
+            setupAssetSearchScroll();
+            return;
+          }
+          
+          // No cache hit, perform initial asset listing
+          console.log(`No cache found for initial asset listing type ${assetTypeId}, querying API...`);
+          performInitialAssetListing();
+        }).catch(error => {
+          console.error('Error checking asset search cache:', error);
+          // Fallback to direct search on cache error
+          performInitialAssetListing();
+        });
       }).catch(error => {
-        console.error('Error checking asset search cache:', error);
-        // Fallback to direct search on cache error
+        console.error('Error getting installation parameters:', error);
+        // Fallback to direct search on params error
         performInitialAssetListing();
       });
     } else {
@@ -2391,18 +2423,22 @@ function searchAssets(e) {
   // Regular search with search term
   // Check cache first (unless forced refresh)
   if (!isForceRefresh) {
-    getFromSearchCache('assets', searchTerm).then(cachedResults => {
-      if (cachedResults) {
-        // Use cached results
-        console.log(`Using CACHED results for "${searchTerm}" (${cachedResults.length} items)`);
-        displayAssetResults('asset-results', cachedResults, selectAsset, true);
-        assetSearchState.totalResults = cachedResults.length;
-        
-        // Setup scroll event for infinite scroll after displaying results
-        setupAssetSearchScroll();
-        
-        // Get the configured search cache timeout
-        getInstallationParams().then(params => {
+    // Get the configured asset type ID
+    getInstallationParams().then(params => {
+      const assetTypeId = params.assetTypeId;
+      
+      // Check typed-specific cache
+      getAssetsByTypeFromCache(searchTerm, assetTypeId).then(cachedResults => {
+        if (cachedResults) {
+          // Use cached results
+          console.log(`Using CACHED results for type ${assetTypeId}, term "${searchTerm}" (${cachedResults.length} items)`);
+          displayAssetResults('asset-results', cachedResults, selectAsset, true);
+          assetSearchState.totalResults = cachedResults.length;
+          
+          // Setup scroll event for infinite scroll after displaying results
+          setupAssetSearchScroll();
+          
+          // Get the configured search cache timeout
           const searchCacheTimeout = params.searchCacheTimeout;
           
           // Set a timer to check for fresh results after the timeout
@@ -2413,18 +2449,18 @@ function searchAssets(e) {
               performAssetSearch(searchTerm, true);
             }
           }, searchCacheTimeout);
-        });
+          
+          return;
+        }
         
-        return;
-      }
-      
-      // No cache hit, perform search immediately
-      console.log(`No cache found for "${searchTerm}", querying API...`);
-      performAssetSearch(searchTerm);
-    }).catch(error => {
-      console.error('Error checking asset search cache:', error);
-      // Fallback to direct search on cache error
-      performAssetSearch(searchTerm);
+        // No cache hit, perform search immediately
+        console.log(`No cache found for type ${assetTypeId}, term "${searchTerm}", querying API...`);
+        performAssetSearch(searchTerm);
+      }).catch(error => {
+        console.error('Error checking asset search cache:', error);
+        // Fallback to direct search on cache error
+        performAssetSearch(searchTerm);
+      });
     });
   } else {
     // Skip cache for forced refresh
@@ -2526,8 +2562,8 @@ function performInitialAssetListing() {
         // Process assets with needed fields
         const processedAssets = processAssetResults(assets);
         
-        // Cache the results for future use
-        addToSearchCache('assets', 'initial_asset_listing', processedAssets);
+        // Cache the results for future use with asset type ID
+        addAssetsToTypeCache('initial_asset_listing', assetTypeId, processedAssets);
         
         // Display the results
         displayAssetResults('asset-results', processedAssets, selectAsset);
@@ -2647,6 +2683,11 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
     const encodedQuery = assetQuery ? 
       encodeURIComponent(`"${assetQuery}"`) : 
       '';
+      
+    // Create the filter parameter for the specific asset_type_id
+    const assetTypeFilter = assetTypeId && assetTypeId > 0 ? 
+      `&filter="asset_type_id:${assetTypeId}"` : 
+      '';
     
     console.log(`Asset search query: ${encodedQuery}`);
     console.log(`Full API path will be: assets?include=type_fields&query=${encodedQuery}`);
@@ -2659,11 +2700,28 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
       console.log(`Loading assets page ${page}${assetQuery ? ' with filter ' + assetQuery : ''}`);
       try {
         // Construct the query parameter - always include type_fields
-        const queryParam = encodedQuery ? 
-          `?include=type_fields&query=${encodedQuery}&page=${page}&per_page=100` : 
-          `?include=type_fields&page=${page}&per_page=100`;
+        // Add the asset_type_id filter if configured
+        const searchParam = encodedQuery ? `query=${encodedQuery}` : '';
+        let queryParam = `?include=type_fields&page=${page}&per_page=100`;
+        
+        if (searchParam) {
+          queryParam += `&${searchParam}`;
+        }
+        
+        // Add the filter parameter if available
+        if (assetTypeFilter) {
+          queryParam += assetTypeFilter;
+          console.log('Using asset type filter:', assetTypeFilter);
+        }
         
         console.log(`API request path: ${queryParam}`);
+        
+        // Special search parameter for user's search term
+        const searchQueryParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : '';
+        if (searchQueryParam) {
+          queryParam += searchQueryParam;
+          console.log('Using search parameter:', searchQueryParam);
+        }
         
         const data = await window.client.request.invokeTemplate("getAssets", {
           path_suffix: queryParam
@@ -2780,8 +2838,8 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
           
           // For infinite scroll (page > 1), append to existing results
           if (pageNum > 1) {
-            // Get existing cached results
-            getFromSearchCache('assets', searchTerm).then(existingResults => {
+            // Get existing cached results with asset type ID
+            getAssetsByTypeFromCache(searchTerm, assetTypeId).then(existingResults => {
               // Remove the loading indicator
               const loadingIndicator = document.getElementById('load-more-indicator');
               if (loadingIndicator) {
@@ -2802,8 +2860,8 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
                   // Combine existing and new results
                   const combinedResults = [...existingResults, ...newResults];
                   
-                  // Update the cache
-                  addToSearchCache('assets', searchTerm, combinedResults);
+                  // Update the cache with asset type ID
+                  addAssetsToTypeCache(searchTerm, assetTypeId, combinedResults);
                   
                   // Append only the new results to the display
                   displayAdditionalAssetResults('asset-results', newResults, selectAsset);
@@ -2825,7 +2883,7 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
                 }
               } else {
                 // No existing results, use the new ones
-                addToSearchCache('assets', searchTerm, processedAssets);
+                addAssetsToTypeCache(searchTerm, assetTypeId, processedAssets);
                 displayAssetResults('asset-results', processedAssets, selectAsset);
                 assetSearchState.totalResults = processedAssets.length;
               }
@@ -2838,8 +2896,8 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
             });
           } else {
             // Initial search or refresh
-            // Cache the results
-            addToSearchCache('assets', searchTerm, processedAssets);
+            // Cache the results with asset type ID
+            addAssetsToTypeCache(searchTerm, assetTypeId, processedAssets);
             
             // Display the results
             displayAssetResults('asset-results', processedAssets, selectAsset);
@@ -3753,16 +3811,18 @@ async function fetchAllAssetTypes() {
       console.log(`Loading asset types page ${pageNum}`);
       
       try {
-        // Use raw request to access asset types API
-        const response = await window.client.request.get(`/api/v2/asset_types?page=${pageNum}&per_page=100`);
+        // Use the template to access asset types API
+        const data = await window.client.request.invokeTemplate("getAssetTypes", {
+          path_suffix: `?page=${pageNum}&per_page=100`
+        });
         
-        if (!response || !response.response) {
-          console.error('Invalid asset types response:', response);
+        if (!data || !data.response) {
+          console.error('Invalid asset types response:', data);
           return { types: [], more: false };
         }
         
         try {
-          const parsedData = JSON.parse(response.response || '{"asset_types":[]}');
+          const parsedData = JSON.parse(data.response || '{"asset_types":[]}');
           const types = parsedData.asset_types || [];
           
           // Check if we might have more pages (received full page of results)
@@ -3867,14 +3927,16 @@ async function getAssetType(typeId) {
   // If not in cache, try to fetch just this one type
   try {
     console.log(`Asset type ${typeId} not found in cache, fetching individually...`);
-    const response = await window.client.request.get(`/api/v2/asset_types/${typeId}`);
+    const data = await window.client.request.invokeTemplate("getAssetTypes", {
+      path_suffix: `/${typeId}`
+    });
     
-    if (!response || !response.response) {
-      console.error('Invalid asset type response:', response);
+    if (!data || !data.response) {
+      console.error('Invalid asset type response:', data);
       return null;
     }
     
-    const parsedData = JSON.parse(response.response || '{}');
+    const parsedData = JSON.parse(data.response || '{}');
     if (parsedData && parsedData.asset_type) {
       const assetType = parsedData.asset_type;
       
@@ -4108,4 +4170,70 @@ function processAssetResults(assets) {
 }
 
 // Risk Assessment tab
+
+/**
+ * Get assets from cache with asset type filtering
+ * @param {string} searchTerm - Search term used to find assets
+ * @param {number} assetTypeId - Asset type ID to filter by
+ * @returns {Promise<Array>} - Cached asset results or null if not found
+ */
+async function getAssetsByTypeFromCache(searchTerm, assetTypeId) {
+  if (!assetTypeId) {
+    return getFromSearchCache('assets', searchTerm);
+  }
+  
+  const cacheKey = searchTerm || 'initial_asset_listing';
+  
+  // Initialize asset type cache if needed
+  if (!searchCache.assetsByType[assetTypeId]) {
+    searchCache.assetsByType[assetTypeId] = {};
+  }
+  
+  // Check if we have a cache hit
+  if (searchCache.assetsByType[assetTypeId][cacheKey]) {
+    const cachedData = searchCache.assetsByType[assetTypeId][cacheKey];
+    const currentTime = Date.now();
+    
+    // Get the configured search cache timeout
+    const params = await getInstallationParams();
+    const cacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
+    
+    // Check if the cache is still valid
+    if (currentTime - cachedData.timestamp < cacheTimeout) {
+      return cachedData.results;
+    } else {
+      console.log(`Cache expired for asset type ${assetTypeId}, term "${cacheKey}"`);
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Add assets to cache with asset type filtering
+ * @param {string} searchTerm - Search term used to find assets
+ * @param {number} assetTypeId - Asset type ID to filter by
+ * @param {Array} results - Asset results to cache
+ */
+function addAssetsToTypeCache(searchTerm, assetTypeId, results) {
+  if (!assetTypeId) {
+    addToSearchCache('assets', searchTerm, results);
+    return;
+  }
+  
+  const cacheKey = searchTerm || 'initial_asset_listing';
+  
+  // Initialize asset type cache if needed
+  if (!searchCache.assetsByType[assetTypeId]) {
+    searchCache.assetsByType[assetTypeId] = {};
+  }
+  
+  // Add the results to the cache
+  searchCache.assetsByType[assetTypeId][cacheKey] = {
+    results: results,
+    timestamp: Date.now()
+  };
+  
+  console.log(`Cached ${results.length} assets for type ${assetTypeId}, term "${cacheKey}"`);
+}
 

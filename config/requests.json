@@ -70,5 +70,17 @@
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
     }
+  },
+  "getAssetTypes": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/asset_types",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    }
   }
 } 
