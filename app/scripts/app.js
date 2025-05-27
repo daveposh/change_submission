@@ -2716,8 +2716,8 @@ function performAssetSearch(searchTerm, isRefresh = false, pageNum = 1) {
         
         console.log(`API request path: ${queryParam}`);
         
-        // Special search parameter for user's search term
-        const searchQueryParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : '';
+        // Special search parameter for user's search term with exact format
+        const searchQueryParam = searchTerm ? `&search=${encodeURIComponent(`"name:'${searchTerm}'"`)}` : '';
         if (searchQueryParam) {
           queryParam += searchQueryParam;
           console.log('Using search parameter:', searchQueryParam);
