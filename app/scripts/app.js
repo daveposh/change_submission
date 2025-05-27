@@ -568,6 +568,11 @@ function initializeApp() {
       return;
     }
 
+    // Check for Bootstrap
+    if (typeof window.bootstrap === 'undefined') {
+      console.warn('Bootstrap not available in window object. Some UI components may not work correctly.');
+    }
+
     // Initialize app client with proper error handling
     if (typeof app === 'undefined') {
       console.error('App object is not available');
@@ -1408,7 +1413,7 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
  */
 function searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh, existingResults) {
   // Function to load requester results from a specific page
-  async function loadRequestersPage(page = 1, allResults = []) {
+  function loadRequestersPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
     const requestUrl = `?query=${requesterQuery}&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
@@ -1491,7 +1496,7 @@ function searchRequestersOnly(searchTerm, requesterQuery, agentQuery, isRefresh,
  */
 function searchAgentsOnly(searchTerm, agentQuery, isRefresh, requesterResults) {
   // Function to load agent results from a specific page
-  async function loadAgentsPage(page = 1, allResults = []) {
+  function loadAgentsPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
     const requestUrl = `?query=${agentQuery}&page=${page}&per_page=30`;
     console.log('Agent API URL for requester search:', requestUrl);
@@ -1577,7 +1582,8 @@ function finalizeRequesterSearch(searchTerm, combinedResults, isRefresh) {
   // Cache the results
   addToSearchCache('requesters', searchTerm, combinedResults);
   
-  // Display all results
+  // Display all results with refresh status for logging
+  console.log(`Displaying ${combinedResults.length} requester results (refresh: ${isRefresh})`);
   displaySearchResults('requester-results', combinedResults, selectRequester);
   
   // Add individual users to the user cache for later use
@@ -1656,7 +1662,7 @@ function performAgentSearch(searchTerm, isRefresh = false) {
   }
   
   // Function to load results from a specific page
-  async function loadPage(page = 1, allResults = []) {
+  function loadPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
     const requestUrl = `?query=${encodedQuery}&page=${page}&per_page=30`;
     console.log('Agent API URL:', requestUrl);
@@ -2361,6 +2367,7 @@ function performAssetSearch(searchTerm, isRefresh = false) {
   
   // Use fixed asset_type_id: 37000374722 as specified
   const assetTypeId = 37000374722;
+  // Log asset type ID
   console.log(`Using specified asset type ID for search: ${assetTypeId}`);
 
   // Query for the specific asset type and filter by search term
@@ -2738,12 +2745,14 @@ function showSummary() {
   
   // Show the Bootstrap modal
   const modalElement = document.getElementById('confirmation-modal');
+  const bootstrap = window.bootstrap || {};
   const confirmationModal = new bootstrap.Modal(modalElement);
   confirmationModal.show();
 }
 
 function closeModal() {
   const modalElement = document.getElementById('confirmation-modal');
+  const bootstrap = window.bootstrap || {};
   const modal = bootstrap.Modal.getInstance(modalElement);
   if (modal) {
     modal.hide();
@@ -2883,6 +2892,9 @@ function showNotification(type, message) {
 // DOM-based notification fallback
 function showFallbackNotification(type, message) {
   try {
+    // Ensure type is valid
+    const validType = (type === 'error' || type === 'success' || type === 'info' || type === 'warning') ? type : 'info';
+    
     // Remove any existing notifications
     const existingNotifications = document.querySelectorAll('.fallback-notification');
     existingNotifications.forEach(note => {
@@ -2893,7 +2905,7 @@ function showFallbackNotification(type, message) {
     
     // Create new notification element
     const notification = document.createElement('div');
-    notification.className = `fallback-notification alert alert-${type === 'error' ? 'danger' : type}`;
+    notification.className = `fallback-notification alert alert-${validType === 'error' ? 'danger' : validType}`;
     notification.style.position = 'fixed';
     notification.style.top = '20px';
     notification.style.right = '20px';
@@ -2915,7 +2927,7 @@ function showFallbackNotification(type, message) {
     closeBtn.style.cursor = 'pointer';
     closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.onclick = function() {
-      if (notification.parentNode) {
+      if (notification && notification.parentNode) {
         notification.parentNode.removeChild(notification);
       }
     };
@@ -2925,7 +2937,7 @@ function showFallbackNotification(type, message) {
     
     // Auto-remove after 5 seconds
     setTimeout(() => {
-      if (notification.parentNode) {
+      if (notification && notification.parentNode) {
         notification.parentNode.removeChild(notification);
       }
     }, 5000);
@@ -2938,7 +2950,7 @@ function handleErr(err = 'None') {
   let errorMessage = 'An error occurred. Please try again.';
   
   // Log detailed error information
-  console.error(`Error occurred. Details:`, err);
+  console.error('Error occurred. Details:', err);
   
   // Try to extract a more specific error message if available
   try {
@@ -2949,7 +2961,12 @@ function handleErr(err = 'None') {
     } else if (err && err.status && err.status.message) {
       errorMessage = `API Error: ${err.status.message}`;
     } else if (err && typeof err === 'object') {
-      errorMessage = `Error: ${JSON.stringify(err).substring(0, 100)}...`;
+      // Safely stringify objects
+      try {
+        errorMessage = `Error: ${JSON.stringify(err).substring(0, 100)}...`;
+      } catch (jsonError) {
+        errorMessage = 'Error: Could not format error details';
+      }
     }
   } catch (e) {
     console.error('Error while processing error message:', e);
