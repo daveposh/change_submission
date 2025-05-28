@@ -191,13 +191,18 @@ async function fetchAndCacheServices() {
 /**
  * Get services (filtered from assets by specific service asset type IDs)
  */
-async function getServices() {
+async function getServices(forceRefresh = false) {
   try {
-    // Check for cached services first
-    const cachedServices = await getCachedServices();
-    if (cachedServices && cachedServices.length > 0) {
-      console.log(`Using cached services: ${cachedServices.length} services`);
-      return cachedServices;
+    // Check for cached services first (unless forcing refresh)
+    if (!forceRefresh) {
+      const cachedServices = await getCachedServices();
+      if (cachedServices && cachedServices.length > 0) {
+        console.log(`Using cached services: ${cachedServices.length} services`);
+        return cachedServices;
+      }
+    } else {
+      console.log('Force refresh requested, clearing services cache');
+      await clearServicesCache();
     }
 
     console.log('Fetching services from API using specific asset type IDs...');
@@ -350,11 +355,21 @@ async function getCachedServices() {
       const data = JSON.parse(cached);
       const now = Date.now();
       
+      // Check version first - invalidate if using old logic
+      const expectedVersion = 'v2_specific_asset_types';
+      if (data.version !== expectedVersion) {
+        console.log(`Cache version mismatch. Expected: ${expectedVersion}, Found: ${data.version || 'v1'}. Clearing cache.`);
+        localStorage.removeItem(cacheKey);
+        return null;
+      }
+      
       // Check if cache is still valid (24 hours)
       if (now - data.timestamp < 24 * 60 * 60 * 1000) {
+        console.log(`Using cached services (version ${data.version}): ${data.services.length} services`);
         return data.services;
       } else {
         // Clear expired cache
+        console.log('Services cache expired, clearing');
         localStorage.removeItem(cacheKey);
       }
     }
@@ -376,13 +391,28 @@ async function cacheServices(services) {
     
     const cacheData = {
       services: services,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      version: 'v2_specific_asset_types' // Version to track cache format changes
     };
     
     localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-    console.log(`Cached ${services.length} services`);
+    console.log(`Cached ${services.length} services with version ${cacheData.version}`);
   } catch (error) {
     console.error('Error caching services:', error);
+  }
+}
+
+/**
+ * Clear services cache (useful when changing service logic)
+ */
+async function clearServicesCache() {
+  try {
+    const params = await getInstallationParams();
+    const cacheKey = `services_cache_${params.domain || 'default'}`;
+    localStorage.removeItem(cacheKey);
+    console.log('Services cache cleared');
+  } catch (error) {
+    console.error('Error clearing services cache:', error);
   }
 }
 
@@ -1789,7 +1819,7 @@ async function initializeApp() {
     try {
       await Promise.all([
         getAssetTypes(),
-        getServices()
+        getServices(true) // Force refresh to ensure we get fresh services with new logic
       ]);
       console.log('Caches initialized successfully');
       await initializeServicesDropdown();
@@ -4209,3 +4239,31 @@ function finalizeRequesterSearch(searchTerm, results, isRefresh) {
     cacheIndividualUsers(results, 'requester');
   }
 }
+
+/**
+ * Global function to clear and refresh services cache
+ */
+window.refreshServices = async function() {
+  try {
+    console.log('🔄 Clearing services cache and forcing refresh...');
+    
+    // Clear services cache
+    await clearServicesCache();
+    console.log('✅ Services cache cleared');
+    
+    // Force refresh services
+    console.log('🔄 Fetching fresh services...');
+    const services = await getServices(true);
+    console.log(`✅ Fetched ${services.length} services with new logic`);
+    
+    // Refresh the dropdown
+    console.log('🔄 Refreshing services dropdown...');
+    await initializeServicesDropdown();
+    console.log('✅ Services dropdown refreshed');
+    
+    console.log('💡 Services should now be updated with the latest configuration');
+    
+  } catch (error) {
+    console.error('❌ Error refreshing services:', error);
+  }
+};
