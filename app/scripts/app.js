@@ -199,7 +199,7 @@ async function fetchAllLocations() {
       
       try {
         // Use invokeTemplate to access locations API
-        const response = await window.client.request.invokeTemplate("getLocations", {
+        const response = await window.client.request.invokeTemplate("getLocation", {
           path_suffix: `?page=${pageNum}&per_page=100`
         });
         
@@ -289,6 +289,12 @@ async function fetchAllAssetTypes() {
       console.log(`Loading asset types page ${pageNum}`);
       
       try {
+        // Check if the client request method is available
+        if (!window.client.request || !window.client.request.invokeTemplate) {
+          console.error('Client request.invokeTemplate not available for asset types');
+          return { assetTypes: [], more: false };
+        }
+        
         // Use invokeTemplate to access asset types API
         const response = await window.client.request.invokeTemplate("getAssetTypes", {
           path_suffix: `?page=${pageNum}&per_page=100`
@@ -438,13 +444,20 @@ async function getAssetTypeName(assetTypeId) {
     
     // If we still don't have the asset type after a refresh attempt, get it individually
     console.log(`Fetching individual asset type ${assetTypeId} from API`);
+    
+    // Check if the client request method is available
+    if (!window.client.request || !window.client.request.invokeTemplate) {
+      console.error('Client request.invokeTemplate not available');
+      return `Asset Type ${assetTypeId}`;
+    }
+    
     const response = await window.client.request.invokeTemplate("getAssetTypes", {
       path_suffix: `/${assetTypeId}`
     });
     
     if (!response || !response.response) {
       console.error('Invalid asset type response:', response);
-      return 'Unknown';
+      return `Asset Type ${assetTypeId}`;
     }
     
     try {
@@ -463,14 +476,14 @@ async function getAssetTypeName(assetTypeId) {
         
         return assetTypeName;
       }
-      return 'Unknown';
+      return `Asset Type ${assetTypeId}`;
     } catch (parseError) {
       console.error('Error parsing asset type response:', parseError);
-      return 'Unknown';
+      return `Asset Type ${assetTypeId}`;
     }
   } catch (error) {
     console.error('Error fetching asset type:', error);
-    return 'Unknown';
+    return `Asset Type ${assetTypeId}`;
   }
 }
 
@@ -480,16 +493,28 @@ async function getAssetTypeName(assetTypeId) {
  */
 async function findSoftwareServicesAssetTypeId() {
   try {
+    // First try to get from installation parameters
+    const params = await getInstallationParams();
+    if (params.assetTypeId && params.assetTypeId !== DEFAULT_INVENTORY_TYPE_ID) {
+      console.log(`Using configured asset type ID: ${params.assetTypeId}`);
+      return params.assetTypeId;
+    }
+    
     const cachedAssetTypes = await getCachedAssetTypes();
     
-    // If cache is empty or expired, fetch fresh data
+    // If cache is empty or expired, try to fetch fresh data
     if (Object.keys(cachedAssetTypes).length === 0 || 
         Object.values(cachedAssetTypes).some(type => type.timestamp < Date.now() - CACHE_TIMEOUT)) {
       console.log('Fetching asset types to find software/services type');
-      await fetchAllAssetTypes();
-      // Get the updated cache
-      const updatedCache = await getCachedAssetTypes();
-      Object.assign(cachedAssetTypes, updatedCache);
+      try {
+        await fetchAllAssetTypes();
+        // Get the updated cache
+        const updatedCache = await getCachedAssetTypes();
+        Object.assign(cachedAssetTypes, updatedCache);
+      } catch (fetchError) {
+        console.error('Failed to fetch asset types, using default:', fetchError);
+        return DEFAULT_INVENTORY_TYPE_ID;
+      }
     }
     
     // Look for asset types that might be software/services
@@ -827,6 +852,9 @@ async function getManagerName(managerId) {
 
 function initializeApp() {
   console.log('Starting app initialization...');
+  console.log('Client object available:', typeof window.client);
+  console.log('Client request available:', typeof window.client?.request);
+  console.log('Client request.invokeTemplate available:', typeof window.client?.request?.invokeTemplate);
   
   try {
     // Make sure window is defined
@@ -1401,9 +1429,6 @@ function setupEventListeners() {
 
   // Enhance search inputs with icons and styling
   enhanceSearchInputs();
-  
-  // Add standalone clear buttons for agent and requester fields
-  addClearButtons();
 
   // Change Details tab
   document.getElementById('requester-search').addEventListener('input', debounce(searchRequesters, 300));
@@ -2189,7 +2214,7 @@ async function getLocationName(locationId) {
     
     // If we still don't have the location after a refresh attempt, get it individually
     console.log(`Fetching individual location ${locationId} from API`);
-    const response = await window.client.request.invokeTemplate("getLocations", {
+    const response = await window.client.request.invokeTemplate("getLocation", {
       path_suffix: `/${locationId}`
     });
     
@@ -4254,44 +4279,5 @@ function addAssetsToTypeCache(searchTerm, assetTypeId, results) {
   console.log(`Cached ${results.length} assets for type ${assetTypeId}, term "${cacheKey}"`);
 }
 
-/**
- * Function to add standalone clear buttons for agent and requester fields
- */
-function addClearButtons() {
-  // Create and add the clear requester button
-  const requesterContainer = document.querySelector('.form-group:has(#requester-search)');
-  if (requesterContainer) {
-    const clearRequesterBtn = document.createElement('button');
-    clearRequesterBtn.className = 'btn btn-outline-danger mt-2';
-    clearRequesterBtn.type = 'button';
-    clearRequesterBtn.innerHTML = '<i class="fas fa-times me-1"></i> Clear Requester';
-    clearRequesterBtn.addEventListener('click', clearRequester);
-    
-    // Find the right place to insert the button
-    const selectedRequesterContainer = document.getElementById('selected-requester');
-    if (selectedRequesterContainer) {
-      selectedRequesterContainer.parentNode.insertBefore(clearRequesterBtn, selectedRequesterContainer.nextSibling);
-    } else {
-      requesterContainer.appendChild(clearRequesterBtn);
-    }
-  }
-  
-  // Create and add the clear agent button
-  const agentContainer = document.querySelector('.form-group:has(#agent-search)');
-  if (agentContainer) {
-    const clearAgentBtn = document.createElement('button');
-    clearAgentBtn.className = 'btn btn-outline-danger mt-2';
-    clearAgentBtn.type = 'button';
-    clearAgentBtn.innerHTML = '<i class="fas fa-times me-1"></i> Clear Agent';
-    clearAgentBtn.addEventListener('click', clearAgent);
-    
-    // Find the right place to insert the button
-    const selectedAgentContainer = document.getElementById('selected-agent');
-    if (selectedAgentContainer) {
-      selectedAgentContainer.parentNode.insertBefore(clearAgentBtn, selectedAgentContainer.nextSibling);
-    } else {
-      agentContainer.appendChild(clearAgentBtn);
-    }
-  }
-}
+
 

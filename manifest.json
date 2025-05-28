@@ -15,7 +15,8 @@
         "getAssets": {},
         "getServices": {},
         "getRequesterDetails": {},
-        "getLocation": {}
+        "getLocation": {},
+        "getAssetTypes": {}
       },
       "storage": {
         "data_storage": {
@@ -35,6 +36,10 @@
             "user_cache": {
               "type": "object",
               "description": "Cached user data"
+            },
+            "asset_type_cache": {
+              "type": "object",
+              "description": "Cached asset type data"
             }
           }
         }
