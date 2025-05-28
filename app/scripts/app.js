@@ -1729,6 +1729,69 @@ function setupEventListeners() {
   if (assetSearch) {
     assetSearch.addEventListener('input', debounce(searchAssets, 300));
   }
+
+  // Form navigation buttons
+  const detailsNext = document.getElementById('details-next');
+  if (detailsNext) {
+    detailsNext.addEventListener('click', validateDetailsAndNext);
+  }
+
+  const calculateRiskBtn = document.getElementById('calculate-risk');
+  if (calculateRiskBtn) {
+    calculateRiskBtn.addEventListener('click', calculateRisk);
+  }
+
+  const riskNext = document.getElementById('risk-next');
+  if (riskNext) {
+    riskNext.addEventListener('click', validateRiskAndNext);
+  }
+
+  // Risk assessment radio buttons
+  const riskRadios = document.querySelectorAll('.risk-options input[type="radio"]');
+  riskRadios.forEach(radio => {
+    radio.addEventListener('change', updateRiskSelection);
+  });
+
+  // Form inputs with auto-save
+  const plannedStart = document.getElementById('planned-start');
+  if (plannedStart) {
+    plannedStart.addEventListener('change', function() {
+      changeRequestData.plannedStart = this.value;
+      console.log('Planned start updated:', this.value);
+    });
+  }
+
+  const plannedEnd = document.getElementById('planned-end');
+  if (plannedEnd) {
+    plannedEnd.addEventListener('change', function() {
+      changeRequestData.plannedEnd = this.value;
+      console.log('Planned end updated:', this.value);
+    });
+  }
+
+  const implementationPlan = document.getElementById('implementation-plan');
+  if (implementationPlan) {
+    implementationPlan.addEventListener('input', debounce(function() {
+      changeRequestData.implementationPlan = this.value;
+      console.log('Implementation plan updated');
+    }, 1000));
+  }
+
+  const backoutPlan = document.getElementById('backout-plan');
+  if (backoutPlan) {
+    backoutPlan.addEventListener('input', debounce(function() {
+      changeRequestData.backoutPlan = this.value;
+      console.log('Backout plan updated');
+    }, 1000));
+  }
+
+  const validationPlan = document.getElementById('validation-plan');
+  if (validationPlan) {
+    validationPlan.addEventListener('input', debounce(function() {
+      changeRequestData.validationPlan = this.value;
+      console.log('Validation plan updated');
+    }, 1000));
+  }
 }
 
 /**
@@ -2668,6 +2731,217 @@ function finalizeRequesterSearch(searchTerm, results, isRefresh) {
   if (results.length > 0) {
     cacheIndividualUsers(results, 'requester');
   }
+}
+
+/**
+ * Validate details form and proceed to next tab
+ */
+function validateDetailsAndNext() {
+  // Basic validation
+  if (!changeRequestData.requester) {
+    showNotification('error', 'Please select a requester');
+    return;
+  }
+  
+  if (!changeRequestData.agent) {
+    showNotification('error', 'Please select an agent (Technical SME)');
+    return;
+  }
+  
+  // Get values from form inputs
+  const plannedStart = document.getElementById('planned-start').value;
+  const plannedEnd = document.getElementById('planned-end').value;
+  
+  if (!plannedStart) {
+    showNotification('error', 'Please select a planned start date and time');
+    return;
+  }
+  
+  if (!plannedEnd) {
+    showNotification('error', 'Please select a planned end date and time');
+    return;
+  }
+  
+  // Update change request data
+  changeRequestData.plannedStart = plannedStart;
+  changeRequestData.plannedEnd = plannedEnd;
+  
+  // Validate start and end dates
+  const startDate = new Date(plannedStart);
+  const endDate = new Date(plannedEnd);
+  
+  if (endDate <= startDate) {
+    showNotification('error', 'Planned end date must be after the planned start date');
+    return;
+  }
+  
+  // Switch to risk assessment tab
+  switchTab('risk-assessment');
+}
+
+/**
+ * Update risk selection when radio buttons change
+ */
+function updateRiskSelection(e) {
+  const question = e.target.name;
+  const value = parseInt(e.target.value);
+  
+  // Map questions to the risk assessment object properties
+  const questionMapping = {
+    'business-impact': 'businessImpact',
+    'affected-users': 'affectedUsers',
+    'complexity': 'complexity',
+    'testing': 'testing',
+    'rollback': 'rollback'
+  };
+  
+  if (questionMapping[question]) {
+    changeRequestData.riskAssessment[questionMapping[question]] = value;
+    console.log(`Risk ${question} updated to ${value}`);
+  }
+}
+
+/**
+ * Calculate risk score and display results
+ */
+function calculateRisk() {
+  // Check if all questions are answered
+  const riskKeys = ['businessImpact', 'affectedUsers', 'complexity', 'testing', 'rollback'];
+  const unansweredQuestions = riskKeys.filter(key => changeRequestData.riskAssessment[key] === 0);
+  
+  if (unansweredQuestions.length > 0) {
+    showNotification('error', 'Please answer all risk assessment questions');
+    return;
+  }
+  
+  // Calculate total risk score
+  const totalScore = riskKeys.reduce((sum, key) => sum + changeRequestData.riskAssessment[key], 0);
+  changeRequestData.riskAssessment.totalScore = totalScore;
+  
+  // Determine risk level and badge color
+  let riskLevel, riskExplanation;
+  if (totalScore <= 7) {
+    riskLevel = 'Low';
+    riskExplanation = 'This change poses minimal risk to business operations and is likely to be implemented successfully.';
+  } else if (totalScore <= 11) {
+    riskLevel = 'Medium';
+    riskExplanation = 'This change poses moderate risk to business operations. Consider additional testing or verification steps.';
+  } else {
+    riskLevel = 'High';
+    riskExplanation = 'This change poses significant risk to business operations. A detailed review is recommended before proceeding.';
+  }
+  changeRequestData.riskAssessment.riskLevel = riskLevel;
+  
+  // Display results
+  const scoreElement = document.getElementById('risk-score-value');
+  if (scoreElement) {
+    scoreElement.textContent = totalScore;
+  }
+  
+  const riskLevelElement = document.getElementById('risk-level-value');
+  if (riskLevelElement) {
+    riskLevelElement.textContent = riskLevel;
+    riskLevelElement.className = `badge ${getRiskBadgeClass(riskLevel)}`;
+  }
+  
+  const explanationElement = document.getElementById('risk-explanation');
+  if (explanationElement) {
+    explanationElement.textContent = riskExplanation;
+  }
+  
+  const resultElement = document.getElementById('risk-result');
+  if (resultElement) {
+    resultElement.classList.remove('hidden');
+    resultElement.style.display = 'block';
+  }
+  
+  console.log(`Risk calculated: Score ${totalScore}, Level ${riskLevel}`);
+}
+
+/**
+ * Get CSS class for risk level badge
+ */
+function getRiskBadgeClass(riskLevel) {
+  switch (riskLevel.toLowerCase()) {
+    case 'low':
+      return 'bg-success';
+    case 'medium':
+      return 'bg-warning';
+    case 'high':
+      return 'bg-danger';
+    default:
+      return 'bg-secondary';
+  }
+}
+
+/**
+ * Validate risk assessment and proceed to next tab
+ */
+function validateRiskAndNext() {
+  if (changeRequestData.riskAssessment.totalScore === 0) {
+    showNotification('error', 'Please calculate the risk score before proceeding');
+    return;
+  }
+  
+  // Switch to impacted assets tab
+  switchTab('impacted-assets');
+}
+
+/**
+ * Switch to a specific tab
+ */
+function switchTab(tabId) {
+  // Hide all tab panes
+  const allTabs = document.querySelectorAll('.tab-pane');
+  allTabs.forEach(tab => {
+    tab.classList.remove('show', 'active');
+  });
+  
+  // Remove active class from all nav links
+  const allNavLinks = document.querySelectorAll('.nav-link');
+  allNavLinks.forEach(link => {
+    link.classList.remove('active');
+  });
+  
+  // Show the target tab
+  const targetTab = document.getElementById(tabId);
+  if (targetTab) {
+    targetTab.classList.add('show', 'active');
+  }
+  
+  // Activate the corresponding nav link
+  const targetNavLink = document.querySelector(`[href="#${tabId}"]`);
+  if (targetNavLink) {
+    targetNavLink.classList.add('active');
+  }
+  
+  console.log(`Switched to tab: ${tabId}`);
+}
+
+/**
+ * Show notification to user
+ */
+function showNotification(type, message) {
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+  notification.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  // Insert at top of page
+  const container = document.querySelector('.container') || document.body;
+  container.insertBefore(notification, container.firstChild);
+  
+  // Auto-dismiss after 5 seconds
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.remove();
+    }
+  }, 5000);
+  
+  console.log(`Notification (${type}): ${message}`);
 }
 
 
