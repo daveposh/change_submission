@@ -267,8 +267,24 @@ async function getServices(forceRefresh = false) {
         
         console.log(`📊 Asset type ${assetTypeId}: Found ${assets.length} assets`);
         
-        // Add these assets to our collection
-        allServices = allServices.concat(assets);
+        // Validate that returned assets actually match the requested asset type ID
+        const validAssets = assets.filter(asset => asset.asset_type_id === assetTypeId);
+        const invalidAssets = assets.filter(asset => asset.asset_type_id !== assetTypeId);
+        
+        if (invalidAssets.length > 0) {
+          console.warn(`⚠️ API returned ${invalidAssets.length} assets with wrong asset_type_id for request ${assetTypeId}:`);
+          console.log('❌ Invalid assets:', invalidAssets.slice(0, 3).map(a => ({
+            id: a.id,
+            name: a.display_name || a.name,
+            expected_type: assetTypeId,
+            actual_type: a.asset_type_id
+          })));
+        }
+        
+        console.log(`✅ Asset type ${assetTypeId}: Validated ${validAssets.length} correct assets (filtered out ${invalidAssets.length} wrong ones)`);
+        
+        // Add only the valid assets to our collection
+        allServices = allServices.concat(validAssets);
         
         // Add a small delay between requests to be API-friendly
         if (serviceAssetTypeIds.indexOf(assetTypeId) < serviceAssetTypeIds.length - 1) {
@@ -2850,15 +2866,14 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
     console.log(`Asset search completed: ${filteredAssets.length} results for "${searchTerm}"`);
     
   } catch (error) {
-    console.error('Error submitting change request:', error);
+    console.error('Error performing asset search:', error);
     
     // Show error notification
-    showNotification('error', `Failed to submit change request: ${error.message}. Please try again.`);
+    showNotification('error', `Failed to search assets: ${error.message}. Please try again.`);
     
   } finally {
-    // Re-enable button
-    confirmSubmitBtn.disabled = false;
-    confirmSubmitBtn.innerHTML = 'Confirm & Submit';
+    // This section was incorrectly referencing confirmSubmitBtn which doesn't exist in this context
+    // Removed the undefined button references
   }
 }
 
