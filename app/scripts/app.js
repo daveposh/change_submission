@@ -193,11 +193,22 @@ async function fetchAndCacheServices() {
  */
 async function getServices(forceRefresh = false) {
   try {
+    console.log('🔍 getServices called with forceRefresh:', forceRefresh);
+    
     // Check for cached services first (unless forcing refresh)
     if (!forceRefresh) {
       const cachedServices = await getCachedServices();
       if (cachedServices && cachedServices.length > 0) {
         console.log(`Using cached services: ${cachedServices.length} services`);
+        // Debug: show first service structure
+        if (cachedServices[0]) {
+          console.log('📋 Sample cached service structure:', {
+            id: cachedServices[0].id,
+            name: cachedServices[0].name || cachedServices[0].display_name,
+            asset_type_id: cachedServices[0].asset_type_id,
+            keys: Object.keys(cachedServices[0])
+          });
+        }
         return cachedServices;
       }
     } else {
@@ -221,7 +232,7 @@ async function getServices(forceRefresh = false) {
     // Allow configuration override via installation parameters
     const serviceAssetTypeIds = params.serviceAssetTypeIds || defaultServiceAssetTypeIds;
     
-    console.log('Service asset type IDs:', serviceAssetTypeIds);
+    console.log('🎯 Service asset type IDs:', serviceAssetTypeIds);
     
     if (!Array.isArray(serviceAssetTypeIds) || serviceAssetTypeIds.length === 0) {
       console.warn('No service asset type IDs configured');
@@ -234,10 +245,11 @@ async function getServices(forceRefresh = false) {
       .map(id => `asset_type_id: ${id}`)
       .join(' OR ');
     
-    console.log('Service filter query:', filterQuery);
+    console.log('📝 Service filter query:', filterQuery);
     
     // Fetch services using the filter
     const requestUrl = `?filter="${filterQuery}"&per_page=100`;
+    console.log('🌐 API request URL:', requestUrl);
     
     const response = await window.client.request.invokeTemplate("getAssets", {
       path_suffix: requestUrl
@@ -252,7 +264,17 @@ async function getServices(forceRefresh = false) {
     const data = JSON.parse(response.response);
     const services = data.assets || [];
     
-    console.log(`Found ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+    console.log(`✅ Found ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+    
+    // Debug: show first service structure from API
+    if (services[0]) {
+      console.log('📋 Sample API service structure:', {
+        id: services[0].id,
+        name: services[0].name || services[0].display_name,
+        asset_type_id: services[0].asset_type_id,
+        keys: Object.keys(services[0])
+      });
+    }
     
     // Cache the services
     await cacheServices(services);
@@ -260,7 +282,7 @@ async function getServices(forceRefresh = false) {
     return services;
     
   } catch (error) {
-    console.error('Error fetching services:', error);
+    console.error('❌ Error fetching services:', error);
     
     // Return empty array on error but don't cache the error
     return [];
@@ -4265,5 +4287,90 @@ window.refreshServices = async function() {
     
   } catch (error) {
     console.error('❌ Error refreshing services:', error);
+  }
+};
+
+/**
+ * Global function to completely clear ALL browser storage and force refresh
+ */
+window.clearAllCache = async function() {
+  try {
+    console.log('🧹 CLEARING ALL CACHE AND STORAGE...');
+    
+    // Clear all localStorage items related to this app
+    const keys = Object.keys(localStorage);
+    const appKeys = keys.filter(key => 
+      key.includes('services_cache') || 
+      key.includes('asset') || 
+      key.includes('change_request') ||
+      key.includes('freshservice')
+    );
+    
+    console.log('🗑️ Clearing localStorage keys:', appKeys);
+    appKeys.forEach(key => {
+      localStorage.removeItem(key);
+      console.log(`   ✅ Removed: ${key}`);
+    });
+    
+    // Clear session storage too
+    const sessionKeys = Object.keys(sessionStorage);
+    const appSessionKeys = sessionKeys.filter(key => 
+      key.includes('services') || 
+      key.includes('asset') || 
+      key.includes('change_request')
+    );
+    
+    console.log('🗑️ Clearing sessionStorage keys:', appSessionKeys);
+    appSessionKeys.forEach(key => {
+      sessionStorage.removeItem(key);
+      console.log(`   ✅ Removed: ${key}`);
+    });
+    
+    // Clear in-memory caches
+    if (typeof searchCache !== 'undefined') {
+      searchCache.requesters = {};
+      searchCache.agents = {};
+      searchCache.assets = {};
+      console.log('✅ Cleared in-memory search cache');
+    }
+    
+    // Clear cache objects
+    if (typeof cache !== 'undefined') {
+      cache.asset_types = { data: {}, timestamp: 0 };
+      cache.services = { data: [], timestamp: 0 };
+      console.log('✅ Cleared cache objects');
+    }
+    
+    // Clear asset type cache
+    if (typeof assetTypeCache !== 'undefined') {
+      assetTypeCache.byId = {};
+      assetTypeCache.list = [];
+      assetTypeCache.timestamp = 0;
+      assetTypeCache.types = {};
+      console.log('✅ Cleared asset type cache');
+    }
+    
+    // Clear any existing dropdown
+    const dropdown = document.getElementById('service-select');
+    if (dropdown) {
+      dropdown.innerHTML = '<option value="">Loading services...</option>';
+      dropdown.disabled = true;
+    }
+    
+    console.log('🔄 FORCING COMPLETE REFRESH...');
+    
+    // Force refresh everything
+    const services = await getServices(true);
+    console.log(`✅ Fetched ${services.length} fresh services`);
+    
+    // Reinitialize dropdown
+    await initializeServicesDropdown();
+    console.log('✅ Services dropdown reinitialized');
+    
+    console.log('🎉 COMPLETE CACHE CLEAR AND REFRESH DONE!');
+    console.log('💡 All data should now be fresh from the API');
+    
+  } catch (error) {
+    console.error('❌ Error clearing all cache:', error);
   }
 };
