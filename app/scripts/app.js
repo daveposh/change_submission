@@ -198,8 +198,10 @@ async function fetchAllLocations() {
       console.log(`Loading locations page ${pageNum}`);
       
       try {
-        // Use raw request instead of invokeTemplate to access locations API
-        const response = await window.client.request.get(`/api/v2/locations?page=${pageNum}&per_page=100`);
+        // Use invokeTemplate to access locations API
+        const response = await window.client.request.invokeTemplate("getLocations", {
+          path_suffix: `?page=${pageNum}&per_page=100`
+        });
         
         if (!response || !response.response) {
           console.error('Invalid locations response:', response);
@@ -287,8 +289,10 @@ async function fetchAllAssetTypes() {
       console.log(`Loading asset types page ${pageNum}`);
       
       try {
-        // Use raw request to access asset types API
-        const response = await window.client.request.get(`/api/v2/asset_types?page=${pageNum}&per_page=100`);
+        // Use invokeTemplate to access asset types API
+        const response = await window.client.request.invokeTemplate("getAssetTypes", {
+          path_suffix: `?page=${pageNum}&per_page=100`
+        });
         
         if (!response || !response.response) {
           console.error('Invalid asset types response:', response);
@@ -434,7 +438,9 @@ async function getAssetTypeName(assetTypeId) {
     
     // If we still don't have the asset type after a refresh attempt, get it individually
     console.log(`Fetching individual asset type ${assetTypeId} from API`);
-    const response = await window.client.request.get(`/api/v2/asset_types/${assetTypeId}`);
+    const response = await window.client.request.invokeTemplate("getAssetTypes", {
+      path_suffix: `/${assetTypeId}`
+    });
     
     if (!response || !response.response) {
       console.error('Invalid asset type response:', response);
@@ -574,8 +580,10 @@ async function fetchUsers() {
       console.log(`Loading agents page ${pageNum}`);
       
       try {
-        // Use direct API call instead of template
-        const response = await window.client.request.get(`/api/v2/agents?page=${pageNum}&per_page=100`);
+        // Use invokeTemplate to access agents API
+        const response = await window.client.request.invokeTemplate("getAgents", {
+          path_suffix: `?page=${pageNum}&per_page=100`
+        });
         
         if (!response || !response.response) {
           console.error('Invalid agents response:', response);
@@ -756,8 +764,10 @@ async function getUserDetails(userId) {
     
     // If not found as requester, try as an agent using direct API call instead of template
     try {
-      // Use direct GET request since the template isn't available
-      const response = await window.client.request.get(`/api/v2/agents/${userId}`);
+      // Use invokeTemplate to get individual agent
+      const response = await window.client.request.invokeTemplate("getAgents", {
+        path_suffix: `/${userId}`
+      });
       
       if (response && response.response) {
         const parsedData = JSON.parse(response.response || '{}');
@@ -2179,7 +2189,9 @@ async function getLocationName(locationId) {
     
     // If we still don't have the location after a refresh attempt, get it individually
     console.log(`Fetching individual location ${locationId} from API`);
-    const response = await window.client.request.get(`/api/v2/locations/${locationId}`);
+    const response = await window.client.request.invokeTemplate("getLocations", {
+      path_suffix: `/${locationId}`
+    });
     
     if (!response || !response.response) {
       console.error('Invalid location response:', response);
