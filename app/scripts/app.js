@@ -220,6 +220,7 @@ async function getServices(forceRefresh = false) {
     
     // Get installation parameters to check for custom service asset type IDs
     const params = await getInstallationParams();
+    console.log('🔧 Installation params loaded:', params);
     
     // Define the default service asset type IDs (can be overridden in installation params)
     const defaultServiceAssetTypeIds = [
@@ -228,9 +229,12 @@ async function getServices(forceRefresh = false) {
       37000374726, // IT Software - 3 assets (Active Directory, GoAnyWhere, Microsoft Entra ID)
       37000374730  // ISP/Network Services - 19 assets (Orlando Colo, various ISP connections, etc.)
     ];
+    console.log('🎯 Default service asset type IDs:', defaultServiceAssetTypeIds);
     
     // Allow configuration override via installation parameters
     const serviceAssetTypeIds = params.serviceAssetTypeIds || defaultServiceAssetTypeIds;
+    console.log('🎯 Final service asset type IDs to use:', serviceAssetTypeIds);
+    console.log('🔍 Using default IDs?', !params.serviceAssetTypeIds);
     
     console.log('🎯 Service asset type IDs:', serviceAssetTypeIds);
     
@@ -4663,5 +4667,73 @@ window.refreshServicesWithDebug = async function() {
     
   } catch (error) {
     console.error('❌ Error refreshing services with debug:', error);
+  }
+};
+
+/**
+ * Global debug function to test asset type filtering
+ */
+window.debugAssetTypeFiltering = async function() {
+  console.log('🔧 === DEBUGGING ASSET TYPE FILTERING ===');
+  
+  try {
+    // Get installation params
+    const params = await getInstallationParams();
+    console.log('📋 Installation params:', params);
+    
+    // Show the asset type IDs we're looking for
+    const defaultServiceAssetTypeIds = [
+      37000374722, // Applications/Software
+      37000374723, // Additional asset type
+      37000374726, // IT Software  
+      37000374730  // ISP/Network Services
+    ];
+    const serviceAssetTypeIds = params.serviceAssetTypeIds || defaultServiceAssetTypeIds;
+    console.log('🎯 Target asset type IDs:', serviceAssetTypeIds);
+    
+    // Get a sample of assets to test filtering
+    console.log('🔄 Fetching first page of assets for testing...');
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: "?per_page=100&page=1"
+    });
+    
+    if (response && response.response) {
+      const data = JSON.parse(response.response);
+      const assets = data.assets || [];
+      console.log(`📦 Found ${assets.length} assets on first page`);
+      
+      // Show all unique asset type IDs
+      const foundAssetTypes = [...new Set(assets.map(a => a.asset_type_id))].sort((a, b) => a - b);
+      console.log('🔍 Asset type IDs found on first page:', foundAssetTypes);
+      
+      // Test filtering
+      const filteredAssets = assets.filter(asset => serviceAssetTypeIds.includes(asset.asset_type_id));
+      console.log(`✅ Filtered assets: ${filteredAssets.length} of ${assets.length} match our target types`);
+      
+      // Show which target types have matches
+      serviceAssetTypeIds.forEach(targetId => {
+        const matches = assets.filter(a => a.asset_type_id === targetId);
+        if (matches.length > 0) {
+          console.log(`✅ Type ${targetId}: ${matches.length} assets found - ${matches.slice(0, 3).map(a => a.name).join(', ')}${matches.length > 3 ? '...' : ''}`);
+        } else {
+          console.log(`❌ Type ${targetId}: No assets found`);
+        }
+      });
+      
+      // Show which found types aren't in our target list
+      const nonTargetTypes = foundAssetTypes.filter(id => !serviceAssetTypeIds.includes(id));
+      if (nonTargetTypes.length > 0) {
+        console.log('📋 Non-target asset types found:', nonTargetTypes);
+        nonTargetTypes.forEach(typeId => {
+          const examples = assets.filter(a => a.asset_type_id === typeId).slice(0, 2).map(a => a.name);
+          console.log(`   Type ${typeId}: ${examples.join(', ')}`);
+        });
+      }
+      
+    } else {
+      console.error('❌ Failed to fetch assets for testing');
+    }
+  } catch (error) {
+    console.error('❌ Error in debugging:', error);
   }
 };
