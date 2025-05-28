@@ -3153,11 +3153,21 @@ function performInitialAssetListing() {
         
         // Continue loading more pages if needed
         // Use original assets length for pagination, not filtered length
-        if (assets.length === 100 && page < 3) {
+        console.log(`📄 Page ${page} returned ${assets.length} assets. Checking if we should load more...`);
+        
+        // Check if we should load more pages
+        // Continue if we got a reasonable number of assets (suggesting more might be available)
+        const shouldLoadMore = assets.length >= 30 && page < 10; // More flexible pagination
+        
+        if (shouldLoadMore) {
+          console.log(`🔄 Loading next page (${page + 1}) after ${params.paginationDelay || 500}ms delay...`);
           await new Promise(resolve => setTimeout(resolve, params.paginationDelay || 500));
           return await loadAssetsPage(page + 1, combinedResults);
+        } else {
+          console.log(`🛑 Stopping pagination: assets.length=${assets.length}, page=${page}, shouldLoadMore=${shouldLoadMore}`);
         }
         
+        console.log(`✅ Completed initial asset listing: ${combinedResults.length} total assets across ${page} pages`);
         return { assets: combinedResults };
       } catch (error) {
         console.error('Error loading initial assets:', error);
@@ -3384,13 +3394,18 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         // Combine with previous results
         allAssets = [...allAssets, ...filteredAssets];
         
-        // If we got a full page of results, there might be more
+        // If we got a reasonable number of results, there might be more
         // Use original assets length for pagination, not filtered length
-        if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
+        console.log(`📄 Search page ${page} returned ${assets.length} assets. Checking if we should load more...`);
+        
+        const shouldLoadMore = assets.length >= 30 && page < 10; // More flexible pagination
+        
+        if (shouldLoadMore) {
           // Get pagination delay from params
           const params = await getInstallationParams();
           const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
           
+          console.log(`🔄 Loading search page ${page + 1} after ${paginationDelay}ms delay...`);
           updateLoadingMessage('asset-results', `Loading more results... (page ${page + 1})`);
           
           // Wait for the delay before loading the next page
@@ -3398,8 +3413,11 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
           
           // Load next page
           return await loadAssetsPage(page + 1);
+        } else {
+          console.log(`🛑 Stopping search pagination: assets.length=${assets.length}, page=${page}, shouldLoadMore=${shouldLoadMore}`);
         }
         
+        console.log(`✅ Completed asset search: ${allAssets.length} total assets across ${page} pages`);
         return { assets: allAssets };
       } catch (error) {
         console.error('Error parsing assets response:', error);
