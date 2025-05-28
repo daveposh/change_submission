@@ -204,7 +204,32 @@ async function getServices() {
     console.log('Fetching services from API...');
     
     // Get all asset types first to identify service categories
-    const allAssetTypes = await fetchAllAssetTypes();
+    const allAssetTypesObj = await fetchAllAssetTypes();
+    
+    // Validate that we got asset types data
+    if (!allAssetTypesObj || typeof allAssetTypesObj !== 'object') {
+      console.warn('No asset types available, using all assets as fallback');
+      const allAssets = await fetchAllAssets();
+      await cacheServices(allAssets);
+      return allAssets;
+    }
+    
+    // Convert object to array of asset types
+    const assetTypeEntries = Object.entries(allAssetTypesObj);
+    const allAssetTypes = assetTypeEntries.map(([id, assetType]) => ({
+      id: id,
+      name: assetType.name || '',
+      description: assetType.description || ''
+    }));
+    
+    console.log(`Found ${allAssetTypes.length} total asset types`);
+    
+    if (allAssetTypes.length === 0) {
+      console.warn('No asset types found, using all assets as fallback');
+      const allAssets = await fetchAllAssets();
+      await cacheServices(allAssets);
+      return allAssets;
+    }
     
     // Define service category keywords
     const serviceCategoryKeywords = [
@@ -228,7 +253,8 @@ async function getServices() {
           name.includes(keyword) || description.includes(keyword)
         );
       })
-      .map(assetType => assetType.id);
+      .map(assetType => assetType.id)
+      .filter(id => id); // Remove any undefined/null IDs
     
     console.log(`Found ${serviceAssetTypeIds.length} service asset type IDs:`, serviceAssetTypeIds);
     
@@ -246,8 +272,10 @@ async function getServices() {
     for (const assetTypeId of serviceAssetTypeIds) {
       try {
         const assetsForType = await fetchAssetsByType(assetTypeId);
-        allServices = allServices.concat(assetsForType);
-        console.log(`Fetched ${assetsForType.length} assets for service type ID ${assetTypeId}`);
+        if (Array.isArray(assetsForType)) {
+          allServices = allServices.concat(assetsForType);
+          console.log(`Fetched ${assetsForType.length} assets for service type ID ${assetTypeId}`);
+        }
       } catch (error) {
         console.warn(`Error fetching assets for service type ${assetTypeId}:`, error);
       }
@@ -255,7 +283,7 @@ async function getServices() {
 
     // Remove duplicates based on ID
     const uniqueServices = allServices.filter((service, index, self) => 
-      index === self.findIndex(s => s.id === service.id)
+      service && service.id && index === self.findIndex(s => s && s.id === service.id)
     );
 
     console.log(`Total unique services found: ${uniqueServices.length}`);
