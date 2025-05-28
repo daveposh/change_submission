@@ -2880,11 +2880,13 @@ function performInitialAssetListing() {
         
         // API not filtering correctly, so we need to do it manually
         const filteredAssets = assets.filter(a => a.asset_type_id === assetTypeId);
+        console.log(`After manual filtering: ${filteredAssets.length} assets match the target type ${assetTypeId}`);
         
         // Combine with previous results
         const combinedResults = [...allResults, ...filteredAssets];
         
         // Continue loading more pages if needed
+        // Use original assets length for pagination, not filtered length
         if (assets.length === 100 && page < 3) {
           await new Promise(resolve => setTimeout(resolve, params.paginationDelay || 500));
           return await loadAssetsPage(page + 1, combinedResults);
@@ -3036,10 +3038,24 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         const assets = response && response.assets ? response.assets : [];
         console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
         
+        // Log sample asset to check if filtering is working
+        if (assets.length > 0) {
+          console.log('Sample asset from search:', {
+            id: assets[0].id,
+            name: assets[0].name,
+            asset_type_id: assets[0].asset_type_id
+          });
+        }
+        
+        // API filtering might not work correctly, so filter manually
+        const filteredAssets = assets.filter(a => a.asset_type_id === assetTypeId);
+        console.log(`After manual filtering: ${filteredAssets.length} of ${assets.length} assets match type ${assetTypeId}`);
+        
         // Combine with previous results
-        allAssets = [...allAssets, ...assets];
+        allAssets = [...allAssets, ...filteredAssets];
         
         // If we got a full page of results, there might be more
+        // Use original assets length for pagination, not filtered length
         if (assets.length === 100 && page < 3) { // Limit to 3 pages (300 results) max
           // Get pagination delay from params
           const params = await getInstallationParams();
