@@ -76,6 +76,7 @@ h3 {
 /* Form styling */
 .form-group {
   margin-bottom: 20px;
+  position: relative;
 }
 
 .form-group label {
@@ -91,21 +92,50 @@ h3 {
 
 .search-results {
   position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+  z-index: 1000;
+  width: 100%;
   max-height: 300px;
   overflow-y: auto;
   background: white;
-  z-index: 100;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-top: 4px;
 }
 
-.search-result-item {
+.search-results .list-group-item {
   cursor: pointer;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
 }
 
-.search-result-item:hover {
-  background-color: #f5f7f9;
+.search-results .list-group-item:first-child {
+  border-top: none;
+}
+
+.search-results .list-group-item:last-child {
+  border-bottom: none;
+}
+
+.search-results .list-group-item:hover {
+  background-color: #f8f9fa;
+}
+
+.selected-user {
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.input-group .input-group-text {
+  background-color: #f8f9fa;
+  border-left: none;
+}
+
+.input-group .form-control:focus + .input-group-text {
+  border-color: #86b7fe;
 }
 
 .selected-result {
