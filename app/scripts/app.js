@@ -46,6 +46,13 @@ const cache = {
  */
 async function fetchAndCacheAssetTypes() {
   console.log('Fetching all asset types...');
+  
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for asset types fetch');
+    throw new Error('Client not initialized');
+  }
+
   try {
     const response = await window.client.request.invokeTemplate("getAssetTypes", {
       path_suffix: "?per_page=100"
@@ -138,6 +145,13 @@ async function getConfiguredAssetTypeIds() {
  */
 async function fetchAndCacheServices() {
   console.log('Fetching services...');
+  
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for services fetch');
+    throw new Error('Client not initialized');
+  }
+
   try {
     // Get configured asset type IDs
     const assetTypeIds = await getConfiguredAssetTypeIds();
@@ -355,14 +369,23 @@ function loadFontAwesome() {
   }
 }
 
-document.onreadystatechange = function() {
-  if (document.readyState === 'interactive') {
-    console.log('Document ready, initializing app...');
+// Initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('DOM ready, starting app initialization...');
+  try {
     // Load FontAwesome first
     loadFontAwesome();
-    setTimeout(initializeApp, 500); // Add slight delay before initialization
+    
+    // Wait a bit for any other scripts to load
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Initialize the app
+    await initializeApp();
+  } catch (error) {
+    console.error('Failed to initialize app:', error);
+    displayInitError('Failed to initialize the application. Please refresh the page and try again.');
   }
-};
+});
 
 /**
  * Fetch all locations from the API and store them in the cache
@@ -1479,37 +1502,98 @@ function handleServiceSelection(event) {
   document.getElementById('selected-service-details').style.display = 'block';
 }
 
-function initializeApp() {
+/**
+ * Wait for the Freshworks client to be ready
+ * @returns {Promise<Object>} The initialized client
+ */
+function waitForClient() {
+  return new Promise((resolve, reject) => {
+    // Check if client is already available
+    if (window.client && window.client.request) {
+      console.log('Client already available');
+      resolve(window.client);
+      return;
+    }
+
+    // Set up a polling mechanism to wait for client
+    let attempts = 0;
+    const maxAttempts = 50; // 5 seconds max wait time
+    
+    const checkClient = () => {
+      attempts++;
+      
+      if (window.client && window.client.request) {
+        console.log(`Client became available after ${attempts * 100}ms`);
+        resolve(window.client);
+      } else if (attempts >= maxAttempts) {
+        console.error('Client failed to initialize within timeout');
+        reject(new Error('Client initialization timeout'));
+      } else {
+        setTimeout(checkClient, 100);
+      }
+    };
+
+    // Start checking
+    setTimeout(checkClient, 100);
+  });
+}
+
+/**
+ * Initialize the Freshworks app
+ * @returns {Promise<void>}
+ */
+async function initializeApp() {
   try {
-    console.log('Initializing app...');
+    console.log('Starting app initialization...');
+    
+    // Wait for client to be ready first
+    await waitForClient();
+    console.log('Client is ready, proceeding with initialization');
     
     // Initialize form fields first
     populateFormFields();
     
     // Initialize caches and services dropdown
-    Promise.all([
-      getAssetTypes(),
-      getServices()
-    ]).then(() => {
-      console.log('Caches initialized');
-      initializeServicesDropdown();
-    }).catch(error => {
+    try {
+      await Promise.all([
+        getAssetTypes(),
+        getServices()
+      ]);
+      console.log('Caches initialized successfully');
+      await initializeServicesDropdown();
+    } catch (error) {
       console.error('Error initializing caches:', error);
       const dropdown = document.getElementById('service-select');
       if (dropdown) {
         dropdown.innerHTML = '<option value="">Error loading services</option>';
         dropdown.disabled = true;
       }
-    });
+    }
 
     // Set up event listeners
     setupEventListeners();
 
-    // ... rest of initialization code ...
+    console.log('App initialization completed successfully');
   } catch (error) {
     console.error('Error in app initialization:', error);
-    displayInitError('Failed to initialize application');
+    displayInitError('Failed to initialize application: ' + error.message);
   }
+}
+
+/**
+ * Display initialization error to user
+ * @param {string} message Error message
+ */
+function displayInitError(message) {
+  const body = document.body;
+  const errorDiv = document.createElement('div');
+  errorDiv.className = 'alert alert-danger';
+  errorDiv.innerHTML = `
+    <h4>Initialization Error</h4>
+    <p>${message}</p>
+    <button class="btn btn-primary" onclick="location.reload()">Retry</button>
+  `;
+  body.insertBefore(errorDiv, body.firstChild);
 }
 
 function populateFormFields() {
@@ -1939,8 +2023,8 @@ async function cacheIndividualUsers(users, type) {
 async function getInstallationParams() {
   try {
     // Check if client is available
-    if (!window.client) {
-      console.error('Client not available for getting installation parameters');
+    if (!window.client || !window.client.iparams) {
+      console.warn('Client or iparams not available, using default parameters');
       return getDefaultParams();
     }
 
@@ -1993,14 +2077,6 @@ function getDefaultParams() {
     customFields: {}
   };
 }
-
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  initializeApp().catch(error => {
-    console.error('Failed to initialize app:', error);
-    showError('Failed to initialize the application. Please refresh the page and try again.');
-  });
-});
 
 
 
