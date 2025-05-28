@@ -5236,23 +5236,12 @@ async function searchAssetsWithConfiguredTypes(searchTerm = '') {
   }
 }
 
-/**
- * Get asset type name from cache synchronously
- * @param {number} assetTypeId - Asset type ID
- * @returns {string} Asset type name
- */
-function getAssetTypeNameSync(assetTypeId) {
-  if (!assetTypeId) return 'Unknown';
-  return (assetTypeCache.types[assetTypeId]?.name || assetTypeCache.byId[assetTypeId]?.name || `Type ${assetTypeId}`);
-}
-
-// Removed duplicate findSoftwareServicesAssetTypeIds function
-// Using the original implementation from line 801
+// Using the original getAssetTypeNameSync implementation from line 3484
 
 /**
  * Test helper function
  */
-window.testAssetSearch = async function(searchTerm = '') {
+window.testAssetSearch = async function() {
   console.log('🔍 Finding software/services asset type IDs...');
   
   try {
@@ -5322,89 +5311,7 @@ window.testAssetSearch = async function(searchTerm = '') {
   }
 }
 
-// Simple console helpers for testing
-window.testAssetSearch = async function(searchTerm = '') {
-  console.log(`🧪 Testing asset search with term: "${searchTerm}"`);
-  
-  try {
-    // Get installation parameters
-    const params = await getInstallationParams();
-    const configuredNames = params.assetTypeNames || '';
-    console.log(`📋 Configured asset type names: "${configuredNames}"`);
-    
-    // Parse configured names
-    const targetNames = configuredNames.split(',').map(name => name.trim().toLowerCase());
-    console.log(`🎯 Target names: ${targetNames.join(', ')}`);
-    
-    // Get cached asset types first
-    console.log(`📦 Getting cached asset types...`);
-    const cachedTypes = await getCachedAssetTypes();
-    console.log(`📦 Cached ${Object.keys(cachedTypes).length} asset types`);
-    
-    // Find matching asset type IDs
-    const matchingIds = [];
-    Object.entries(cachedTypes).forEach(([id, typeInfo]) => {
-      const typeName = (typeInfo.name || '').toLowerCase();
-      const isMatch = targetNames.some(configName => {
-        return typeName.includes(configName) || configName.includes(typeName);
-      });
-      if (isMatch) {
-        matchingIds.push(parseInt(id));
-        console.log(`✅ Matched: "${typeInfo.name}" (ID: ${id})`);
-      }
-    });
-    
-    if (matchingIds.length === 0) {
-      console.log('❌ No matches found, using fallback: 37000374722, 37000374726');
-      matchingIds.push(37000374722, 37000374726);
-    }
-    
-    // Build query
-    const query = matchingIds.map(id => `asset_type_id:${id}`).join(' OR ');
-    console.log(`📡 Query: ${query}`);
-    
-    // Search assets
-    const pathSuffix = `?query=${encodeURIComponent(query)}&page=1&per_page=20`;
-    console.log(`🔍 API call: /api/v2/assets${pathSuffix}`);
-    
-    const response = await window.client.request.invokeTemplate("getAssets", {
-      path_suffix: pathSuffix
-    });
-    
-    if (!response || !response.response) {
-      console.log('❌ No response from API');
-      return;
-    }
-    
-    const data = JSON.parse(response.response);
-    const assets = data.assets || [];
-    console.log(`📦 Found ${assets.length} assets`);
-    
-    // Filter by search term if provided
-    let filteredAssets = assets;
-    if (searchTerm.trim()) {
-      filteredAssets = assets.filter(asset => {
-        const searchIn = [
-          asset.name || '',
-          asset.display_name || '',
-          asset.description || ''
-        ].join(' ').toLowerCase();
-        return searchIn.includes(searchTerm.toLowerCase());
-      });
-      console.log(`🔽 After search term filter: ${filteredAssets.length} assets`);
-    }
-    
-    // Show results
-    filteredAssets.slice(0, 5).forEach(asset => {
-      console.log(`📄 Asset: "${asset.name}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
-    });
-    
-    return filteredAssets;
-    
-  } catch (error) {
-    console.error('❌ Test error:', error);
-  }
-};
+// End of file
 
 
 
