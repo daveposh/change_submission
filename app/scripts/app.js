@@ -246,7 +246,7 @@ async function getServices(forceRefresh = false) {
     let allAssets = [];
     let page = 1;
     let hasMorePages = true;
-    const maxPages = 10; // Safety limit
+    const maxPages = 50; // Increase safety limit to ensure we get all assets
     
     while (hasMorePages && page <= maxPages) {
       try {
@@ -291,6 +291,25 @@ async function getServices(forceRefresh = false) {
     }
     
     console.log(`📥 Retrieved ${allAssets.length} total assets from ${page - 1} pages`);
+    
+    // Show all unique asset type IDs found for debugging
+    const allAssetTypes = [...new Set(allAssets.map(a => a.asset_type_id))].sort((a, b) => a - b);
+    console.log(`🔍 All asset type IDs found in system: ${allAssetTypes.join(', ')}`);
+    
+    // Show breakdown of all asset types for debugging
+    const allTypeBreakdown = {};
+    allAssets.forEach(asset => {
+      const typeId = asset.asset_type_id;
+      if (!allTypeBreakdown[typeId]) {
+        allTypeBreakdown[typeId] = [];
+      }
+      allTypeBreakdown[typeId].push(asset.name);
+    });
+    
+    console.log('📊 All asset types with counts:');
+    Object.entries(allTypeBreakdown).forEach(([typeId, assets]) => {
+      console.log(`   Type ${typeId}: ${assets.length} assets - ${assets.slice(0, 3).join(', ')}${assets.length > 3 ? '...' : ''}`);
+    });
     
     // Filter assets by our target asset type IDs
     const targetServices = allAssets.filter(asset => 
