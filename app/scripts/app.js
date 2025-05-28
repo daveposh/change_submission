@@ -242,29 +242,94 @@ async function getServices(forceRefresh = false) {
     
     // Build the filter query using the specific asset type IDs
     const filterQuery = serviceAssetTypeIds
-      .map(id => `asset_type_id: ${id}`)
+      .map(id => `asset_type_id:${id}`)
       .join(' OR ');
     
     console.log('📝 Service filter query:', filterQuery);
     
-    // Fetch services using the filter
-    const requestUrl = `?filter="${filterQuery}"&per_page=100`;
-    console.log('🌐 API request URL:', requestUrl);
+    // Fetch services using the filter - try different URL formats
+    let requestUrl;
+    let response;
     
-    const response = await window.client.request.invokeTemplate("getAssets", {
-      path_suffix: requestUrl
-    });
-
-    if (!response || !response.response) {
-      console.warn('No response from services API');
-      await cacheServices([]);
-      return [];
+    // Try the filter approach first
+    try {
+      requestUrl = `?filter="${filterQuery}"&per_page=100`;
+      console.log('🌐 API request URL (filter approach):', requestUrl);
+      
+      response = await window.client.request.invokeTemplate("getAssets", {
+        path_suffix: requestUrl
+      });
+      
+      if (!response || !response.response) {
+        throw new Error('No response from filter approach');
+      }
+      
+      const data = JSON.parse(response.response);
+      let services = data.assets || [];
+      
+      // If we got services but they don't match our filter, the filter didn't work
+      const unmatchedServices = services.filter(service => 
+        !serviceAssetTypeIds.includes(service.asset_type_id)
+      );
+      
+      if (unmatchedServices.length > 0) {
+        console.warn(`⚠️ Filter returned ${unmatchedServices.length} services that don't match our criteria. Trying manual filtering...`);
+        console.log('🔍 Unmatched services:', unmatchedServices.slice(0, 3).map(s => ({
+          name: s.display_name || s.name,
+          asset_type_id: s.asset_type_id
+        })));
+        
+        // Fall back to getting all assets and filtering manually
+        throw new Error('Filter approach returned unmatched services');
+      }
+      
+      console.log(`✅ Filter approach worked! Found ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+      
+    } catch (filterError) {
+      console.warn('❌ Filter approach failed or returned wrong results, trying manual filtering:', filterError.message);
+      
+      // Fallback: Get all assets and filter manually
+      try {
+        requestUrl = `?per_page=100`;
+        console.log('🌐 API request URL (get all approach):', requestUrl);
+        
+        response = await window.client.request.invokeTemplate("getAssets", {
+          path_suffix: requestUrl
+        });
+        
+        if (!response || !response.response) {
+          throw new Error('No response from get all approach');
+        }
+        
+        const data = JSON.parse(response.response);
+        const allAssets = data.assets || [];
+        
+        console.log(`📥 Retrieved ${allAssets.length} total assets, filtering by asset type IDs...`);
+        
+        // Manual filtering
+        const services = allAssets.filter(asset => 
+          serviceAssetTypeIds.includes(asset.asset_type_id)
+        );
+        
+        console.log(`✅ Manual filtering found ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+        
+        // Show which asset types we found
+        const foundTypes = [...new Set(services.map(s => s.asset_type_id))];
+        console.log('🔍 Found asset types:', foundTypes);
+        
+        response = { response: JSON.stringify({ assets: services }) };
+        
+      } catch (manualError) {
+        console.error('❌ Both filter and manual approaches failed:', manualError);
+        throw manualError;
+      }
     }
-
+    
+    // Process the response (either from filter or manual filtering)
     const data = JSON.parse(response.response);
     const services = data.assets || [];
     
-    console.log(`✅ Found ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+    console.log(`✅ Final result: ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
     
     // Debug: show first service structure from API
     if (services[0]) {
@@ -274,6 +339,17 @@ async function getServices(forceRefresh = false) {
         asset_type_id: services[0].asset_type_id,
         keys: Object.keys(services[0])
       });
+      
+      // Show breakdown by asset type
+      const typeBreakdown = {};
+      services.forEach(service => {
+        const typeId = service.asset_type_id;
+        if (!typeBreakdown[typeId]) {
+          typeBreakdown[typeId] = 0;
+        }
+        typeBreakdown[typeId]++;
+      });
+      console.log('📊 Services by asset type ID:', typeBreakdown);
     }
     
     // Cache the services
