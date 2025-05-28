@@ -1648,6 +1648,12 @@ function setupEventListeners() {
     serviceSelect.addEventListener('change', handleServiceSelection);
   }
 
+  // Change type selection
+  const changeTypeSelect = document.getElementById('change-type');
+  if (changeTypeSelect) {
+    changeTypeSelect.addEventListener('change', handleChangeTypeSelection);
+  }
+
   // Requester search
   const requesterSearch = document.getElementById('requester-search');
   if (requesterSearch) {
