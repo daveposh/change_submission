@@ -62,7 +62,7 @@ const assetTypeCache = {
 const DEFAULT_SAFETY_MARGIN = 70;
 
 // Default inventory software/services type ID
-const DEFAULT_INVENTORY_TYPE_ID = 37000374722;
+const DEFAULT_INVENTORY_TYPE_ID = 37000374726;
 
 // Default asset type timeout
 const ASSET_TYPE_CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
@@ -557,6 +557,10 @@ async function checkAvailableAssetTypes() {
     });
     
     console.log('💡 To use a different asset type, update the asset_type_id in your app configuration');
+    console.log('💡 Based on the examples above, these seem to be:');
+    console.log('   - 37000374726: Software/Applications (Active Directory, etc.)');
+    console.log('   - 37000374859: Servers/Infrastructure (server names with IPs)');
+    console.log('   - 37000374826: Hardware/Workstations (computer names)');
     
   } catch (error) {
     console.error('❌ Error checking available asset types:', error);
@@ -4025,7 +4029,7 @@ async function getInstallationParams() {
       rateLimitListRequesters: parseInt(iparams.rate_limit_list_requesters || DEFAULT_RATE_LIMITS.starter.listRequesters),
       searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT),
       paginationDelay: parseInt(iparams.pagination_delay || DEFAULT_PAGINATION_DELAY),
-      assetTypeId: parseInt(iparams.asset_type_id || DEFAULT_INVENTORY_TYPE_ID)
+              assetTypeId: parseInt(iparams.asset_type_id || DEFAULT_INVENTORY_TYPE_ID)
     };
   } catch (error) {
     console.error('Error getting installation parameters:', error);
