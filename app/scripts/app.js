@@ -276,7 +276,7 @@ async function getServices() {
 /**
  * Fetch assets by asset type ID
  */
-async function fetchAssetsByType(assetTypeId) {
+function fetchAssetsByType(assetTypeId) {
   return new Promise((resolve, reject) => {
     if (!window.client || !window.client.request) {
       reject(new Error('Client not available'));
@@ -315,7 +315,7 @@ async function fetchAssetsByType(assetTypeId) {
 /**
  * Fetch all assets (fallback function)
  */
-async function fetchAllAssets() {
+function fetchAllAssets() {
   return new Promise((resolve, reject) => {
     if (!window.client || !window.client.request) {
       reject(new Error('Client not available'));
