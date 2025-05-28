@@ -223,10 +223,10 @@ async function getServices(forceRefresh = false) {
     
     // Define the default service asset type IDs (can be overridden in installation params)
     const defaultServiceAssetTypeIds = [
-      37000374722,
-      37000374723, 
-      37000374726,
-      37000374730
+      37000374722, // Applications/Software - 8 assets (DBT, Middleware, EBCFX, AWS Core, etc.)
+      37000374723, // Additional asset type from original query
+      37000374726, // IT Software - 3 assets (Active Directory, GoAnyWhere, Microsoft Entra ID)
+      37000374730  // ISP/Network Services - 19 assets (Orlando Colo, various ISP connections, etc.)
     ];
     
     // Allow configuration override via installation parameters
