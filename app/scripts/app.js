@@ -1504,24 +1504,6 @@ function initializeApp() {
 
 function populateFormFields() {
   // Helper functions for safe element access
-  function safeGetElement(id) {
-    const element = document.getElementById(id);
-    if (!element) {
-      console.warn(`Element with id '${id}' not found`);
-    }
-    return element;
-  }
-
-  function safeSetValue(id, value) {
-    const element = safeGetElement(id);
-    if (element) element.value = value || '';
-  }
-
-  function safeSetText(id, text) {
-    const element = safeGetElement(id);
-    if (element) element.textContent = text || '';
-  }
-
   // Create services section
   const servicesSection = document.createElement('div');
   servicesSection.className = 'form-group mb-4';
