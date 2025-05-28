@@ -676,9 +676,11 @@ async function findSoftwareServicesAssetTypeIds() {
     const params = await getInstallationParams();
     const configuredNames = params.assetTypeNames;
     
-    console.log(`Looking for asset types with configured names: "${configuredNames}"`);
+    console.log(`🔧 ASSET TYPE CONFIGURATION:`);
+    console.log(`   📝 Configured names: "${configuredNames}"`);
     
     const cachedAssetTypes = await getCachedAssetTypes();
+    console.log(`   💾 Found ${Object.keys(cachedAssetTypes).length} cached asset types`);
     
     // Debug: Show all available asset types
     console.log(`📋 Available asset types in your system:`);
@@ -689,22 +691,25 @@ async function findSoftwareServicesAssetTypeIds() {
     // If cache is empty or expired, try to fetch fresh data
     if (Object.keys(cachedAssetTypes).length === 0 || 
         Object.values(cachedAssetTypes).some(type => type.timestamp < Date.now() - CACHE_TIMEOUT)) {
-      console.log('Fetching asset types to find configured types');
+      console.log('⏳ Fetching asset types to find configured types');
       try {
         await fetchAllAssetTypes();
         // Get the updated cache
         const updatedCache = await getCachedAssetTypes();
         Object.assign(cachedAssetTypes, updatedCache);
+        console.log(`✅ Updated cache with ${Object.keys(updatedCache).length} asset types`);
       } catch (fetchError) {
-        console.error('Failed to fetch asset types, using default:', fetchError);
+        console.error('❌ Failed to fetch asset types, using default:', fetchError);
         return DEFAULT_INVENTORY_TYPE_IDS;
       }
     }
     
     // If no configured names, fall back to keyword search
     if (!configuredNames || configuredNames.trim() === '') {
-      console.log('No asset type names configured, using keyword search');
-      return findAssetTypesByKeywords(cachedAssetTypes);
+      console.log('⚠️ No asset type names configured, using keyword search');
+      const keywordResults = findAssetTypesByKeywords(cachedAssetTypes);
+      console.log(`🔍 Keyword search found: ${keywordResults.join(', ')}`);
+      return keywordResults;
     }
     
     // Parse the configured names (comma-separated) and remove any extra quotes
@@ -722,9 +727,6 @@ async function findSoftwareServicesAssetTypeIds() {
     for (const [id, assetType] of Object.entries(cachedAssetTypes)) {
       const assetTypeName = assetType.name.toLowerCase();
       
-      // Log each asset type being checked
-      console.log(`   Checking asset type: "${assetType.name}" (ID: ${id})`);
-      
       // Check if any of the target names match this asset type
       const isMatch = targetNames.some(targetName => {
         const exactMatch = assetTypeName === targetName;
@@ -737,7 +739,7 @@ async function findSoftwareServicesAssetTypeIds() {
         const wordMatch = assetTypeWords.some(word => targetWords.includes(word)) ||
                          targetWords.some(word => assetTypeWords.includes(word));
         
-        // Log detailed matching info
+        // Log detailed matching info for successful matches
         if (exactMatch || nameContainsTarget || targetContainsName || wordMatch) {
           console.log(`     🎯 Match found! Target: "${targetName}" vs Asset Type: "${assetTypeName}"`);
           console.log(`        Exact: ${exactMatch}, Contains: ${nameContainsTarget}, Contained: ${targetContainsName}, WordMatch: ${wordMatch}`);
@@ -754,7 +756,11 @@ async function findSoftwareServicesAssetTypeIds() {
     
     // If we found specific types, use them
     if (foundTypeIds.length > 0) {
-      console.log(`Using ${foundTypeIds.length} configured asset type IDs: ${foundTypeIds.join(', ')}`);
+      console.log(`🎉 Using ${foundTypeIds.length} configured asset type IDs: ${foundTypeIds.join(', ')}`);
+      foundTypeIds.forEach(id => {
+        const typeName = cachedAssetTypes[id] ? cachedAssetTypes[id].name : 'Unknown';
+        console.log(`   - ${id}: ${typeName}`);
+      });
       return foundTypeIds;
     }
     
@@ -767,9 +773,12 @@ async function findSoftwareServicesAssetTypeIds() {
       checkAvailableAssetTypes().catch(err => console.error('Error checking available asset types:', err));
     }, 1000);
     
-    return findAssetTypesByKeywords(cachedAssetTypes);
+    const keywordResults = findAssetTypesByKeywords(cachedAssetTypes);
+    console.log(`🔍 Keyword search fallback found: ${keywordResults.join(', ')}`);
+    return keywordResults;
   } catch (error) {
-    console.error('Error finding software/services asset types:', error);
+    console.error('❌ Error finding software/services asset types:', error);
+    console.log(`🔄 Falling back to default IDs: ${DEFAULT_INVENTORY_TYPE_IDS.join(', ')}`);
     return DEFAULT_INVENTORY_TYPE_IDS;
   }
 }
@@ -3032,8 +3041,9 @@ function searchAssets(e) {
           return;
         }
         
-        // Use the first asset type ID for caching (or 'multiple' if more than one)
-        const cacheKey = assetTypeIds.length === 1 ? assetTypeIds[0] : 'multiple';
+        // Generate consistent cache key for the configured asset types
+        const cacheKey = generateAssetTypeCacheKey(assetTypeIds);
+        console.log(`🔑 Using cache key: "${cacheKey}" for asset types: ${assetTypeIds.join(', ')}`);
         
         // Use special cache key for initial asset listing with asset type IDs
         getAssetsByTypeFromCache('initial_asset_listing', cacheKey).then(cachedResults => {
@@ -3080,8 +3090,9 @@ function searchAssets(e) {
         return;
       }
       
-      // Use the first asset type ID for caching (or 'multiple' if more than one)
-      const cacheKey = assetTypeIds.length === 1 ? assetTypeIds[0] : 'multiple';
+      // Generate consistent cache key for the configured asset types
+      const cacheKey = generateAssetTypeCacheKey(assetTypeIds);
+      console.log(`🔑 Using cache key: "${cacheKey}" for search term "${searchTerm}" with asset types: ${assetTypeIds.join(', ')}`);
       
       // Check type-specific cache
       getAssetsByTypeFromCache(searchTerm, cacheKey).then(cachedResults => {
@@ -3145,22 +3156,32 @@ function performInitialAssetListing() {
     
     console.log(`Loading initial asset listing for type IDs: ${assetTypeIds.join(', ')}`);
     
-    // Format the query to get all assets of the configured types
-    // For multiple types, we'll get all assets and filter manually
-    const assetQuery = assetTypeIds.length === 1 ? `asset_type_id:${assetTypeIds[0]}` : '';
-    const encodedQuery = assetQuery ? encodeURIComponent(`"${assetQuery}"`) : '';
+    // Build query for multiple asset types using Freshservice API syntax
+    let assetTypeQuery = '';
+    if (assetTypeIds.length === 1) {
+      assetTypeQuery = `asset_type_id:${assetTypeIds[0]}`;
+    } else {
+      // For multiple types, use OR syntax
+      assetTypeQuery = assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ');
+    }
     
-    console.log(`Initial asset listing query: assets?include=type_fields&query=${encodedQuery}`);
+    console.log(`🔍 Initial listing query: "${assetTypeQuery}"`);
+    const encodedQuery = assetTypeQuery ? encodeURIComponent(assetTypeQuery) : '';
     
     // Function to load assets page
     async function loadAssetsPage(page = 1, allResults = []) {
       try {
         console.log(`Loading initial assets page ${page} with filter for types: ${assetTypeIds.join(', ')}`);
         
-        // Ensure we always include type_fields in the query
-        const pathSuffix = encodedQuery ? 
-          `?include=type_fields&query=${encodedQuery}&page=${page}&per_page=100` :
-          `?include=type_fields&page=${page}&per_page=100`;
+        // Construct the API path with proper query parameters
+        let pathSuffix = `?include=type_fields&page=${page}&per_page=100`;
+        
+        // Add asset type filter if we have configured types
+        if (encodedQuery) {
+          pathSuffix = `?include=type_fields&query=${encodedQuery}&page=${page}&per_page=100`;
+        }
+        
+        console.log(`📡 Initial listing API call: /api/v2/assets${pathSuffix}`);
           
         const data = await window.client.request.invokeTemplate("getAssets", {
           path_suffix: pathSuffix
@@ -3173,77 +3194,70 @@ function performInitialAssetListing() {
         const response = JSON.parse(data.response);
         const assets = response && response.assets ? response.assets : [];
         
-        console.log(`Initial asset listing returned ${assets.length} results for page ${page}`);
+        console.log(`📦 Initial listing returned ${assets.length} results for page ${page}`);
         
         // Log sample asset and check asset type IDs
         if (assets.length > 0) {
-          console.log('Sample asset:', {
+          console.log('📋 Sample asset from initial listing:', {
             id: assets[0].id,
             name: assets[0].name,
             display_name: assets[0].display_name,
-            asset_type_id: assets[0].asset_type_id
+            asset_type_id: assets[0].asset_type_id,
+            parent_asset_type_id: assets[0].parent_asset_type_id
           });
-          
-          // Check if assets match any of the requested types (either asset_type_id or parent_asset_type_id)
-          const targetTypeIds = Array.isArray(assetTypeIds) ? assetTypeIds : [assetTypeIds];
-          
-          // Debug: Show all assets and their types before filtering
-          console.log(`🔍 All ${assets.length} assets returned from initial listing:`);
-          assets.forEach(asset => {
-            const matchesType = targetTypeIds.includes(asset.asset_type_id) || targetTypeIds.includes(asset.parent_asset_type_id);
-            console.log(`   ${matchesType ? '✅' : '❌'} "${asset.name || asset.display_name}" (ID: ${asset.id}) - Type: ${asset.asset_type_id}, Parent: ${asset.parent_asset_type_id || 'N/A'}`);
-          });
-          
-          const matchingAssets = assets.filter(a => 
-            targetTypeIds.includes(a.asset_type_id) || targetTypeIds.includes(a.parent_asset_type_id)
-          );
-          console.log(`FILTERING: ${matchingAssets.length} of ${assets.length} assets match type IDs ${targetTypeIds.join(', ')} (checking both asset_type_id and parent_asset_type_id)`);
-          
-          if (matchingAssets.length === 0 && assets.length > 0) {
-            const uniqueTypes = [...new Set(assets.map(a => a.asset_type_id))];
-            console.log(`Found these asset types instead: ${uniqueTypes.join(', ')}`);
-            
-            // Show asset type names for debugging
-            const assetTypeSamples = assets.slice(0, 5).map(a => ({
-              id: a.id,
-              name: a.name,
-              asset_type_id: a.asset_type_id,
-              parent_asset_type_id: a.parent_asset_type_id,
-              asset_type_name: a.asset_type_name
-            }));
-            console.log('Sample assets with their types:', assetTypeSamples);
-          }
         }
         
-        // API not filtering correctly, so we need to do it manually
-        // Check both asset_type_id and parent_asset_type_id against multiple target types
+        // If API filtering didn't work perfectly, apply additional manual filtering
         const targetTypeIds = Array.isArray(assetTypeIds) ? assetTypeIds : [assetTypeIds];
-        const filteredAssets = assets.filter(a => 
-          targetTypeIds.includes(a.asset_type_id) || targetTypeIds.includes(a.parent_asset_type_id)
-        );
-        console.log(`After manual filtering: ${filteredAssets.length} assets match the target types ${targetTypeIds.join(', ')} (checking both asset_type_id and parent_asset_type_id)`);
+        
+        // Filter to only include assets that match our target types
+        // Check both asset_type_id and parent_asset_type_id for broader coverage
+        const filteredAssets = assets.filter(asset => {
+          const directMatch = targetTypeIds.includes(asset.asset_type_id);
+          const parentMatch = asset.parent_asset_type_id && targetTypeIds.includes(asset.parent_asset_type_id);
+          return directMatch || parentMatch;
+        });
+        
+        console.log(`🔽 Filtered to ${filteredAssets.length} of ${assets.length} assets matching configured types`);
+        
+        // Log details for debugging if no matches
+        if (filteredAssets.length === 0 && assets.length > 0) {
+          console.log('❌ No assets matched configured types in initial listing. Found these types instead:');
+          const foundTypes = [...new Set(assets.map(a => a.asset_type_id))];
+          foundTypes.forEach(typeId => {
+            const count = assets.filter(a => a.asset_type_id === typeId).length;
+            console.log(`   - Type ${typeId}: ${count} assets (${getAssetTypeNameSync(typeId)})`);
+          });
+          
+          // Trigger detailed asset type investigation
+          console.log('🔍 DEBUGGING: Let me check what asset types actually have assets...');
+          setTimeout(() => {
+            checkAvailableAssetTypes();
+          }, 1000);
+        } else if (filteredAssets.length > 0) {
+          // Show sample of matched assets
+          console.log(`✅ Sample matched assets from initial listing:`);
+          filteredAssets.slice(0, 5).forEach(asset => {
+            console.log(`   - "${asset.name || asset.display_name}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+          });
+        }
         
         // Combine with previous results, avoiding duplicates
         const existingIds = new Set(allResults.map(asset => asset.id));
         const newAssets = filteredAssets.filter(asset => !existingIds.has(asset.id));
         const combinedResults = [...allResults, ...newAssets];
         
-        console.log(`📊 Page ${page}: Found ${filteredAssets.length} matching assets, ${newAssets.length} new (${filteredAssets.length - newAssets.length} duplicates skipped)`);
-        
-        // Continue loading more pages if needed
-        // Use original assets length for pagination, not filtered length
-        console.log(`📄 Page ${page} returned ${assets.length} assets. Checking if we should load more...`);
+        console.log(`📊 Page ${page}: ${newAssets.length} new assets added (${filteredAssets.length - newAssets.length} duplicates skipped)`);
         
         // Check if we should load more pages
-        // Continue if we got a reasonable number of assets (suggesting more might be available)
-        const shouldLoadMore = assets.length >= 30 && page < 10; // More flexible pagination
+        const shouldLoadMore = assets.length >= 100 && page < 5; // Limit to 5 pages max
         
         if (shouldLoadMore) {
-          console.log(`🔄 Loading next page (${page + 1}) after ${params.paginationDelay || 500}ms delay...`);
-          await new Promise(resolve => setTimeout(resolve, params.paginationDelay || 500));
+          console.log(`🔄 Loading page ${page + 1} for initial listing...`);
+          const params = await getInstallationParams();
+          const paginationDelay = params.paginationDelay || 500;
+          await new Promise(resolve => setTimeout(resolve, paginationDelay));
           return await loadAssetsPage(page + 1, combinedResults);
-        } else {
-          console.log(`🛑 Stopping pagination: assets.length=${assets.length}, page=${page}, shouldLoadMore=${shouldLoadMore}`);
         }
         
         console.log(`✅ Completed initial asset listing: ${combinedResults.length} total assets across ${page} pages`);
@@ -3260,7 +3274,7 @@ function performInitialAssetListing() {
         const assets = response.assets || [];
         
         if (assets.length === 0) {
-          console.log('No assets found of the configured type, showing empty results');
+          console.log('❌ No assets found of the configured types, showing empty results');
           console.log('🔍 DEBUGGING: Let me check what asset types actually have assets...');
           
           // Try to get a sample of all assets to see what types are available
@@ -3285,8 +3299,8 @@ function performInitialAssetListing() {
         const processedAssets = processAssetResults(assets);
         
         // Cache the results for future use with asset type IDs
-        // For multiple types, cache with 'multiple' as the key, otherwise use the single type ID
-        const cacheKey = assetTypeIds.length === 1 ? assetTypeIds[0] : 'multiple';
+        // Generate consistent cache key for the configured asset types
+        const cacheKey = generateAssetTypeCacheKey(assetTypeIds);
         addAssetsToTypeCache('initial_asset_listing', cacheKey, processedAssets);
         
         // Display the results
@@ -3413,13 +3427,23 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
   // Find the correct software/services asset type IDs from cache
   const assetTypeIds = await findSoftwareServicesAssetTypeIds();
   // Log asset type IDs
-      console.log(`Using software/services asset type IDs for search: ${assetTypeIds.join(', ')}`);
-    console.log(`🎯 Target asset type IDs: ${assetTypeIds.map(id => `${id} (${getAssetTypeNameSync(id)})`).join(', ')}`);
+  console.log(`Using software/services asset type IDs for search: ${assetTypeIds.join(', ')}`);
+  console.log(`🎯 Target asset type IDs: ${assetTypeIds.map(id => `${id} (${getAssetTypeNameSync(id)})`).join(', ')}`);
 
-    // Query for the specific asset types and filter by search term
-    // For multiple asset types, we'll get all assets and filter manually since API doesn't support OR queries well
-    const assetTypeQuery = assetTypeIds.length === 1 ? `asset_type_id:${assetTypeIds[0]}` : '';
-    const encodedAssetTypeQuery = assetTypeQuery ? encodeURIComponent(`"${assetTypeQuery}"`) : '';
+  // Build query for multiple asset types using Freshservice API syntax
+  // For multiple asset types, we can use OR logic: asset_type_id:123 OR asset_type_id:456
+  let assetTypeQuery = '';
+  if (assetTypeIds && assetTypeIds.length > 0) {
+    if (assetTypeIds.length === 1) {
+      assetTypeQuery = `asset_type_id:${assetTypeIds[0]}`;
+    } else {
+      // For multiple types, use OR syntax
+      assetTypeQuery = assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ');
+    }
+  }
+  
+  console.log(`🔍 Asset type query: "${assetTypeQuery}"`);
+  const encodedAssetTypeQuery = assetTypeQuery ? encodeURIComponent(assetTypeQuery) : '';
   
   // Arrays to store all results from pagination
   let allAssets = [];
@@ -3428,9 +3452,15 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
   async function loadAssetsPage(page = 1) {
     console.log(`Loading assets page ${page} with filter for asset types: ${assetTypeIds.join(', ')}`);
     try {
-      const pathSuffix = encodedAssetTypeQuery ? 
-        `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100` : 
-        `?page=${page}&per_page=100`;
+      // Construct the API path with proper query parameters
+      let pathSuffix = `?page=${page}&per_page=100`;
+      
+      // Add asset type filter if we have configured types
+      if (encodedAssetTypeQuery) {
+        pathSuffix = `?query=${encodedAssetTypeQuery}&page=${page}&per_page=100`;
+      }
+      
+      console.log(`📡 API call: /api/v2/assets${pathSuffix}`);
       
       const data = await window.client.request.invokeTemplate("getAssets", {
         path_suffix: pathSuffix
@@ -3443,52 +3473,63 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
       try {
         const response = JSON.parse(data.response);
         const assets = response && response.assets ? response.assets : [];
-        console.log(`Asset search returned ${assets.length} results with asset_type_id filter`);
+        console.log(`📦 API returned ${assets.length} assets for page ${page}`);
         
         // Log sample asset to check if filtering is working
         if (assets.length > 0) {
-          console.log('Sample asset from search:', {
+          console.log('📋 Sample asset from API:', {
             id: assets[0].id,
             name: assets[0].name,
-            asset_type_id: assets[0].asset_type_id
+            asset_type_id: assets[0].asset_type_id,
+            parent_asset_type_id: assets[0].parent_asset_type_id
           });
         }
         
-        // API filtering might not work correctly, so filter manually
-        // Check both asset_type_id and parent_asset_type_id against multiple target types
+        // If API filtering didn't work perfectly, apply additional manual filtering
         const targetTypeIds = Array.isArray(assetTypeIds) ? assetTypeIds : [assetTypeIds];
         
-        // Debug: Show all assets and their types before filtering
-        console.log(`🔍 All ${assets.length} assets returned from API:`);
-        assets.forEach(asset => {
-          const matchesType = targetTypeIds.includes(asset.asset_type_id) || targetTypeIds.includes(asset.parent_asset_type_id);
-          console.log(`   ${matchesType ? '✅' : '❌'} "${asset.name || asset.display_name}" (ID: ${asset.id}) - Type: ${asset.asset_type_id}, Parent: ${asset.parent_asset_type_id || 'N/A'}`);
+        // Filter to only include assets that match our target types
+        // Check both asset_type_id and parent_asset_type_id for broader coverage
+        const filteredAssets = assets.filter(asset => {
+          const directMatch = targetTypeIds.includes(asset.asset_type_id);
+          const parentMatch = asset.parent_asset_type_id && targetTypeIds.includes(asset.parent_asset_type_id);
+          return directMatch || parentMatch;
         });
         
-        const filteredAssets = assets.filter(a => 
-          targetTypeIds.includes(a.asset_type_id) || targetTypeIds.includes(a.parent_asset_type_id)
-        );
-        console.log(`After manual filtering: ${filteredAssets.length} of ${assets.length} assets match types ${targetTypeIds.join(', ')} (checking both asset_type_id and parent_asset_type_id)`);
+        console.log(`🔽 Filtered to ${filteredAssets.length} of ${assets.length} assets matching configured types`);
+        
+        // Log details for debugging if no matches
+        if (filteredAssets.length === 0 && assets.length > 0) {
+          console.log('❌ No assets matched configured types. Found these types instead:');
+          const foundTypes = [...new Set(assets.map(a => a.asset_type_id))];
+          foundTypes.forEach(typeId => {
+            const count = assets.filter(a => a.asset_type_id === typeId).length;
+            console.log(`   - Type ${typeId}: ${count} assets (${getAssetTypeNameSync(typeId)})`);
+          });
+        } else if (filteredAssets.length > 0) {
+          // Show sample of matched assets
+          console.log(`✅ Sample matched assets:`);
+          filteredAssets.slice(0, 3).forEach(asset => {
+            console.log(`   - "${asset.name}" (Type: ${asset.asset_type_id})`);
+          });
+        }
         
         // Combine with previous results, avoiding duplicates
         const existingIds = new Set(allAssets.map(asset => asset.id));
         const newAssets = filteredAssets.filter(asset => !existingIds.has(asset.id));
         allAssets = [...allAssets, ...newAssets];
         
-        console.log(`📊 Page ${page}: Found ${filteredAssets.length} matching assets, ${newAssets.length} new (${filteredAssets.length - newAssets.length} duplicates skipped)`);
+        console.log(`📊 Page ${page}: ${newAssets.length} new assets added (${filteredAssets.length - newAssets.length} duplicates skipped)`);
         
-        // If we got a reasonable number of results, there might be more
-        // Use original assets length for pagination, not filtered length
-        console.log(`📄 Search page ${page} returned ${assets.length} assets. Checking if we should load more...`);
-        
-        const shouldLoadMore = assets.length >= 30 && page < 10; // More flexible pagination
+        // Check if we should load more pages
+        const shouldLoadMore = assets.length >= 100 && page < 5; // Limit to 5 pages max
         
         if (shouldLoadMore) {
           // Get pagination delay from params
           const params = await getInstallationParams();
           const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
           
-          console.log(`🔄 Loading search page ${page + 1} after ${paginationDelay}ms delay...`);
+          console.log(`🔄 Loading page ${page + 1} after ${paginationDelay}ms delay...`);
           updateLoadingMessage('asset-results', `Loading more results... (page ${page + 1})`);
           
           // Wait for the delay before loading the next page
@@ -3496,18 +3537,16 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
           
           // Load next page
           return await loadAssetsPage(page + 1);
-        } else {
-          console.log(`🛑 Stopping search pagination: assets.length=${assets.length}, page=${page}, shouldLoadMore=${shouldLoadMore}`);
         }
         
-        console.log(`✅ Completed asset search: ${allAssets.length} total assets across ${page} pages`);
+        console.log(`✅ Completed asset loading: ${allAssets.length} total assets across ${page} pages`);
         return { assets: allAssets };
       } catch (error) {
         console.error('Error parsing assets response:', error);
         return { assets: allAssets };
       }
     } catch (error) {
-      console.error('Asset search failed:', error);
+      console.error('Asset API call failed:', error);
       return { assets: allAssets };
     }
   }
@@ -3519,7 +3558,7 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         // Get assets from the response
         const assets = assetsResponse.assets || [];
         
-        // Apply the search term filter to the assets locally
+        // Apply the search term filter to the assets locally if we have a search term
         const filteredAssets = searchTerm ? assets.filter(asset => {
           const searchIn = [
             asset.name || '',
@@ -3532,9 +3571,9 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
           ].map(text => text.toLowerCase()).join(' ');
           
           return searchIn.includes(searchTerm.toLowerCase());
-        }) : assets; // If no search term, return all assets
+        }) : assets; // If no search term, return all assets that match the type filter
         
-        console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
+        console.log(`🔍 Applied search term filter: ${assets.length} → ${filteredAssets.length} assets matching "${searchTerm}"`);
         
         // Show what assets were available before search term filtering
         if (assets.length > 0 && searchTerm) {
@@ -3548,22 +3587,25 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         }
         
         if (filteredAssets.length > 0) {
-          console.log('Sample filtered asset:', {
+          console.log('📝 Sample filtered asset:', {
             id: filteredAssets[0].id,
             name: filteredAssets[0].name,
             display_name: filteredAssets[0].display_name,
             asset_type_id: filteredAssets[0].asset_type_id
           });
         } else if (searchTerm && assets.length > 0) {
-          console.log(`❌ No assets matched search term "${searchTerm}". Try searching for part of these asset names instead.`);
+          console.log(`❌ No assets matched search term "${searchTerm}". Available asset names:`);
+          assets.slice(0, 10).forEach(asset => {
+            console.log(`   - "${asset.name || asset.display_name}"`);
+          });
         }
         
-        // Process assets to include only display name and ID
+        // Process assets to include all needed fields
         const processedAssets = await Promise.all(filteredAssets.map(async asset => ({
           id: asset.id,
-          name: asset.display_name || asset.name || 'Unnamed Service',
-          display_name: asset.display_name || asset.name || 'Unnamed Service',
-          type: 'service', // Mark as service since we're filtering for software/services
+          name: asset.display_name || asset.name || 'Unnamed Asset',
+          display_name: asset.display_name || asset.name || 'Unnamed Asset',
+          type: 'asset', // Mark as asset since we're filtering by configured asset types
           asset_type_id: asset.asset_type_id,
           asset_type_name: asset.asset_type_name || await getAssetTypeName(asset.asset_type_id),
           product_name: asset.product_name,
@@ -3575,7 +3617,7 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         })));
         
         // Cache the results with asset type consideration
-        const cacheKey = assetTypeIds.length === 1 ? assetTypeIds[0] : 'multiple';
+        const cacheKey = generateAssetTypeCacheKey(assetTypeIds);
         addAssetsToTypeCache(searchTerm, cacheKey, processedAssets);
         
         // Display the results
@@ -4693,24 +4735,24 @@ function processAssetResults(assets) {
 /**
  * Get assets from cache with asset type filtering
  * @param {string} searchTerm - Search term used to find assets
- * @param {number} assetTypeId - Asset type ID to filter by
+ * @param {string|number} cacheKey - Cache key (can be single asset type ID, 'multiple', or other identifier)
  * @returns {Promise<Array>} - Cached asset results or null if not found
  */
-async function getAssetsByTypeFromCache(searchTerm, assetTypeId) {
-  if (!assetTypeId) {
+async function getAssetsByTypeFromCache(searchTerm, cacheKey) {
+  if (!cacheKey) {
     return getFromSearchCache('assets', searchTerm);
   }
   
-  const cacheKey = searchTerm || 'initial_asset_listing';
+  const searchKey = searchTerm || 'initial_asset_listing';
   
   // Initialize asset type cache if needed
-  if (!searchCache.assetsByType[assetTypeId]) {
-    searchCache.assetsByType[assetTypeId] = {};
+  if (!searchCache.assetsByType[cacheKey]) {
+    searchCache.assetsByType[cacheKey] = {};
   }
   
   // Check if we have a cache hit
-  if (searchCache.assetsByType[assetTypeId][cacheKey]) {
-    const cachedData = searchCache.assetsByType[assetTypeId][cacheKey];
+  if (searchCache.assetsByType[cacheKey][searchKey]) {
+    const cachedData = searchCache.assetsByType[cacheKey][searchKey];
     const currentTime = Date.now();
     
     // Get the configured search cache timeout
@@ -4719,41 +4761,62 @@ async function getAssetsByTypeFromCache(searchTerm, assetTypeId) {
     
     // Check if the cache is still valid
     if (currentTime - cachedData.timestamp < cacheTimeout) {
+      console.log(`✅ Cache hit for asset types ${cacheKey}, term "${searchKey}" (${cachedData.results.length} items)`);
       return cachedData.results;
     } else {
-      console.log(`Cache expired for asset type ${assetTypeId}, term "${cacheKey}"`);
+      console.log(`⏰ Cache expired for asset types ${cacheKey}, term "${searchKey}"`);
     }
   }
   
+  console.log(`❌ No cache found for asset types ${cacheKey}, term "${searchKey}"`);
   return null;
 }
 
 /**
  * Add assets to cache with asset type filtering
  * @param {string} searchTerm - Search term used to find assets
- * @param {number} assetTypeId - Asset type ID to filter by
+ * @param {string|number} cacheKey - Cache key (can be single asset type ID, 'multiple', or other identifier)
  * @param {Array} results - Asset results to cache
  */
-function addAssetsToTypeCache(searchTerm, assetTypeId, results) {
-  if (!assetTypeId) {
+function addAssetsToTypeCache(searchTerm, cacheKey, results) {
+  if (!cacheKey) {
     addToSearchCache('assets', searchTerm, results);
     return;
   }
   
-  const cacheKey = searchTerm || 'initial_asset_listing';
+  const searchKey = searchTerm || 'initial_asset_listing';
   
   // Initialize asset type cache if needed
-  if (!searchCache.assetsByType[assetTypeId]) {
-    searchCache.assetsByType[assetTypeId] = {};
+  if (!searchCache.assetsByType[cacheKey]) {
+    searchCache.assetsByType[cacheKey] = {};
   }
   
   // Add the results to the cache
-  searchCache.assetsByType[assetTypeId][cacheKey] = {
+  searchCache.assetsByType[cacheKey][searchKey] = {
     results: results,
     timestamp: Date.now()
   };
   
-  console.log(`Cached ${results.length} assets for type ${assetTypeId}, term "${cacheKey}"`);
+  console.log(`💾 Cached ${results.length} assets for types ${cacheKey}, term "${searchKey}"`);
+}
+
+/**
+ * Generate a consistent cache key for the configured asset types
+ * @param {Array<number>} assetTypeIds - Array of asset type IDs
+ * @returns {string} - Cache key for these asset types
+ */
+function generateAssetTypeCacheKey(assetTypeIds) {
+  if (!assetTypeIds || assetTypeIds.length === 0) {
+    return 'all_types';
+  }
+  
+  if (assetTypeIds.length === 1) {
+    return assetTypeIds[0].toString();
+  }
+  
+  // For multiple types, create a sorted, consistent key
+  const sortedIds = [...assetTypeIds].sort((a, b) => a - b);
+  return `multi_${sortedIds.join('_')}`;
 }
 
 
