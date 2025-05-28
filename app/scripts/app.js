@@ -1510,6 +1510,61 @@ function handleServiceSelection(event) {
 }
 
 /**
+ * Handle change type selection
+ * @param {Event} event Change event
+ */
+function handleChangeTypeSelection(event) {
+  const changeType = event.target.value;
+  
+  // Update lead time display
+  const leadTimeElement = document.getElementById('lead-time');
+  if (leadTimeElement) {
+    leadTimeElement.textContent = leadTimeText[changeType] || '2 business days';
+  }
+  
+  // Update change type description/tooltip
+  const tooltipElement = document.getElementById('change-type-tooltip');
+  if (tooltipElement) {
+    tooltipElement.textContent = changeTypeTooltips[changeType] || '';
+  }
+  
+  // Update the stored change request data
+  changeRequestData.changeType = changeType;
+  changeRequestData.leadTime = leadTimeText[changeType] || '2 business days';
+  
+  console.log(`Change type updated to: ${changeType}, Lead time: ${changeRequestData.leadTime}`);
+}
+
+/**
+ * Initialize change type defaults on page load
+ */
+function initializeChangeTypeDefaults() {
+  const changeTypeSelect = document.getElementById('change-type');
+  if (!changeTypeSelect) return;
+  
+  // Get the currently selected change type (default is 'standard')
+  const currentChangeType = changeTypeSelect.value || 'standard';
+  
+  // Update lead time display
+  const leadTimeElement = document.getElementById('lead-time');
+  if (leadTimeElement) {
+    leadTimeElement.textContent = leadTimeText[currentChangeType] || '2 business days';
+  }
+  
+  // Update change type description/tooltip
+  const tooltipElement = document.getElementById('change-type-tooltip');
+  if (tooltipElement) {
+    tooltipElement.textContent = changeTypeTooltips[currentChangeType] || '';
+  }
+  
+  // Initialize the stored change request data
+  changeRequestData.changeType = currentChangeType;
+  changeRequestData.leadTime = leadTimeText[currentChangeType] || '2 business days';
+  
+  console.log(`Initialized change type: ${currentChangeType}, Lead time: ${changeRequestData.leadTime}`);
+}
+
+/**
  * Initialize the Freshworks app
  * @returns {Promise<void>}
  */
@@ -1544,6 +1599,9 @@ async function initializeApp() {
 
     // Set up event listeners
     setupEventListeners();
+
+    // Initialize change type, lead time, and tooltip on page load
+    initializeChangeTypeDefaults();
 
     console.log('App initialization completed successfully');
   } catch (error) {
