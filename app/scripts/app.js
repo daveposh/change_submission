@@ -272,11 +272,11 @@ async function fetchAllLocations() {
  * @returns {Promise<Object>} - Cached asset types
  */
 async function fetchAllAssetTypes() {
-  console.log('Fetching all asset types from API');
+  console.log('🔄 Attempting to fetch asset types from API (optional)');
   
   // Check for client availability
   if (!window.client || !window.client.request) {
-    console.error('Client not available for asset types fetch');
+    console.log('⚠️ Client not available for asset types fetch - this is optional');
     return {};
   }
 
@@ -287,12 +287,12 @@ async function fetchAllAssetTypes() {
     
     // Function to load asset types from a specific page
     async function loadAssetTypesPage(pageNum) {
-      console.log(`Loading asset types page ${pageNum}`);
+      console.log(`📄 Loading asset types page ${pageNum}`);
       
       try {
         // Check if the client request method is available
-        if (!window.client.request || !window.client.request.invokeTemplate) {
-          console.error('Client request.invokeTemplate not available for asset types');
+        if (!window.client.request.invokeTemplate) {
+          console.log('⚠️ Client request.invokeTemplate not available for asset types');
           return { assetTypes: [], more: false };
         }
         
@@ -302,7 +302,7 @@ async function fetchAllAssetTypes() {
         });
         
         if (!response || !response.response) {
-          console.error('Invalid asset types response:', response);
+          console.log('⚠️ Invalid asset types API response');
           return { assetTypes: [], more: false };
         }
         
@@ -310,23 +310,30 @@ async function fetchAllAssetTypes() {
           const parsedData = JSON.parse(response.response || '{"asset_types":[]}');
           const assetTypes = parsedData.asset_types || [];
           
+          console.log(`✅ Loaded ${assetTypes.length} asset types from page ${pageNum}`);
+          
           // Check if we might have more pages (received full page of results)
           const hasMore = assetTypes.length === 100;
           
           return { assetTypes, more: hasMore };
         } catch (parseError) {
-          console.error('Error parsing asset types response:', parseError);
+          console.log('⚠️ Error parsing asset types response - this is optional:', parseError.message);
           return { assetTypes: [], more: false };
         }
       } catch (error) {
-        console.error(`Error fetching asset types page ${pageNum}:`, error);
+        console.log(`⚠️ Error fetching asset types page ${pageNum} - this is optional:`, error.message);
         return { assetTypes: [], more: false };
       }
     }
     
     // Load all pages of asset types
-    while (hasMorePages) {
+    while (hasMorePages && page <= 5) { // Limit to 5 pages for safety
       const { assetTypes, more } = await loadAssetTypesPage(page);
+      
+      if (assetTypes.length === 0) {
+        console.log('📄 No more asset types to load');
+        break;
+      }
       
       // Process asset types and add to cache
       assetTypes.forEach(assetType => {
@@ -344,12 +351,6 @@ async function fetchAllAssetTypes() {
       hasMorePages = more;
       page++;
       
-      // Safety check to prevent infinite loops
-      if (page > 10) {
-        console.warn('Reached maximum number of asset type pages (10)');
-        break;
-      }
-      
       // Add pagination delay if we're loading more pages
       if (hasMorePages) {
         const params = await getInstallationParams();
@@ -358,17 +359,18 @@ async function fetchAllAssetTypes() {
       }
     }
     
-    // Save all asset types to cache
-    if (Object.keys(allAssetTypes).length > 0) {
-      console.log(`Caching ${Object.keys(allAssetTypes).length} asset types`);
+    // Save all asset types to cache if we got any
+    const totalTypes = Object.keys(allAssetTypes).length;
+    if (totalTypes > 0) {
+      console.log(`✅ Successfully cached ${totalTypes} asset types`);
       await cacheAssetTypes(allAssetTypes);
     } else {
-      console.warn('No asset types found to cache');
+      console.log('⚠️ No asset types were fetched - this is optional and the app will still work');
     }
     
     return allAssetTypes;
   } catch (error) {
-    console.error('Error in fetchAllAssetTypes:', error);
+    console.log('⚠️ Error in fetchAllAssetTypes - this is optional and the app will still work:', error.message);
     return {};
   }
 }
@@ -791,167 +793,121 @@ window.showConfigStatus = async function() {
 };
 
 /**
- * Find the software/services asset type IDs from cached asset types using configured names
- * @returns {Promise<Array<number>>} - Array of asset type IDs for software/services
+ * Get software/services asset type IDs 
+ * Uses known working asset type ID with optional dynamic discovery as fallback
+ * @returns {Promise<Array>} - Array of asset type IDs for software/services
  */
 async function findSoftwareServicesAssetTypeIds() {
+  console.log('🔍 Finding software/services asset type IDs...');
+  
   try {
     // Get installation parameters to check for configured asset type names
     const params = await getInstallationParams();
     const configuredNames = params.assetTypeNames;
     
-    console.log(`🔧 ASSET TYPE CONFIGURATION:`);
-    console.log(`   📝 Configured names: "${configuredNames}"`);
+    // Known working asset type ID from user testing
+    const KNOWN_SOFTWARE_TYPE_ID = 37000374722;
+    let assetTypeIds = [KNOWN_SOFTWARE_TYPE_ID];
     
-    const cachedAssetTypes = await getCachedAssetTypes();
-    console.log(`   💾 Found ${Object.keys(cachedAssetTypes).length} cached asset types`);
+    console.log(`✅ Using known software/services asset type ID: ${KNOWN_SOFTWARE_TYPE_ID}`);
     
-    // Debug: Show all available asset types
-    console.log(`📋 Available asset types in your system:`);
-    Object.entries(cachedAssetTypes).forEach(([id, assetType]) => {
-      console.log(`   ID: ${id} | Name: "${assetType.name}" | Description: "${assetType.description || 'N/A'}"`);
-    });
-    
-    // If cache is empty or expired, try to fetch fresh data
-    if (Object.keys(cachedAssetTypes).length === 0 || 
-        Object.values(cachedAssetTypes).some(type => type.timestamp < Date.now() - CACHE_TIMEOUT)) {
-      console.log('⏳ Fetching asset types to find configured types');
-      try {
-        await fetchAllAssetTypes();
-        // Get the updated cache
-        const updatedCache = await getCachedAssetTypes();
-        Object.assign(cachedAssetTypes, updatedCache);
-        console.log(`✅ Updated cache with ${Object.keys(updatedCache).length} asset types`);
-      } catch (fetchError) {
-        console.error('❌ Failed to fetch asset types, using default:', fetchError);
-        return DEFAULT_INVENTORY_TYPE_IDS;
-      }
-    }
-    
-    // If no configured names, fall back to keyword search
-    if (!configuredNames || configuredNames.trim() === '') {
-      console.log('⚠️ No asset type names configured, using keyword search');
-      const keywordResults = findAssetTypesByKeywords(cachedAssetTypes);
-      console.log(`🔍 Keyword search found: ${keywordResults.join(', ')}`);
-      return keywordResults;
-    }
-    
-    // Parse the configured names (comma-separated) and remove any extra quotes
-    const targetNames = configuredNames.split(',')
-      .map(name => name.trim().toLowerCase())
-      .map(name => name.replace(/^['"]|['"]$/g, '')) // Remove leading/trailing quotes
-      .filter(name => name);
-    console.log(`🎯 Parsed target asset type names: ${targetNames.join(', ')}`);
-    
-    const foundTypeIds = [];
-    
-    // Look for exact or partial matches with configured names
-    console.log(`🔍 Checking ${Object.keys(cachedAssetTypes).length} cached asset types for matches...`);
-    
-    for (const [id, assetType] of Object.entries(cachedAssetTypes)) {
-      const assetTypeName = assetType.name.toLowerCase();
+    // If specific asset type names are configured, try to find their IDs as well
+    if (configuredNames && configuredNames.trim() !== '') {
+      console.log(`🔧 Attempting to discover additional asset types for: "${configuredNames}"`);
       
-      // Check if any of the target names match this asset type
-      const isMatch = targetNames.some(targetName => {
-        const exactMatch = assetTypeName === targetName;
-        const nameContainsTarget = assetTypeName.includes(targetName);
-        const targetContainsName = targetName.includes(assetTypeName);
+      try {
+        // Try to get cached asset types for additional discovery
+        const cachedAssetTypes = await getCachedAssetTypes();
         
-        // Also check for word-based matching (useful for "IT Software" vs "Software")
-        const assetTypeWords = assetTypeName.split(/\s+/);
-        const targetWords = targetName.split(/\s+/);
-        const wordMatch = assetTypeWords.some(word => targetWords.includes(word)) ||
-                         targetWords.some(word => assetTypeWords.includes(word));
-        
-        // Log detailed matching info for successful matches
-        if (exactMatch || nameContainsTarget || targetContainsName || wordMatch) {
-          console.log(`     🎯 Match found! Target: "${targetName}" vs Asset Type: "${assetTypeName}"`);
-          console.log(`        Exact: ${exactMatch}, Contains: ${nameContainsTarget}, Contained: ${targetContainsName}, WordMatch: ${wordMatch}`);
+        // If cache is empty or old, try to refresh it (but don't fail if this doesn't work)
+        if (Object.keys(cachedAssetTypes).length === 0) {
+          console.log('🔄 Attempting to fetch asset types for additional discovery...');
+          await fetchAllAssetTypes(); // This might work or might fail, but we don't depend on it
         }
         
-        return exactMatch || nameContainsTarget || targetContainsName || wordMatch;
-      });
-      
-      if (isMatch) {
-        console.log(`✅ Found matching asset type: "${assetType.name}" (ID: ${id})`);
-        foundTypeIds.push(parseInt(id));
+        // Get refreshed cache
+        const refreshedCache = await getCachedAssetTypes();
+        
+        if (Object.keys(refreshedCache).length > 0) {
+          // Parse configured names and find additional types
+          const targetNames = configuredNames.split(',').map(name => name.trim()).filter(name => name);
+          const additionalIds = findAssetTypesByKeywords(refreshedCache, targetNames);
+          
+          // Add any additional types we found (avoiding duplicates)
+          additionalIds.forEach(id => {
+            if (!assetTypeIds.includes(id)) {
+              assetTypeIds.push(id);
+              console.log(`✅ Added additional asset type ID: ${id}`);
+            }
+          });
+        } else {
+          console.log('⚠️ Could not fetch asset types for additional discovery, using known type only');
+        }
+      } catch (error) {
+        console.log('⚠️ Asset type discovery failed, using known type only:', error.message);
       }
     }
     
-    // If we found specific types, use them
-    if (foundTypeIds.length > 0) {
-      console.log(`🎉 Using ${foundTypeIds.length} configured asset type IDs: ${foundTypeIds.join(', ')}`);
-      foundTypeIds.forEach(id => {
-        const typeName = cachedAssetTypes[id] ? cachedAssetTypes[id].name : 'Unknown';
-        console.log(`   - ${id}: ${typeName}`);
-      });
-      return foundTypeIds;
-    }
+    console.log(`🎯 Final asset type IDs: ${assetTypeIds.join(', ')}`);
+    return assetTypeIds;
     
-    // If no exact matches found, try keyword search as fallback
-    console.warn('❌ No exact matches found for configured names, trying keyword search as fallback');
-    console.log('💡 Tip: Check the console output above to see all available asset types in your system');
-    
-    // Also trigger the debug function to show what asset types have actual assets
-    setTimeout(() => {
-      checkAvailableAssetTypes().catch(err => console.error('Error checking available asset types:', err));
-    }, 1000);
-    
-    const keywordResults = findAssetTypesByKeywords(cachedAssetTypes);
-    console.log(`🔍 Keyword search fallback found: ${keywordResults.join(', ')}`);
-    return keywordResults;
   } catch (error) {
-    console.error('❌ Error finding software/services asset types:', error);
-    console.log(`🔄 Falling back to default IDs: ${DEFAULT_INVENTORY_TYPE_IDS.join(', ')}`);
-    return DEFAULT_INVENTORY_TYPE_IDS;
+    console.error('❌ Error in findSoftwareServicesAssetTypeIds:', error);
+    // Fallback to known working ID
+    const fallbackId = 37000374722;
+    console.log(`🔄 Falling back to known asset type ID: ${fallbackId}`);
+    return [fallbackId];
   }
 }
 
 /**
- * Find asset types using keyword search (fallback method)
- * @param {Object} cachedAssetTypes - Cached asset types
- * @returns {Array<number>} - Array of asset type IDs
+ * Find asset types by searching for keywords in their names
+ * @param {Object} cachedAssetTypes - Cached asset types object
+ * @param {Array} customNames - Optional array of custom names to search for
+ * @returns {Array} - Array of asset type IDs that match the keywords
  */
-function findAssetTypesByKeywords(cachedAssetTypes) {
-  console.log('🔍 Performing keyword-based search for software/service asset types...');
+function findAssetTypesByKeywords(cachedAssetTypes, customNames = null) {
+  console.log('🔍 Searching asset types by keywords');
   
-  // Look for asset types that might be software/services
-  // Include specific keywords for Software/Services, IT Software, ISP
-  const softwareKeywords = [
+  // Default software/service keywords
+  const defaultKeywords = [
     'software', 'service', 'application', 'app', 'system', 'platform',
-    'it software', 'isp', 'internet service', 'saas', 'cloud', 'server',
-    'infrastructure', 'hardware', 'workstation', 'computer', 'device'
+    'tool', 'program', 'saas', 'cloud', 'web', 'api', 'database', 'server',
+    'middleware', 'infrastructure', 'it', 'technology', 'digital'
   ];
   
-  const foundTypeIds = [];
+  // Use custom names if provided, otherwise use default keywords
+  const searchTerms = customNames && customNames.length > 0 ? 
+    customNames.map(name => name.toLowerCase().trim()) : 
+    defaultKeywords;
   
-  console.log(`   Checking ${Object.keys(cachedAssetTypes).length} asset types against keywords: ${softwareKeywords.join(', ')}`);
+  console.log(`🎯 Searching for asset types containing: ${searchTerms.join(', ')}`);
   
-  for (const [id, assetType] of Object.entries(cachedAssetTypes)) {
-    const name = assetType.name.toLowerCase();
-    const description = (assetType.description || '').toLowerCase();
+  const matchingIds = [];
+  
+  Object.entries(cachedAssetTypes).forEach(([id, assetType]) => {
+    const assetTypeName = (assetType.name || '').toLowerCase();
+    const assetTypeDesc = (assetType.description || '').toLowerCase();
     
-    // Check if the name or description contains software/service keywords
-    const matchingKeywords = softwareKeywords.filter(keyword => 
-      name.includes(keyword) || description.includes(keyword));
+    // Check if any search term matches the name or description
+    const isMatch = searchTerms.some(term => {
+      const nameMatch = assetTypeName.includes(term);
+      const descMatch = assetTypeDesc.includes(term);
+      
+      if (nameMatch || descMatch) {
+        console.log(`✅ Match found: "${assetType.name}" (ID: ${id}) - matched "${term}"`);
+        return true;
+      }
+      return false;
+    });
     
-    if (matchingKeywords.length > 0) {
-      console.log(`✅ Found potential asset type: "${assetType.name}" (ID: ${id}) - matches: ${matchingKeywords.join(', ')}`);
-      foundTypeIds.push(parseInt(id));
-    } else {
-      console.log(`   ❌ No match: "${assetType.name}" (ID: ${id})`);
+    if (isMatch) {
+      matchingIds.push(parseInt(id));
     }
-  }
+  });
   
-  // If we found specific types, use them; otherwise fall back to default
-  if (foundTypeIds.length > 0) {
-    console.log(`🎯 Using ${foundTypeIds.length} found asset type IDs: ${foundTypeIds.join(', ')}`);
-    return foundTypeIds;
-  }
-  
-  console.warn('⚠️ No specific software/services asset types found, using default IDs');
-  console.log(`📋 Default IDs: ${DEFAULT_INVENTORY_TYPE_IDS.join(', ')}`);
-  return DEFAULT_INVENTORY_TYPE_IDS;
+  console.log(`🎉 Found ${matchingIds.length} matching asset type IDs: ${matchingIds.join(', ')}`);
+  return matchingIds;
 }
 
 /**
