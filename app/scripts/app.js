@@ -512,26 +512,48 @@ async function checkAvailableAssetTypes() {
       return;
     }
     
-    // Group assets by type
+    // Group assets by type (both asset_type_id and parent_asset_type_id)
     const assetsByType = {};
     assets.forEach(asset => {
+      // Check asset_type_id
       const typeId = asset.asset_type_id;
-      if (!assetsByType[typeId]) {
+      if (typeId && !assetsByType[typeId]) {
         assetsByType[typeId] = {
           count: 0,
           typeName: asset.asset_type_name || 'Unknown',
-          samples: []
+          samples: [],
+          isParentType: false
         };
       }
-      assetsByType[typeId].count++;
-      if (assetsByType[typeId].samples.length < 3) {
-        assetsByType[typeId].samples.push(asset.name);
+      if (typeId) {
+        assetsByType[typeId].count++;
+        if (assetsByType[typeId].samples.length < 3) {
+          assetsByType[typeId].samples.push(asset.name);
+        }
+      }
+      
+      // Check parent_asset_type_id
+      const parentTypeId = asset.parent_asset_type_id;
+      if (parentTypeId && !assetsByType[parentTypeId]) {
+        assetsByType[parentTypeId] = {
+          count: 0,
+          typeName: `Parent Type ${parentTypeId}`,
+          samples: [],
+          isParentType: true
+        };
+      }
+      if (parentTypeId) {
+        assetsByType[parentTypeId].count++;
+        if (assetsByType[parentTypeId].samples.length < 3) {
+          assetsByType[parentTypeId].samples.push(asset.name);
+        }
       }
     });
     
     console.log('📊 Available asset types with assets:');
     Object.entries(assetsByType).forEach(([typeId, info]) => {
-      console.log(`   Type ID: ${typeId} | Name: "${info.typeName}" | Count: ${info.count} | Examples: ${info.samples.join(', ')}`);
+      const typeLabel = info.isParentType ? '(Parent Type)' : '(Direct Type)';
+      console.log(`   Type ID: ${typeId} ${typeLabel} | Name: "${info.typeName}" | Count: ${info.count} | Examples: ${info.samples.join(', ')}`);
     });
     
     console.log('💡 To use a different asset type, update the asset_type_id in your app configuration');
@@ -2922,9 +2944,11 @@ function performInitialAssetListing() {
             asset_type_id: assets[0].asset_type_id
           });
           
-          // Check if assets match the requested type
-          const matchingAssets = assets.filter(a => a.asset_type_id === assetTypeId);
-          console.log(`FILTERING: ${matchingAssets.length} of ${assets.length} assets match type ID ${assetTypeId}`);
+          // Check if assets match the requested type (either asset_type_id or parent_asset_type_id)
+          const matchingAssets = assets.filter(a => 
+            a.asset_type_id === assetTypeId || a.parent_asset_type_id === assetTypeId
+          );
+          console.log(`FILTERING: ${matchingAssets.length} of ${assets.length} assets match type ID ${assetTypeId} (checking both asset_type_id and parent_asset_type_id)`);
           
           if (matchingAssets.length === 0 && assets.length > 0) {
             const uniqueTypes = [...new Set(assets.map(a => a.asset_type_id))];
@@ -2935,6 +2959,7 @@ function performInitialAssetListing() {
               id: a.id,
               name: a.name,
               asset_type_id: a.asset_type_id,
+              parent_asset_type_id: a.parent_asset_type_id,
               asset_type_name: a.asset_type_name
             }));
             console.log('Sample assets with their types:', assetTypeSamples);
@@ -2942,8 +2967,11 @@ function performInitialAssetListing() {
         }
         
         // API not filtering correctly, so we need to do it manually
-        const filteredAssets = assets.filter(a => a.asset_type_id === assetTypeId);
-        console.log(`After manual filtering: ${filteredAssets.length} assets match the target type ${assetTypeId}`);
+        // Check both asset_type_id and parent_asset_type_id
+        const filteredAssets = assets.filter(a => 
+          a.asset_type_id === assetTypeId || a.parent_asset_type_id === assetTypeId
+        );
+        console.log(`After manual filtering: ${filteredAssets.length} assets match the target type ${assetTypeId} (checking both asset_type_id and parent_asset_type_id)`);
         
         // Combine with previous results
         const combinedResults = [...allResults, ...filteredAssets];
@@ -3116,8 +3144,11 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         }
         
         // API filtering might not work correctly, so filter manually
-        const filteredAssets = assets.filter(a => a.asset_type_id === assetTypeId);
-        console.log(`After manual filtering: ${filteredAssets.length} of ${assets.length} assets match type ${assetTypeId}`);
+        // Check both asset_type_id and parent_asset_type_id
+        const filteredAssets = assets.filter(a => 
+          a.asset_type_id === assetTypeId || a.parent_asset_type_id === assetTypeId
+        );
+        console.log(`After manual filtering: ${filteredAssets.length} of ${assets.length} assets match type ${assetTypeId} (checking both asset_type_id and parent_asset_type_id)`);
         
         // Combine with previous results
         allAssets = [...allAssets, ...filteredAssets];
