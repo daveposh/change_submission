@@ -527,6 +527,66 @@ async function showConfiguredAssetTypes() {
 }
 
 /**
+ * Search for a specific asset by name across ALL asset types
+ * @param {string} assetName - Name to search for
+ */
+async function findAssetByName(assetName) {
+  try {
+    console.log(`🔍 Searching for asset named "${assetName}" across ALL asset types...`);
+    
+    // Get all assets without any type filtering
+    const data = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: `?page=1&per_page=100`
+    });
+    
+    if (!data || !data.response) {
+      console.log('❌ Could not fetch assets for name search');
+      return;
+    }
+    
+    const response = JSON.parse(data.response);
+    const assets = response && response.assets ? response.assets : [];
+    
+    console.log(`📋 Searching through ${assets.length} assets for "${assetName}"...`);
+    
+    // Search for assets containing the name (case-insensitive)
+    const matchingAssets = assets.filter(asset => {
+      const assetName_lower = (asset.name || asset.display_name || '').toLowerCase();
+      return assetName_lower.includes(assetName.toLowerCase());
+    });
+    
+    if (matchingAssets.length > 0) {
+      console.log(`✅ Found ${matchingAssets.length} asset(s) matching "${assetName}":`);
+      matchingAssets.forEach(asset => {
+        console.log(`   - "${asset.name || asset.display_name}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+      });
+      
+      // Show what asset types these belong to
+      const uniqueTypeIds = [...new Set(matchingAssets.map(a => a.asset_type_id))];
+      console.log(`🏷️ Asset type(s) for "${assetName}": ${uniqueTypeIds.join(', ')}`);
+      
+      // Check if any of these types are in your configuration
+      const configuredTypes = [37000374722, 37000374723, 37000374726, 37000374730];
+      const matchingTypes = uniqueTypeIds.filter(typeId => configuredTypes.includes(typeId));
+      const missingTypes = uniqueTypeIds.filter(typeId => !configuredTypes.includes(typeId));
+      
+      if (matchingTypes.length > 0) {
+        console.log(`✅ Asset types already in your config: ${matchingTypes.join(', ')}`);
+      }
+      if (missingTypes.length > 0) {
+        console.log(`❌ Asset types NOT in your config: ${missingTypes.join(', ')}`);
+        console.log(`💡 To include "${assetName}", add these asset type IDs to your configuration`);
+      }
+    } else {
+      console.log(`❌ No assets found matching "${assetName}"`);
+      console.log(`💡 Try searching for a partial name or check if the asset exists in Freshservice`);
+    }
+  } catch (error) {
+    console.error('❌ Error searching for asset by name:', error);
+  }
+}
+
+/**
  * Debug function to check what asset types actually have assets
  */
 async function checkAvailableAssetTypes() {
@@ -1676,6 +1736,21 @@ function setupEventListeners() {
     // Trigger asset search with empty search term to show all assets of configured type
     searchAssets({ target: { value: '' } });
   });
+  
+  // Add debug button for finding specific assets
+  const debugButton = document.createElement('button');
+  debugButton.className = 'btn btn-sm btn-outline-info ms-2';
+  debugButton.innerHTML = '<i class="fas fa-search me-1"></i> Find "Middleware"';
+  debugButton.title = 'Search for Middleware asset across all types';
+  debugButton.onclick = function() {
+    findAssetByName('Middleware');
+  };
+  
+  // Add the debug button next to the show all assets button
+  const showAllButton = document.getElementById('show-all-assets');
+  if (showAllButton && showAllButton.parentNode) {
+    showAllButton.parentNode.appendChild(debugButton);
+  }
   document.getElementById('submit-change').addEventListener('click', showSummary);
   
   // Load assets automatically when the Assets tab is shown
@@ -3148,8 +3223,12 @@ function performInitialAssetListing() {
         );
         console.log(`After manual filtering: ${filteredAssets.length} assets match the target types ${targetTypeIds.join(', ')} (checking both asset_type_id and parent_asset_type_id)`);
         
-        // Combine with previous results
-        const combinedResults = [...allResults, ...filteredAssets];
+        // Combine with previous results, avoiding duplicates
+        const existingIds = new Set(allResults.map(asset => asset.id));
+        const newAssets = filteredAssets.filter(asset => !existingIds.has(asset.id));
+        const combinedResults = [...allResults, ...newAssets];
+        
+        console.log(`📊 Page ${page}: Found ${filteredAssets.length} matching assets, ${newAssets.length} new (${filteredAssets.length - newAssets.length} duplicates skipped)`);
         
         // Continue loading more pages if needed
         // Use original assets length for pagination, not filtered length
@@ -3391,8 +3470,12 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         );
         console.log(`After manual filtering: ${filteredAssets.length} of ${assets.length} assets match types ${targetTypeIds.join(', ')} (checking both asset_type_id and parent_asset_type_id)`);
         
-        // Combine with previous results
-        allAssets = [...allAssets, ...filteredAssets];
+        // Combine with previous results, avoiding duplicates
+        const existingIds = new Set(allAssets.map(asset => asset.id));
+        const newAssets = filteredAssets.filter(asset => !existingIds.has(asset.id));
+        allAssets = [...allAssets, ...newAssets];
+        
+        console.log(`📊 Page ${page}: Found ${filteredAssets.length} matching assets, ${newAssets.length} new (${filteredAssets.length - newAssets.length} duplicates skipped)`);
         
         // If we got a reasonable number of results, there might be more
         // Use original assets length for pagination, not filtered length
