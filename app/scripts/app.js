@@ -1112,11 +1112,12 @@ function initializeApp() {
                 setTimeout(() => {
                   try {
                     // Initial search with empty term (will use asset_type_id from config)
+                    console.log('Pre-loading asset search results...');
                     searchAssets({ target: { value: '' } });
                   } catch (assetErr) {
                     console.error("Error pre-loading assets:", assetErr);
                   }
-                }, 500);
+                }, 1500); // Increased delay to ensure asset types are loaded first
               } catch (dataErr) {
                 console.error("Exception during data loading:", dataErr);
               }
@@ -1632,16 +1633,6 @@ function setupEventListeners() {
     searchAssets({ target: { value: '' } });
   });
   document.getElementById('submit-change').addEventListener('click', showSummary);
-  
-  // Load assets automatically when the Assets tab is shown
-  document.getElementById('assets-tab').addEventListener('shown.bs.tab', function() {
-    // Only load if we haven't already loaded assets
-    if (document.getElementById('asset-results').children.length <= 1) {
-      console.log('Assets tab shown - loading initial asset listing');
-      // Trigger the show all assets function
-      searchAssets({ target: { value: '' } });
-    }
-  });
   
   // Load assets automatically when the Assets tab is shown
   document.getElementById('assets-tab').addEventListener('shown.bs.tab', function() {
@@ -2881,7 +2872,9 @@ function validateRiskAndNext() {
  */
 function searchAssets(e) {
   // Get search term if available, might be empty for initial asset listing
-  const searchTerm = e.target.value ? e.target.value.trim() : '';
+  const searchTerm = e.target && e.target.value ? e.target.value.trim() : '';
+  
+  console.log(`🔍 Asset search triggered with term: "${searchTerm}"`);
   
   // Reset search state for new search
   assetSearchState.currentSearchTerm = searchTerm;
@@ -3027,7 +3020,7 @@ function performInitialAssetListing() {
     // Only proceed if asset type IDs are configured
     if (!assetTypeIds || assetTypeIds.length === 0) {
       console.log('No asset type IDs configured, showing empty results');
-      displayAssetResults('asset-results', [], selectAsset);
+      displayAssetResults('asset-results', [], selectAsset, false);
       return;
     }
     
@@ -3145,7 +3138,7 @@ function performInitialAssetListing() {
         addAssetsToTypeCache('initial_asset_listing', cacheKey, processedAssets);
         
         // Display the results
-        displayAssetResults('asset-results', processedAssets, selectAsset);
+        displayAssetResults('asset-results', processedAssets, selectAsset, false);
         
         // Setup scroll event
         setupAssetSearchScroll();
@@ -3155,12 +3148,12 @@ function performInitialAssetListing() {
       })
       .catch(error => {
         console.error('Initial asset listing failed:', error);
-        displayAssetResults('asset-results', [], selectAsset);
+        displayAssetResults('asset-results', [], selectAsset, false);
         handleErr('Failed to load initial asset listing. Please try again.');
       });
   }).catch(error => {
     console.error('Failed to get installation params:', error);
-    displayAssetResults('asset-results', [], selectAsset);
+    displayAssetResults('asset-results', [], selectAsset, false);
     handleErr('Failed to load configuration. Please refresh and try again.');
   });
 }
@@ -3326,7 +3319,7 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         const assets = assetsResponse.assets || [];
         
         // Apply the search term filter to the assets locally
-        const filteredAssets = assets.filter(asset => {
+        const filteredAssets = searchTerm ? assets.filter(asset => {
           const searchIn = [
             asset.name || '',
             asset.display_name || '',
@@ -3338,9 +3331,18 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
           ].map(text => text.toLowerCase()).join(' ');
           
           return searchIn.includes(searchTerm.toLowerCase());
-        });
+        }) : assets; // If no search term, return all assets
         
         console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
+        
+        if (filteredAssets.length > 0) {
+          console.log('Sample filtered asset:', {
+            id: filteredAssets[0].id,
+            name: filteredAssets[0].name,
+            display_name: filteredAssets[0].display_name,
+            asset_type_id: filteredAssets[0].asset_type_id
+          });
+        }
         
         // Process assets to include only display name and ID
         const processedAssets = await Promise.all(filteredAssets.map(async asset => ({
@@ -3363,21 +3365,28 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         addAssetsToTypeCache(searchTerm, cacheKey, processedAssets);
         
         // Display the results
-        displayAssetResults('asset-results', processedAssets, selectAsset);
+        displayAssetResults('asset-results', processedAssets, selectAsset, false);
       } catch (error) {
         console.error('Error processing asset search results:', error);
-        displayAssetResults('asset-results', [], selectAsset);
+        displayAssetResults('asset-results', [], selectAsset, false);
       }
     })
     .catch(function(error) {
       console.error('Asset search failed:', error);
-      displayAssetResults('asset-results', [], selectAsset);
+      displayAssetResults('asset-results', [], selectAsset, false);
       handleErr(error);
     });
 }
 
-function displayAssetResults(containerId, results, selectionCallback) {
+function displayAssetResults(containerId, results, selectionCallback, isFromCache = false) {
+  console.log(`📋 Displaying ${results.length} asset results (cached: ${isFromCache})`);
+  
   const container = document.getElementById(containerId);
+  if (!container) {
+    console.error(`❌ Container element '${containerId}' not found!`);
+    return;
+  }
+  
   container.innerHTML = '';
   container.style.display = results.length ? 'block' : 'none';
   
