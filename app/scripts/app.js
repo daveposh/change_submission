@@ -4423,3 +4423,103 @@ window.clearAllCache = async function() {
     console.error('❌ Error clearing all cache:', error);
   }
 };
+
+/**
+ * Debug function to check current service filtering logic
+ */
+window.debugServiceFilter = async function() {
+  try {
+    console.log('🔍 === DEBUGGING SERVICE FILTER LOGIC ===');
+    
+    // Check installation params
+    const params = await getInstallationParams();
+    console.log('📋 Installation params:', params);
+    
+    // Check default vs configured asset type IDs
+    const defaultServiceAssetTypeIds = [37000374722, 37000374723, 37000374726, 37000374730];
+    const configuredIds = params.serviceAssetTypeIds || defaultServiceAssetTypeIds;
+    console.log('🎯 Default service asset type IDs:', defaultServiceAssetTypeIds);
+    console.log('🎯 Configured service asset type IDs:', configuredIds);
+    
+    // Build the filter query
+    const filterQuery = configuredIds.map(id => `asset_type_id: ${id}`).join(' OR ');
+    console.log('📝 Filter query that will be used:', filterQuery);
+    
+    // Show the full API URL
+    const requestUrl = `?filter="${filterQuery}"&per_page=100`;
+    console.log('🌐 Full API request URL:', requestUrl);
+    
+    // Check current cached services
+    console.log('🔍 Checking current cached services...');
+    const cachedServices = await getCachedServices();
+    if (cachedServices && cachedServices.length > 0) {
+      console.log(`📦 Found ${cachedServices.length} cached services`);
+      
+      // Group by asset_type_id to see what we have
+      const groupedByType = {};
+      cachedServices.forEach(service => {
+        const typeId = service.asset_type_id || 'no_type';
+        if (!groupedByType[typeId]) {
+          groupedByType[typeId] = [];
+        }
+        groupedByType[typeId].push(service.display_name || service.name);
+      });
+      
+      console.log('📊 Services grouped by asset_type_id:');
+      Object.entries(groupedByType).forEach(([typeId, services]) => {
+        const isInFilter = configuredIds.includes(parseInt(typeId));
+        console.log(`   ${typeId} (${isInFilter ? '✅ IN FILTER' : '❌ NOT IN FILTER'}): ${services.length} services`);
+        console.log(`      Examples: ${services.slice(0, 3).join(', ')}`);
+      });
+    } else {
+      console.log('📦 No cached services found');
+    }
+    
+    console.log('💡 To test fresh API call with current filter, run: refreshServicesWithDebug()');
+    
+  } catch (error) {
+    console.error('❌ Error debugging service filter:', error);
+  }
+};
+
+/**
+ * Force refresh services with detailed debugging
+ */
+window.refreshServicesWithDebug = async function() {
+  try {
+    console.log('🔄 === FORCE REFRESH SERVICES WITH DEBUG ===');
+    
+    // Clear services cache first
+    await clearServicesCache();
+    console.log('✅ Services cache cleared');
+    
+    // Force refresh with debugging
+    const services = await getServices(true);
+    console.log(`✅ Fresh API call returned ${services.length} services`);
+    
+    // Analyze the results
+    if (services.length > 0) {
+      const groupedByType = {};
+      services.forEach(service => {
+        const typeId = service.asset_type_id || 'no_type';
+        if (!groupedByType[typeId]) {
+          groupedByType[typeId] = [];
+        }
+        groupedByType[typeId].push(service.display_name || service.name);
+      });
+      
+      console.log('📊 Fresh services grouped by asset_type_id:');
+      Object.entries(groupedByType).forEach(([typeId, serviceNames]) => {
+        console.log(`   ${typeId}: ${serviceNames.length} services`);
+        console.log(`      Examples: ${serviceNames.slice(0, 3).join(', ')}`);
+      });
+    }
+    
+    // Reinitialize dropdown
+    await initializeServicesDropdown();
+    console.log('✅ Services dropdown reinitialized');
+    
+  } catch (error) {
+    console.error('❌ Error refreshing services with debug:', error);
+  }
+};
