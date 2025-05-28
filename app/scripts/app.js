@@ -251,10 +251,11 @@ async function getServices(forceRefresh = false) {
     let page = 1;
     let hasMorePages = true;
     const maxPages = 50; // Increase safety limit to ensure we get all assets
+    const perPage = 30; // Freshworks API limit is 30 objects per page
     
     while (hasMorePages && page <= maxPages) {
       try {
-        const requestUrl = `?per_page=100&page=${page}`;
+        const requestUrl = `?per_page=${perPage}&page=${page}`;
         console.log(`🌐 API request URL (page ${page}):`, requestUrl);
         
         const response = await window.client.request.invokeTemplate("getAssets", {
@@ -277,8 +278,8 @@ async function getServices(forceRefresh = false) {
         } else {
           allAssets = allAssets.concat(pageAssets);
           
-          // Check if we got a full page (100 items), indicating there might be more
-          hasMorePages = pageAssets.length === 100;
+          // Check if we got a full page (30 items), indicating there might be more
+          hasMorePages = pageAssets.length === perPage;
           page++;
           
           // Add a small delay between requests to be API-friendly
@@ -4694,7 +4695,7 @@ window.debugAssetTypeFiltering = async function() {
     // Get a sample of assets to test filtering
     console.log('🔄 Fetching first page of assets for testing...');
     const response = await window.client.request.invokeTemplate("getAssets", {
-      path_suffix: "?per_page=100&page=1"
+      path_suffix: "?per_page=30&page=1"
     });
     
     if (response && response.response) {
