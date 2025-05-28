@@ -222,8 +222,7 @@ const changeRequestData = {
     rollback: 0,
     totalScore: 0,
     riskLevel: ''
-  },
-  selectedAssets: []
+  }
 };
 
 // Data storage keys
@@ -247,9 +246,7 @@ const DEFAULT_PAGINATION_DELAY = 500;
 // In-memory cache for search results
 const searchCache = {
   requesters: {}, // Map of search term -> { results, timestamp }
-  agents: {},     // Map of search term -> { results, timestamp }
-  assets: {},     // Map of search term -> { results, timestamp }
-  assetsByType: {} // Map of assetTypeId -> search term -> { results, timestamp }
+  agents: {}      // Map of search term -> { results, timestamp }
 };
 
 // Asset type cache
@@ -1724,12 +1721,6 @@ function setupEventListeners() {
     agentSearch.addEventListener('input', debounce(searchAgents, 300));
   }
 
-  // Asset search
-  const assetSearch = document.getElementById('asset-search');
-  if (assetSearch) {
-    assetSearch.addEventListener('input', debounce(searchAssets, 300));
-  }
-
   // Form navigation buttons
   const detailsNext = document.getElementById('details-next');
   if (detailsNext) {
@@ -1741,9 +1732,75 @@ function setupEventListeners() {
     calculateRiskBtn.addEventListener('click', calculateRisk);
   }
 
-  const riskNext = document.getElementById('risk-next');
-  if (riskNext) {
-    riskNext.addEventListener('click', validateRiskAndNext);
+  const submitChangeBtn = document.getElementById('submit-change');
+  if (submitChangeBtn) {
+    submitChangeBtn.addEventListener('click', function() {
+      // Clear any previous highlighting
+      clearFieldHighlighting();
+      
+      // Validate that risk has been calculated
+      if (changeRequestData.riskAssessment.totalScore === 0) {
+        showNotification('error', 'Please calculate the risk score before submitting the change request');
+        
+        // Scroll to the calculate risk button
+        const calculateRiskBtn = document.getElementById('calculate-risk');
+        if (calculateRiskBtn) {
+          calculateRiskBtn.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+          // Add highlighting to the button
+          calculateRiskBtn.classList.add('btn-outline-danger');
+          setTimeout(() => {
+            calculateRiskBtn.classList.remove('btn-outline-danger');
+          }, 3000);
+        }
+        return;
+      }
+      
+      // Final validation of all required fields
+      let hasErrors = false;
+      
+      if (!changeRequestData.requester) {
+        showNotification('error', 'Missing requester information. Please go back to Change Details tab.');
+        hasErrors = true;
+      }
+      
+      if (!changeRequestData.agent) {
+        showNotification('error', 'Missing agent information. Please go back to Change Details tab.');
+        hasErrors = true;
+      }
+      
+      if (!changeRequestData.plannedStart || !changeRequestData.plannedEnd) {
+        showNotification('error', 'Missing planned dates. Please go back to Change Details tab.');
+        hasErrors = true;
+      }
+      
+      if (!changeRequestData.implementationPlan || !changeRequestData.backoutPlan || !changeRequestData.validationPlan) {
+        showNotification('error', 'Missing required plans. Please go back to Change Details tab.');
+        hasErrors = true;
+      }
+      
+      if (hasErrors) {
+        // Switch back to details tab if there are errors
+        switchTab('change-details');
+        return;
+      }
+      
+      // Submit the change request
+      console.log('Submitting change request:', changeRequestData);
+      showNotification('success', 'Change request submitted successfully! Your request is being processed.', false);
+      
+      // Optionally disable the submit button to prevent double submission
+      this.disabled = true;
+      this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+      
+      // Re-enable after a few seconds (simulating submission)
+      setTimeout(() => {
+        this.disabled = false;
+        this.innerHTML = 'Submit Change Request';
+      }, 3000);
+    });
   }
 
   // Risk assessment radio buttons
@@ -2737,34 +2794,88 @@ function finalizeRequesterSearch(searchTerm, results, isRefresh) {
  * Validate details form and proceed to next tab
  */
 function validateDetailsAndNext() {
-  // Basic validation
+  // Clear any previous highlighting
+  clearFieldHighlighting();
+  
+  let hasErrors = false;
+  let firstErrorField = null;
+  
+  // Basic validation with field highlighting
   if (!changeRequestData.requester) {
     showNotification('error', 'Please select a requester');
-    return;
+    highlightInvalidField('requester-search', 'Requester is required');
+    hasErrors = true;
+    if (!firstErrorField) firstErrorField = 'requester-search';
   }
   
   if (!changeRequestData.agent) {
     showNotification('error', 'Please select an agent (Technical SME)');
-    return;
+    highlightInvalidField('agent-search', 'Agent is required');
+    hasErrors = true;
+    if (!firstErrorField) firstErrorField = 'agent-search';
   }
   
   // Get values from form inputs
   const plannedStart = document.getElementById('planned-start').value;
   const plannedEnd = document.getElementById('planned-end').value;
+  const implementationPlan = document.getElementById('implementation-plan').value.trim();
+  const backoutPlan = document.getElementById('backout-plan').value.trim();
+  const validationPlan = document.getElementById('validation-plan').value.trim();
   
   if (!plannedStart) {
     showNotification('error', 'Please select a planned start date and time');
-    return;
+    highlightInvalidField('planned-start', 'Start date and time is required');
+    hasErrors = true;
+    if (!firstErrorField) firstErrorField = 'planned-start';
   }
   
   if (!plannedEnd) {
     showNotification('error', 'Please select a planned end date and time');
+    highlightInvalidField('planned-end', 'End date and time is required');
+    hasErrors = true;
+    if (!firstErrorField) firstErrorField = 'planned-end';
+  }
+  
+  if (!implementationPlan) {
+    showNotification('error', 'Please provide an implementation plan');
+    highlightInvalidField('implementation-plan', 'Implementation plan is required');
+    hasErrors = true;
+    if (!firstErrorField) firstErrorField = 'implementation-plan';
+  }
+  
+  if (!backoutPlan) {
+    showNotification('error', 'Please provide a backout (recovery) plan');
+    highlightInvalidField('backout-plan', 'Backout plan is required');
+    hasErrors = true;
+    if (!firstErrorField) firstErrorField = 'backout-plan';
+  }
+  
+  if (!validationPlan) {
+    showNotification('error', 'Please provide a validation plan');
+    highlightInvalidField('validation-plan', 'Validation plan is required');
+    hasErrors = true;
+    if (!firstErrorField) firstErrorField = 'validation-plan';
+  }
+  
+  // If there are validation errors, scroll to the first error field
+  if (hasErrors) {
+    if (firstErrorField) {
+      setTimeout(() => {
+        const field = document.getElementById(firstErrorField);
+        if (field) {
+          field.focus();
+        }
+      }, 100);
+    }
     return;
   }
   
   // Update change request data
   changeRequestData.plannedStart = plannedStart;
   changeRequestData.plannedEnd = plannedEnd;
+  changeRequestData.implementationPlan = implementationPlan;
+  changeRequestData.backoutPlan = backoutPlan;
+  changeRequestData.validationPlan = validationPlan;
   
   // Validate start and end dates
   const startDate = new Date(plannedStart);
@@ -2772,6 +2883,8 @@ function validateDetailsAndNext() {
   
   if (endDate <= startDate) {
     showNotification('error', 'Planned end date must be after the planned start date');
+    highlightInvalidField('planned-end', 'End date must be after start date');
+    highlightInvalidField('planned-start', 'Start date must be before end date');
     return;
   }
   
@@ -2805,12 +2918,47 @@ function updateRiskSelection(e) {
  * Calculate risk score and display results
  */
 function calculateRisk() {
+  // Clear any previous highlighting
+  clearFieldHighlighting();
+  
   // Check if all questions are answered
   const riskKeys = ['businessImpact', 'affectedUsers', 'complexity', 'testing', 'rollback'];
   const unansweredQuestions = riskKeys.filter(key => changeRequestData.riskAssessment[key] === 0);
   
   if (unansweredQuestions.length > 0) {
-    showNotification('error', 'Please answer all risk assessment questions');
+    showNotification('error', 'Please answer all risk assessment questions before calculating the risk score');
+    
+    // Highlight the first unanswered question
+    const questionMapping = {
+      'businessImpact': 'business-impact',
+      'affectedUsers': 'affected-users',
+      'complexity': 'complexity',
+      'testing': 'testing',
+      'rollback': 'rollback'
+    };
+    
+    // Find the first unanswered question and highlight it
+    const firstUnanswered = unansweredQuestions[0];
+    const questionName = questionMapping[firstUnanswered];
+    if (questionName) {
+      // Find the question container and highlight it
+      const questionRadios = document.querySelectorAll(`input[name="${questionName}"]`);
+      if (questionRadios.length > 0) {
+        const questionContainer = questionRadios[0].closest('.risk-question');
+        if (questionContainer) {
+          questionContainer.classList.add('border-danger');
+          questionContainer.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+          
+          // Remove highlighting after 5 seconds
+          setTimeout(() => {
+            questionContainer.classList.remove('border-danger');
+          }, 5000);
+        }
+      }
+    }
     return;
   }
   
@@ -2919,20 +3067,29 @@ function switchTab(tabId) {
 }
 
 /**
- * Show notification to user
+ * Show notification to user with auto-scroll to top
  */
-function showNotification(type, message) {
+function showNotification(type, message, scrollToTop = true) {
   // Create notification element
   const notification = document.createElement('div');
   notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+  notification.style.zIndex = '9999';
   notification.innerHTML = `
     ${message}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   `;
   
   // Insert at top of page
-  const container = document.querySelector('.container') || document.body;
+  const container = document.querySelector('.fw-widget-wrapper') || document.querySelector('.container') || document.body;
   container.insertBefore(notification, container.firstChild);
+  
+  // Scroll to top to ensure notification is visible
+  if (scrollToTop) {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  }
   
   // Auto-dismiss after 5 seconds
   setTimeout(() => {
@@ -2942,6 +3099,61 @@ function showNotification(type, message) {
   }, 5000);
   
   console.log(`Notification (${type}): ${message}`);
+}
+
+/**
+ * Highlight an invalid form field
+ */
+function highlightInvalidField(fieldId, message = '') {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  
+  // Add error styling
+  field.classList.add('is-invalid');
+  
+  // Remove existing error message if any
+  const existingError = field.parentNode.querySelector('.invalid-feedback');
+  if (existingError) {
+    existingError.remove();
+  }
+  
+  // Add error message if provided
+  if (message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'invalid-feedback';
+    errorDiv.textContent = message;
+    field.parentNode.appendChild(errorDiv);
+  }
+  
+  // Scroll to the field
+  field.scrollIntoView({
+    behavior: 'smooth',
+    block: 'center'
+  });
+  
+  // Remove highlighting after 5 seconds
+  setTimeout(() => {
+    field.classList.remove('is-invalid');
+    const errorMessage = field.parentNode.querySelector('.invalid-feedback');
+    if (errorMessage) {
+      errorMessage.remove();
+    }
+  }, 5000);
+}
+
+/**
+ * Clear all field highlighting
+ */
+function clearFieldHighlighting() {
+  // Remove all is-invalid classes
+  document.querySelectorAll('.is-invalid').forEach(field => {
+    field.classList.remove('is-invalid');
+  });
+  
+  // Remove all error messages
+  document.querySelectorAll('.invalid-feedback').forEach(error => {
+    error.remove();
+  });
 }
 
 
