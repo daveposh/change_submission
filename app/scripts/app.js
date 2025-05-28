@@ -2392,7 +2392,7 @@ function performAgentSearch(searchTerm, isRefresh = false) {
         
         console.log(`Manual filtering returned ${filteredAgents.length} results`);
         
-        // Combine with previous results
+        // Combine with previous results, avoiding duplicates
         const combinedResults = [...allResults, ...filteredAgents];
         
         // If we got a full page of results, there might be more
@@ -3250,17 +3250,27 @@ function performInitialAssetListing() {
         console.log(`📊 Page ${page}: ${newAssets.length} new assets added (${filteredAssets.length - newAssets.length} duplicates skipped)`);
         
         // Check if we should load more pages
-        const shouldLoadMore = assets.length >= 100 && page < 5; // Limit to 5 pages max
+        const shouldLoadMore = assets.length > 0 && page < 10 && (assets.length >= 10 || filteredAssets.length > 0);
+        
+        console.log(`📄 Search pagination decision for page ${page}: hasResults=${assets.length > 0}, withinLimit=${page < 10}, worthContinuing=${assets.length >= 10 || filteredAssets.length > 0}, shouldLoadMore=${shouldLoadMore}`);
         
         if (shouldLoadMore) {
-          console.log(`🔄 Loading page ${page + 1} for initial listing...`);
+          // Get pagination delay from params
           const params = await getInstallationParams();
-          const paginationDelay = params.paginationDelay || 500;
+          const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+          
+          
+          console.log(`🔄 Loading page ${page + 1} after ${paginationDelay}ms delay...`);
+          updateLoadingMessage('asset-results', `Loading more results... (page ${page + 1})`);
+          
+          // Wait for the delay before loading the next page
           await new Promise(resolve => setTimeout(resolve, paginationDelay));
+          
+          // Load next page
           return await loadAssetsPage(page + 1, combinedResults);
         }
         
-        console.log(`✅ Completed initial asset listing: ${combinedResults.length} total assets across ${page} pages`);
+        console.log(`✅ Completed asset loading: ${combinedResults.length} total assets across ${page} pages`);
         return { assets: combinedResults };
       } catch (error) {
         console.error('Error loading initial assets:', error);
@@ -3522,7 +3532,7 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         console.log(`📊 Page ${page}: ${newAssets.length} new assets added (${filteredAssets.length - newAssets.length} duplicates skipped)`);
         
         // Check if we should load more pages
-        const shouldLoadMore = assets.length >= 100 && page < 5; // Limit to 5 pages max
+        const shouldLoadMore = assets.length > 0 && page < 10 && (assets.length >= 10 || filteredAssets.length > 0);
         
         if (shouldLoadMore) {
           // Get pagination delay from params
