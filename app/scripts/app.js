@@ -647,8 +647,11 @@ async function findSoftwareServicesAssetTypeIds() {
       return findAssetTypesByKeywords(cachedAssetTypes);
     }
     
-    // Parse the configured names (comma-separated)
-    const targetNames = configuredNames.split(',').map(name => name.trim().toLowerCase()).filter(name => name);
+    // Parse the configured names (comma-separated) and remove any extra quotes
+    const targetNames = configuredNames.split(',')
+      .map(name => name.trim().toLowerCase())
+      .map(name => name.replace(/^['"]|['"]$/g, '')) // Remove leading/trailing quotes
+      .filter(name => name);
     console.log(`🎯 Parsed target asset type names: ${targetNames.join(', ')}`);
     
     const foundTypeIds = [];
@@ -3108,6 +3111,14 @@ function performInitialAssetListing() {
           
           // Check if assets match any of the requested types (either asset_type_id or parent_asset_type_id)
           const targetTypeIds = Array.isArray(assetTypeIds) ? assetTypeIds : [assetTypeIds];
+          
+          // Debug: Show all assets and their types before filtering
+          console.log(`🔍 All ${assets.length} assets returned from initial listing:`);
+          assets.forEach(asset => {
+            const matchesType = targetTypeIds.includes(asset.asset_type_id) || targetTypeIds.includes(asset.parent_asset_type_id);
+            console.log(`   ${matchesType ? '✅' : '❌'} "${asset.name || asset.display_name}" (ID: ${asset.id}) - Type: ${asset.asset_type_id}, Parent: ${asset.parent_asset_type_id || 'N/A'}`);
+          });
+          
           const matchingAssets = assets.filter(a => 
             targetTypeIds.includes(a.asset_type_id) || targetTypeIds.includes(a.parent_asset_type_id)
           );
@@ -3166,8 +3177,19 @@ function performInitialAssetListing() {
           // Try to get a sample of all assets to see what types are available
           checkAvailableAssetTypes();
           
-          displayAssetResults('asset-results', [], selectAsset);
+          displayAssetResults('asset-results', [], selectAsset, false);
           return;
+        }
+        
+        console.log(`✅ Found ${assets.length} assets matching the configured asset types`);
+        
+        // Show sample of found assets
+        console.log(`📋 Sample assets found:`);
+        assets.slice(0, 5).forEach(asset => {
+          console.log(`   - "${asset.name || asset.display_name}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+        });
+        if (assets.length > 5) {
+          console.log(`   ... and ${assets.length - 5} more assets`);
         }
         
         // Process assets with needed fields
@@ -3258,6 +3280,34 @@ function loadMoreAssetResults() {
 }
 
 /**
+ * Get asset type name synchronously from cache (for debugging)
+ * @param {number} assetTypeId - Asset type ID
+ * @returns {string} - Asset type name or 'Unknown'
+ */
+function getAssetTypeNameSync(assetTypeId) {
+  // This is a synchronous version for debugging purposes
+  // It only works if the asset types are already cached
+  try {
+    // Try to get from the global assetTypeCache first
+    if (assetTypeCache.byId && assetTypeCache.byId[assetTypeId]) {
+      return assetTypeCache.byId[assetTypeId].name;
+    }
+    
+    // Fallback to a simple lookup based on known IDs from the console output
+    const knownTypes = {
+      37000374722: "Software/Services",
+      37000374723: "Business Software", 
+      37000374726: "IT Software",
+      37000374730: "ISP"
+    };
+    
+    return knownTypes[assetTypeId] || `Unknown (${assetTypeId})`;
+  } catch (error) {
+    return `Unknown (${assetTypeId})`;
+  }
+}
+
+/**
  * Perform the actual API search for assets
  * @param {string} searchTerm - The search term
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
@@ -3274,12 +3324,13 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
   // Find the correct software/services asset type IDs from cache
   const assetTypeIds = await findSoftwareServicesAssetTypeIds();
   // Log asset type IDs
-  console.log(`Using software/services asset type IDs for search: ${assetTypeIds.join(', ')}`);
+      console.log(`Using software/services asset type IDs for search: ${assetTypeIds.join(', ')}`);
+    console.log(`🎯 Target asset type IDs: ${assetTypeIds.map(id => `${id} (${getAssetTypeNameSync(id)})`).join(', ')}`);
 
-  // Query for the specific asset types and filter by search term
-  // For multiple asset types, we'll get all assets and filter manually since API doesn't support OR queries well
-  const assetTypeQuery = assetTypeIds.length === 1 ? `asset_type_id:${assetTypeIds[0]}` : '';
-  const encodedAssetTypeQuery = assetTypeQuery ? encodeURIComponent(`"${assetTypeQuery}"`) : '';
+    // Query for the specific asset types and filter by search term
+    // For multiple asset types, we'll get all assets and filter manually since API doesn't support OR queries well
+    const assetTypeQuery = assetTypeIds.length === 1 ? `asset_type_id:${assetTypeIds[0]}` : '';
+    const encodedAssetTypeQuery = assetTypeQuery ? encodeURIComponent(`"${assetTypeQuery}"`) : '';
   
   // Arrays to store all results from pagination
   let allAssets = [];
@@ -3317,6 +3368,14 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         // API filtering might not work correctly, so filter manually
         // Check both asset_type_id and parent_asset_type_id against multiple target types
         const targetTypeIds = Array.isArray(assetTypeIds) ? assetTypeIds : [assetTypeIds];
+        
+        // Debug: Show all assets and their types before filtering
+        console.log(`🔍 All ${assets.length} assets returned from API:`);
+        assets.forEach(asset => {
+          const matchesType = targetTypeIds.includes(asset.asset_type_id) || targetTypeIds.includes(asset.parent_asset_type_id);
+          console.log(`   ${matchesType ? '✅' : '❌'} "${asset.name || asset.display_name}" (ID: ${asset.id}) - Type: ${asset.asset_type_id}, Parent: ${asset.parent_asset_type_id || 'N/A'}`);
+        });
+        
         const filteredAssets = assets.filter(a => 
           targetTypeIds.includes(a.asset_type_id) || targetTypeIds.includes(a.parent_asset_type_id)
         );
@@ -3376,6 +3435,17 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
         
         console.log(`Filtered ${assets.length} assets to ${filteredAssets.length} results matching '${searchTerm}'`);
         
+        // Show what assets were available before search term filtering
+        if (assets.length > 0 && searchTerm) {
+          console.log(`📋 Available assets before search term filtering:`);
+          assets.slice(0, 5).forEach(asset => {
+            console.log(`   - "${asset.name || asset.display_name}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+          });
+          if (assets.length > 5) {
+            console.log(`   ... and ${assets.length - 5} more assets`);
+          }
+        }
+        
         if (filteredAssets.length > 0) {
           console.log('Sample filtered asset:', {
             id: filteredAssets[0].id,
@@ -3383,6 +3453,8 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
             display_name: filteredAssets[0].display_name,
             asset_type_id: filteredAssets[0].asset_type_id
           });
+        } else if (searchTerm && assets.length > 0) {
+          console.log(`❌ No assets matched search term "${searchTerm}". Try searching for part of these asset names instead.`);
         }
         
         // Process assets to include only display name and ID
