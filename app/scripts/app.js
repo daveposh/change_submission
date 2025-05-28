@@ -4149,6 +4149,7 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
  * @param {Array} results - Search results
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
  */
+// eslint-disable-next-line no-unused-vars
 function finalizeRequesterSearch(searchTerm, results, isRefresh) {
   // Cache the results
   addToSearchCache('requesters', searchTerm, results);
