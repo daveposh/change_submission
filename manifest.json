@@ -16,7 +16,8 @@
         "getServices": {},
         "getRequesterDetails": {},
         "getLocation": {},
-        "getAssetTypes": {}
+        "getAssetTypes": {},
+        "createChange": {}
       },
       "storage": {
         "data_storage": {

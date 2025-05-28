@@ -82,5 +82,17 @@
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
     }
+  },
+  "createChange": {
+    "schema": {
+      "method": "POST",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/changes",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    }
   }
 } 

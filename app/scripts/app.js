@@ -1787,19 +1787,26 @@ function setupEventListeners() {
         return;
       }
       
-      // Submit the change request
-      console.log('Submitting change request:', changeRequestData);
-      showNotification('success', 'Change request submitted successfully! Your request is being processed.', false);
-      
-      // Optionally disable the submit button to prevent double submission
-      this.disabled = true;
-      this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
-      
-      // Re-enable after a few seconds (simulating submission)
-      setTimeout(() => {
-        this.disabled = false;
-        this.innerHTML = 'Submit Change Request';
-      }, 3000);
+      // Show confirmation modal with summary
+      showSubmissionSummary();
+    });
+  }
+
+  // Handle confirmation modal buttons
+  const editRequestBtn = document.getElementById('edit-request');
+  if (editRequestBtn) {
+    editRequestBtn.addEventListener('click', function() {
+      // Modal will close automatically due to data-bs-dismiss="modal"
+      // User can continue editing the form
+      console.log('User chose to edit the request');
+    });
+  }
+
+  const confirmSubmitBtn = document.getElementById('confirm-submit');
+  if (confirmSubmitBtn) {
+    confirmSubmitBtn.addEventListener('click', function() {
+      // Perform actual submission to Freshservice
+      submitToFreshservice();
     });
   }
 
@@ -3154,6 +3161,440 @@ function clearFieldHighlighting() {
   document.querySelectorAll('.invalid-feedback').forEach(error => {
     error.remove();
   });
+}
+
+/**
+ * Show submission summary in modal
+ */
+function showSubmissionSummary() {
+  const summaryContent = document.getElementById('summary-content');
+  if (!summaryContent) return;
+
+  // Format the planned dates
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Get risk assessment details
+  const getRiskDetails = () => {
+    const { riskAssessment } = changeRequestData;
+    const questions = [
+      { key: 'businessImpact', label: 'Business Impact', values: ['Low', 'Medium', 'High'] },
+      { key: 'affectedUsers', label: 'Affected Users', values: ['Few (<50)', 'Some (50-200)', 'Many (>200)'] },
+      { key: 'complexity', label: 'Complexity', values: ['Simple', 'Moderate', 'Complex'] },
+      { key: 'testing', label: 'Testing Level', values: ['Comprehensive', 'Adequate', 'Limited'] },
+      { key: 'rollback', label: 'Rollback Plan', values: ['Yes - Detailed', 'Partial', 'No'] }
+    ];
+
+    return questions.map(q => {
+      const value = riskAssessment[q.key];
+      const label = value > 0 ? q.values[value - 1] : 'Not answered';
+      return `<li><strong>${q.label}:</strong> ${label}</li>`;
+    }).join('');
+  };
+
+  // Create the summary HTML
+  summaryContent.innerHTML = `
+    <div class="row">
+      <div class="col-12">
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          Please review all details before submitting your change request to Freshservice.
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- Basic Information -->
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-user me-2"></i>Basic Information</h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-2">
+              <strong>Requester:</strong><br>
+              ${changeRequestData.requester ? 
+                `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() + 
+                `<br><small class="text-muted">${changeRequestData.requester.email || ''}</small>` 
+                : 'Not specified'}
+            </div>
+            <div class="mb-2">
+              <strong>Agent (Technical SME):</strong><br>
+              ${changeRequestData.agent ? 
+                `${changeRequestData.agent.first_name || ''} ${changeRequestData.agent.last_name || ''}`.trim() + 
+                `<br><small class="text-muted">${changeRequestData.agent.email || ''}</small>` 
+                : 'Not specified'}
+            </div>
+            <div class="mb-2">
+              <strong>Change Type:</strong> <span class="badge bg-primary">${changeRequestData.changeType || 'Standard'}</span>
+            </div>
+            <div>
+              <strong>Lead Time:</strong> ${changeRequestData.leadTime || '2 business days'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timing -->
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-clock me-2"></i>Timing</h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-2">
+              <strong>Planned Start:</strong><br>
+              <small>${formatDate(changeRequestData.plannedStart)}</small>
+            </div>
+            <div>
+              <strong>Planned End:</strong><br>
+              <small>${formatDate(changeRequestData.plannedEnd)}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- Implementation Details -->
+      <div class="col-12">
+        <div class="card mb-3">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Implementation Details</h6>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <strong>Implementation Plan:</strong>
+              <div class="border rounded p-2 mt-1 bg-light">
+                <small>${changeRequestData.implementationPlan || 'Not specified'}</small>
+              </div>
+            </div>
+            <div class="mb-3">
+              <strong>Backout (Recovery) Plan:</strong>
+              <div class="border rounded p-2 mt-1 bg-light">
+                <small>${changeRequestData.backoutPlan || 'Not specified'}</small>
+              </div>
+            </div>
+            <div>
+              <strong>Validation Plan:</strong>
+              <div class="border rounded p-2 mt-1 bg-light">
+                <small>${changeRequestData.validationPlan || 'Not specified'}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- Risk Assessment -->
+      <div class="col-12">
+        <div class="card mb-3">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Risk Assessment</h6>
+          </div>
+          <div class="card-body">
+            <div class="row align-items-center mb-3">
+              <div class="col-md-6">
+                <div class="text-center">
+                  <div class="display-4 fw-bold text-primary">${changeRequestData.riskAssessment.totalScore}</div>
+                  <small class="text-muted">Risk Score</small>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="text-center">
+                  <span class="badge ${getRiskBadgeClass(changeRequestData.riskAssessment.riskLevel)} fs-6">
+                    ${changeRequestData.riskAssessment.riskLevel} Risk
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <strong>Risk Assessment Details:</strong>
+              <ul class="mt-2 mb-0">
+                ${getRiskDetails()}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-12">
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-circle me-2"></i>
+          <strong>Important:</strong> Once submitted, this change request will be created in Freshservice and assigned for review according to your organization's change management process.
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Show the modal
+  const modal = new bootstrap.Modal(document.getElementById('confirmation-modal'));
+  modal.show();
+}
+
+/**
+ * Submit change request to Freshservice
+ */
+async function submitToFreshservice() {
+  const confirmSubmitBtn = document.getElementById('confirm-submit');
+  if (!confirmSubmitBtn) return;
+
+  // Disable button and show loading state
+  confirmSubmitBtn.disabled = true;
+  confirmSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+
+  try {
+    // Check for client availability
+    if (!window.client || !window.client.request) {
+      throw new Error('Freshservice client not available');
+    }
+
+    // Prepare change request data for Freshservice API
+    const changeRequestPayload = {
+      requester_id: changeRequestData.requester?.id,
+      agent_id: changeRequestData.agent?.id,
+      change_type: mapChangeType(changeRequestData.changeType),
+      priority: mapRiskToPriority(changeRequestData.riskAssessment.riskLevel),
+      status: 1, // Open/New status
+      planned_start_date: changeRequestData.plannedStart ? new Date(changeRequestData.plannedStart).toISOString() : null,
+      planned_end_date: changeRequestData.plannedEnd ? new Date(changeRequestData.plannedEnd).toISOString() : null,
+      subject: generateChangeSubject(),
+      description: generateChangeDescription(),
+      custom_fields: {
+        implementation_plan: changeRequestData.implementationPlan,
+        backout_plan: changeRequestData.backoutPlan,
+        validation_plan: changeRequestData.validationPlan,
+        risk_score: changeRequestData.riskAssessment.totalScore,
+        risk_level: changeRequestData.riskAssessment.riskLevel
+      }
+    };
+
+    console.log('Submitting change request to Freshservice:', changeRequestPayload);
+
+    // Submit to Freshservice using the change request API
+    const response = await window.client.request.invokeTemplate("createChange", {
+      body: JSON.stringify(changeRequestPayload)
+    });
+
+    if (!response || !response.response) {
+      throw new Error('Invalid response from Freshservice API');
+    }
+
+    const result = JSON.parse(response.response);
+    console.log('Change request created successfully:', result);
+
+    // Close the modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
+    if (modal) {
+      modal.hide();
+    }
+
+    // Show success notification
+    showNotification('success', `Change request created successfully! Change ID: ${result.change?.id || 'Unknown'}`, true);
+
+    // Reset the form for a new request
+    resetForm();
+
+  } catch (error) {
+    console.error('Error submitting change request:', error);
+    
+    // Show error notification
+    showNotification('error', `Failed to submit change request: ${error.message}. Please try again.`);
+    
+  } finally {
+    // Re-enable button
+    confirmSubmitBtn.disabled = false;
+    confirmSubmitBtn.innerHTML = 'Confirm & Submit';
+  }
+}
+
+/**
+ * Map internal change type to Freshservice change type
+ */
+function mapChangeType(changeType) {
+  const typeMapping = {
+    'standard': 1,
+    'emergency': 3,
+    'non-standard': 2
+  };
+  return typeMapping[changeType] || 1;
+}
+
+/**
+ * Map risk level to Freshservice priority
+ */
+function mapRiskToPriority(riskLevel) {
+  const priorityMapping = {
+    'Low': 1,      // Low priority
+    'Medium': 2,   // Medium priority
+    'High': 3      // High priority
+  };
+  return priorityMapping[riskLevel] || 2;
+}
+
+/**
+ * Generate change request subject
+ */
+function generateChangeSubject() {
+  const requesterName = changeRequestData.requester ? 
+    `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() : 
+    'Unknown';
+  
+  const changeTypeLabel = changeRequestData.changeType || 'Standard';
+  const riskLevel = changeRequestData.riskAssessment.riskLevel || 'Unknown';
+  
+  return `${changeTypeLabel} Change Request - ${riskLevel} Risk - Requested by ${requesterName}`;
+}
+
+/**
+ * Generate change request description
+ */
+function generateChangeDescription() {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleString();
+  };
+
+  return `
+=== CHANGE REQUEST DETAILS ===
+
+Requester: ${changeRequestData.requester ? 
+  `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() + 
+  ` (${changeRequestData.requester.email || ''})` 
+  : 'Not specified'}
+
+Technical SME: ${changeRequestData.agent ? 
+  `${changeRequestData.agent.first_name || ''} ${changeRequestData.agent.last_name || ''}`.trim() + 
+  ` (${changeRequestData.agent.email || ''})` 
+  : 'Not specified'}
+
+Change Type: ${changeRequestData.changeType || 'Standard'}
+Lead Time: ${changeRequestData.leadTime || '2 business days'}
+
+=== TIMING ===
+Planned Start: ${formatDate(changeRequestData.plannedStart)}
+Planned End: ${formatDate(changeRequestData.plannedEnd)}
+
+=== IMPLEMENTATION PLAN ===
+${changeRequestData.implementationPlan || 'Not provided'}
+
+=== BACKOUT (RECOVERY) PLAN ===
+${changeRequestData.backoutPlan || 'Not provided'}
+
+=== VALIDATION PLAN ===
+${changeRequestData.validationPlan || 'Not provided'}
+
+=== RISK ASSESSMENT ===
+Risk Score: ${changeRequestData.riskAssessment.totalScore}
+Risk Level: ${changeRequestData.riskAssessment.riskLevel}
+
+Risk Assessment Details:
+- Business Impact: ${getRiskLabel('businessImpact', changeRequestData.riskAssessment.businessImpact)}
+- Affected Users: ${getRiskLabel('affectedUsers', changeRequestData.riskAssessment.affectedUsers)}
+- Complexity: ${getRiskLabel('complexity', changeRequestData.riskAssessment.complexity)}
+- Testing Level: ${getRiskLabel('testing', changeRequestData.riskAssessment.testing)}
+- Rollback Plan: ${getRiskLabel('rollback', changeRequestData.riskAssessment.rollback)}
+
+=== SUBMISSION INFO ===
+Submitted via Change Request App
+Submission Date: ${new Date().toLocaleString()}
+  `.trim();
+}
+
+/**
+ * Get risk assessment label for description
+ */
+function getRiskLabel(category, value) {
+  const labels = {
+    businessImpact: ['Low', 'Medium', 'High'],
+    affectedUsers: ['Few (<50)', 'Some (50-200)', 'Many (>200)'],
+    complexity: ['Simple', 'Moderate', 'Complex'],
+    testing: ['Comprehensive', 'Adequate', 'Limited'],
+    rollback: ['Yes - Detailed', 'Partial', 'No']
+  };
+  
+  return value > 0 ? labels[category][value - 1] : 'Not answered';
+}
+
+/**
+ * Reset form after successful submission
+ */
+function resetForm() {
+  // Reset change request data
+  Object.assign(changeRequestData, {
+    requester: null,
+    agent: null,
+    changeType: 'standard',
+    leadTime: '2 business days',
+    plannedStart: '',
+    plannedEnd: '',
+    implementationPlan: '',
+    backoutPlan: '',
+    validationPlan: '',
+    riskAssessment: {
+      businessImpact: 0,
+      affectedUsers: 0,
+      complexity: 0,
+      testing: 0,
+      rollback: 0,
+      totalScore: 0,
+      riskLevel: ''
+    }
+  });
+
+  // Clear form fields
+  document.getElementById('requester-search').value = '';
+  document.getElementById('agent-search').value = '';
+  document.getElementById('planned-start').value = '';
+  document.getElementById('planned-end').value = '';
+  document.getElementById('implementation-plan').value = '';
+  document.getElementById('backout-plan').value = '';
+  document.getElementById('validation-plan').value = '';
+
+  // Clear selected users displays
+  const selectedRequester = document.getElementById('selected-requester');
+  const selectedAgent = document.getElementById('selected-agent');
+  if (selectedRequester) selectedRequester.style.display = 'none';
+  if (selectedAgent) selectedAgent.style.display = 'none';
+
+  // Clear risk assessment
+  document.querySelectorAll('.risk-options input[type="radio"]').forEach(radio => {
+    radio.checked = false;
+  });
+
+  // Hide risk results
+  const riskResult = document.getElementById('risk-result');
+  if (riskResult) {
+    riskResult.classList.add('hidden');
+    riskResult.style.display = 'none';
+  }
+
+  // Reset change type to default
+  const changeTypeSelect = document.getElementById('change-type');
+  if (changeTypeSelect) {
+    changeTypeSelect.value = 'standard';
+  }
+
+  // Re-initialize defaults
+  initializeChangeTypeDefaults();
+
+  // Switch back to first tab
+  switchTab('change-details');
+
+  console.log('Form reset completed');
 }
 
 
