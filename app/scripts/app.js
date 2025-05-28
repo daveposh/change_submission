@@ -214,6 +214,8 @@ const changeRequestData = {
   implementationPlan: '',
   backoutPlan: '',
   validationPlan: '',
+  selectedServices: [],
+  selectedAssets: [],
   riskAssessment: {
     businessImpact: 0,
     affectedUsers: 0,
@@ -1856,6 +1858,23 @@ function setupEventListeners() {
       console.log('Validation plan updated');
     }, 1000));
   }
+
+  // Asset association search
+  const serviceSearch = document.getElementById('service-search');
+  if (serviceSearch) {
+    serviceSearch.addEventListener('input', debounce(searchServices, 300));
+  }
+
+  const assetSearch = document.getElementById('asset-search');
+  if (assetSearch) {
+    assetSearch.addEventListener('input', debounce(searchAssets, 300));
+  }
+
+  // Asset association navigation
+  const assetsNext = document.getElementById('assets-next');
+  if (assetsNext) {
+    assetsNext.addEventListener('click', validateAssetsAndNext);
+  }
 }
 
 /**
@@ -2310,11 +2329,25 @@ function addToSearchCache(type, searchTerm, results) {
 }
 
 /**
- * Search for assets using Freshservice API
+ * Search for assets (handles both main asset search and asset association)
  */
 function searchAssets(e) {
   const searchTerm = e.target ? e.target.value.trim() : '';
-  const resultsContainer = document.getElementById('asset-results');
+  const searchInputId = e.target ? e.target.id : '';
+  
+  // Determine which search container to use
+  let resultsContainer;
+  let selectionCallback;
+  
+  if (searchInputId === 'asset-search') {
+    // Asset association search
+    resultsContainer = document.getElementById('asset-search-results');
+    selectionCallback = selectAsset; // This will be our updated selectAsset for associations
+  } else {
+    // Main asset search (existing functionality)
+    resultsContainer = document.getElementById('asset-results');
+    selectionCallback = selectAsset; // Keep existing behavior for main search
+  }
   
   // Clear and hide results if search term is too short
   if (searchTerm.length < 3) {
@@ -2334,7 +2367,11 @@ function searchAssets(e) {
   getFromSearchCache('assets', searchTerm).then(cachedResults => {
     if (cachedResults) {
       // Use cached results
-      displayAssetResults('asset-results', cachedResults, selectAsset);
+      if (searchInputId === 'asset-search') {
+        displayAssetAssociationResults(cachedResults);
+      } else {
+        displayAssetResults('asset-results', cachedResults, selectionCallback);
+      }
       
       // Get the configured search cache timeout
       getInstallationParams().then(params => {
@@ -2343,10 +2380,11 @@ function searchAssets(e) {
         // Set a timer to check for fresh results after the timeout
         setTimeout(() => {
           // Only perform API call if the search term is still the current one
-          const currentSearchTerm = document.getElementById('asset-search')?.value.trim();
+          const currentSearchInput = document.getElementById(searchInputId);
+          const currentSearchTerm = currentSearchInput?.value.trim();
           if (currentSearchTerm === searchTerm) {
             console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
-            performAssetSearch(searchTerm, true);
+            performAssetSearch(searchTerm, true, searchInputId);
           }
         }, searchCacheTimeout);
       });
@@ -2355,11 +2393,11 @@ function searchAssets(e) {
     }
     
     // No cache hit, perform search immediately
-    performAssetSearch(searchTerm);
+    performAssetSearch(searchTerm, false, searchInputId);
   }).catch(error => {
     console.error('Error checking asset search cache:', error);
     // Fallback to direct search on cache error
-    performAssetSearch(searchTerm);
+    performAssetSearch(searchTerm, false, searchInputId);
   });
 }
 
@@ -2368,11 +2406,11 @@ function searchAssets(e) {
  * @param {string} searchTerm - The search term
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
  */
-async function performAssetSearch(searchTerm, isRefresh = false) {
+async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) {
   // Check for client availability
   if (!window.client || !window.client.request) {
     console.error('Client not available for asset search');
-    const resultsContainer = document.getElementById('asset-results');
+    const resultsContainer = document.getElementById(searchInputId);
     if (resultsContainer) {
       resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized</div>';
     }
@@ -2381,7 +2419,7 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
 
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
-    const resultsContainer = document.getElementById('asset-results');
+    const resultsContainer = document.getElementById(searchInputId);
     if (resultsContainer) {
       resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
       resultsContainer.style.display = 'block';
@@ -2423,18 +2461,533 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
     // Cache the results
     addToSearchCache('assets', searchTerm, filteredAssets);
     
-    // Display results
-    displayAssetResults('asset-results', filteredAssets, selectAsset);
+    // Display results based on search type
+    if (searchInputId === 'asset-search') {
+      displayAssetAssociationResults(filteredAssets);
+    } else {
+      displayAssetResults('asset-results', filteredAssets, selectAsset);
+    }
     
     console.log(`Asset search completed: ${filteredAssets.length} results for "${searchTerm}"`);
     
   } catch (error) {
-    console.error('Error performing asset search:', error);
-    const resultsContainer = document.getElementById('asset-results');
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `<div class="text-center p-3 text-danger">Error: ${error.message}</div>`;
-    }
+    console.error('Error submitting change request:', error);
+    
+    // Show error notification
+    showNotification('error', `Failed to submit change request: ${error.message}. Please try again.`);
+    
+  } finally {
+    // Re-enable button
+    confirmSubmitBtn.disabled = false;
+    confirmSubmitBtn.innerHTML = 'Confirm & Submit';
   }
+}
+
+/**
+ * Map internal change type to Freshservice change type
+ */
+function mapChangeType(changeType) {
+  const typeMapping = {
+    'standard': 1,
+    'emergency': 3,
+    'non-standard': 2
+  };
+  return typeMapping[changeType] || 1;
+}
+
+/**
+ * Map risk level to Freshservice priority
+ */
+function mapRiskToPriority(riskLevel) {
+  const priorityMapping = {
+    'Low': 1,      // Low priority
+    'Medium': 2,   // Medium priority
+    'High': 3      // High priority
+  };
+  return priorityMapping[riskLevel] || 2;
+}
+
+/**
+ * Generate change request subject
+ */
+function generateChangeSubject() {
+  const requesterName = changeRequestData.requester ? 
+    `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() : 
+    'Unknown';
+  
+  const changeTypeLabel = changeRequestData.changeType || 'Standard';
+  const riskLevel = changeRequestData.riskAssessment.riskLevel || 'Unknown';
+  
+  return `${changeTypeLabel} Change Request - ${riskLevel} Risk - Requested by ${requesterName}`;
+}
+
+/**
+ * Generate change request description
+ */
+function generateChangeDescription() {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleString();
+  };
+
+  return `
+=== CHANGE REQUEST DETAILS ===
+
+Requester: ${changeRequestData.requester ? 
+  `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() + 
+  ` (${changeRequestData.requester.email || ''})` 
+  : 'Not specified'}
+
+Technical SME: ${changeRequestData.agent ? 
+  `${changeRequestData.agent.first_name || ''} ${changeRequestData.agent.last_name || ''}`.trim() + 
+  ` (${changeRequestData.agent.email || ''})` 
+  : 'Not specified'}
+
+Change Type: ${changeRequestData.changeType || 'Standard'}
+Lead Time: ${changeRequestData.leadTime || '2 business days'}
+
+=== TIMING ===
+Planned Start: ${formatDate(changeRequestData.plannedStart)}
+Planned End: ${formatDate(changeRequestData.plannedEnd)}
+
+=== IMPLEMENTATION PLAN ===
+${changeRequestData.implementationPlan || 'Not provided'}
+
+=== BACKOUT (RECOVERY) PLAN ===
+${changeRequestData.backoutPlan || 'Not provided'}
+
+=== VALIDATION PLAN ===
+${changeRequestData.validationPlan || 'Not provided'}
+
+=== RISK ASSESSMENT ===
+Risk Score: ${changeRequestData.riskAssessment.totalScore}
+Risk Level: ${changeRequestData.riskAssessment.riskLevel}
+
+Risk Assessment Details:
+- Business Impact: ${getRiskLabel('businessImpact', changeRequestData.riskAssessment.businessImpact)}
+- Affected Users: ${getRiskLabel('affectedUsers', changeRequestData.riskAssessment.affectedUsers)}
+- Complexity: ${getRiskLabel('complexity', changeRequestData.riskAssessment.complexity)}
+- Testing Level: ${getRiskLabel('testing', changeRequestData.riskAssessment.testing)}
+- Rollback Plan: ${getRiskLabel('rollback', changeRequestData.riskAssessment.rollback)}
+
+=== SUBMISSION INFO ===
+Submitted via Change Request App
+Submission Date: ${new Date().toLocaleString()}
+  `.trim();
+}
+
+/**
+ * Get risk assessment label for description
+ */
+function getRiskLabel(category, value) {
+  const labels = {
+    businessImpact: ['Low', 'Medium', 'High'],
+    affectedUsers: ['Few (<50)', 'Some (50-200)', 'Many (>200)'],
+    complexity: ['Simple', 'Moderate', 'Complex'],
+    testing: ['Comprehensive', 'Adequate', 'Limited'],
+    rollback: ['Yes - Detailed', 'Partial', 'No']
+  };
+  
+  return value > 0 ? labels[category][value - 1] : 'Not answered';
+}
+
+/**
+ * Reset form after successful submission
+ */
+function resetForm() {
+  // Reset change request data
+  Object.assign(changeRequestData, {
+    requester: null,
+    agent: null,
+    changeType: 'standard',
+    leadTime: '2 business days',
+    plannedStart: '',
+    plannedEnd: '',
+    implementationPlan: '',
+    backoutPlan: '',
+    validationPlan: '',
+    selectedServices: [],
+    selectedAssets: [],
+    riskAssessment: {
+      businessImpact: 0,
+      affectedUsers: 0,
+      complexity: 0,
+      testing: 0,
+      rollback: 0,
+      totalScore: 0,
+      riskLevel: ''
+    }
+  });
+
+  // Clear form fields
+  document.getElementById('requester-search').value = '';
+  document.getElementById('agent-search').value = '';
+  document.getElementById('planned-start').value = '';
+  document.getElementById('planned-end').value = '';
+  document.getElementById('implementation-plan').value = '';
+  document.getElementById('backout-plan').value = '';
+  document.getElementById('validation-plan').value = '';
+
+  // Clear asset association search fields
+  const serviceSearch = document.getElementById('service-search');
+  const assetSearch = document.getElementById('asset-search');
+  if (serviceSearch) serviceSearch.value = '';
+  if (assetSearch) assetSearch.value = '';
+
+  // Clear selected users displays
+  const selectedRequester = document.getElementById('selected-requester');
+  const selectedAgent = document.getElementById('selected-agent');
+  if (selectedRequester) selectedRequester.style.display = 'none';
+  if (selectedAgent) selectedAgent.style.display = 'none';
+
+  // Clear selected services and assets displays
+  updateSelectedServicesDisplay();
+  updateSelectedAssetsDisplay();
+  updateAssociationCounts();
+
+  // Clear risk assessment
+  document.querySelectorAll('.risk-options input[type="radio"]').forEach(radio => {
+    radio.checked = false;
+  });
+
+  // Hide risk results
+  const riskResult = document.getElementById('risk-result');
+  if (riskResult) {
+    riskResult.classList.add('hidden');
+    riskResult.style.display = 'none';
+  }
+
+  // Reset change type to default
+  const changeTypeSelect = document.getElementById('change-type');
+  if (changeTypeSelect) {
+    changeTypeSelect.value = 'standard';
+  }
+
+  // Re-initialize defaults
+  initializeChangeTypeDefaults();
+
+  // Switch back to first tab
+  switchTab('change-details');
+
+  console.log('Form reset completed');
+}
+
+/**
+ * Search for services for asset association
+ */
+function searchServices(e) {
+  const searchTerm = e.target.value.trim();
+  const resultsContainer = document.getElementById('service-search-results');
+  
+  // Clear and hide results if search term is too short
+  if (searchTerm.length < 2) {
+    resultsContainer.style.display = 'none';
+    return;
+  }
+
+  // Show loading indicator
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Filter from cached services
+  getServices().then(services => {
+    const filteredServices = services.filter(service => {
+      const serviceName = (service.display_name || service.name || '').toLowerCase();
+      const description = (service.description || '').toLowerCase();
+      const term = searchTerm.toLowerCase();
+      return serviceName.includes(term) || description.includes(term);
+    });
+    
+    // Display service results
+    displayServiceResults(filteredServices);
+  }).catch(error => {
+    console.error('Error searching services:', error);
+    resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">Error loading services</div>';
+  });
+}
+
+/**
+ * Display service search results
+ */
+function displayServiceResults(services) {
+  const container = document.getElementById('service-search-results');
+  if (!container) return;
+  
+  if (services.length === 0) {
+    container.innerHTML = '<div class="text-center p-3">No services found</div>';
+    return;
+  }
+  
+  // Sort services by name
+  services.sort((a, b) => {
+    const nameA = (a.display_name || a.name || '').toLowerCase();
+    const nameB = (b.display_name || b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  // Create results list
+  let html = '<div class="list-group">';
+  services.forEach(service => {
+    const name = service.display_name || service.name || 'Unknown';
+    const description = service.description || '';
+    const assetTypeId = service.asset_type_id;
+    
+    // Check if already selected
+    const isSelected = changeRequestData.selectedServices.some(s => s.id === service.id);
+    
+    html += `
+      <button type="button" class="list-group-item list-group-item-action ${isSelected ? 'disabled' : ''}" 
+              data-id="${service.id}" ${isSelected ? 'disabled' : ''}>
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-bold">${name} ${isSelected ? '<span class="badge bg-success ms-2">Selected</span>' : ''}</div>
+            ${description ? `<div class="text-secondary small">${description}</div>` : ''}
+          </div>
+          <div class="text-end">
+            <div class="small text-muted">Type ID: ${assetTypeId}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  });
+  html += '</div>';
+  
+  container.innerHTML = html;
+  
+  // Add click handlers
+  container.querySelectorAll('.list-group-item:not(.disabled)').forEach(item => {
+    item.addEventListener('click', () => {
+      const selectedId = parseInt(item.dataset.id);
+      const selectedService = services.find(s => s.id === selectedId);
+      if (selectedService) {
+        selectService(selectedService);
+        container.style.display = 'none';
+        // Clear search input
+        document.getElementById('service-search').value = '';
+      }
+    });
+  });
+}
+
+/**
+ * Select a service for association
+ */
+function selectService(service) {
+  // Check if already selected
+  if (changeRequestData.selectedServices.some(s => s.id === service.id)) {
+    return;
+  }
+  
+  // Add to selected services
+  changeRequestData.selectedServices.push(service);
+  
+  // Update the display
+  updateSelectedServicesDisplay();
+  updateAssociationCounts();
+  
+  console.log('Service selected:', service);
+}
+
+/**
+ * Update the selected services display
+ */
+function updateSelectedServicesDisplay() {
+  const container = document.getElementById('selected-services-list');
+  if (!container) return;
+  
+  if (changeRequestData.selectedServices.length === 0) {
+    container.innerHTML = '<div class="text-muted">No services selected</div>';
+    return;
+  }
+  
+  let html = '<div class="selected-items">';
+  changeRequestData.selectedServices.forEach(service => {
+    const name = service.display_name || service.name || 'Unknown';
+    const description = service.description || '';
+    
+    html += `
+      <div class="selected-item d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+        <div>
+          <div class="fw-bold">${name}</div>
+          ${description ? `<div class="text-secondary small">${description}</div>` : ''}
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeService(${service.id})">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+  });
+  html += '</div>';
+  
+  container.innerHTML = html;
+}
+
+/**
+ * Remove a selected service
+ */
+function removeService(serviceId) {
+  changeRequestData.selectedServices = changeRequestData.selectedServices.filter(s => s.id !== serviceId);
+  updateSelectedServicesDisplay();
+  updateAssociationCounts();
+  console.log('Service removed:', serviceId);
+}
+
+/**
+ * Select an asset for association
+ */
+function selectAsset(asset) {
+  // Check if already selected
+  if (changeRequestData.selectedAssets.some(a => a.id === asset.id)) {
+    return;
+  }
+  
+  // Add to selected assets
+  changeRequestData.selectedAssets.push(asset);
+  
+  // Update the display
+  updateSelectedAssetsDisplay();
+  updateAssociationCounts();
+  
+  console.log('Asset selected:', asset);
+}
+
+/**
+ * Update the selected assets display
+ */
+function updateSelectedAssetsDisplay() {
+  const container = document.getElementById('selected-assets-list');
+  if (!container) return;
+  
+  if (changeRequestData.selectedAssets.length === 0) {
+    container.innerHTML = '<div class="text-muted">No assets selected</div>';
+    return;
+  }
+  
+  let html = '<div class="selected-items">';
+  changeRequestData.selectedAssets.forEach(asset => {
+    const name = asset.display_name || asset.name || 'Unknown';
+    const description = asset.description || '';
+    
+    html += `
+      <div class="selected-item d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+        <div>
+          <div class="fw-bold">${name}</div>
+          ${description ? `<div class="text-secondary small">${description}</div>` : ''}
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeAsset(${asset.id})">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+  });
+  html += '</div>';
+  
+  container.innerHTML = html;
+}
+
+/**
+ * Remove a selected asset
+ */
+function removeAsset(assetId) {
+  changeRequestData.selectedAssets = changeRequestData.selectedAssets.filter(a => a.id !== assetId);
+  updateSelectedAssetsDisplay();
+  updateAssociationCounts();
+  console.log('Asset removed:', assetId);
+}
+
+/**
+ * Update association counts
+ */
+function updateAssociationCounts() {
+  const servicesCount = document.getElementById('services-count');
+  const assetsCount = document.getElementById('assets-count');
+  
+  if (servicesCount) {
+    servicesCount.textContent = changeRequestData.selectedServices.length;
+  }
+  
+  if (assetsCount) {
+    assetsCount.textContent = changeRequestData.selectedAssets.length;
+  }
+}
+
+/**
+ * Validate asset associations and proceed to next step
+ */
+function validateAssetsAndNext() {
+  // Asset association is optional, so we don't enforce any requirements
+  // But we could add validation here if needed
+  
+  console.log('Asset associations validated:', {
+    services: changeRequestData.selectedServices.length,
+    assets: changeRequestData.selectedAssets.length
+  });
+  
+  // Show submission summary
+  showSubmissionSummary();
+}
+
+/**
+ * Display asset search results for asset association
+ */
+function displayAssetAssociationResults(assets) {
+  const container = document.getElementById('asset-search-results');
+  if (!container) return;
+  
+  if (assets.length === 0) {
+    container.innerHTML = '<div class="text-center p-3">No assets found</div>';
+    return;
+  }
+  
+  // Sort assets by name
+  assets.sort((a, b) => {
+    const nameA = (a.display_name || a.name || '').toLowerCase();
+    const nameB = (b.display_name || b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  // Create results list
+  let html = '<div class="list-group">';
+  assets.forEach(asset => {
+    const name = asset.display_name || asset.name || 'Unknown';
+    const description = asset.description || '';
+    const assetTypeId = asset.asset_type_id;
+    
+    // Check if already selected
+    const isSelected = changeRequestData.selectedAssets.some(a => a.id === asset.id);
+    
+    html += `
+      <button type="button" class="list-group-item list-group-item-action ${isSelected ? 'disabled' : ''}" 
+              data-id="${asset.id}" ${isSelected ? 'disabled' : ''}>
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-bold">${name} ${isSelected ? '<span class="badge bg-success ms-2">Selected</span>' : ''}</div>
+            ${description ? `<div class="text-secondary small">${description}</div>` : ''}
+          </div>
+          <div class="text-end">
+            <div class="small text-muted">Type ID: ${assetTypeId}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  });
+  html += '</div>';
+  
+  container.innerHTML = html;
+  
+  // Add click handlers
+  container.querySelectorAll('.list-group-item:not(.disabled)').forEach(item => {
+    item.addEventListener('click', () => {
+      const selectedId = parseInt(item.dataset.id);
+      const selectedAsset = assets.find(a => a.id === selectedId);
+      if (selectedAsset) {
+        selectAsset(selectedAsset);
+        container.style.display = 'none';
+        // Clear search input
+        document.getElementById('asset-search').value = '';
+      }
+    });
+  });
 }
 
 /**
@@ -2495,15 +3048,6 @@ function displayAssetResults(containerId, results, selectionCallback) {
       }
     });
   });
-}
-
-/**
- * Handle asset selection
- * @param {Object} asset - Selected asset
- */
-function selectAsset(asset) {
-  console.log('Asset selected:', asset);
-  // Add logic to handle asset selection
 }
 
 /**
@@ -2609,192 +3153,6 @@ function clearAgent() {
     selectedDiv.style.display = 'none';
   }
   changeRequestData.agent = null;
-}
-
-/**
- * Perform the actual API search for requesters
- * @param {string} searchTerm - The search term
- * @param {boolean} isRefresh - Whether this is a cache refresh operation
- */
-function performRequesterSearch(searchTerm, isRefresh = false) {
-  // Ensure client is available
-  if (!window.client || !window.client.request) {
-    console.error('Client or request object not available for requester search');
-    const resultsContainer = document.getElementById('requester-results');
-    if (resultsContainer) {
-      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized. Please refresh the page.</div>';
-    }
-    return;
-  }
-
-  // Use field-specific format for both requesters and agents API (since agents can be requesters too)
-  const userQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
-  
-  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, userQuery);
-  
-  // Only show loading indicator for non-refresh operations
-  if (!isRefresh) {
-    const resultsContainer = document.getElementById('requester-results');
-    if (resultsContainer) {
-      resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-      resultsContainer.style.display = 'block';
-    }
-  }
-  
-  // Function to load requester results from a specific page
-  function loadRequestersPage(page = 1, allResults = []) {
-    // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
-    console.log('Requester API URL:', requestUrl);
-    
-    window.client.request.invokeTemplate("getRequesters", {
-      path_suffix: requestUrl
-    })
-    .then(function(data) {
-      try {
-        if (!data) {
-          console.error('No data returned from requester search');
-          // Continue to load agents since requesters search failed
-          loadAgentsAsRequesters(page, allResults);
-          return;
-        }
-        
-        console.log('Requester search raw response:', data.response);
-        const response = JSON.parse(data.response || '{"requesters":[]}');
-        const requesters = response && response.requesters ? response.requesters : [];
-        console.log(`Requester search returned ${requesters.length} results`);
-        
-        // Manual filtering if the API filtering isn't working
-        const filteredRequesters = requesters.filter(requester => {
-          const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
-          const email = (requester.email || '').toLowerCase();
-          const term = searchTerm.toLowerCase();
-          return fullName.includes(term) || email.includes(term);
-        });
-        
-        console.log(`Manual filtering returned ${filteredRequesters.length} requester results`);
-        
-        // Combine with previous results
-        const combinedResults = [...allResults, ...filteredRequesters];
-        
-        // Now also search agents since they can be requesters too
-        loadAgentsAsRequesters(page, combinedResults);
-        
-      } catch (error) {
-        console.error('Error parsing requester response:', error);
-        // Still try to load agents
-        loadAgentsAsRequesters(page, allResults);
-      }
-    })
-    .catch(function(error) {
-      console.error('Requester API request failed:', error);
-      // Still try to load agents
-      loadAgentsAsRequesters(page, allResults);
-    });
-  }
-  
-  // Function to also search agents as potential requesters
-  function loadAgentsAsRequesters(page = 1, existingResults = []) {
-    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
-    console.log('Agent-as-requester API URL:', requestUrl);
-    
-    window.client.request.invokeTemplate("getAgents", {
-      path_suffix: requestUrl
-    })
-    .then(function(data) {
-      try {
-        if (!data) {
-          console.error('No data returned from agent search for requesters');
-          finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
-          return;
-        }
-        
-        console.log('Agent search (for requesters) raw response:', data.response);
-        const response = JSON.parse(data.response || '{"agents":[]}');
-        const agents = response && response.agents ? response.agents : [];
-        console.log(`Agent search returned ${agents.length} results for requesters`);
-        
-        // Manual filtering for agents
-        const filteredAgents = agents.filter(agent => {
-          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
-          const email = (agent.email || '').toLowerCase();
-          const term = searchTerm.toLowerCase();
-          return fullName.includes(term) || email.includes(term);
-        });
-        
-        console.log(`Manual filtering returned ${filteredAgents.length} agent results for requesters`);
-        
-        // Mark agents as potential requesters and avoid duplicates
-        const agentsAsRequesters = filteredAgents.map(agent => ({
-          ...agent,
-          _isAgent: true, // Mark as agent so we can show this in UI
-          _canBeRequester: true
-        }));
-        
-        // Remove duplicates based on email
-        const existingEmails = new Set(existingResults.map(r => r.email));
-        const uniqueAgents = agentsAsRequesters.filter(agent => !existingEmails.has(agent.email));
-        
-        // Combine all results
-        const allResults = [...existingResults, ...uniqueAgents];
-        
-        // Check if we should load more pages (limit to 2 pages for performance)
-        if ((filteredAgents.length === 30 || existingResults.length < 30) && page < 2) {
-          // Load next page
-          (async function() {
-              const params = await getInstallationParams();
-              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-              
-              updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
-              setTimeout(() => {
-                loadRequestersPage(page + 1, allResults);
-              }, paginationDelay);
-          })().catch(err => {
-              console.error('Error getting pagination delay:', err);
-              // Default delay if error
-              setTimeout(() => {
-                loadRequestersPage(page + 1, allResults);
-              }, DEFAULT_PAGINATION_DELAY);
-          });
-        } else {
-          // Complete the search with all results
-          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
-        }
-      } catch (error) {
-        console.error('Error parsing agent response for requesters:', error);
-        // Complete with existing results
-        finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
-      }
-    })
-    .catch(function(error) {
-      console.error('Agent API request failed for requesters:', error);
-      // Complete with existing results
-      finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
-    });
-  }
-  
-  // Start loading from page 1
-  loadRequestersPage(1, []);
-}
-
-/**
- * Finalize requester search with results
- * @param {string} searchTerm - Original search term
- * @param {Array} results - Search results
- * @param {boolean} isRefresh - Whether this is a cache refresh operation
- */
-function finalizeRequesterSearch(searchTerm, results, isRefresh) {
-  // Cache the results
-  addToSearchCache('requesters', searchTerm, results);
-  
-  // Display all results with refresh status for logging
-  console.log(`Displaying ${results.length} requester results (refresh: ${isRefresh})`);
-  displaySearchResults('requester-results', results, selectRequester);
-  
-  // Add individual users to the user cache for later use
-  if (results.length > 0) {
-    cacheIndividualUsers(results, 'requester');
-  }
 }
 
 /**
@@ -3038,8 +3396,8 @@ function validateRiskAndNext() {
     return;
   }
   
-  // Switch to impacted assets tab
-  switchTab('impacted-assets');
+  // Switch to asset association tab
+  switchTab('asset-association');
 }
 
 /**
@@ -3065,7 +3423,7 @@ function switchTab(tabId) {
   }
   
   // Activate the corresponding nav link
-  const targetNavLink = document.querySelector(`[href="#${tabId}"]`);
+  const targetNavLink = document.querySelector(`[data-bs-target="#${tabId}"]`);
   if (targetNavLink) {
     targetNavLink.classList.add('active');
   }
@@ -3202,6 +3560,43 @@ function showSubmissionSummary() {
     }).join('');
   };
 
+  // Get asset associations summary
+  const getAssetAssociations = () => {
+    let html = '';
+    
+    if (changeRequestData.selectedServices.length > 0) {
+      html += `
+        <div class="mb-3">
+          <strong>Associated Services (${changeRequestData.selectedServices.length}):</strong>
+          <ul class="mt-2 mb-0">
+            ${changeRequestData.selectedServices.map(service => 
+              `<li>${service.display_name || service.name || 'Unknown'}</li>`
+            ).join('')}
+          </ul>
+        </div>
+      `;
+    }
+    
+    if (changeRequestData.selectedAssets.length > 0) {
+      html += `
+        <div class="mb-3">
+          <strong>Associated Assets (${changeRequestData.selectedAssets.length}):</strong>
+          <ul class="mt-2 mb-0">
+            ${changeRequestData.selectedAssets.map(asset => 
+              `<li>${asset.display_name || asset.name || 'Unknown'}</li>`
+            ).join('')}
+          </ul>
+        </div>
+      `;
+    }
+    
+    if (changeRequestData.selectedServices.length === 0 && changeRequestData.selectedAssets.length === 0) {
+      html = '<div class="text-muted">No services or assets have been associated with this change.</div>';
+    }
+    
+    return html;
+  };
+
   // Create the summary HTML
   summaryContent.innerHTML = `
     <div class="row">
@@ -3297,8 +3692,20 @@ function showSubmissionSummary() {
     </div>
 
     <div class="row">
+      <!-- Asset Associations -->
+      <div class="col-md-6">
+        <div class="card mb-3">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-link me-2"></i>Asset Associations</h6>
+          </div>
+          <div class="card-body">
+            ${getAssetAssociations()}
+          </div>
+        </div>
+      </div>
+
       <!-- Risk Assessment -->
-      <div class="col-12">
+      <div class="col-md-6">
         <div class="card mb-3">
           <div class="card-header">
             <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Risk Assessment</h6>
@@ -3344,258 +3751,5 @@ function showSubmissionSummary() {
   const modal = new bootstrap.Modal(document.getElementById('confirmation-modal'));
   modal.show();
 }
-
-/**
- * Submit change request to Freshservice
- */
-async function submitToFreshservice() {
-  const confirmSubmitBtn = document.getElementById('confirm-submit');
-  if (!confirmSubmitBtn) return;
-
-  // Disable button and show loading state
-  confirmSubmitBtn.disabled = true;
-  confirmSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
-
-  try {
-    // Check for client availability
-    if (!window.client || !window.client.request) {
-      throw new Error('Freshservice client not available');
-    }
-
-    // Prepare change request data for Freshservice API
-    const changeRequestPayload = {
-      requester_id: changeRequestData.requester?.id,
-      agent_id: changeRequestData.agent?.id,
-      change_type: mapChangeType(changeRequestData.changeType),
-      priority: mapRiskToPriority(changeRequestData.riskAssessment.riskLevel),
-      status: 1, // Open/New status
-      planned_start_date: changeRequestData.plannedStart ? new Date(changeRequestData.plannedStart).toISOString() : null,
-      planned_end_date: changeRequestData.plannedEnd ? new Date(changeRequestData.plannedEnd).toISOString() : null,
-      subject: generateChangeSubject(),
-      description: generateChangeDescription(),
-      custom_fields: {
-        implementation_plan: changeRequestData.implementationPlan,
-        backout_plan: changeRequestData.backoutPlan,
-        validation_plan: changeRequestData.validationPlan,
-        risk_score: changeRequestData.riskAssessment.totalScore,
-        risk_level: changeRequestData.riskAssessment.riskLevel
-      }
-    };
-
-    console.log('Submitting change request to Freshservice:', changeRequestPayload);
-
-    // Submit to Freshservice using the change request API
-    const response = await window.client.request.invokeTemplate("createChange", {
-      body: JSON.stringify(changeRequestPayload)
-    });
-
-    if (!response || !response.response) {
-      throw new Error('Invalid response from Freshservice API');
-    }
-
-    const result = JSON.parse(response.response);
-    console.log('Change request created successfully:', result);
-
-    // Close the modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
-    if (modal) {
-      modal.hide();
-    }
-
-    // Show success notification
-    showNotification('success', `Change request created successfully! Change ID: ${result.change?.id || 'Unknown'}`, true);
-
-    // Reset the form for a new request
-    resetForm();
-
-  } catch (error) {
-    console.error('Error submitting change request:', error);
-    
-    // Show error notification
-    showNotification('error', `Failed to submit change request: ${error.message}. Please try again.`);
-    
-  } finally {
-    // Re-enable button
-    confirmSubmitBtn.disabled = false;
-    confirmSubmitBtn.innerHTML = 'Confirm & Submit';
-  }
-}
-
-/**
- * Map internal change type to Freshservice change type
- */
-function mapChangeType(changeType) {
-  const typeMapping = {
-    'standard': 1,
-    'emergency': 3,
-    'non-standard': 2
-  };
-  return typeMapping[changeType] || 1;
-}
-
-/**
- * Map risk level to Freshservice priority
- */
-function mapRiskToPriority(riskLevel) {
-  const priorityMapping = {
-    'Low': 1,      // Low priority
-    'Medium': 2,   // Medium priority
-    'High': 3      // High priority
-  };
-  return priorityMapping[riskLevel] || 2;
-}
-
-/**
- * Generate change request subject
- */
-function generateChangeSubject() {
-  const requesterName = changeRequestData.requester ? 
-    `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() : 
-    'Unknown';
-  
-  const changeTypeLabel = changeRequestData.changeType || 'Standard';
-  const riskLevel = changeRequestData.riskAssessment.riskLevel || 'Unknown';
-  
-  return `${changeTypeLabel} Change Request - ${riskLevel} Risk - Requested by ${requesterName}`;
-}
-
-/**
- * Generate change request description
- */
-function generateChangeDescription() {
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Not specified';
-    return new Date(dateString).toLocaleString();
-  };
-
-  return `
-=== CHANGE REQUEST DETAILS ===
-
-Requester: ${changeRequestData.requester ? 
-  `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() + 
-  ` (${changeRequestData.requester.email || ''})` 
-  : 'Not specified'}
-
-Technical SME: ${changeRequestData.agent ? 
-  `${changeRequestData.agent.first_name || ''} ${changeRequestData.agent.last_name || ''}`.trim() + 
-  ` (${changeRequestData.agent.email || ''})` 
-  : 'Not specified'}
-
-Change Type: ${changeRequestData.changeType || 'Standard'}
-Lead Time: ${changeRequestData.leadTime || '2 business days'}
-
-=== TIMING ===
-Planned Start: ${formatDate(changeRequestData.plannedStart)}
-Planned End: ${formatDate(changeRequestData.plannedEnd)}
-
-=== IMPLEMENTATION PLAN ===
-${changeRequestData.implementationPlan || 'Not provided'}
-
-=== BACKOUT (RECOVERY) PLAN ===
-${changeRequestData.backoutPlan || 'Not provided'}
-
-=== VALIDATION PLAN ===
-${changeRequestData.validationPlan || 'Not provided'}
-
-=== RISK ASSESSMENT ===
-Risk Score: ${changeRequestData.riskAssessment.totalScore}
-Risk Level: ${changeRequestData.riskAssessment.riskLevel}
-
-Risk Assessment Details:
-- Business Impact: ${getRiskLabel('businessImpact', changeRequestData.riskAssessment.businessImpact)}
-- Affected Users: ${getRiskLabel('affectedUsers', changeRequestData.riskAssessment.affectedUsers)}
-- Complexity: ${getRiskLabel('complexity', changeRequestData.riskAssessment.complexity)}
-- Testing Level: ${getRiskLabel('testing', changeRequestData.riskAssessment.testing)}
-- Rollback Plan: ${getRiskLabel('rollback', changeRequestData.riskAssessment.rollback)}
-
-=== SUBMISSION INFO ===
-Submitted via Change Request App
-Submission Date: ${new Date().toLocaleString()}
-  `.trim();
-}
-
-/**
- * Get risk assessment label for description
- */
-function getRiskLabel(category, value) {
-  const labels = {
-    businessImpact: ['Low', 'Medium', 'High'],
-    affectedUsers: ['Few (<50)', 'Some (50-200)', 'Many (>200)'],
-    complexity: ['Simple', 'Moderate', 'Complex'],
-    testing: ['Comprehensive', 'Adequate', 'Limited'],
-    rollback: ['Yes - Detailed', 'Partial', 'No']
-  };
-  
-  return value > 0 ? labels[category][value - 1] : 'Not answered';
-}
-
-/**
- * Reset form after successful submission
- */
-function resetForm() {
-  // Reset change request data
-  Object.assign(changeRequestData, {
-    requester: null,
-    agent: null,
-    changeType: 'standard',
-    leadTime: '2 business days',
-    plannedStart: '',
-    plannedEnd: '',
-    implementationPlan: '',
-    backoutPlan: '',
-    validationPlan: '',
-    riskAssessment: {
-      businessImpact: 0,
-      affectedUsers: 0,
-      complexity: 0,
-      testing: 0,
-      rollback: 0,
-      totalScore: 0,
-      riskLevel: ''
-    }
-  });
-
-  // Clear form fields
-  document.getElementById('requester-search').value = '';
-  document.getElementById('agent-search').value = '';
-  document.getElementById('planned-start').value = '';
-  document.getElementById('planned-end').value = '';
-  document.getElementById('implementation-plan').value = '';
-  document.getElementById('backout-plan').value = '';
-  document.getElementById('validation-plan').value = '';
-
-  // Clear selected users displays
-  const selectedRequester = document.getElementById('selected-requester');
-  const selectedAgent = document.getElementById('selected-agent');
-  if (selectedRequester) selectedRequester.style.display = 'none';
-  if (selectedAgent) selectedAgent.style.display = 'none';
-
-  // Clear risk assessment
-  document.querySelectorAll('.risk-options input[type="radio"]').forEach(radio => {
-    radio.checked = false;
-  });
-
-  // Hide risk results
-  const riskResult = document.getElementById('risk-result');
-  if (riskResult) {
-    riskResult.classList.add('hidden');
-    riskResult.style.display = 'none';
-  }
-
-  // Reset change type to default
-  const changeTypeSelect = document.getElementById('change-type');
-  if (changeTypeSelect) {
-    changeTypeSelect.value = 'standard';
-  }
-
-  // Re-initialize defaults
-  initializeChangeTypeDefaults();
-
-  // Switch back to first tab
-  switchTab('change-details');
-
-  console.log('Form reset completed');
-}
-
 
 
