@@ -655,16 +655,49 @@ async function checkAvailableAssetTypes() {
       console.log(`   Type ID: ${typeId} ${typeLabel} | Name: "${info.typeName}" | Count: ${info.count} | Examples: ${info.samples.join(', ')}`);
     });
     
-    console.log('💡 To use a different asset type, update the asset_type_id in your app configuration');
-    console.log('💡 Based on the examples above, these seem to be:');
-    console.log('   - 37000374726: Software/Applications (Active Directory, etc.)');
-    console.log('   - 37000374859: Servers/Infrastructure (server names with IPs)');
-    console.log('   - 37000374826: Hardware/Workstations (computer names)');
+    console.log('💡 To use a different asset type, update the asset_type_names in your app configuration');
+    console.log('💡 Current configuration includes: "Software, IT Software, ISP"');
+    console.log('💡 To include servers or workstations, you could try names like: "Server, Infrastructure, Hardware, Workstation"');
     
   } catch (error) {
     console.error('❌ Error checking available asset types:', error);
   }
 }
+
+/**
+ * Global debug function that can be called from browser console
+ * Shows asset type configuration and suggests alternatives
+ */
+window.debugAssetTypes = async function() {
+  console.log('🔧 === ASSET TYPE DEBUG INFORMATION ===');
+  
+  // Show current configuration
+  try {
+    const params = await getInstallationParams();
+    console.log(`📝 Current configuration: "${params.assetTypeNames}"`);
+  } catch (error) {
+    console.log('❌ Could not get current configuration');
+  }
+  
+  // Show available asset types
+  await checkAvailableAssetTypes();
+  
+  // Show current results
+  const assetTypeIds = await findSoftwareServicesAssetTypeIds();
+  console.log(`🎯 Currently configured asset type IDs: ${assetTypeIds.join(', ')}`);
+  
+  console.log('');
+  console.log('🛠️ === HOW TO INCLUDE MORE ASSETS ===');
+  console.log('1. Go to Admin → Asset Management → Asset Types in Freshservice');
+  console.log('2. Note the names of asset types you want to include');
+  console.log('3. Update your app configuration with those names');
+  console.log('4. Examples:');
+  console.log('   - For servers: "Software, IT Software, Server, Infrastructure"');
+  console.log('   - For all assets: "Software, Hardware, Server, Infrastructure, Workstation"');
+  console.log('   - For specific types: "IT Software, Network Equipment, Database"');
+  console.log('');
+  console.log('💡 Call this function anytime by typing: debugAssetTypes()');
+};
 
 /**
  * Find the software/services asset type IDs from cached asset types using configured names
