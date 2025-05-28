@@ -1420,17 +1420,17 @@ async function loadSavedData() {
   if (window.client && window.client.db && typeof window.client.db.get === 'function') {
     try {
       console.log('Requesting data from client DB...');
-      const result = await window.client.db.get(STORAGE_KEYS.CHANGE_DATA);
-      
-      // Check if we have valid data
-      if (result && typeof result === 'object') {
+    const result = await window.client.db.get(STORAGE_KEYS.CHANGE_DATA);
+    
+    // Check if we have valid data
+    if (result && typeof result === 'object') {
         console.log('Data retrieved successfully from client DB');
-        
-        // Update the global data object with saved values
-        Object.keys(result).forEach(key => {
-          changeRequestData[key] = result[key];
-        });
-        
+      
+      // Update the global data object with saved values
+      Object.keys(result).forEach(key => {
+        changeRequestData[key] = result[key];
+      });
+      
         dataLoaded = true;
       } else {
         console.log('No saved data found in client DB');
@@ -1473,22 +1473,22 @@ async function loadSavedData() {
   
   // Update UI if we loaded data from either source
   if (dataLoaded) {
-    try {
-      console.log('Populating form fields with saved data');
-      populateFormFields();
-      
-      // Only show notification after successfully populating the form
-      setTimeout(() => {
-        showNotification('info', 'Draft change request data loaded');
-      }, 500);
-      
+      try {
+        console.log('Populating form fields with saved data');
+        populateFormFields();
+        
+        // Only show notification after successfully populating the form
+        setTimeout(() => {
+          showNotification('info', 'Draft change request data loaded');
+        }, 500);
+        
       return true;
-    } catch (formError) {
-      console.error('Error populating form with saved data:', formError);
+      } catch (formError) {
+        console.error('Error populating form with saved data:', formError);
+      }
     }
-  }
   
-  return false;
+    return false;
 }
 
 /**
@@ -1500,9 +1500,9 @@ async function saveCurrentData() {
   
   // First try to save to client DB
   if (window.client && window.client.db && typeof window.client.db.set === 'function') {
-    try {
+  try {
       console.log('Saving form data to client DB...');
-      await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, changeRequestData);
+    await window.client.db.set(STORAGE_KEYS.CHANGE_DATA, changeRequestData);
       console.log('Form data saved successfully to client DB');
       savedToClientDB = true;
     } catch (error) {
@@ -1554,11 +1554,11 @@ async function clearSavedData() {
   
   // Clear from client DB if available
   if (window.client && window.client.db && typeof window.client.db.delete === 'function') {
-    try {
-      await window.client.db.delete(STORAGE_KEYS.CHANGE_DATA);
+  try {
+    await window.client.db.delete(STORAGE_KEYS.CHANGE_DATA);
       console.log('Saved data cleared from client DB');
       clientDBCleared = true;
-    } catch (error) {
+  } catch (error) {
       console.error('Error clearing saved data from client DB:', error);
     }
   } else {
@@ -3130,8 +3130,8 @@ function searchAssets(e) {
         
         // Use special cache key for initial asset listing with asset type IDs
         getAssetsByTypeFromCache('initial_asset_listing', cacheKey).then(cachedResults => {
-          if (cachedResults) {
-            // Use cached results
+    if (cachedResults) {
+      // Use cached results
             console.log(`Using CACHED results for initial asset listing types ${assetTypeIds.join(', ')} (${cachedResults.length} items)`);
             displayAssetResults('asset-results', cachedResults, selectAsset, true);
             assetSearchState.totalResults = cachedResults.length;
@@ -3187,32 +3187,32 @@ function searchAssets(e) {
           
           // Setup scroll event for infinite scroll after displaying results
           setupAssetSearchScroll();
-          
-          // Get the configured search cache timeout
-          getInstallationParams().then(params => {
-            const searchCacheTimeout = params.searchCacheTimeout;
-            
-            // Set a timer to check for fresh results after the timeout
-            setTimeout(() => {
-              // Only perform API call if the search term is still the current one
-              if (assetSearchState.currentSearchTerm === searchTerm) {
-                console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
-                performAssetSearch(searchTerm, true);
-              }
-            }, searchCacheTimeout);
-          });
-          
-          return;
-        }
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout;
         
-        // No cache hit, perform search immediately
-        console.log(`No cache found for types ${assetTypeIds.join(', ')}, term "${searchTerm}", querying API...`);
-        performAssetSearch(searchTerm);
-      }).catch(error => {
-        console.error('Error checking asset search cache:', error);
-        // Fallback to direct search on cache error
-        performAssetSearch(searchTerm);
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+              if (assetSearchState.currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
+            performAssetSearch(searchTerm, true);
+          }
+        }, searchCacheTimeout);
       });
+      
+      return;
+    }
+    
+    // No cache hit, perform search immediately
+        console.log(`No cache found for types ${assetTypeIds.join(', ')}, term "${searchTerm}", querying API...`);
+    performAssetSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking asset search cache:', error);
+    // Fallback to direct search on cache error
+    performAssetSearch(searchTerm);
+  });
     }).catch(error => {
       console.error('Error getting asset type IDs:', error);
       // Fallback to direct search on error
