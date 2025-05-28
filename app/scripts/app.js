@@ -794,7 +794,7 @@ window.showConfigStatus = async function() {
 
 /**
  * Get software/services asset type IDs 
- * Uses known working asset type ID with optional dynamic discovery as fallback
+ * Uses known working asset type IDs with optional dynamic discovery as fallback
  * @returns {Promise<Array>} - Array of asset type IDs for software/services
  */
 async function findSoftwareServicesAssetTypeIds() {
@@ -805,11 +805,14 @@ async function findSoftwareServicesAssetTypeIds() {
     const params = await getInstallationParams();
     const configuredNames = params.assetTypeNames;
     
-    // Known working asset type ID from user testing
-    const KNOWN_SOFTWARE_TYPE_ID = 37000374722;
-    let assetTypeIds = [KNOWN_SOFTWARE_TYPE_ID];
+    // Known working asset type IDs from user testing and logs
+    const KNOWN_SOFTWARE_TYPE_IDS = [
+      37000374722, // From user's Middleware asset
+      37000374726  // IT Software - has assets according to logs
+    ];
+    let assetTypeIds = [...KNOWN_SOFTWARE_TYPE_IDS];
     
-    console.log(`✅ Using known software/services asset type ID: ${KNOWN_SOFTWARE_TYPE_ID}`);
+    console.log(`✅ Using known software/services asset type IDs: ${KNOWN_SOFTWARE_TYPE_IDS.join(', ')}`);
     
     // If specific asset type names are configured, try to find their IDs as well
     if (configuredNames && configuredNames.trim() !== '') {
@@ -841,10 +844,10 @@ async function findSoftwareServicesAssetTypeIds() {
             }
           });
         } else {
-          console.log('⚠️ Could not fetch asset types for additional discovery, using known type only');
+          console.log('⚠️ Could not fetch asset types for additional discovery, using known types only');
         }
       } catch (error) {
-        console.log('⚠️ Asset type discovery failed, using known type only:', error.message);
+        console.log('⚠️ Asset type discovery failed, using known types only:', error.message);
       }
     }
     
@@ -853,10 +856,10 @@ async function findSoftwareServicesAssetTypeIds() {
     
   } catch (error) {
     console.error('❌ Error in findSoftwareServicesAssetTypeIds:', error);
-    // Fallback to known working ID
-    const fallbackId = 37000374722;
-    console.log(`🔄 Falling back to known asset type ID: ${fallbackId}`);
-    return [fallbackId];
+    // Fallback to known working IDs
+    const fallbackIds = [37000374722, 37000374726];
+    console.log(`🔄 Falling back to known asset type IDs: ${fallbackIds.join(', ')}`);
+    return fallbackIds;
   }
 }
 
