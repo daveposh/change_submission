@@ -2393,5 +2393,129 @@ function clearAgent() {
   changeRequestData.agent = null;
 }
 
+/**
+ * Perform the actual API search for requesters
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function performRequesterSearch(searchTerm, isRefresh = false) {
+  // Ensure client is available
+  if (!window.client || !window.client.request) {
+    console.error('Client or request object not available for requester search');
+    const resultsContainer = document.getElementById('requester-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized. Please refresh the page.</div>';
+    }
+    return;
+  }
+
+  // Use field-specific format for requesters API
+  const requesterQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, requesterQuery);
+  
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('requester-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+      resultsContainer.style.display = 'block';
+    }
+  }
+  
+  // Function to load requester results from a specific page
+  function loadRequestersPage(page = 1, allResults = []) {
+    // Use invokeTemplate with path suffix to add query parameter
+    const requestUrl = `?query=${requesterQuery}&page=${page}&per_page=30`;
+    console.log('Requester API URL:', requestUrl);
+    
+    window.client.request.invokeTemplate("getRequesters", {
+      path_suffix: requestUrl
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from requester search');
+          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+          return;
+        }
+        
+        console.log('Requester search raw response:', data.response);
+        const response = JSON.parse(data.response || '{"requesters":[]}');
+        const requesters = response && response.requesters ? response.requesters : [];
+        console.log(`Requester search returned ${requesters.length} results`);
+        
+        // Manual filtering if the API filtering isn't working
+        const filteredRequesters = requesters.filter(requester => {
+          const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
+          const email = (requester.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredRequesters.length} results`);
+        
+        // Combine with previous results
+        const combinedResults = [...allResults, ...filteredRequesters];
+        
+        // If we got a full page of results, there might be more
+        if (requesters.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
+          // Load next page
+          (async function() {
+              const params = await getInstallationParams();
+              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              
+              updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
+              setTimeout(() => {
+              loadRequestersPage(page + 1, combinedResults);
+              }, paginationDelay);
+          })().catch(err => {
+              console.error('Error getting pagination delay:', err);
+              // Default delay if error
+              setTimeout(() => {
+              loadRequestersPage(page + 1, combinedResults);
+              }, DEFAULT_PAGINATION_DELAY);
+          });
+        } else {
+          // Complete the search with all results
+          finalizeRequesterSearch(searchTerm, combinedResults, isRefresh);
+        }
+      } catch (error) {
+        console.error('Error parsing response:', error);
+        // Complete with existing results
+        finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+      }
+    })
+    .catch(function(error) {
+      console.error('API request failed:', error);
+      // Complete with existing results
+      finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+    });
+  }
+  
+  // Start loading from page 1
+  loadRequestersPage(1, []);
+}
+
+/**
+ * Finalize requester search with results
+ * @param {string} searchTerm - Original search term
+ * @param {Array} results - Search results
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function finalizeRequesterSearch(searchTerm, results, isRefresh) {
+  // Cache the results
+  addToSearchCache('requesters', searchTerm, results);
+  
+  // Display all results with refresh status for logging
+  console.log(`Displaying ${results.length} requester results (refresh: ${isRefresh})`);
+  displaySearchResults('requester-results', results, selectRequester);
+  
+  // Add individual users to the user cache for later use
+  if (results.length > 0) {
+    cacheIndividualUsers(results, 'requester');
+  }
+}
+
 
 
