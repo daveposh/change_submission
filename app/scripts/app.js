@@ -3945,4 +3945,67 @@ function showSubmissionSummary() {
   modal.show();
 }
 
+/**
+ * Get safe API limits based on plan settings
+ * @returns {Promise<Object>} - API limits configuration
+ */
+async function getSafeApiLimits() {
+  try {
+    const params = await getInstallationParams();
+    
+    // Default safe limits for different plan types
+    const defaultLimits = {
+      listRequestersPageLimit: 3,  // Fetch up to 3 pages of requesters (300 users max)
+      listAgentsPageLimit: 2,      // Fetch up to 2 pages of agents (200 agents max)
+      searchLimit: 50,             // Limit search results
+      cacheTimeout: 30 * 60 * 1000 // 30 minutes cache
+    };
+    
+    // You can adjust these based on your Freshservice plan
+    // For higher tier plans, you might want to increase these limits
+    const planBasedLimits = {
+      'starter': {
+        listRequestersPageLimit: 1,
+        listAgentsPageLimit: 1,
+        searchLimit: 25
+      },
+      'growth': {
+        listRequestersPageLimit: 2,
+        listAgentsPageLimit: 2,
+        searchLimit: 50
+      },
+      'pro': {
+        listRequestersPageLimit: 3,
+        listAgentsPageLimit: 3,
+        searchLimit: 75
+      },
+      'enterprise': {
+        listRequestersPageLimit: 5,
+        listAgentsPageLimit: 5,
+        searchLimit: 100
+      }
+    };
+    
+    // Try to detect plan or use defaults
+    const planType = params.plan_type || 'growth'; // Default to growth plan
+    const limits = planBasedLimits[planType] || defaultLimits;
+    
+    console.log(`Using API limits for plan '${planType}':`, limits);
+    return { ...defaultLimits, ...limits };
+    
+  } catch (error) {
+    console.error('Error getting API limits, using defaults:', error);
+    return {
+      listRequestersPageLimit: 2,
+      listAgentsPageLimit: 2,
+      searchLimit: 50,
+      cacheTimeout: 30 * 60 * 1000
+    };
+  }
+}
+
+/**
+ * Fetch all users (both requesters and agents) with rate limiting
+ */
+
 
