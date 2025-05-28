@@ -53,9 +53,10 @@ const searchCache = {
 
 // Asset type cache
 const assetTypeCache = {
-  byId: {}, // Map of asset_type_id -> { name, timestamp }
+  byId: {}, // Map of asset_type_id -> { name, description, timestamp }
   list: [],  // List of all asset types
-  timestamp: 0 // Last update timestamp
+  timestamp: 0, // Last update timestamp
+  types: {} // Legacy support for older code
 };
 
 // Default safety margin for API rate limiting (70%)
@@ -65,7 +66,7 @@ const DEFAULT_SAFETY_MARGIN = 70;
 // Based on your asset types: 37000374726 has software like Active Directory
 const DEFAULT_INVENTORY_TYPE_IDS = [37000374726, 37000374859]; // Include both software and server types
 
-// Default asset type timeout
+// Default asset type timeout (24 hours)
 const ASSET_TYPE_CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
 
 // Default rate limits if not configured during installation
@@ -726,8 +727,9 @@ window.clearAssetCache = async function() {
     // Clear asset type configuration cache if it exists
     if (typeof assetTypeCache !== 'undefined') {
       assetTypeCache.byId = {};
-      assetTypeCache.list = [];
-      assetTypeCache.timestamp = 0;
+assetTypeCache.list = [];
+assetTypeCache.timestamp = 0;
+assetTypeCache.types = {};
     }
     
     console.log('✅ Cleared in-memory caches');
@@ -5043,95 +5045,6 @@ window.checkAssetTypes = async function() {
   }
 };
 
-// Simple asset type cache
-let assetTypeCache = {
-  types: {}, // id -> {name, description}
-  lastUpdated: 0
-};
-
-// Cache timeout (1 hour)
-const ASSET_TYPE_CACHE_TIMEOUT = 60 * 60 * 1000;
-
-/**
- * Fetch and cache all asset types on app initialization
- */
-async function initializeAssetTypes() {
-  console.log('🔄 Initializing asset types cache...');
-  
-  try {
-    if (!window.client || !window.client.request) {
-      console.log('⚠️ Client not available for asset types');
-      return;
-    }
-
-    // Clear existing cache
-    assetTypeCache.types = {};
-    
-    // Fetch all asset types with pagination
-    let page = 1;
-    let hasMore = true;
-    
-    while (hasMore && page <= 10) { // Safety limit
-      console.log(`📄 Fetching asset types page ${page}...`);
-      
-      try {
-        const response = await window.client.request.invokeTemplate("getAssetTypes", {
-          path_suffix: `?page=${page}&per_page=100`
-        });
-        
-        if (!response || !response.response) {
-          console.log(`⚠️ No response for page ${page}`);
-          break;
-        }
-        
-        const data = JSON.parse(response.response);
-        const assetTypes = data.asset_types || [];
-        
-        console.log(`✅ Page ${page}: ${assetTypes.length} asset types`);
-        
-        // Cache each asset type
-        assetTypes.forEach(type => {
-          if (type.id && type.name) {
-            assetTypeCache.types[type.id] = {
-              name: type.name,
-              description: type.description || '',
-              visible: type.visible !== false
-            };
-          }
-        });
-        
-        // Check if we should continue
-        hasMore = assetTypes.length === 100;
-        page++;
-        
-        // Small delay between pages
-        if (hasMore) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-      } catch (pageError) {
-        console.log(`⚠️ Error fetching page ${page}:`, pageError.message);
-        break;
-      }
-    }
-    
-    assetTypeCache.lastUpdated = Date.now();
-    
-    const totalTypes = Object.keys(assetTypeCache.types).length;
-    console.log(`✅ Cached ${totalTypes} asset types successfully`);
-    
-    // Log some examples
-    const examples = Object.entries(assetTypeCache.types).slice(0, 5);
-    console.log('📋 Sample asset types:');
-    examples.forEach(([id, type]) => {
-      console.log(`   ${id}: ${type.name}`);
-    });
-    
-  } catch (error) {
-    console.log('⚠️ Error initializing asset types:', error.message);
-  }
-}
-
 /**
  * Get asset type IDs that match the configured names from iparams
  * @returns {Array} Array of asset type IDs to search
@@ -5152,8 +5065,8 @@ async function getConfiguredAssetTypeIds() {
     console.log(`🎯 Looking for asset types matching: ${targetNames.join(', ')}`);
     
     // Check if cache is fresh
-    const cacheAge = Date.now() - assetTypeCache.lastUpdated;
-    if (cacheAge > ASSET_TYPE_CACHE_TIMEOUT || Object.keys(assetTypeCache.types).length === 0) {
+    const cacheAge = Date.now() - assetTypeCache.timestamp;
+if (cacheAge > ASSET_TYPE_CACHE_TIMEOUT || Object.keys(assetTypeCache.byId).length === 0) {
       console.log('🔄 Asset type cache is stale, refreshing...');
       await initializeAssetTypes();
     }
@@ -5161,7 +5074,7 @@ async function getConfiguredAssetTypeIds() {
     // Find matching asset type IDs
     const matchingIds = [];
     
-    Object.entries(assetTypeCache.types).forEach(([id, type]) => {
+    Object.entries({...assetTypeCache.types, ...assetTypeCache.byId}).forEach(([id, type]) => {
       const typeName = type.name.toLowerCase();
       
       // Check if any configured name matches this asset type
@@ -5188,7 +5101,7 @@ async function getConfiguredAssetTypeIds() {
     if (matchingIds.length === 0) {
       console.log('❌ No asset types matched configured names, using fallback');
       console.log('💡 Available asset types:');
-      Object.entries(assetTypeCache.types).slice(0, 10).forEach(([id, type]) => {
+      Object.entries({...assetTypeCache.types, ...assetTypeCache.byId}).slice(0, 10).forEach(([id, type]) => {
         console.log(`   ${id}: ${type.name}`);
       });
       return [37000374722, 37000374726]; // Fallback
@@ -5304,7 +5217,7 @@ async function searchAssetsWithConfiguredTypes(searchTerm = '') {
       display_name: asset.display_name || asset.name || 'Unnamed Asset',
       type: 'service', // Mark as service since we're filtering by software/service types
       asset_type_id: asset.asset_type_id,
-      asset_type_name: assetTypeCache.types[asset.asset_type_id]?.name || `Type ${asset.asset_type_id}`,
+      asset_type_name: assetTypeCache.types[asset.asset_type_id]?.name || assetTypeCache.byId[asset.asset_type_id]?.name || `Type ${asset.asset_type_id}`,
       asset_tag: asset.asset_tag || '',
       description: asset.description || '',
       product_name: asset.product_name || '',
@@ -5330,7 +5243,7 @@ async function searchAssetsWithConfiguredTypes(searchTerm = '') {
  */
 function getAssetTypeName(assetTypeId) {
   if (!assetTypeId) return 'Unknown';
-  return assetTypeCache.types[assetTypeId]?.name || `Type ${assetTypeId}`;
+  return (assetTypeCache.types[assetTypeId]?.name || assetTypeCache.byId[assetTypeId]?.name || `Type ${assetTypeId}`);
 }
 
 /**
