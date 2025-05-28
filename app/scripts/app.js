@@ -620,6 +620,12 @@ async function findSoftwareServicesAssetTypeIds() {
     
     const cachedAssetTypes = await getCachedAssetTypes();
     
+    // Debug: Show all available asset types
+    console.log(`📋 Available asset types in your system:`);
+    Object.entries(cachedAssetTypes).forEach(([id, assetType]) => {
+      console.log(`   ID: ${id} | Name: "${assetType.name}" | Description: "${assetType.description || 'N/A'}"`);
+    });
+    
     // If cache is empty or expired, try to fetch fresh data
     if (Object.keys(cachedAssetTypes).length === 0 || 
         Object.values(cachedAssetTypes).some(type => type.timestamp < Date.now() - CACHE_TIMEOUT)) {
@@ -643,24 +649,42 @@ async function findSoftwareServicesAssetTypeIds() {
     
     // Parse the configured names (comma-separated)
     const targetNames = configuredNames.split(',').map(name => name.trim().toLowerCase()).filter(name => name);
-    console.log(`Parsed target asset type names: ${targetNames.join(', ')}`);
+    console.log(`🎯 Parsed target asset type names: ${targetNames.join(', ')}`);
     
     const foundTypeIds = [];
     
     // Look for exact or partial matches with configured names
+    console.log(`🔍 Checking ${Object.keys(cachedAssetTypes).length} cached asset types for matches...`);
+    
     for (const [id, assetType] of Object.entries(cachedAssetTypes)) {
       const assetTypeName = assetType.name.toLowerCase();
       
+      // Log each asset type being checked
+      console.log(`   Checking asset type: "${assetType.name}" (ID: ${id})`);
+      
       // Check if any of the target names match this asset type
       const isMatch = targetNames.some(targetName => {
-        // Check for exact match or if asset type name contains the target name
-        return assetTypeName === targetName || 
-               assetTypeName.includes(targetName) ||
-               targetName.includes(assetTypeName);
+        const exactMatch = assetTypeName === targetName;
+        const nameContainsTarget = assetTypeName.includes(targetName);
+        const targetContainsName = targetName.includes(assetTypeName);
+        
+        // Also check for word-based matching (useful for "IT Software" vs "Software")
+        const assetTypeWords = assetTypeName.split(/\s+/);
+        const targetWords = targetName.split(/\s+/);
+        const wordMatch = assetTypeWords.some(word => targetWords.includes(word)) ||
+                         targetWords.some(word => assetTypeWords.includes(word));
+        
+        // Log detailed matching info
+        if (exactMatch || nameContainsTarget || targetContainsName || wordMatch) {
+          console.log(`     🎯 Match found! Target: "${targetName}" vs Asset Type: "${assetTypeName}"`);
+          console.log(`        Exact: ${exactMatch}, Contains: ${nameContainsTarget}, Contained: ${targetContainsName}, WordMatch: ${wordMatch}`);
+        }
+        
+        return exactMatch || nameContainsTarget || targetContainsName || wordMatch;
       });
       
       if (isMatch) {
-        console.log(`✓ Found matching asset type: "${assetType.name}" (ID: ${id})`);
+        console.log(`✅ Found matching asset type: "${assetType.name}" (ID: ${id})`);
         foundTypeIds.push(parseInt(id));
       }
     }
@@ -672,7 +696,14 @@ async function findSoftwareServicesAssetTypeIds() {
     }
     
     // If no exact matches found, try keyword search as fallback
-    console.warn('No exact matches found for configured names, trying keyword search as fallback');
+    console.warn('❌ No exact matches found for configured names, trying keyword search as fallback');
+    console.log('💡 Tip: Check the console output above to see all available asset types in your system');
+    
+    // Also trigger the debug function to show what asset types have actual assets
+    setTimeout(() => {
+      checkAvailableAssetTypes().catch(err => console.error('Error checking available asset types:', err));
+    }, 1000);
+    
     return findAssetTypesByKeywords(cachedAssetTypes);
   } catch (error) {
     console.error('Error finding software/services asset types:', error);
@@ -686,34 +717,44 @@ async function findSoftwareServicesAssetTypeIds() {
  * @returns {Array<number>} - Array of asset type IDs
  */
 function findAssetTypesByKeywords(cachedAssetTypes) {
+  console.log('🔍 Performing keyword-based search for software/service asset types...');
+  
   // Look for asset types that might be software/services
   // Include specific keywords for Software/Services, IT Software, ISP
   const softwareKeywords = [
     'software', 'service', 'application', 'app', 'system', 'platform',
-    'it software', 'isp', 'internet service', 'saas', 'cloud'
+    'it software', 'isp', 'internet service', 'saas', 'cloud', 'server',
+    'infrastructure', 'hardware', 'workstation', 'computer', 'device'
   ];
   
   const foundTypeIds = [];
+  
+  console.log(`   Checking ${Object.keys(cachedAssetTypes).length} asset types against keywords: ${softwareKeywords.join(', ')}`);
   
   for (const [id, assetType] of Object.entries(cachedAssetTypes)) {
     const name = assetType.name.toLowerCase();
     const description = (assetType.description || '').toLowerCase();
     
     // Check if the name or description contains software/service keywords
-    if (softwareKeywords.some(keyword => 
-        name.includes(keyword) || description.includes(keyword))) {
-      console.log(`Found potential software/services asset type: ${assetType.name} (ID: ${id})`);
+    const matchingKeywords = softwareKeywords.filter(keyword => 
+      name.includes(keyword) || description.includes(keyword));
+    
+    if (matchingKeywords.length > 0) {
+      console.log(`✅ Found potential asset type: "${assetType.name}" (ID: ${id}) - matches: ${matchingKeywords.join(', ')}`);
       foundTypeIds.push(parseInt(id));
+    } else {
+      console.log(`   ❌ No match: "${assetType.name}" (ID: ${id})`);
     }
   }
   
   // If we found specific types, use them; otherwise fall back to default
   if (foundTypeIds.length > 0) {
-    console.log(`Using found asset type IDs: ${foundTypeIds.join(', ')}`);
+    console.log(`🎯 Using ${foundTypeIds.length} found asset type IDs: ${foundTypeIds.join(', ')}`);
     return foundTypeIds;
   }
   
-  console.warn('No specific software/services asset types found, using default');
+  console.warn('⚠️ No specific software/services asset types found, using default IDs');
+  console.log(`📋 Default IDs: ${DEFAULT_INVENTORY_TYPE_IDS.join(', ')}`);
   return DEFAULT_INVENTORY_TYPE_IDS;
 }
 
