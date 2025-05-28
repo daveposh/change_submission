@@ -3,6 +3,19 @@
  * Full page application for managing change requests in Freshservice
  */
 
+// Utility functions
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
 // Cache structures
 const CACHE = {
   KEYS: {
@@ -1490,10 +1503,7 @@ function initializeApp() {
     });
 
     // Set up event listeners
-    const serviceSelect = document.getElementById('service-select');
-    if (serviceSelect) {
-      serviceSelect.addEventListener('change', handleServiceSelection);
-    }
+    setupEventListeners();
 
     // ... rest of initialization code ...
   } catch (error) {
@@ -1570,6 +1580,35 @@ function populateFormFields() {
   }
 
   // ... rest of the existing populateFormFields code ...
+}
+
+/**
+ * Set up event listeners for form inputs
+ */
+function setupEventListeners() {
+  // Service selection
+  const serviceSelect = document.getElementById('service-select');
+  if (serviceSelect) {
+    serviceSelect.addEventListener('change', handleServiceSelection);
+  }
+
+  // Requester search
+  const requesterSearch = document.getElementById('requester-search');
+  if (requesterSearch) {
+    requesterSearch.addEventListener('input', debounce(searchRequesters, 300));
+  }
+
+  // Agent search
+  const agentSearch = document.getElementById('agent-search');
+  if (agentSearch) {
+    agentSearch.addEventListener('input', debounce(searchAgents, 300));
+  }
+
+  // Asset search
+  const assetSearch = document.getElementById('asset-search');
+  if (assetSearch) {
+    assetSearch.addEventListener('input', debounce(searchAssets, 300));
+  }
 }
 
 /**
@@ -1954,6 +1993,14 @@ function getDefaultParams() {
     customFields: {}
   };
 }
+
+// Initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  initializeApp().catch(error => {
+    console.error('Failed to initialize app:', error);
+    showError('Failed to initialize the application. Please refresh the page and try again.');
+  });
+});
 
 
 
