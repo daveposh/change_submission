@@ -1916,11 +1916,16 @@ function displaySearchResults(containerId, results, selectCallback) {
     const jobTitle = result.job_title || '';
     const department = result.department_names ? result.department_names[0] : '';
     
+    // Check if this is an agent who can be a requester
+    const isAgentAsRequester = result._isAgent && result._canBeRequester;
+    const userTypeIndicator = isAgentAsRequester ? 
+      '<span class="badge bg-info ms-2">Agent</span>' : '';
+    
     html += `
       <button type="button" class="list-group-item list-group-item-action" data-id="${result.id}">
         <div class="d-flex justify-content-between align-items-center">
           <div>
-            <div class="fw-bold">${name}</div>
+            <div class="fw-bold">${name}${userTypeIndicator}</div>
             <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${email}</div>
           </div>
           <div class="text-end">
@@ -1972,19 +1977,32 @@ async function cacheIndividualUsers(users, type) {
     users.forEach(user => {
       if (user && user.id) {
         const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+        
+        // Determine the actual user type for caching
+        let cacheType = type;
+        if (type === 'requester' && user._isAgent) {
+          // This is an agent found in requester search, cache as 'both'
+          cacheType = 'both';
+        }
+        
+        // Clean the user data before caching
+        const cleanUser = { ...user };
+        delete cleanUser._isAgent;
+        delete cleanUser._canBeRequester;
+        
         cachedUsers[user.id] = {
           name: userName,
-          data: user,
+          data: cleanUser,
           timestamp: Date.now(),
-          type: type
+          type: cacheType
         };
       }
     });
     
     await cacheUsers(cachedUsers);
-    console.log(`Cached ${users.length} individual ${type}s`);
+    console.log(`Cached ${users.length} individual users as ${type}s`);
   } catch (error) {
-    console.error(`Error caching individual ${type}s:`, error);
+    console.error(`Error caching individual users as ${type}s:`, error);
   }
 }
 
@@ -2310,11 +2328,17 @@ function selectRequester(requester) {
     const name = `${requester.first_name || ''} ${requester.last_name || ''}`.trim();
     const email = requester.email || requester.primary_email || '';
     
+    // Check if this is an agent acting as a requester
+    const isAgentAsRequester = requester._isAgent && requester._canBeRequester;
+    const userTypeIndicator = isAgentAsRequester ? 
+      '<span class="badge bg-info ms-2">Agent</span>' : '';
+    
     selectedDiv.innerHTML = `
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <strong>${name}</strong>
+          <strong>${name}${userTypeIndicator}</strong>
           <div class="text-secondary small">${email}</div>
+          ${isAgentAsRequester ? '<div class="text-info small">This agent can submit requests</div>' : ''}
         </div>
         <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearRequester()">
           <i class="fas fa-times"></i>
@@ -2330,8 +2354,11 @@ function selectRequester(requester) {
     searchInput.value = '';
   }
   
-  // Store the selected requester
-  changeRequestData.requester = requester;
+  // Store the selected requester (clean up the agent markers for storage)
+  const cleanRequester = { ...requester };
+  delete cleanRequester._isAgent;
+  delete cleanRequester._canBeRequester;
+  changeRequestData.requester = cleanRequester;
 }
 
 /**
@@ -2409,10 +2436,10 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
     return;
   }
 
-  // Use field-specific format for requesters API
-  const requesterQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  // Use field-specific format for both requesters and agents API (since agents can be requesters too)
+  const userQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
   
-  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, requesterQuery);
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, userQuery);
   
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
@@ -2426,7 +2453,7 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${requesterQuery}&page=${page}&per_page=30`;
+    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
     
     window.client.request.invokeTemplate("getRequesters", {
@@ -2436,7 +2463,8 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
       try {
         if (!data) {
           console.error('No data returned from requester search');
-          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+          // Continue to load agents since requesters search failed
+          loadAgentsAsRequesters(page, allResults);
           return;
         }
         
@@ -2453,13 +2481,74 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
           return fullName.includes(term) || email.includes(term);
         });
         
-        console.log(`Manual filtering returned ${filteredRequesters.length} results`);
+        console.log(`Manual filtering returned ${filteredRequesters.length} requester results`);
         
         // Combine with previous results
         const combinedResults = [...allResults, ...filteredRequesters];
         
-        // If we got a full page of results, there might be more
-        if (requesters.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
+        // Now also search agents since they can be requesters too
+        loadAgentsAsRequesters(page, combinedResults);
+        
+      } catch (error) {
+        console.error('Error parsing requester response:', error);
+        // Still try to load agents
+        loadAgentsAsRequesters(page, allResults);
+      }
+    })
+    .catch(function(error) {
+      console.error('Requester API request failed:', error);
+      // Still try to load agents
+      loadAgentsAsRequesters(page, allResults);
+    });
+  }
+  
+  // Function to also search agents as potential requesters
+  function loadAgentsAsRequesters(page = 1, existingResults = []) {
+    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
+    console.log('Agent-as-requester API URL:', requestUrl);
+    
+    window.client.request.invokeTemplate("getAgents", {
+      path_suffix: requestUrl
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from agent search for requesters');
+          finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+          return;
+        }
+        
+        console.log('Agent search (for requesters) raw response:', data.response);
+        const response = JSON.parse(data.response || '{"agents":[]}');
+        const agents = response && response.agents ? response.agents : [];
+        console.log(`Agent search returned ${agents.length} results for requesters`);
+        
+        // Manual filtering for agents
+        const filteredAgents = agents.filter(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredAgents.length} agent results for requesters`);
+        
+        // Mark agents as potential requesters and avoid duplicates
+        const agentsAsRequesters = filteredAgents.map(agent => ({
+          ...agent,
+          _isAgent: true, // Mark as agent so we can show this in UI
+          _canBeRequester: true
+        }));
+        
+        // Remove duplicates based on email
+        const existingEmails = new Set(existingResults.map(r => r.email));
+        const uniqueAgents = agentsAsRequesters.filter(agent => !existingEmails.has(agent.email));
+        
+        // Combine all results
+        const allResults = [...existingResults, ...uniqueAgents];
+        
+        // Check if we should load more pages (limit to 2 pages for performance)
+        if ((filteredAgents.length === 30 || existingResults.length < 30) && page < 2) {
           // Load next page
           (async function() {
               const params = await getInstallationParams();
@@ -2467,29 +2556,29 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
               
               updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
               setTimeout(() => {
-              loadRequestersPage(page + 1, combinedResults);
+                loadRequestersPage(page + 1, allResults);
               }, paginationDelay);
           })().catch(err => {
               console.error('Error getting pagination delay:', err);
               // Default delay if error
               setTimeout(() => {
-              loadRequestersPage(page + 1, combinedResults);
+                loadRequestersPage(page + 1, allResults);
               }, DEFAULT_PAGINATION_DELAY);
           });
         } else {
           // Complete the search with all results
-          finalizeRequesterSearch(searchTerm, combinedResults, isRefresh);
+          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
         }
       } catch (error) {
-        console.error('Error parsing response:', error);
+        console.error('Error parsing agent response for requesters:', error);
         // Complete with existing results
-        finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+        finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
       }
     })
     .catch(function(error) {
-      console.error('API request failed:', error);
+      console.error('Agent API request failed for requesters:', error);
       // Complete with existing results
-      finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+      finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
     });
   }
   
