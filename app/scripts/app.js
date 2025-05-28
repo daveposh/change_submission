@@ -189,8 +189,7 @@ async function fetchAndCacheServices() {
 }
 
 /**
- * Get services from cache or fetch if expired
- * @returns {Promise<Array>} Services array
+ * Get services (filtered from assets by specific service asset type IDs)
  */
 async function getServices() {
   try {
@@ -201,102 +200,64 @@ async function getServices() {
       return cachedServices;
     }
 
-    console.log('Fetching services from API...');
+    console.log('Fetching services from API using specific asset type IDs...');
     
-    // Get all asset types first to identify service categories
-    const allAssetTypesObj = await fetchAllAssetTypes();
+    // Get installation parameters to check for custom service asset type IDs
+    const params = await getInstallationParams();
     
-    // Validate that we got asset types data
-    if (!allAssetTypesObj || typeof allAssetTypesObj !== 'object') {
-      console.warn('No asset types available, using all assets as fallback');
-      const allAssets = await fetchAllAssets();
-      await cacheServices(allAssets);
-      return allAssets;
-    }
-    
-    // Convert object to array of asset types
-    const assetTypeEntries = Object.entries(allAssetTypesObj);
-    const allAssetTypes = assetTypeEntries.map(([id, assetType]) => ({
-      id: id,
-      name: assetType.name || '',
-      description: assetType.description || ''
-    }));
-    
-    console.log(`Found ${allAssetTypes.length} total asset types`);
-    
-    if (allAssetTypes.length === 0) {
-      console.warn('No asset types found, using all assets as fallback');
-      const allAssets = await fetchAllAssets();
-      await cacheServices(allAssets);
-      return allAssets;
-    }
-    
-    // Define service category keywords
-    const serviceCategoryKeywords = [
-      'software/services',
-      'business software', 
-      'it software',
-      'software',
-      'services',
-      'application',
-      'saas',
-      'platform'
+    // Define the default service asset type IDs (can be overridden in installation params)
+    const defaultServiceAssetTypeIds = [
+      37000374722,
+      37000374723, 
+      37000374726,
+      37000374730
     ];
     
-    // Find asset type IDs that match service categories
-    const serviceAssetTypeIds = allAssetTypes
-      .filter(assetType => {
-        const name = (assetType.name || '').toLowerCase();
-        const description = (assetType.description || '').toLowerCase();
-        
-        return serviceCategoryKeywords.some(keyword => 
-          name.includes(keyword) || description.includes(keyword)
-        );
-      })
-      .map(assetType => assetType.id)
-      .filter(id => id); // Remove any undefined/null IDs
+    // Allow configuration override via installation parameters
+    const serviceAssetTypeIds = params.serviceAssetTypeIds || defaultServiceAssetTypeIds;
     
-    console.log(`Found ${serviceAssetTypeIds.length} service asset type IDs:`, serviceAssetTypeIds);
+    console.log('Service asset type IDs:', serviceAssetTypeIds);
     
-    if (serviceAssetTypeIds.length === 0) {
-      console.warn('No service asset types found, using all assets as potential services');
-      // Fallback to all assets if no service types found
-      const allAssets = await fetchAllAssets();
-      await cacheServices(allAssets);
-      return allAssets;
+    if (!Array.isArray(serviceAssetTypeIds) || serviceAssetTypeIds.length === 0) {
+      console.warn('No service asset type IDs configured');
+      await cacheServices([]);
+      return [];
+    }
+    
+    // Build the filter query using the specific asset type IDs
+    const filterQuery = serviceAssetTypeIds
+      .map(id => `asset_type_id: ${id}`)
+      .join(' OR ');
+    
+    console.log('Service filter query:', filterQuery);
+    
+    // Fetch services using the filter
+    const requestUrl = `?filter="${filterQuery}"&per_page=100`;
+    
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    });
+
+    if (!response || !response.response) {
+      console.warn('No response from services API');
+      await cacheServices([]);
+      return [];
     }
 
-    // Fetch assets for each service asset type
-    let allServices = [];
+    const data = JSON.parse(response.response);
+    const services = data.assets || [];
     
-    for (const assetTypeId of serviceAssetTypeIds) {
-      try {
-        const assetsForType = await fetchAssetsByType(assetTypeId);
-        if (Array.isArray(assetsForType)) {
-          allServices = allServices.concat(assetsForType);
-          console.log(`Fetched ${assetsForType.length} assets for service type ID ${assetTypeId}`);
-        }
-      } catch (error) {
-        console.warn(`Error fetching assets for service type ${assetTypeId}:`, error);
-      }
-    }
-
-    // Remove duplicates based on ID
-    const uniqueServices = allServices.filter((service, index, self) => 
-      service && service.id && index === self.findIndex(s => s && s.id === service.id)
-    );
-
-    console.log(`Total unique services found: ${uniqueServices.length}`);
+    console.log(`Found ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
     
-    // Cache the services for future use
-    await cacheServices(uniqueServices);
+    // Cache the services
+    await cacheServices(services);
     
-    return uniqueServices;
+    return services;
     
   } catch (error) {
     console.error('Error fetching services:', error);
     
-    // Return empty array on error
+    // Return empty array on error but don't cache the error
     return [];
   }
 }
