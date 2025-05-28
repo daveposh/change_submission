@@ -370,21 +370,28 @@ function loadFontAwesome() {
 }
 
 // Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', async () => {
-  console.log('DOM ready, starting app initialization...');
-  try {
-    // Load FontAwesome first
-    loadFontAwesome();
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM ready, initializing Freshworks app...');
+  
+  // Load FontAwesome first
+  loadFontAwesome();
+  
+  // Use Freshworks standard initialization
+  app.initialized().then(function(client) {
+    console.log('Freshworks app initialized successfully');
+    window.client = client;
     
-    // Wait a bit for any other scripts to load
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Initialize the app
-    await initializeApp();
-  } catch (error) {
-    console.error('Failed to initialize app:', error);
-    displayInitError('Failed to initialize the application. Please refresh the page and try again.');
-  }
+    // Wait a moment for everything to settle
+    setTimeout(() => {
+      initializeApp().catch(error => {
+        console.error('Failed to initialize app:', error);
+        displayInitError('Failed to initialize the application. Please refresh the page and try again.');
+      });
+    }, 500);
+  }).catch(function(error) {
+    console.error('Freshworks app initialization failed:', error);
+    displayInitError('Failed to initialize Freshworks client. Please refresh the page and try again.');
+  });
 });
 
 /**
@@ -1503,42 +1510,6 @@ function handleServiceSelection(event) {
 }
 
 /**
- * Wait for the Freshworks client to be ready
- * @returns {Promise<Object>} The initialized client
- */
-function waitForClient() {
-  return new Promise((resolve, reject) => {
-    // Check if client is already available
-    if (window.client && window.client.request) {
-      console.log('Client already available');
-      resolve(window.client);
-      return;
-    }
-
-    // Set up a polling mechanism to wait for client
-    let attempts = 0;
-    const maxAttempts = 50; // 5 seconds max wait time
-    
-    const checkClient = () => {
-      attempts++;
-      
-      if (window.client && window.client.request) {
-        console.log(`Client became available after ${attempts * 100}ms`);
-        resolve(window.client);
-      } else if (attempts >= maxAttempts) {
-        console.error('Client failed to initialize within timeout');
-        reject(new Error('Client initialization timeout'));
-      } else {
-        setTimeout(checkClient, 100);
-      }
-    };
-
-    // Start checking
-    setTimeout(checkClient, 100);
-  });
-}
-
-/**
  * Initialize the Freshworks app
  * @returns {Promise<void>}
  */
@@ -1546,9 +1517,10 @@ async function initializeApp() {
   try {
     console.log('Starting app initialization...');
     
-    // Wait for client to be ready first
-    await waitForClient();
-    console.log('Client is ready, proceeding with initialization');
+    // Client should already be available from app.initialized()
+    if (!window.client) {
+      throw new Error('Client not available after initialization');
+    }
     
     // Initialize form fields first
     populateFormFields();
