@@ -1537,14 +1537,15 @@ function populateFormFields() {
  */
 function searchRequesters(e) {
   const searchTerm = e.target.value.trim();
-  if (searchTerm.length < 2) {
-    const resultsContainer = document.getElementById('requester-results');
+  const resultsContainer = document.getElementById('requester-results');
+  
+  // Clear and hide results if search term is too short
+  if (searchTerm.length < 3) {
     resultsContainer.style.display = 'none';
     return;
   }
 
   // Show loading indicator
-  const resultsContainer = document.getElementById('requester-results');
   resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
   resultsContainer.style.display = 'block';
   
@@ -1586,14 +1587,15 @@ function searchRequesters(e) {
  */
 function searchAgents(e) {
   const searchTerm = e.target.value.trim();
-  if (searchTerm.length < 2) {
-    const resultsContainer = document.getElementById('agent-results');
+  const resultsContainer = document.getElementById('agent-results');
+  
+  // Clear and hide results if search term is too short
+  if (searchTerm.length < 3) {
     resultsContainer.style.display = 'none';
     return;
   }
 
   // Show loading indicator
-  const resultsContainer = document.getElementById('agent-results');
   resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
   resultsContainer.style.display = 'block';
   
