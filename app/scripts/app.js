@@ -1661,16 +1661,27 @@ async function getManagerName(managerId) {
 }
 
 /**
- * Initialize the services dropdown
+ * Initialize the services dropdown with software services
  */
 async function initializeServicesDropdown() {
   try {
+    console.log('Initializing services dropdown...');
+    
     const services = await getServices();
     const dropdown = document.getElementById('service-select');
-    if (!dropdown) return;
+    if (!dropdown) {
+      console.error('Service select dropdown not found');
+      return;
+    }
 
     // Clear existing options
-    dropdown.innerHTML = '<option value="">Select a Service</option>';
+    dropdown.innerHTML = '<option value="">Select a service...</option>';
+
+    if (services.length === 0) {
+      dropdown.innerHTML = '<option value="">No software services available</option>';
+      dropdown.disabled = true;
+      return;
+    }
 
     // Sort services by name
     services.sort((a, b) => {
@@ -1679,16 +1690,19 @@ async function initializeServicesDropdown() {
       return nameA.localeCompare(nameB);
     });
 
-    // Add options
+    // Add options for each service
     services.forEach(service => {
       const option = document.createElement('option');
       option.value = service.id;
-      option.textContent = service.display_name || service.name;
+      option.textContent = service.display_name || service.name || 'Unknown Service';
+      option.dataset.description = service.description || '';
       dropdown.appendChild(option);
     });
 
     // Enable the dropdown
     dropdown.disabled = false;
+    
+    console.log(`Services dropdown initialized with ${services.length} services`);
   } catch (error) {
     console.error('Error initializing services dropdown:', error);
     const dropdown = document.getElementById('service-select');
@@ -1700,33 +1714,43 @@ async function initializeServicesDropdown() {
 }
 
 /**
- * Handle service selection
- * @param {Event} event Change event
+ * Handle service selection from dropdown
+ * @param {Event} event Change event from dropdown
  */
 function handleServiceSelection(event) {
   const serviceId = event.target.value;
+  
   if (!serviceId) {
-    document.getElementById('selected-service-details').style.display = 'none';
+    // No service selected, clear any previous selection display
     return;
   }
 
-  const service = cache.services.data.find(s => s.id === parseInt(serviceId));
-  if (!service) return;
+  // Find the selected service data
+  const selectedOption = event.target.selectedOptions[0];
+  const serviceName = selectedOption.textContent;
+  const serviceDescription = selectedOption.dataset.description || '';
 
-  // Update the form with service details
-  const details = {
-    name: service.display_name || service.name,
-    type: cache.asset_types.data[service.asset_type_id]?.name || 'Unknown Type',
-    description: service.description || 'No description available'
+  // Create service object
+  const service = {
+    id: parseInt(serviceId),
+    name: serviceName,
+    display_name: serviceName,
+    description: serviceDescription
   };
 
-  // Update UI elements
-  document.getElementById('selected-service-name').textContent = details.name;
-  document.getElementById('selected-service-type').textContent = details.type;
-  document.getElementById('selected-service-description').textContent = details.description;
-  
-  // Show the details section
-  document.getElementById('selected-service-details').style.display = 'block';
+  // Add to selected services if not already selected
+  if (!changeRequestData.selectedServices.some(s => s.id === service.id)) {
+    changeRequestData.selectedServices.push(service);
+    
+    // Update the display
+    updateSelectedServicesDisplay();
+    updateAssociationCounts();
+    
+    console.log('Service selected from dropdown:', service);
+  }
+
+  // Reset dropdown to placeholder
+  event.target.value = '';
 }
 
 /**

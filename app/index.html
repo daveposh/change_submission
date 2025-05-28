@@ -253,12 +253,16 @@
               <div class="card-body">
                 <div class="row">
                   <div class="col-md-6">
-                    <label for="service-search" class="form-label">Search Services:</label>
-                    <div class="input-group">
-                      <input type="text" id="service-search" class="form-control" placeholder="Search by service name...">
-                      <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <label for="service-select" class="form-label">Select Service:</label>
+                    <select id="service-select" class="form-select" disabled>
+                      <option value="">Loading services...</option>
+                    </select>
+                    <div class="mt-2">
+                      <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Only services with "Software Services" category are shown
+                      </small>
                     </div>
-                    <div id="service-search-results" class="search-results mt-2" style="display: none;"></div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label">Selected Services:</label>
