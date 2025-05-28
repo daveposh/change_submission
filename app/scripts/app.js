@@ -1686,7 +1686,7 @@ async function initializeServicesDropdown() {
       console.error('Service select dropdown not found');
       return;
     }
-
+    
     // Clear existing options
     dropdown.innerHTML = '<option value="">Select a service...</option>';
 
@@ -1695,7 +1695,7 @@ async function initializeServicesDropdown() {
       dropdown.disabled = true;
       return;
     }
-
+        
     // Sort services by name
     services.sort((a, b) => {
       const nameA = (a.display_name || a.name || '').toLowerCase();
@@ -1709,6 +1709,8 @@ async function initializeServicesDropdown() {
       option.value = service.id;
       option.textContent = service.display_name || service.name || 'Unknown Service';
       option.dataset.description = service.description || '';
+      // Store the complete service data as JSON for later retrieval
+      option.dataset.serviceData = JSON.stringify(service);
       dropdown.appendChild(option);
     });
 
@@ -1716,6 +1718,16 @@ async function initializeServicesDropdown() {
     dropdown.disabled = false;
     
     console.log(`Services dropdown initialized with ${services.length} services`);
+    
+    // Debug: Log first few services to verify asset_type_id is preserved
+    if (services.length > 0) {
+      console.log('📋 Sample services in dropdown:', services.slice(0, 3).map(s => ({
+        id: s.id,
+        name: s.display_name || s.name,
+        asset_type_id: s.asset_type_id,
+        hasAssetTypeId: !!s.asset_type_id
+      })));
+    }
   } catch (error) {
     console.error('Error initializing services dropdown:', error);
     const dropdown = document.getElementById('service-select');
@@ -1738,18 +1750,43 @@ function handleServiceSelection(event) {
     return;
   }
 
-  // Find the selected service data
+  // Find the selected service data from the dropdown option
   const selectedOption = event.target.selectedOptions[0];
-  const serviceName = selectedOption.textContent;
-  const serviceDescription = selectedOption.dataset.description || '';
-
-  // Create service object
-  const service = {
-    id: parseInt(serviceId),
-    name: serviceName,
-    display_name: serviceName,
-    description: serviceDescription
-  };
+  const serviceDataJson = selectedOption.dataset.serviceData;
+  
+  let service;
+  
+  if (serviceDataJson) {
+    try {
+      // Parse the complete service data stored in the option
+      service = JSON.parse(serviceDataJson);
+      console.log('📋 Retrieved complete service data from dropdown:', {
+        id: service.id,
+        name: service.display_name || service.name,
+        asset_type_id: service.asset_type_id,
+        description: service.description,
+        hasAssetTypeId: !!service.asset_type_id
+      });
+    } catch (error) {
+      console.error('Error parsing service data:', error);
+      // Fallback to basic service object
+      service = {
+        id: parseInt(serviceId),
+        name: selectedOption.textContent,
+        display_name: selectedOption.textContent,
+        description: selectedOption.dataset.description || ''
+      };
+    }
+  } else {
+    console.warn('No service data found in dropdown option, using fallback');
+    // Fallback to basic service object
+    service = {
+      id: parseInt(serviceId),
+      name: selectedOption.textContent,
+      display_name: selectedOption.textContent,
+      description: selectedOption.dataset.description || ''
+    };
+  }
 
   // Add to selected services if not already selected
   if (!changeRequestData.selectedServices.some(s => s.id === service.id)) {
@@ -1759,7 +1796,9 @@ function handleServiceSelection(event) {
     updateSelectedServicesDisplay();
     updateAssociationCounts();
     
-    console.log('Service selected from dropdown:', service);
+    console.log('✅ Service selected and stored with complete data:', service);
+  } else {
+    console.log('⚠️ Service already selected:', service.id);
   }
 
   // Reset dropdown to placeholder
@@ -3063,12 +3102,14 @@ function updateSelectedServicesDisplay() {
   changeRequestData.selectedServices.forEach(service => {
     const name = service.display_name || service.name || 'Unknown';
     const description = service.description || '';
+    const assetTypeId = service.asset_type_id || 'N/A';
     
     html += `
       <div class="selected-item d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
         <div>
           <div class="fw-bold">${name}</div>
           ${description ? `<div class="text-secondary small">${description}</div>` : ''}
+          <div class="text-muted small">Asset Type ID: ${assetTypeId}</div>
         </div>
         <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeService(${service.id})">
           <i class="fas fa-times"></i>
@@ -3079,6 +3120,14 @@ function updateSelectedServicesDisplay() {
   html += '</div>';
   
   container.innerHTML = html;
+  
+  // Debug: Log selected services to verify asset_type_id is preserved
+  console.log('📋 Selected services with asset_type_id:', changeRequestData.selectedServices.map(s => ({
+    id: s.id,
+    name: s.display_name || s.name,
+    asset_type_id: s.asset_type_id,
+    hasAssetTypeId: !!s.asset_type_id
+  })));
 }
 
 /**
