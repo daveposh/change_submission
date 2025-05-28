@@ -4519,10 +4519,10 @@ async function getInstallationParams() {
       rateLimitListTickets: parseInt(iparams.rate_limit_list_tickets || DEFAULT_RATE_LIMITS.starter.listTickets),
       rateLimitListAssets: parseInt(iparams.rate_limit_list_assets || DEFAULT_RATE_LIMITS.starter.listAssets),
       rateLimitListAgents: parseInt(iparams.rate_limit_list_agents || DEFAULT_RATE_LIMITS.starter.listAgents),
-              rateLimitListRequesters: parseInt(iparams.rate_limit_list_requesters || DEFAULT_RATE_LIMITS.starter.listRequesters),
-        searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT),
-        paginationDelay: parseInt(iparams.pagination_delay || DEFAULT_PAGINATION_DELAY),
-        assetTypeNames: iparams.asset_type_names || 'Software, IT Software, ISP'
+      rateLimitListRequesters: parseInt(iparams.rate_limit_list_requesters || DEFAULT_RATE_LIMITS.starter.listRequesters),
+      searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT),
+      paginationDelay: parseInt(iparams.pagination_delay || DEFAULT_PAGINATION_DELAY),
+      assetTypeNames: iparams.asset_type_names || 'Software, IT Software, ISP'
     };
   } catch (error) {
     console.error('Error getting installation parameters:', error);
@@ -4535,10 +4535,10 @@ async function getInstallationParams() {
       rateLimitListTickets: DEFAULT_RATE_LIMITS.starter.listTickets,
       rateLimitListAssets: DEFAULT_RATE_LIMITS.starter.listAssets,
       rateLimitListAgents: DEFAULT_RATE_LIMITS.starter.listAgents,
-              rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
-        searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
-        paginationDelay: DEFAULT_PAGINATION_DELAY,
-        assetTypeNames: 'Software, IT Software, ISP'
+      rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
+      searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
+      paginationDelay: DEFAULT_PAGINATION_DELAY,
+      assetTypeNames: 'Software, IT Software, ISP'
     };
   }
 }
@@ -4911,6 +4911,137 @@ function generateAssetTypeCacheKey(assetTypeIds) {
   const sortedIds = [...assetTypeIds].sort((a, b) => a - b);
   return `multi_${sortedIds.join('_')}`;
 }
+
+/**
+ * Simple function to search for assets by name across all asset types
+ * Can be called from browser console as: findAsset("Middleware")
+ */
+window.findAsset = async function(assetName) {
+  try {
+    console.log(`🔍 Searching for asset: "${assetName}"`);
+    
+    if (!window.client || !window.client.request) {
+      console.log('❌ Client not available');
+      return;
+    }
+    
+    // Search through multiple pages to find the asset
+    for (let page = 1; page <= 5; page++) {
+      console.log(`📄 Checking page ${page}...`);
+      
+      const data = await window.client.request.invokeTemplate("getAssets", {
+        path_suffix: `?page=${page}&per_page=100`
+      });
+      
+      if (!data || !data.response) {
+        console.log(`❌ No response from page ${page}`);
+        continue;
+      }
+      
+      const response = JSON.parse(data.response);
+      const assets = response && response.assets ? response.assets : [];
+      
+      console.log(`📦 Page ${page}: ${assets.length} assets`);
+      
+      // Search for assets containing the name
+      const matchingAssets = assets.filter(asset => {
+        const name = (asset.name || asset.display_name || '').toLowerCase();
+        return name.includes(assetName.toLowerCase());
+      });
+      
+      if (matchingAssets.length > 0) {
+        console.log(`✅ FOUND ${matchingAssets.length} matching asset(s) on page ${page}:`);
+        matchingAssets.forEach(asset => {
+          console.log(`   📋 Asset: "${asset.name || asset.display_name}"`);
+          console.log(`       ID: ${asset.id}`);
+          console.log(`       Asset Type ID: ${asset.asset_type_id}`);
+          console.log(`       Asset Tag: ${asset.asset_tag || 'N/A'}`);
+          console.log(`       Description: ${asset.description || 'N/A'}`);
+          console.log(`   ----`);
+        });
+        
+        // Show asset type info
+        const typeIds = [...new Set(matchingAssets.map(a => a.asset_type_id))];
+        console.log(`🏷️ Asset Type IDs found: ${typeIds.join(', ')}`);
+        
+        return matchingAssets;
+      }
+    }
+    
+    console.log(`❌ No assets found matching "${assetName}"`);
+    return [];
+    
+  } catch (error) {
+    console.error('❌ Error searching for asset:', error);
+  }
+};
+
+/**
+ * Simple function to check what asset types are actually being used
+ */
+window.checkAssetTypes = async function() {
+  try {
+    console.log('🔍 Checking what asset types are in use...');
+    
+    if (!window.client || !window.client.request) {
+      console.log('❌ Client not available');
+      return;
+    }
+    
+    const data = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: `?page=1&per_page=100`
+    });
+    
+    if (!data || !data.response) {
+      console.log('❌ No response from API');
+      return;
+    }
+    
+    const response = JSON.parse(data.response);
+    const assets = response && response.assets ? response.assets : [];
+    
+    // Group by asset type
+    const typeGroups = {};
+    assets.forEach(asset => {
+      const typeId = asset.asset_type_id;
+      if (!typeGroups[typeId]) {
+        typeGroups[typeId] = {
+          count: 0,
+          examples: []
+        };
+      }
+      typeGroups[typeId].count++;
+      if (typeGroups[typeId].examples.length < 3) {
+        typeGroups[typeId].examples.push(asset.name || asset.display_name);
+      }
+    });
+    
+    console.log('📊 Asset Types in use:');
+    Object.entries(typeGroups).forEach(([typeId, info]) => {
+      console.log(`   Type ${typeId}: ${info.count} assets`);
+      console.log(`     Examples: ${info.examples.join(', ')}`);
+    });
+    
+    // Show which types we're currently searching for
+    const currentSearchTypes = [37000374722, 37000374726]; // Our known types
+    console.log(`🎯 Currently searching for types: ${currentSearchTypes.join(', ')}`);
+    
+    // Check overlap
+    const foundTypes = Object.keys(typeGroups).map(id => parseInt(id));
+    const overlap = currentSearchTypes.filter(type => foundTypes.includes(type));
+    const missing = currentSearchTypes.filter(type => !foundTypes.includes(type));
+    
+    if (overlap.length > 0) {
+      console.log(`✅ Found matching types: ${overlap.join(', ')}`);
+    }
+    if (missing.length > 0) {
+      console.log(`❌ Missing types: ${missing.join(', ')}`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error checking asset types:', error);
+  }
+};
 
 
 
