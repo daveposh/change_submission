@@ -193,236 +193,15 @@ async function fetchAndCacheServices() {
  * @returns {Promise<Array>} Services array
  */
 async function getServices() {
-  try {
-    // Check for cached services first
-    const cachedServices = await getCachedServices();
-    if (cachedServices && cachedServices.length > 0) {
-      console.log(`Using cached services: ${cachedServices.length} services`);
-      return cachedServices;
-    }
+  const now = Date.now();
+  const cacheAge = now - cache.services.timestamp;
 
-    console.log('Fetching services from API...');
-    
-    // Get all asset types first to identify service categories
-    const allAssetTypesObj = await fetchAllAssetTypes();
-    
-    // Validate that we got asset types data
-    if (!allAssetTypesObj || typeof allAssetTypesObj !== 'object') {
-      console.warn('No asset types available, using all assets as fallback');
-      const allAssets = await fetchAllAssets();
-      await cacheServices(allAssets);
-      return allAssets;
-    }
-    
-    // Convert object to array of asset types
-    const assetTypeEntries = Object.entries(allAssetTypesObj);
-    const allAssetTypes = assetTypeEntries.map(([id, assetType]) => ({
-      id: id,
-      name: assetType.name || '',
-      description: assetType.description || ''
-    }));
-    
-    console.log(`Found ${allAssetTypes.length} total asset types`);
-    
-    if (allAssetTypes.length === 0) {
-      console.warn('No asset types found, using all assets as fallback');
-      const allAssets = await fetchAllAssets();
-      await cacheServices(allAssets);
-      return allAssets;
-    }
-    
-    // Define service category keywords
-    const serviceCategoryKeywords = [
-      'software/services',
-      'business software', 
-      'it software',
-      'software',
-      'services',
-      'application',
-      'saas',
-      'platform'
-    ];
-    
-    // Find asset type IDs that match service categories
-    const serviceAssetTypeIds = allAssetTypes
-      .filter(assetType => {
-        const name = (assetType.name || '').toLowerCase();
-        const description = (assetType.description || '').toLowerCase();
-        
-        return serviceCategoryKeywords.some(keyword => 
-          name.includes(keyword) || description.includes(keyword)
-        );
-      })
-      .map(assetType => assetType.id)
-      .filter(id => id); // Remove any undefined/null IDs
-    
-    console.log(`Found ${serviceAssetTypeIds.length} service asset type IDs:`, serviceAssetTypeIds);
-    
-    if (serviceAssetTypeIds.length === 0) {
-      console.warn('No service asset types found, using all assets as potential services');
-      // Fallback to all assets if no service types found
-      const allAssets = await fetchAllAssets();
-      await cacheServices(allAssets);
-      return allAssets;
-    }
-
-    // Fetch assets for each service asset type
-    let allServices = [];
-    
-    for (const assetTypeId of serviceAssetTypeIds) {
-      try {
-        const assetsForType = await fetchAssetsByType(assetTypeId);
-        if (Array.isArray(assetsForType)) {
-          allServices = allServices.concat(assetsForType);
-          console.log(`Fetched ${assetsForType.length} assets for service type ID ${assetTypeId}`);
-        }
-      } catch (error) {
-        console.warn(`Error fetching assets for service type ${assetTypeId}:`, error);
-      }
-    }
-
-    // Remove duplicates based on ID
-    const uniqueServices = allServices.filter((service, index, self) => 
-      service && service.id && index === self.findIndex(s => s && s.id === service.id)
-    );
-
-    console.log(`Total unique services found: ${uniqueServices.length}`);
-    
-    // Cache the services for future use
-    await cacheServices(uniqueServices);
-    
-    return uniqueServices;
-    
-  } catch (error) {
-    console.error('Error fetching services:', error);
-    
-    // Return empty array on error
-    return [];
+  if (cacheAge > CACHE.TIMEOUTS.SERVICES || cache.services.data.length === 0) {
+    console.log('Services cache expired or empty, refreshing...');
+    return await fetchAndCacheServices();
   }
-}
 
-/**
- * Fetch assets by asset type ID
- */
-function fetchAssetsByType(assetTypeId) {
-  return new Promise((resolve, reject) => {
-    if (!window.client || !window.client.request) {
-      reject(new Error('Client not available'));
-      return;
-    }
-
-    // Use the asset search API with asset type filter
-    const requestUrl = `?asset_type_id=${assetTypeId}&per_page=100`;
-    
-    window.client.request.invokeTemplate("getAssets", {
-      path_suffix: requestUrl
-    })
-    .then(function(data) {
-      try {
-        if (!data || !data.response) {
-          resolve([]);
-          return;
-        }
-        
-        const response = JSON.parse(data.response);
-        const assets = response.assets || [];
-        
-        resolve(assets);
-      } catch (error) {
-        console.error(`Error parsing assets for type ${assetTypeId}:`, error);
-        resolve([]);
-      }
-    })
-    .catch(function(error) {
-      console.error(`API request failed for asset type ${assetTypeId}:`, error);
-      resolve([]);
-    });
-  });
-}
-
-/**
- * Fetch all assets (fallback function)
- */
-function fetchAllAssets() {
-  return new Promise((resolve, reject) => {
-    if (!window.client || !window.client.request) {
-      reject(new Error('Client not available'));
-      return;
-    }
-
-    window.client.request.invokeTemplate("getAssets", {
-      path_suffix: "?per_page=100"
-    })
-    .then(function(data) {
-      try {
-        if (!data || !data.response) {
-          resolve([]);
-          return;
-        }
-        
-        const response = JSON.parse(data.response);
-        const assets = response.assets || [];
-        
-        resolve(assets);
-      } catch (error) {
-        console.error('Error parsing all assets:', error);
-        resolve([]);
-      }
-    })
-    .catch(function(error) {
-      console.error('API request failed for all assets:', error);
-      resolve([]);
-    });
-  });
-}
-
-/**
- * Get cached services
- */
-async function getCachedServices() {
-  try {
-    const params = await getInstallationParams();
-    const cacheKey = `services_cache_${params.domain || 'default'}`;
-    const cached = localStorage.getItem(cacheKey);
-    
-    if (cached) {
-      const data = JSON.parse(cached);
-      const now = Date.now();
-      
-      // Check if cache is still valid (24 hours)
-      if (now - data.timestamp < 24 * 60 * 60 * 1000) {
-        return data.services;
-      } else {
-        // Clear expired cache
-        localStorage.removeItem(cacheKey);
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error getting cached services:', error);
-    return null;
-  }
-}
-
-/**
- * Cache services data
- */
-async function cacheServices(services) {
-  try {
-    const params = await getInstallationParams();
-    const cacheKey = `services_cache_${params.domain || 'default'}`;
-    
-    const cacheData = {
-      services: services,
-      timestamp: Date.now()
-    };
-    
-    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-    console.log(`Cached ${services.length} services`);
-  } catch (error) {
-    console.error('Error caching services:', error);
-  }
+  return cache.services.data;
 }
 
 const changeRequestData = {
@@ -435,8 +214,6 @@ const changeRequestData = {
   implementationPlan: '',
   backoutPlan: '',
   validationPlan: '',
-  selectedServices: [],
-  selectedAssets: [],
   riskAssessment: {
     businessImpact: 0,
     affectedUsers: 0,
@@ -1661,27 +1438,16 @@ async function getManagerName(managerId) {
 }
 
 /**
- * Initialize the services dropdown with software services
+ * Initialize the services dropdown
  */
 async function initializeServicesDropdown() {
   try {
-    console.log('Initializing services dropdown...');
-    
     const services = await getServices();
     const dropdown = document.getElementById('service-select');
-    if (!dropdown) {
-      console.error('Service select dropdown not found');
-      return;
-    }
+    if (!dropdown) return;
 
     // Clear existing options
-    dropdown.innerHTML = '<option value="">Select a service...</option>';
-
-    if (services.length === 0) {
-      dropdown.innerHTML = '<option value="">No software services available</option>';
-      dropdown.disabled = true;
-      return;
-    }
+    dropdown.innerHTML = '<option value="">Select a Service</option>';
 
     // Sort services by name
     services.sort((a, b) => {
@@ -1690,19 +1456,16 @@ async function initializeServicesDropdown() {
       return nameA.localeCompare(nameB);
     });
 
-    // Add options for each service
+    // Add options
     services.forEach(service => {
       const option = document.createElement('option');
       option.value = service.id;
-      option.textContent = service.display_name || service.name || 'Unknown Service';
-      option.dataset.description = service.description || '';
+      option.textContent = service.display_name || service.name;
       dropdown.appendChild(option);
     });
 
     // Enable the dropdown
     dropdown.disabled = false;
-    
-    console.log(`Services dropdown initialized with ${services.length} services`);
   } catch (error) {
     console.error('Error initializing services dropdown:', error);
     const dropdown = document.getElementById('service-select');
@@ -1714,43 +1477,33 @@ async function initializeServicesDropdown() {
 }
 
 /**
- * Handle service selection from dropdown
- * @param {Event} event Change event from dropdown
+ * Handle service selection
+ * @param {Event} event Change event
  */
 function handleServiceSelection(event) {
   const serviceId = event.target.value;
-  
   if (!serviceId) {
-    // No service selected, clear any previous selection display
+    document.getElementById('selected-service-details').style.display = 'none';
     return;
   }
 
-  // Find the selected service data
-  const selectedOption = event.target.selectedOptions[0];
-  const serviceName = selectedOption.textContent;
-  const serviceDescription = selectedOption.dataset.description || '';
+  const service = cache.services.data.find(s => s.id === parseInt(serviceId));
+  if (!service) return;
 
-  // Create service object
-  const service = {
-    id: parseInt(serviceId),
-    name: serviceName,
-    display_name: serviceName,
-    description: serviceDescription
+  // Update the form with service details
+  const details = {
+    name: service.display_name || service.name,
+    type: cache.asset_types.data[service.asset_type_id]?.name || 'Unknown Type',
+    description: service.description || 'No description available'
   };
 
-  // Add to selected services if not already selected
-  if (!changeRequestData.selectedServices.some(s => s.id === service.id)) {
-    changeRequestData.selectedServices.push(service);
-    
-    // Update the display
-    updateSelectedServicesDisplay();
-    updateAssociationCounts();
-    
-    console.log('Service selected from dropdown:', service);
-  }
-
-  // Reset dropdown to placeholder
-  event.target.value = '';
+  // Update UI elements
+  document.getElementById('selected-service-name').textContent = details.name;
+  document.getElementById('selected-service-type').textContent = details.type;
+  document.getElementById('selected-service-description').textContent = details.description;
+  
+  // Show the details section
+  document.getElementById('selected-service-details').style.display = 'block';
 }
 
 /**
@@ -2102,24 +1855,6 @@ function setupEventListeners() {
       changeRequestData.validationPlan = this.value;
       console.log('Validation plan updated');
     }, 1000));
-  }
-
-  // Asset association - service dropdown and asset search
-  // const serviceSelect = document.getElementById('service-select');
-  // if (serviceSelect) {
-  //   serviceSelect.addEventListener('change', handleServiceSelection);
-  // }
-
-  // Asset search (service dropdown already handled in main section above)
-  const assetSearch = document.getElementById('asset-search');
-  if (assetSearch) {
-    assetSearch.addEventListener('input', debounce(searchAssets, 300));
-  }
-
-  // Asset association navigation
-  const assetsNext = document.getElementById('assets-next');
-  if (assetsNext) {
-    assetsNext.addEventListener('click', validateAssetsAndNext);
   }
 }
 
@@ -2575,25 +2310,11 @@ function addToSearchCache(type, searchTerm, results) {
 }
 
 /**
- * Search for assets (handles both main asset search and asset association)
+ * Search for assets using Freshservice API
  */
 function searchAssets(e) {
   const searchTerm = e.target ? e.target.value.trim() : '';
-  const searchInputId = e.target ? e.target.id : '';
-  
-  // Determine which search container to use
-  let resultsContainer;
-  let selectionCallback;
-  
-  if (searchInputId === 'asset-search') {
-    // Asset association search
-    resultsContainer = document.getElementById('asset-search-results');
-    selectionCallback = selectAsset; // This will be our updated selectAsset for associations
-  } else {
-    // Main asset search (existing functionality)
-    resultsContainer = document.getElementById('asset-results');
-    selectionCallback = selectAsset; // Keep existing behavior for main search
-  }
+  const resultsContainer = document.getElementById('asset-results');
   
   // Clear and hide results if search term is too short
   if (searchTerm.length < 3) {
@@ -2613,11 +2334,7 @@ function searchAssets(e) {
   getFromSearchCache('assets', searchTerm).then(cachedResults => {
     if (cachedResults) {
       // Use cached results
-      if (searchInputId === 'asset-search') {
-        displayAssetAssociationResults(cachedResults);
-      } else {
-        displayAssetResults('asset-results', cachedResults, selectionCallback);
-      }
+      displayAssetResults('asset-results', cachedResults, selectAsset);
       
       // Get the configured search cache timeout
       getInstallationParams().then(params => {
@@ -2626,11 +2343,10 @@ function searchAssets(e) {
         // Set a timer to check for fresh results after the timeout
         setTimeout(() => {
           // Only perform API call if the search term is still the current one
-          const currentSearchInput = document.getElementById(searchInputId);
-          const currentSearchTerm = currentSearchInput?.value.trim();
+          const currentSearchTerm = document.getElementById('asset-search')?.value.trim();
           if (currentSearchTerm === searchTerm) {
             console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
-            performAssetSearch(searchTerm, true, searchInputId);
+            performAssetSearch(searchTerm, true);
           }
         }, searchCacheTimeout);
       });
@@ -2639,11 +2355,11 @@ function searchAssets(e) {
     }
     
     // No cache hit, perform search immediately
-    performAssetSearch(searchTerm, false, searchInputId);
+    performAssetSearch(searchTerm);
   }).catch(error => {
     console.error('Error checking asset search cache:', error);
     // Fallback to direct search on cache error
-    performAssetSearch(searchTerm, false, searchInputId);
+    performAssetSearch(searchTerm);
   });
 }
 
@@ -2652,11 +2368,11 @@ function searchAssets(e) {
  * @param {string} searchTerm - The search term
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
  */
-async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) {
+async function performAssetSearch(searchTerm, isRefresh = false) {
   // Check for client availability
   if (!window.client || !window.client.request) {
     console.error('Client not available for asset search');
-    const resultsContainer = document.getElementById(searchInputId);
+    const resultsContainer = document.getElementById('asset-results');
     if (resultsContainer) {
       resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized</div>';
     }
@@ -2665,7 +2381,7 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
 
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
-    const resultsContainer = document.getElementById(searchInputId);
+    const resultsContainer = document.getElementById('asset-results');
     if (resultsContainer) {
       resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
       resultsContainer.style.display = 'block';
@@ -2707,533 +2423,18 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
     // Cache the results
     addToSearchCache('assets', searchTerm, filteredAssets);
     
-    // Display results based on search type
-    if (searchInputId === 'asset-search') {
-      displayAssetAssociationResults(filteredAssets);
-    } else {
-      displayAssetResults('asset-results', filteredAssets, selectAsset);
-    }
+    // Display results
+    displayAssetResults('asset-results', filteredAssets, selectAsset);
     
     console.log(`Asset search completed: ${filteredAssets.length} results for "${searchTerm}"`);
     
   } catch (error) {
-    console.error('Error submitting change request:', error);
-    
-    // Show error notification
-    showNotification('error', `Failed to submit change request: ${error.message}. Please try again.`);
-    
-  } finally {
-    // Re-enable button
-    confirmSubmitBtn.disabled = false;
-    confirmSubmitBtn.innerHTML = 'Confirm & Submit';
-  }
-}
-
-/**
- * Map internal change type to Freshservice change type
- */
-function mapChangeType(changeType) {
-  const typeMapping = {
-    'standard': 1,
-    'emergency': 3,
-    'non-standard': 2
-  };
-  return typeMapping[changeType] || 1;
-}
-
-/**
- * Map risk level to Freshservice priority
- */
-function mapRiskToPriority(riskLevel) {
-  const priorityMapping = {
-    'Low': 1,      // Low priority
-    'Medium': 2,   // Medium priority
-    'High': 3      // High priority
-  };
-  return priorityMapping[riskLevel] || 2;
-}
-
-/**
- * Generate change request subject
- */
-function generateChangeSubject() {
-  const requesterName = changeRequestData.requester ? 
-    `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() : 
-    'Unknown';
-  
-  const changeTypeLabel = changeRequestData.changeType || 'Standard';
-  const riskLevel = changeRequestData.riskAssessment.riskLevel || 'Unknown';
-  
-  return `${changeTypeLabel} Change Request - ${riskLevel} Risk - Requested by ${requesterName}`;
-}
-
-/**
- * Generate change request description
- */
-function generateChangeDescription() {
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Not specified';
-    return new Date(dateString).toLocaleString();
-  };
-
-  return `
-=== CHANGE REQUEST DETAILS ===
-
-Requester: ${changeRequestData.requester ? 
-  `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() + 
-  ` (${changeRequestData.requester.email || ''})` 
-  : 'Not specified'}
-
-Technical SME: ${changeRequestData.agent ? 
-  `${changeRequestData.agent.first_name || ''} ${changeRequestData.agent.last_name || ''}`.trim() + 
-  ` (${changeRequestData.agent.email || ''})` 
-  : 'Not specified'}
-
-Change Type: ${changeRequestData.changeType || 'Standard'}
-Lead Time: ${changeRequestData.leadTime || '2 business days'}
-
-=== TIMING ===
-Planned Start: ${formatDate(changeRequestData.plannedStart)}
-Planned End: ${formatDate(changeRequestData.plannedEnd)}
-
-=== IMPLEMENTATION PLAN ===
-${changeRequestData.implementationPlan || 'Not provided'}
-
-=== BACKOUT (RECOVERY) PLAN ===
-${changeRequestData.backoutPlan || 'Not provided'}
-
-=== VALIDATION PLAN ===
-${changeRequestData.validationPlan || 'Not provided'}
-
-=== RISK ASSESSMENT ===
-Risk Score: ${changeRequestData.riskAssessment.totalScore}
-Risk Level: ${changeRequestData.riskAssessment.riskLevel}
-
-Risk Assessment Details:
-- Business Impact: ${getRiskLabel('businessImpact', changeRequestData.riskAssessment.businessImpact)}
-- Affected Users: ${getRiskLabel('affectedUsers', changeRequestData.riskAssessment.affectedUsers)}
-- Complexity: ${getRiskLabel('complexity', changeRequestData.riskAssessment.complexity)}
-- Testing Level: ${getRiskLabel('testing', changeRequestData.riskAssessment.testing)}
-- Rollback Plan: ${getRiskLabel('rollback', changeRequestData.riskAssessment.rollback)}
-
-=== SUBMISSION INFO ===
-Submitted via Change Request App
-Submission Date: ${new Date().toLocaleString()}
-  `.trim();
-}
-
-/**
- * Get risk assessment label for description
- */
-function getRiskLabel(category, value) {
-  const labels = {
-    businessImpact: ['Low', 'Medium', 'High'],
-    affectedUsers: ['Few (<50)', 'Some (50-200)', 'Many (>200)'],
-    complexity: ['Simple', 'Moderate', 'Complex'],
-    testing: ['Comprehensive', 'Adequate', 'Limited'],
-    rollback: ['Yes - Detailed', 'Partial', 'No']
-  };
-  
-  return value > 0 ? labels[category][value - 1] : 'Not answered';
-}
-
-/**
- * Reset form after successful submission
- */
-function resetForm() {
-  // Reset change request data
-  Object.assign(changeRequestData, {
-    requester: null,
-    agent: null,
-    changeType: 'standard',
-    leadTime: '2 business days',
-    plannedStart: '',
-    plannedEnd: '',
-    implementationPlan: '',
-    backoutPlan: '',
-    validationPlan: '',
-    selectedServices: [],
-    selectedAssets: [],
-    riskAssessment: {
-      businessImpact: 0,
-      affectedUsers: 0,
-      complexity: 0,
-      testing: 0,
-      rollback: 0,
-      totalScore: 0,
-      riskLevel: ''
+    console.error('Error performing asset search:', error);
+    const resultsContainer = document.getElementById('asset-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = `<div class="text-center p-3 text-danger">Error: ${error.message}</div>`;
     }
-  });
-
-  // Clear form fields
-  document.getElementById('requester-search').value = '';
-  document.getElementById('agent-search').value = '';
-  document.getElementById('planned-start').value = '';
-  document.getElementById('planned-end').value = '';
-  document.getElementById('implementation-plan').value = '';
-  document.getElementById('backout-plan').value = '';
-  document.getElementById('validation-plan').value = '';
-
-  // Clear asset association dropdown and search fields
-  const serviceSelect = document.getElementById('service-select');
-  const assetSearch = document.getElementById('asset-search');
-  if (serviceSelect) serviceSelect.value = '';
-  if (assetSearch) assetSearch.value = '';
-
-  // Clear selected users displays
-  const selectedRequester = document.getElementById('selected-requester');
-  const selectedAgent = document.getElementById('selected-agent');
-  if (selectedRequester) selectedRequester.style.display = 'none';
-  if (selectedAgent) selectedAgent.style.display = 'none';
-
-  // Clear selected services and assets displays
-  updateSelectedServicesDisplay();
-  updateSelectedAssetsDisplay();
-  updateAssociationCounts();
-
-  // Clear risk assessment
-  document.querySelectorAll('.risk-options input[type="radio"]').forEach(radio => {
-    radio.checked = false;
-  });
-
-  // Hide risk results
-  const riskResult = document.getElementById('risk-result');
-  if (riskResult) {
-    riskResult.classList.add('hidden');
-    riskResult.style.display = 'none';
   }
-
-  // Reset change type to default
-  const changeTypeSelect = document.getElementById('change-type');
-  if (changeTypeSelect) {
-    changeTypeSelect.value = 'standard';
-  }
-
-  // Re-initialize defaults
-  initializeChangeTypeDefaults();
-
-  // Switch back to first tab
-  switchTab('change-details');
-
-  console.log('Form reset completed');
-}
-
-/**
- * Search for services for asset association
- */
-function searchServices(e) {
-  const searchTerm = e.target.value.trim();
-  const resultsContainer = document.getElementById('service-search-results');
-  
-  // Clear and hide results if search term is too short
-  if (searchTerm.length < 2) {
-    resultsContainer.style.display = 'none';
-    return;
-  }
-
-  // Show loading indicator
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
-  
-  // Filter from cached services
-  getServices().then(services => {
-    const filteredServices = services.filter(service => {
-      const serviceName = (service.display_name || service.name || '').toLowerCase();
-      const description = (service.description || '').toLowerCase();
-      const term = searchTerm.toLowerCase();
-      return serviceName.includes(term) || description.includes(term);
-    });
-    
-    // Display service results
-    displayServiceResults(filteredServices);
-  }).catch(error => {
-    console.error('Error searching services:', error);
-    resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">Error loading services</div>';
-  });
-}
-
-/**
- * Display service search results
- */
-function displayServiceResults(services) {
-  const container = document.getElementById('service-search-results');
-  if (!container) return;
-  
-  if (services.length === 0) {
-    container.innerHTML = '<div class="text-center p-3">No services found</div>';
-    return;
-  }
-  
-  // Sort services by name
-  services.sort((a, b) => {
-    const nameA = (a.display_name || a.name || '').toLowerCase();
-    const nameB = (b.display_name || b.name || '').toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
-
-  // Create results list
-  let html = '<div class="list-group">';
-  services.forEach(service => {
-    const name = service.display_name || service.name || 'Unknown';
-    const description = service.description || '';
-    const assetTypeId = service.asset_type_id;
-    
-    // Check if already selected
-    const isSelected = changeRequestData.selectedServices.some(s => s.id === service.id);
-    
-    html += `
-      <button type="button" class="list-group-item list-group-item-action ${isSelected ? 'disabled' : ''}" 
-              data-id="${service.id}" ${isSelected ? 'disabled' : ''}>
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="fw-bold">${name} ${isSelected ? '<span class="badge bg-success ms-2">Selected</span>' : ''}</div>
-            ${description ? `<div class="text-secondary small">${description}</div>` : ''}
-          </div>
-          <div class="text-end">
-            <div class="small text-muted">Type ID: ${assetTypeId}</div>
-          </div>
-        </div>
-      </button>
-    `;
-  });
-  html += '</div>';
-  
-  container.innerHTML = html;
-  
-  // Add click handlers
-  container.querySelectorAll('.list-group-item:not(.disabled)').forEach(item => {
-    item.addEventListener('click', () => {
-      const selectedId = parseInt(item.dataset.id);
-      const selectedService = services.find(s => s.id === selectedId);
-      if (selectedService) {
-        selectService(selectedService);
-        container.style.display = 'none';
-        // Clear search input
-        document.getElementById('service-search').value = '';
-      }
-    });
-  });
-}
-
-/**
- * Select a service for association
- */
-function selectService(service) {
-  // Check if already selected
-  if (changeRequestData.selectedServices.some(s => s.id === service.id)) {
-    return;
-  }
-  
-  // Add to selected services
-  changeRequestData.selectedServices.push(service);
-  
-  // Update the display
-  updateSelectedServicesDisplay();
-  updateAssociationCounts();
-  
-  console.log('Service selected:', service);
-}
-
-/**
- * Update the selected services display
- */
-function updateSelectedServicesDisplay() {
-  const container = document.getElementById('selected-services-list');
-  if (!container) return;
-  
-  if (changeRequestData.selectedServices.length === 0) {
-    container.innerHTML = '<div class="text-muted">No services selected</div>';
-    return;
-  }
-  
-  let html = '<div class="selected-items">';
-  changeRequestData.selectedServices.forEach(service => {
-    const name = service.display_name || service.name || 'Unknown';
-    const description = service.description || '';
-    
-    html += `
-      <div class="selected-item d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
-        <div>
-          <div class="fw-bold">${name}</div>
-          ${description ? `<div class="text-secondary small">${description}</div>` : ''}
-        </div>
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeService(${service.id})">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    `;
-  });
-  html += '</div>';
-  
-  container.innerHTML = html;
-}
-
-/**
- * Remove a selected service
- */
-function removeService(serviceId) {
-  changeRequestData.selectedServices = changeRequestData.selectedServices.filter(s => s.id !== serviceId);
-  updateSelectedServicesDisplay();
-  updateAssociationCounts();
-  console.log('Service removed:', serviceId);
-}
-
-/**
- * Select an asset for association
- */
-function selectAsset(asset) {
-  // Check if already selected
-  if (changeRequestData.selectedAssets.some(a => a.id === asset.id)) {
-    return;
-  }
-  
-  // Add to selected assets
-  changeRequestData.selectedAssets.push(asset);
-  
-  // Update the display
-  updateSelectedAssetsDisplay();
-  updateAssociationCounts();
-  
-  console.log('Asset selected:', asset);
-}
-
-/**
- * Update the selected assets display
- */
-function updateSelectedAssetsDisplay() {
-  const container = document.getElementById('selected-assets-list');
-  if (!container) return;
-  
-  if (changeRequestData.selectedAssets.length === 0) {
-    container.innerHTML = '<div class="text-muted">No assets selected</div>';
-    return;
-  }
-  
-  let html = '<div class="selected-items">';
-  changeRequestData.selectedAssets.forEach(asset => {
-    const name = asset.display_name || asset.name || 'Unknown';
-    const description = asset.description || '';
-    
-    html += `
-      <div class="selected-item d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
-        <div>
-          <div class="fw-bold">${name}</div>
-          ${description ? `<div class="text-secondary small">${description}</div>` : ''}
-        </div>
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeAsset(${asset.id})">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
-    `;
-  });
-  html += '</div>';
-  
-  container.innerHTML = html;
-}
-
-/**
- * Remove a selected asset
- */
-function removeAsset(assetId) {
-  changeRequestData.selectedAssets = changeRequestData.selectedAssets.filter(a => a.id !== assetId);
-  updateSelectedAssetsDisplay();
-  updateAssociationCounts();
-  console.log('Asset removed:', assetId);
-}
-
-/**
- * Update association counts
- */
-function updateAssociationCounts() {
-  const servicesCount = document.getElementById('services-count');
-  const assetsCount = document.getElementById('assets-count');
-  
-  if (servicesCount) {
-    servicesCount.textContent = changeRequestData.selectedServices.length;
-  }
-  
-  if (assetsCount) {
-    assetsCount.textContent = changeRequestData.selectedAssets.length;
-  }
-}
-
-/**
- * Validate asset associations and proceed to next step
- */
-function validateAssetsAndNext() {
-  // Asset association is optional, so we don't enforce any requirements
-  // But we could add validation here if needed
-  
-  console.log('Asset associations validated:', {
-    services: changeRequestData.selectedServices.length,
-    assets: changeRequestData.selectedAssets.length
-  });
-  
-  // Show submission summary
-  showSubmissionSummary();
-}
-
-/**
- * Display asset search results for asset association
- */
-function displayAssetAssociationResults(assets) {
-  const container = document.getElementById('asset-search-results');
-  if (!container) return;
-  
-  if (assets.length === 0) {
-    container.innerHTML = '<div class="text-center p-3">No assets found</div>';
-    return;
-  }
-  
-  // Sort assets by name
-  assets.sort((a, b) => {
-    const nameA = (a.display_name || a.name || '').toLowerCase();
-    const nameB = (b.display_name || b.name || '').toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
-
-  // Create results list
-  let html = '<div class="list-group">';
-  assets.forEach(asset => {
-    const name = asset.display_name || asset.name || 'Unknown';
-    const description = asset.description || '';
-    const assetTypeId = asset.asset_type_id;
-    
-    // Check if already selected
-    const isSelected = changeRequestData.selectedAssets.some(a => a.id === asset.id);
-    
-    html += `
-      <button type="button" class="list-group-item list-group-item-action ${isSelected ? 'disabled' : ''}" 
-              data-id="${asset.id}" ${isSelected ? 'disabled' : ''}>
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="fw-bold">${name} ${isSelected ? '<span class="badge bg-success ms-2">Selected</span>' : ''}</div>
-            ${description ? `<div class="text-secondary small">${description}</div>` : ''}
-          </div>
-          <div class="text-end">
-            <div class="small text-muted">Type ID: ${assetTypeId}</div>
-          </div>
-        </div>
-      </button>
-    `;
-  });
-  html += '</div>';
-  
-  container.innerHTML = html;
-  
-  // Add click handlers
-  container.querySelectorAll('.list-group-item:not(.disabled)').forEach(item => {
-    item.addEventListener('click', () => {
-      const selectedId = parseInt(item.dataset.id);
-      const selectedAsset = assets.find(a => a.id === selectedId);
-      if (selectedAsset) {
-        selectAsset(selectedAsset);
-        container.style.display = 'none';
-        // Clear search input
-        document.getElementById('asset-search').value = '';
-      }
-    });
-  });
 }
 
 /**
@@ -3294,6 +2495,15 @@ function displayAssetResults(containerId, results, selectionCallback) {
       }
     });
   });
+}
+
+/**
+ * Handle asset selection
+ * @param {Object} asset - Selected asset
+ */
+function selectAsset(asset) {
+  console.log('Asset selected:', asset);
+  // Add logic to handle asset selection
 }
 
 /**
@@ -3399,6 +2609,192 @@ function clearAgent() {
     selectedDiv.style.display = 'none';
   }
   changeRequestData.agent = null;
+}
+
+/**
+ * Perform the actual API search for requesters
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function performRequesterSearch(searchTerm, isRefresh = false) {
+  // Ensure client is available
+  if (!window.client || !window.client.request) {
+    console.error('Client or request object not available for requester search');
+    const resultsContainer = document.getElementById('requester-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized. Please refresh the page.</div>';
+    }
+    return;
+  }
+
+  // Use field-specific format for both requesters and agents API (since agents can be requesters too)
+  const userQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, userQuery);
+  
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('requester-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+      resultsContainer.style.display = 'block';
+    }
+  }
+  
+  // Function to load requester results from a specific page
+  function loadRequestersPage(page = 1, allResults = []) {
+    // Use invokeTemplate with path suffix to add query parameter
+    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
+    console.log('Requester API URL:', requestUrl);
+    
+    window.client.request.invokeTemplate("getRequesters", {
+      path_suffix: requestUrl
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from requester search');
+          // Continue to load agents since requesters search failed
+          loadAgentsAsRequesters(page, allResults);
+          return;
+        }
+        
+        console.log('Requester search raw response:', data.response);
+        const response = JSON.parse(data.response || '{"requesters":[]}');
+        const requesters = response && response.requesters ? response.requesters : [];
+        console.log(`Requester search returned ${requesters.length} results`);
+        
+        // Manual filtering if the API filtering isn't working
+        const filteredRequesters = requesters.filter(requester => {
+          const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
+          const email = (requester.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredRequesters.length} requester results`);
+        
+        // Combine with previous results
+        const combinedResults = [...allResults, ...filteredRequesters];
+        
+        // Now also search agents since they can be requesters too
+        loadAgentsAsRequesters(page, combinedResults);
+        
+      } catch (error) {
+        console.error('Error parsing requester response:', error);
+        // Still try to load agents
+        loadAgentsAsRequesters(page, allResults);
+      }
+    })
+    .catch(function(error) {
+      console.error('Requester API request failed:', error);
+      // Still try to load agents
+      loadAgentsAsRequesters(page, allResults);
+    });
+  }
+  
+  // Function to also search agents as potential requesters
+  function loadAgentsAsRequesters(page = 1, existingResults = []) {
+    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
+    console.log('Agent-as-requester API URL:', requestUrl);
+    
+    window.client.request.invokeTemplate("getAgents", {
+      path_suffix: requestUrl
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from agent search for requesters');
+          finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+          return;
+        }
+        
+        console.log('Agent search (for requesters) raw response:', data.response);
+        const response = JSON.parse(data.response || '{"agents":[]}');
+        const agents = response && response.agents ? response.agents : [];
+        console.log(`Agent search returned ${agents.length} results for requesters`);
+        
+        // Manual filtering for agents
+        const filteredAgents = agents.filter(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredAgents.length} agent results for requesters`);
+        
+        // Mark agents as potential requesters and avoid duplicates
+        const agentsAsRequesters = filteredAgents.map(agent => ({
+          ...agent,
+          _isAgent: true, // Mark as agent so we can show this in UI
+          _canBeRequester: true
+        }));
+        
+        // Remove duplicates based on email
+        const existingEmails = new Set(existingResults.map(r => r.email));
+        const uniqueAgents = agentsAsRequesters.filter(agent => !existingEmails.has(agent.email));
+        
+        // Combine all results
+        const allResults = [...existingResults, ...uniqueAgents];
+        
+        // Check if we should load more pages (limit to 2 pages for performance)
+        if ((filteredAgents.length === 30 || existingResults.length < 30) && page < 2) {
+          // Load next page
+          (async function() {
+              const params = await getInstallationParams();
+              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              
+              updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
+              setTimeout(() => {
+                loadRequestersPage(page + 1, allResults);
+              }, paginationDelay);
+          })().catch(err => {
+              console.error('Error getting pagination delay:', err);
+              // Default delay if error
+              setTimeout(() => {
+                loadRequestersPage(page + 1, allResults);
+              }, DEFAULT_PAGINATION_DELAY);
+          });
+        } else {
+          // Complete the search with all results
+          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+        }
+      } catch (error) {
+        console.error('Error parsing agent response for requesters:', error);
+        // Complete with existing results
+        finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+      }
+    })
+    .catch(function(error) {
+      console.error('Agent API request failed for requesters:', error);
+      // Complete with existing results
+      finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+    });
+  }
+  
+  // Start loading from page 1
+  loadRequestersPage(1, []);
+}
+
+/**
+ * Finalize requester search with results
+ * @param {string} searchTerm - Original search term
+ * @param {Array} results - Search results
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function finalizeRequesterSearch(searchTerm, results, isRefresh) {
+  // Cache the results
+  addToSearchCache('requesters', searchTerm, results);
+  
+  // Display all results with refresh status for logging
+  console.log(`Displaying ${results.length} requester results (refresh: ${isRefresh})`);
+  displaySearchResults('requester-results', results, selectRequester);
+  
+  // Add individual users to the user cache for later use
+  if (results.length > 0) {
+    cacheIndividualUsers(results, 'requester');
+  }
 }
 
 /**
@@ -3642,8 +3038,8 @@ function validateRiskAndNext() {
     return;
   }
   
-  // Switch to asset association tab
-  switchTab('asset-association');
+  // Switch to impacted assets tab
+  switchTab('impacted-assets');
 }
 
 /**
@@ -3669,7 +3065,7 @@ function switchTab(tabId) {
   }
   
   // Activate the corresponding nav link
-  const targetNavLink = document.querySelector(`[data-bs-target="#${tabId}"]`);
+  const targetNavLink = document.querySelector(`[href="#${tabId}"]`);
   if (targetNavLink) {
     targetNavLink.classList.add('active');
   }
@@ -3806,43 +3202,6 @@ function showSubmissionSummary() {
     }).join('');
   };
 
-  // Get asset associations summary
-  const getAssetAssociations = () => {
-    let html = '';
-    
-    if (changeRequestData.selectedServices.length > 0) {
-      html += `
-        <div class="mb-3">
-          <strong>Associated Services (${changeRequestData.selectedServices.length}):</strong>
-          <ul class="mt-2 mb-0">
-            ${changeRequestData.selectedServices.map(service => 
-              `<li>${service.display_name || service.name || 'Unknown'}</li>`
-            ).join('')}
-          </ul>
-        </div>
-      `;
-    }
-    
-    if (changeRequestData.selectedAssets.length > 0) {
-      html += `
-        <div class="mb-3">
-          <strong>Associated Assets (${changeRequestData.selectedAssets.length}):</strong>
-          <ul class="mt-2 mb-0">
-            ${changeRequestData.selectedAssets.map(asset => 
-              `<li>${asset.display_name || asset.name || 'Unknown'}</li>`
-            ).join('')}
-          </ul>
-        </div>
-      `;
-    }
-    
-    if (changeRequestData.selectedServices.length === 0 && changeRequestData.selectedAssets.length === 0) {
-      html = '<div class="text-muted">No services or assets have been associated with this change.</div>';
-    }
-    
-    return html;
-  };
-
   // Create the summary HTML
   summaryContent.innerHTML = `
     <div class="row">
@@ -3938,20 +3297,8 @@ function showSubmissionSummary() {
     </div>
 
     <div class="row">
-      <!-- Asset Associations -->
-      <div class="col-md-6">
-        <div class="card mb-3">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-link me-2"></i>Asset Associations</h6>
-          </div>
-          <div class="card-body">
-            ${getAssetAssociations()}
-          </div>
-        </div>
-      </div>
-
       <!-- Risk Assessment -->
-      <div class="col-md-6">
+      <div class="col-12">
         <div class="card mb-3">
           <div class="card-header">
             <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Risk Assessment</h6>
@@ -3999,231 +3346,256 @@ function showSubmissionSummary() {
 }
 
 /**
- * Get safe API limits based on plan settings
- * @returns {Promise<Object>} - API limits configuration
+ * Submit change request to Freshservice
  */
-async function getSafeApiLimits() {
+async function submitToFreshservice() {
+  const confirmSubmitBtn = document.getElementById('confirm-submit');
+  if (!confirmSubmitBtn) return;
+
+  // Disable button and show loading state
+  confirmSubmitBtn.disabled = true;
+  confirmSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting...';
+
   try {
-    const params = await getInstallationParams();
-    
-    // Default safe limits for different plan types
-    const defaultLimits = {
-      listRequestersPageLimit: 3,  // Fetch up to 3 pages of requesters (300 users max)
-      listAgentsPageLimit: 2,      // Fetch up to 2 pages of agents (200 agents max)
-      searchLimit: 50,             // Limit search results
-      cacheTimeout: 30 * 60 * 1000 // 30 minutes cache
-    };
-    
-    // You can adjust these based on your Freshservice plan
-    // For higher tier plans, you might want to increase these limits
-    const planBasedLimits = {
-      'starter': {
-        listRequestersPageLimit: 1,
-        listAgentsPageLimit: 1,
-        searchLimit: 25
-      },
-      'growth': {
-        listRequestersPageLimit: 2,
-        listAgentsPageLimit: 2,
-        searchLimit: 50
-      },
-      'pro': {
-        listRequestersPageLimit: 3,
-        listAgentsPageLimit: 3,
-        searchLimit: 75
-      },
-      'enterprise': {
-        listRequestersPageLimit: 5,
-        listAgentsPageLimit: 5,
-        searchLimit: 100
+    // Check for client availability
+    if (!window.client || !window.client.request) {
+      throw new Error('Freshservice client not available');
+    }
+
+    // Prepare change request data for Freshservice API
+    const changeRequestPayload = {
+      requester_id: changeRequestData.requester?.id,
+      agent_id: changeRequestData.agent?.id,
+      change_type: mapChangeType(changeRequestData.changeType),
+      priority: mapRiskToPriority(changeRequestData.riskAssessment.riskLevel),
+      status: 1, // Open/New status
+      planned_start_date: changeRequestData.plannedStart ? new Date(changeRequestData.plannedStart).toISOString() : null,
+      planned_end_date: changeRequestData.plannedEnd ? new Date(changeRequestData.plannedEnd).toISOString() : null,
+      subject: generateChangeSubject(),
+      description: generateChangeDescription(),
+      custom_fields: {
+        implementation_plan: changeRequestData.implementationPlan,
+        backout_plan: changeRequestData.backoutPlan,
+        validation_plan: changeRequestData.validationPlan,
+        risk_score: changeRequestData.riskAssessment.totalScore,
+        risk_level: changeRequestData.riskAssessment.riskLevel
       }
     };
-    
-    // Try to detect plan or use defaults
-    const planType = params.plan_type || 'growth'; // Default to growth plan
-    const limits = planBasedLimits[planType] || defaultLimits;
-    
-    console.log(`Using API limits for plan '${planType}':`, limits);
-    return { ...defaultLimits, ...limits };
-    
+
+    console.log('Submitting change request to Freshservice:', changeRequestPayload);
+
+    // Submit to Freshservice using the change request API
+    const response = await window.client.request.invokeTemplate("createChange", {
+      body: JSON.stringify(changeRequestPayload)
+    });
+
+    if (!response || !response.response) {
+      throw new Error('Invalid response from Freshservice API');
+    }
+
+    const result = JSON.parse(response.response);
+    console.log('Change request created successfully:', result);
+
+    // Close the modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
+    if (modal) {
+      modal.hide();
+    }
+
+    // Show success notification
+    showNotification('success', `Change request created successfully! Change ID: ${result.change?.id || 'Unknown'}`, true);
+
+    // Reset the form for a new request
+    resetForm();
+
   } catch (error) {
-    console.error('Error getting API limits, using defaults:', error);
-    return {
-      listRequestersPageLimit: 2,
-      listAgentsPageLimit: 2,
-      searchLimit: 50,
-      cacheTimeout: 30 * 60 * 1000
-    };
+    console.error('Error submitting change request:', error);
+    
+    // Show error notification
+    showNotification('error', `Failed to submit change request: ${error.message}. Please try again.`);
+    
+  } finally {
+    // Re-enable button
+    confirmSubmitBtn.disabled = false;
+    confirmSubmitBtn.innerHTML = 'Confirm & Submit';
   }
 }
 
 /**
- * Fetch all users (both requesters and agents) with rate limiting
+ * Map internal change type to Freshservice change type
  */
+function mapChangeType(changeType) {
+  const typeMapping = {
+    'standard': 1,
+    'emergency': 3,
+    'non-standard': 2
+  };
+  return typeMapping[changeType] || 1;
+}
 
 /**
- * Perform the actual API search for requesters
- * @param {string} searchTerm - The search term
- * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ * Map risk level to Freshservice priority
  */
-// eslint-disable-next-line no-unused-vars
-function performRequesterSearch(searchTerm, isRefresh = false) {
-  // Ensure client is available
-  if (!window.client || !window.client.request) {
-    console.error('Client or request object not available for requester search');
-    const resultsContainer = document.getElementById('requester-results');
-    if (resultsContainer) {
-      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized. Please refresh the page.</div>';
+function mapRiskToPriority(riskLevel) {
+  const priorityMapping = {
+    'Low': 1,      // Low priority
+    'Medium': 2,   // Medium priority
+    'High': 3      // High priority
+  };
+  return priorityMapping[riskLevel] || 2;
+}
+
+/**
+ * Generate change request subject
+ */
+function generateChangeSubject() {
+  const requesterName = changeRequestData.requester ? 
+    `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() : 
+    'Unknown';
+  
+  const changeTypeLabel = changeRequestData.changeType || 'Standard';
+  const riskLevel = changeRequestData.riskAssessment.riskLevel || 'Unknown';
+  
+  return `${changeTypeLabel} Change Request - ${riskLevel} Risk - Requested by ${requesterName}`;
+}
+
+/**
+ * Generate change request description
+ */
+function generateChangeDescription() {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleString();
+  };
+
+  return `
+=== CHANGE REQUEST DETAILS ===
+
+Requester: ${changeRequestData.requester ? 
+  `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() + 
+  ` (${changeRequestData.requester.email || ''})` 
+  : 'Not specified'}
+
+Technical SME: ${changeRequestData.agent ? 
+  `${changeRequestData.agent.first_name || ''} ${changeRequestData.agent.last_name || ''}`.trim() + 
+  ` (${changeRequestData.agent.email || ''})` 
+  : 'Not specified'}
+
+Change Type: ${changeRequestData.changeType || 'Standard'}
+Lead Time: ${changeRequestData.leadTime || '2 business days'}
+
+=== TIMING ===
+Planned Start: ${formatDate(changeRequestData.plannedStart)}
+Planned End: ${formatDate(changeRequestData.plannedEnd)}
+
+=== IMPLEMENTATION PLAN ===
+${changeRequestData.implementationPlan || 'Not provided'}
+
+=== BACKOUT (RECOVERY) PLAN ===
+${changeRequestData.backoutPlan || 'Not provided'}
+
+=== VALIDATION PLAN ===
+${changeRequestData.validationPlan || 'Not provided'}
+
+=== RISK ASSESSMENT ===
+Risk Score: ${changeRequestData.riskAssessment.totalScore}
+Risk Level: ${changeRequestData.riskAssessment.riskLevel}
+
+Risk Assessment Details:
+- Business Impact: ${getRiskLabel('businessImpact', changeRequestData.riskAssessment.businessImpact)}
+- Affected Users: ${getRiskLabel('affectedUsers', changeRequestData.riskAssessment.affectedUsers)}
+- Complexity: ${getRiskLabel('complexity', changeRequestData.riskAssessment.complexity)}
+- Testing Level: ${getRiskLabel('testing', changeRequestData.riskAssessment.testing)}
+- Rollback Plan: ${getRiskLabel('rollback', changeRequestData.riskAssessment.rollback)}
+
+=== SUBMISSION INFO ===
+Submitted via Change Request App
+Submission Date: ${new Date().toLocaleString()}
+  `.trim();
+}
+
+/**
+ * Get risk assessment label for description
+ */
+function getRiskLabel(category, value) {
+  const labels = {
+    businessImpact: ['Low', 'Medium', 'High'],
+    affectedUsers: ['Few (<50)', 'Some (50-200)', 'Many (>200)'],
+    complexity: ['Simple', 'Moderate', 'Complex'],
+    testing: ['Comprehensive', 'Adequate', 'Limited'],
+    rollback: ['Yes - Detailed', 'Partial', 'No']
+  };
+  
+  return value > 0 ? labels[category][value - 1] : 'Not answered';
+}
+
+/**
+ * Reset form after successful submission
+ */
+function resetForm() {
+  // Reset change request data
+  Object.assign(changeRequestData, {
+    requester: null,
+    agent: null,
+    changeType: 'standard',
+    leadTime: '2 business days',
+    plannedStart: '',
+    plannedEnd: '',
+    implementationPlan: '',
+    backoutPlan: '',
+    validationPlan: '',
+    riskAssessment: {
+      businessImpact: 0,
+      affectedUsers: 0,
+      complexity: 0,
+      testing: 0,
+      rollback: 0,
+      totalScore: 0,
+      riskLevel: ''
     }
-    return;
+  });
+
+  // Clear form fields
+  document.getElementById('requester-search').value = '';
+  document.getElementById('agent-search').value = '';
+  document.getElementById('planned-start').value = '';
+  document.getElementById('planned-end').value = '';
+  document.getElementById('implementation-plan').value = '';
+  document.getElementById('backout-plan').value = '';
+  document.getElementById('validation-plan').value = '';
+
+  // Clear selected users displays
+  const selectedRequester = document.getElementById('selected-requester');
+  const selectedAgent = document.getElementById('selected-agent');
+  if (selectedRequester) selectedRequester.style.display = 'none';
+  if (selectedAgent) selectedAgent.style.display = 'none';
+
+  // Clear risk assessment
+  document.querySelectorAll('.risk-options input[type="radio"]').forEach(radio => {
+    radio.checked = false;
+  });
+
+  // Hide risk results
+  const riskResult = document.getElementById('risk-result');
+  if (riskResult) {
+    riskResult.classList.add('hidden');
+    riskResult.style.display = 'none';
   }
 
-  // Use field-specific format for both requesters and agents API (since agents can be requesters too)
-  const userQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
-  
-  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, userQuery);
-  
-  // Only show loading indicator for non-refresh operations
-  if (!isRefresh) {
-    const resultsContainer = document.getElementById('requester-results');
-    if (resultsContainer) {
-      resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-      resultsContainer.style.display = 'block';
-    }
+  // Reset change type to default
+  const changeTypeSelect = document.getElementById('change-type');
+  if (changeTypeSelect) {
+    changeTypeSelect.value = 'standard';
   }
-  
-  // Function to load requester results from a specific page
-  function loadRequestersPage(page = 1, allResults = []) {
-    // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
-    console.log('Requester API URL:', requestUrl);
-    
-    window.client.request.invokeTemplate("getRequesters", {
-      path_suffix: requestUrl
-    })
-    .then(function(data) {
-      try {
-        if (!data) {
-          console.error('No data returned from requester search');
-          // Continue to load agents since requesters search failed
-          loadAgentsAsRequesters(page, allResults);
-          return;
-        }
-        
-        console.log('Requester search raw response:', data.response);
-        const response = JSON.parse(data.response || '{"requesters":[]}');
-        const requesters = response && response.requesters ? response.requesters : [];
-        console.log(`Requester search returned ${requesters.length} results`);
-        
-        // Manual filtering if the API filtering isn't working
-        const filteredRequesters = requesters.filter(requester => {
-          const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
-          const email = (requester.email || '').toLowerCase();
-          const term = searchTerm.toLowerCase();
-          return fullName.includes(term) || email.includes(term);
-        });
-        
-        console.log(`Manual filtering returned ${filteredRequesters.length} requester results`);
-        
-        // Combine with previous results
-        const combinedResults = [...allResults, ...filteredRequesters];
-        
-        // Now also search agents since they can be requesters too
-        loadAgentsAsRequesters(page, combinedResults);
-        
-      } catch (error) {
-        console.error('Error parsing requester response:', error);
-        // Still try to load agents
-        loadAgentsAsRequesters(page, allResults);
-      }
-    })
-    .catch(function(error) {
-      console.error('Requester API request failed:', error);
-      // Still try to load agents
-      loadAgentsAsRequesters(page, allResults);
-    });
-  }
-  
-  // Function to also search agents as potential requesters
-  function loadAgentsAsRequesters(page = 1, existingResults = []) {
-    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
-    console.log('Agent-as-requester API URL:', requestUrl);
-    
-    window.client.request.invokeTemplate("getAgents", {
-      path_suffix: requestUrl
-    })
-    .then(function(data) {
-      try {
-        if (!data) {
-          console.error('No data returned from agent search for requesters');
-          finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
-          return;
-        }
-        
-        console.log('Agent search (for requesters) raw response:', data.response);
-        const response = JSON.parse(data.response || '{"agents":[]}');
-        const agents = response && response.agents ? response.agents : [];
-        console.log(`Agent search returned ${agents.length} results for requesters`);
-        
-        // Manual filtering for agents
-        const filteredAgents = agents.filter(agent => {
-          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
-          const email = (agent.email || '').toLowerCase();
-          const term = searchTerm.toLowerCase();
-          return fullName.includes(term) || email.includes(term);
-        });
-        
-        console.log(`Manual filtering returned ${filteredAgents.length} agent results for requesters`);
-        
-        // Mark agents as potential requesters and avoid duplicates
-        const agentsAsRequesters = filteredAgents.map(agent => ({
-          ...agent,
-          _isAgent: true, // Mark as agent so we can show this in UI
-          _canBeRequester: true
-        }));
-        
-        // Remove duplicates based on email
-        const existingEmails = new Set(existingResults.map(r => r.email));
-        const uniqueAgents = agentsAsRequesters.filter(agent => !existingEmails.has(agent.email));
-        
-        // Combine all results
-        const allResults = [...existingResults, ...uniqueAgents];
-        
-        // Check if we should load more pages (limit to 2 pages for performance)
-        if ((filteredAgents.length === 30 || existingResults.length < 30) && page < 2) {
-          // Load next page
-          (async function() {
-              const params = await getInstallationParams();
-              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-              
-              updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
-              setTimeout(() => {
-                loadRequestersPage(page + 1, allResults);
-              }, paginationDelay);
-          })().catch(err => {
-              console.error('Error getting pagination delay:', err);
-              // Default delay if error
-              setTimeout(() => {
-                loadRequestersPage(page + 1, allResults);
-              }, DEFAULT_PAGINATION_DELAY);
-          });
-        } else {
-          // Complete the search with all results
-          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
-        }
-      } catch (error) {
-        console.error('Error parsing agent response for requesters:', error);
-        // Complete with existing results
-        finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
-      }
-    })
-    .catch(function(error) {
-      console.error('Agent API request failed for requesters:', error);
-      // Complete with existing results
-      finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
-    });
-  }
-  
-  // Start loading from page 1
-  loadRequestersPage(1, []);
+
+  // Re-initialize defaults
+  initializeChangeTypeDefaults();
+
+  // Switch back to first tab
+  switchTab('change-details');
+
+  console.log('Form reset completed');
 }
+
+
+
