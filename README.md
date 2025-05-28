@@ -56,17 +56,26 @@ This app is built using:
 During installation, you'll need to provide:
 - Your Freshservice domain
 - A valid Freshservice API key with appropriate permissions
-- Asset Type ID for asset/service searches (default: 37000374722)
+- Asset Type Names for asset/service searches (default: "Software, IT Software, ISP")
 - API rate limit settings based on your Freshservice plan
 
 ### Asset Type Configuration
 
-The app uses a configurable asset type ID to filter assets in the search. By default, it uses ID 37000374722, but this can be changed in the installation parameters:
+The app uses configurable asset type names to filter assets in the search. This is much more user-friendly than using numeric IDs:
 
-1. During installation, enter your preferred asset type ID in the `asset_type_id` field
-2. You can find available asset type IDs by accessing `/api/v2/asset_types` in your Freshservice instance
-3. If left blank, the app will use the default asset type ID
-4. Set to `0` to disable asset type filtering and search across all asset types
+1. During installation, enter your preferred asset type names in the `asset_type_names` field as comma-separated values
+2. Examples: 
+   - `"Software, IT Software, ISP"` (default)
+   - `"Hardware, Servers, Network Equipment"`
+   - `"Software"` (single type)
+3. The app will automatically find asset types that match these names (exact or partial matches)
+4. If left blank, the app will use keyword-based search to find software/service-related asset types
+5. You can check the browser console after app initialization to see which asset type IDs were resolved from your configured names
+
+**Finding Your Asset Type Names:**
+- Go to Admin → Asset Management → Asset Types in your Freshservice instance
+- Note the names of the asset types you want to include in change requests
+- Use these exact names (or partial matches) in the configuration
 
 ## Usage
 

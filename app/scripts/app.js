@@ -489,6 +489,44 @@ async function getAssetTypeName(assetTypeId) {
 }
 
 /**
+ * Debug function to show configured asset type names and their resolved IDs
+ */
+async function showConfiguredAssetTypes() {
+  try {
+    console.log('🔧 Checking configured asset type names...');
+    
+    const params = await getInstallationParams();
+    const configuredNames = params.assetTypeNames;
+    
+    console.log(`📝 Configured asset type names: "${configuredNames}"`);
+    
+    if (!configuredNames || configuredNames.trim() === '') {
+      console.log('⚠️ No asset type names configured, will use keyword search');
+      return;
+    }
+    
+    // Parse the configured names
+    const targetNames = configuredNames.split(',').map(name => name.trim()).filter(name => name);
+    console.log(`🎯 Parsed target names: ${targetNames.join(', ')}`);
+    
+    // Get asset type IDs
+    const assetTypeIds = await findSoftwareServicesAssetTypeIds();
+    console.log(`🔢 Resolved asset type IDs: ${assetTypeIds.join(', ')}`);
+    
+    // Show which names matched which IDs
+    const cachedAssetTypes = await getCachedAssetTypes();
+    assetTypeIds.forEach(id => {
+      if (cachedAssetTypes[id]) {
+        console.log(`✅ ID ${id} = "${cachedAssetTypes[id].name}"`);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error checking configured asset types:', error);
+  }
+}
+
+/**
  * Debug function to check what asset types actually have assets
  */
 async function checkAvailableAssetTypes() {
@@ -569,24 +607,23 @@ async function checkAvailableAssetTypes() {
 }
 
 /**
- * Find the software/services asset type IDs from cached asset types
+ * Find the software/services asset type IDs from cached asset types using configured names
  * @returns {Promise<Array<number>>} - Array of asset type IDs for software/services
  */
 async function findSoftwareServicesAssetTypeIds() {
   try {
-    // First try to get from installation parameters
+    // Get installation parameters to check for configured asset type names
     const params = await getInstallationParams();
-    if (params.assetTypeId && !DEFAULT_INVENTORY_TYPE_IDS.includes(params.assetTypeId)) {
-      console.log(`Using configured asset type ID: ${params.assetTypeId}`);
-      return [params.assetTypeId];
-    }
+    const configuredNames = params.assetTypeNames;
+    
+    console.log(`Looking for asset types with configured names: "${configuredNames}"`);
     
     const cachedAssetTypes = await getCachedAssetTypes();
     
     // If cache is empty or expired, try to fetch fresh data
     if (Object.keys(cachedAssetTypes).length === 0 || 
         Object.values(cachedAssetTypes).some(type => type.timestamp < Date.now() - CACHE_TIMEOUT)) {
-      console.log('Fetching asset types to find software/services types');
+      console.log('Fetching asset types to find configured types');
       try {
         await fetchAllAssetTypes();
         // Get the updated cache
@@ -598,39 +635,86 @@ async function findSoftwareServicesAssetTypeIds() {
       }
     }
     
-    // Look for asset types that might be software/services
-    // Include specific keywords for Software/Services, IT Software, ISP
-    const softwareKeywords = [
-      'software', 'service', 'application', 'app', 'system', 'platform',
-      'it software', 'isp', 'internet service', 'saas', 'cloud'
-    ];
+    // If no configured names, fall back to keyword search
+    if (!configuredNames || configuredNames.trim() === '') {
+      console.log('No asset type names configured, using keyword search');
+      return findAssetTypesByKeywords(cachedAssetTypes);
+    }
+    
+    // Parse the configured names (comma-separated)
+    const targetNames = configuredNames.split(',').map(name => name.trim().toLowerCase()).filter(name => name);
+    console.log(`Parsed target asset type names: ${targetNames.join(', ')}`);
     
     const foundTypeIds = [];
     
+    // Look for exact or partial matches with configured names
     for (const [id, assetType] of Object.entries(cachedAssetTypes)) {
-      const name = assetType.name.toLowerCase();
-      const description = (assetType.description || '').toLowerCase();
+      const assetTypeName = assetType.name.toLowerCase();
       
-      // Check if the name or description contains software/service keywords
-      if (softwareKeywords.some(keyword => 
-          name.includes(keyword) || description.includes(keyword))) {
-        console.log(`Found potential software/services asset type: ${assetType.name} (ID: ${id})`);
+      // Check if any of the target names match this asset type
+      const isMatch = targetNames.some(targetName => {
+        // Check for exact match or if asset type name contains the target name
+        return assetTypeName === targetName || 
+               assetTypeName.includes(targetName) ||
+               targetName.includes(assetTypeName);
+      });
+      
+      if (isMatch) {
+        console.log(`✓ Found matching asset type: "${assetType.name}" (ID: ${id})`);
         foundTypeIds.push(parseInt(id));
       }
     }
     
-    // If we found specific types, use them; otherwise fall back to default
+    // If we found specific types, use them
     if (foundTypeIds.length > 0) {
-      console.log(`Using found asset type IDs: ${foundTypeIds.join(', ')}`);
+      console.log(`Using ${foundTypeIds.length} configured asset type IDs: ${foundTypeIds.join(', ')}`);
       return foundTypeIds;
     }
     
-    console.warn('No specific software/services asset types found, using default');
-    return DEFAULT_INVENTORY_TYPE_IDS;
+    // If no exact matches found, try keyword search as fallback
+    console.warn('No exact matches found for configured names, trying keyword search as fallback');
+    return findAssetTypesByKeywords(cachedAssetTypes);
   } catch (error) {
     console.error('Error finding software/services asset types:', error);
     return DEFAULT_INVENTORY_TYPE_IDS;
   }
+}
+
+/**
+ * Find asset types using keyword search (fallback method)
+ * @param {Object} cachedAssetTypes - Cached asset types
+ * @returns {Array<number>} - Array of asset type IDs
+ */
+function findAssetTypesByKeywords(cachedAssetTypes) {
+  // Look for asset types that might be software/services
+  // Include specific keywords for Software/Services, IT Software, ISP
+  const softwareKeywords = [
+    'software', 'service', 'application', 'app', 'system', 'platform',
+    'it software', 'isp', 'internet service', 'saas', 'cloud'
+  ];
+  
+  const foundTypeIds = [];
+  
+  for (const [id, assetType] of Object.entries(cachedAssetTypes)) {
+    const name = assetType.name.toLowerCase();
+    const description = (assetType.description || '').toLowerCase();
+    
+    // Check if the name or description contains software/service keywords
+    if (softwareKeywords.some(keyword => 
+        name.includes(keyword) || description.includes(keyword))) {
+      console.log(`Found potential software/services asset type: ${assetType.name} (ID: ${id})`);
+      foundTypeIds.push(parseInt(id));
+    }
+  }
+  
+  // If we found specific types, use them; otherwise fall back to default
+  if (foundTypeIds.length > 0) {
+    console.log(`Using found asset type IDs: ${foundTypeIds.join(', ')}`);
+    return foundTypeIds;
+  }
+  
+  console.warn('No specific software/services asset types found, using default');
+  return DEFAULT_INVENTORY_TYPE_IDS;
 }
 
 /**
@@ -990,7 +1074,6 @@ function initializeApp() {
             setupChangeTypeTooltips();
             
             // Fetch and cache all locations, users, and asset types
-            // Fetch and cache all locations, users, and asset types
             Promise.all([
               fetchAllLocations().catch(err => {
                 console.error("Error in fetchAllLocations:", err);
@@ -1001,7 +1084,14 @@ function initializeApp() {
               fetchAllAssetTypes().catch(err => {
                 console.error("Error in fetchAllAssetTypes:", err);
               })
-            ]);
+            ]).then(() => {
+              // After asset types are loaded, show the configured types for debugging
+              setTimeout(() => {
+                showConfiguredAssetTypes().catch(err => {
+                  console.error("Error showing configured asset types:", err);
+                });
+              }, 1000);
+            });
             
             // Only attempt to load data after setup is complete
             setTimeout(() => {
@@ -2822,15 +2912,22 @@ function searchAssets(e) {
     
     // Skip cache check for initial load if force refresh is requested
     if (!isForceRefresh) {
-      // Get the asset type ID from configuration
-      getInstallationParams().then(params => {
-        const assetTypeId = params.assetTypeId;
+      // Get the asset type IDs from configuration
+      findSoftwareServicesAssetTypeIds().then(assetTypeIds => {
+        if (!assetTypeIds || assetTypeIds.length === 0) {
+          console.log('No asset type IDs configured, performing initial asset listing without filtering');
+          performInitialAssetListing();
+          return;
+        }
         
-        // Use special cache key for initial asset listing with asset type ID
-        getAssetsByTypeFromCache('initial_asset_listing', assetTypeId).then(cachedResults => {
+        // Use the first asset type ID for caching (or 'multiple' if more than one)
+        const cacheKey = assetTypeIds.length === 1 ? assetTypeIds[0] : 'multiple';
+        
+        // Use special cache key for initial asset listing with asset type IDs
+        getAssetsByTypeFromCache('initial_asset_listing', cacheKey).then(cachedResults => {
           if (cachedResults) {
             // Use cached results
-            console.log(`Using CACHED results for initial asset listing type ${assetTypeId} (${cachedResults.length} items)`);
+            console.log(`Using CACHED results for initial asset listing types ${assetTypeIds.join(', ')} (${cachedResults.length} items)`);
             displayAssetResults('asset-results', cachedResults, selectAsset, true);
             assetSearchState.totalResults = cachedResults.length;
             
@@ -2840,7 +2937,7 @@ function searchAssets(e) {
           }
           
           // No cache hit, perform initial asset listing
-          console.log(`No cache found for initial asset listing type ${assetTypeId}, querying API...`);
+          console.log(`No cache found for initial asset listing types ${assetTypeIds.join(', ')}, querying API...`);
           performInitialAssetListing();
         }).catch(error => {
           console.error('Error checking asset search cache:', error);
@@ -2848,7 +2945,7 @@ function searchAssets(e) {
           performInitialAssetListing();
         });
       }).catch(error => {
-        console.error('Error getting installation parameters:', error);
+        console.error('Error getting asset type IDs:', error);
         // Fallback to direct search on params error
         performInitialAssetListing();
       });
@@ -2863,15 +2960,22 @@ function searchAssets(e) {
   // Regular search with search term
   // Check cache first (unless forced refresh)
   if (!isForceRefresh) {
-    // Get the configured asset type ID
-    getInstallationParams().then(params => {
-      const assetTypeId = params.assetTypeId;
+    // Get the configured asset type IDs
+    findSoftwareServicesAssetTypeIds().then(assetTypeIds => {
+      if (!assetTypeIds || assetTypeIds.length === 0) {
+        console.log('No asset type IDs configured, performing search without type filtering');
+        performAssetSearch(searchTerm);
+        return;
+      }
       
-      // Check typed-specific cache
-      getAssetsByTypeFromCache(searchTerm, assetTypeId).then(cachedResults => {
+      // Use the first asset type ID for caching (or 'multiple' if more than one)
+      const cacheKey = assetTypeIds.length === 1 ? assetTypeIds[0] : 'multiple';
+      
+      // Check type-specific cache
+      getAssetsByTypeFromCache(searchTerm, cacheKey).then(cachedResults => {
         if (cachedResults) {
           // Use cached results
-          console.log(`Using CACHED results for type ${assetTypeId}, term "${searchTerm}" (${cachedResults.length} items)`);
+          console.log(`Using CACHED results for types ${assetTypeIds.join(', ')}, term "${searchTerm}" (${cachedResults.length} items)`);
           displayAssetResults('asset-results', cachedResults, selectAsset, true);
           assetSearchState.totalResults = cachedResults.length;
           
@@ -2879,28 +2983,34 @@ function searchAssets(e) {
           setupAssetSearchScroll();
           
           // Get the configured search cache timeout
-          const searchCacheTimeout = params.searchCacheTimeout;
-          
-          // Set a timer to check for fresh results after the timeout
-          setTimeout(() => {
-            // Only perform API call if the search term is still the current one
-            if (assetSearchState.currentSearchTerm === searchTerm) {
-              console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
-              performAssetSearch(searchTerm, true);
-            }
-          }, searchCacheTimeout);
+          getInstallationParams().then(params => {
+            const searchCacheTimeout = params.searchCacheTimeout;
+            
+            // Set a timer to check for fresh results after the timeout
+            setTimeout(() => {
+              // Only perform API call if the search term is still the current one
+              if (assetSearchState.currentSearchTerm === searchTerm) {
+                console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
+                performAssetSearch(searchTerm, true);
+              }
+            }, searchCacheTimeout);
+          });
           
           return;
         }
         
         // No cache hit, perform search immediately
-        console.log(`No cache found for type ${assetTypeId}, term "${searchTerm}", querying API...`);
+        console.log(`No cache found for types ${assetTypeIds.join(', ')}, term "${searchTerm}", querying API...`);
         performAssetSearch(searchTerm);
       }).catch(error => {
         console.error('Error checking asset search cache:', error);
         // Fallback to direct search on cache error
         performAssetSearch(searchTerm);
       });
+    }).catch(error => {
+      console.error('Error getting asset type IDs:', error);
+      // Fallback to direct search on error
+      performAssetSearch(searchTerm);
     });
   } else {
     // Skip cache for forced refresh
@@ -2963,7 +3073,7 @@ function performInitialAssetListing() {
           });
           
           // Check if assets match any of the requested types (either asset_type_id or parent_asset_type_id)
-          const targetTypeIds = Array.isArray(assetTypeId) ? assetTypeId : [assetTypeId];
+          const targetTypeIds = Array.isArray(assetTypeIds) ? assetTypeIds : [assetTypeIds];
           const matchingAssets = assets.filter(a => 
             targetTypeIds.includes(a.asset_type_id) || targetTypeIds.includes(a.parent_asset_type_id)
           );
@@ -3030,8 +3140,8 @@ function performInitialAssetListing() {
         const processedAssets = processAssetResults(assets);
         
         // Cache the results for future use with asset type IDs
-        // For multiple types, cache with the first type ID as the key
-        const cacheKey = assetTypeIds.length > 0 ? assetTypeIds[0] : 'unknown';
+        // For multiple types, cache with 'multiple' as the key, otherwise use the single type ID
+        const cacheKey = assetTypeIds.length === 1 ? assetTypeIds[0] : 'multiple';
         addAssetsToTypeCache('initial_asset_listing', cacheKey, processedAssets);
         
         // Display the results
@@ -3248,8 +3358,9 @@ async function performAssetSearch(searchTerm, isRefresh = false) {
           managed_by: asset.custom_fields?.managed_by || asset.managed_by || 'N/A'
         })));
         
-        // Cache the results
-        addToSearchCache('assets', searchTerm, processedAssets);
+        // Cache the results with asset type consideration
+        const cacheKey = assetTypeIds.length === 1 ? assetTypeIds[0] : 'multiple';
+        addAssetsToTypeCache(searchTerm, cacheKey, processedAssets);
         
         // Display the results
         displayAssetResults('asset-results', processedAssets, selectAsset);
@@ -4034,7 +4145,7 @@ async function getInstallationParams() {
         rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
         searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
         paginationDelay: DEFAULT_PAGINATION_DELAY,
-        assetTypeId: DEFAULT_INVENTORY_TYPE_ID
+        assetTypeNames: 'Software, IT Software, ISP'
       };
     }
     
@@ -4050,10 +4161,10 @@ async function getInstallationParams() {
       rateLimitListTickets: parseInt(iparams.rate_limit_list_tickets || DEFAULT_RATE_LIMITS.starter.listTickets),
       rateLimitListAssets: parseInt(iparams.rate_limit_list_assets || DEFAULT_RATE_LIMITS.starter.listAssets),
       rateLimitListAgents: parseInt(iparams.rate_limit_list_agents || DEFAULT_RATE_LIMITS.starter.listAgents),
-      rateLimitListRequesters: parseInt(iparams.rate_limit_list_requesters || DEFAULT_RATE_LIMITS.starter.listRequesters),
-      searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT),
-      paginationDelay: parseInt(iparams.pagination_delay || DEFAULT_PAGINATION_DELAY),
-              assetTypeId: parseInt(iparams.asset_type_id || DEFAULT_INVENTORY_TYPE_ID)
+              rateLimitListRequesters: parseInt(iparams.rate_limit_list_requesters || DEFAULT_RATE_LIMITS.starter.listRequesters),
+        searchCacheTimeout: parseInt(iparams.search_cache_timeout || DEFAULT_SEARCH_CACHE_TIMEOUT),
+        paginationDelay: parseInt(iparams.pagination_delay || DEFAULT_PAGINATION_DELAY),
+        assetTypeNames: iparams.asset_type_names || 'Software, IT Software, ISP'
     };
   } catch (error) {
     console.error('Error getting installation parameters:', error);
@@ -4066,10 +4177,10 @@ async function getInstallationParams() {
       rateLimitListTickets: DEFAULT_RATE_LIMITS.starter.listTickets,
       rateLimitListAssets: DEFAULT_RATE_LIMITS.starter.listAssets,
       rateLimitListAgents: DEFAULT_RATE_LIMITS.starter.listAgents,
-      rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
-      searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
-      paginationDelay: DEFAULT_PAGINATION_DELAY,
-      assetTypeId: DEFAULT_INVENTORY_TYPE_ID
+              rateLimitListRequesters: DEFAULT_RATE_LIMITS.starter.listRequesters,
+        searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
+        paginationDelay: DEFAULT_PAGINATION_DELAY,
+        assetTypeNames: 'Software, IT Software, ISP'
     };
   }
 }

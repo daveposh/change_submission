@@ -20,12 +20,12 @@
     "required": true,
     "default_value": "starter"
   },
-  "asset_type_id": {
-    "display_name": "Asset Type ID",
-    "description": "ID of the asset type to filter searches (default: 37000374722). Set to 0 to disable filtering.",
-    "type": "number",
+  "asset_type_names": {
+    "display_name": "Asset Type Names",
+    "description": "Comma-separated list of asset type names to include in searches (e.g., 'Software, IT Software, ISP'). Leave empty to include all asset types.",
+    "type": "text",
     "required": false,
-    "default_value": 37000374722
+    "default_value": "Software, IT Software, ISP"
   },
   "api_safety_margin": {
     "display_name": "API Safety Margin",
