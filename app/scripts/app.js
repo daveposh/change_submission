@@ -284,31 +284,44 @@ async function getServices(forceRefresh = false) {
     
     console.log(`✅ Total services found across all asset types: ${allServices.length}`);
     
+    // Remove duplicates based on asset ID
+    const uniqueServices = [];
+    const seenIds = new Set();
+    
+    allServices.forEach(service => {
+      if (!seenIds.has(service.id)) {
+        seenIds.add(service.id);
+        uniqueServices.push(service);
+      }
+    });
+    
+    console.log(`🔧 After deduplication: ${uniqueServices.length} unique services (removed ${allServices.length - uniqueServices.length} duplicates)`);
+    
     // Show breakdown by asset type
     const typeBreakdown = {};
-    allServices.forEach(service => {
+    uniqueServices.forEach(service => {
       const typeId = service.asset_type_id;
       if (!typeBreakdown[typeId]) {
         typeBreakdown[typeId] = 0;
       }
       typeBreakdown[typeId]++;
     });
-    console.log('📊 Services by asset type ID:', typeBreakdown);
+    console.log('📊 Unique services by asset type ID:', typeBreakdown);
     
     // Debug: show first service structure from API
-    if (allServices[0]) {
+    if (uniqueServices[0]) {
       console.log('📋 Sample API service structure:', {
-        id: allServices[0].id,
-        name: allServices[0].name || allServices[0].display_name,
-        asset_type_id: allServices[0].asset_type_id,
-        keys: Object.keys(allServices[0])
+        id: uniqueServices[0].id,
+        name: uniqueServices[0].name || uniqueServices[0].display_name,
+        asset_type_id: uniqueServices[0].asset_type_id,
+        keys: Object.keys(uniqueServices[0])
       });
     }
     
-    // Cache the services
-    await cacheServices(allServices);
+    // Cache the unique services
+    await cacheServices(uniqueServices);
     
-    return allServices;
+    return uniqueServices;
     
   } catch (error) {
     console.error('❌ Error fetching services:', error);
@@ -635,13 +648,52 @@ function loadFontAwesome() {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM ready, initializing Freshworks app...');
   
-  // Load FontAwesome first
-  loadFontAwesome();
+    // Load FontAwesome first
+    loadFontAwesome();
   
   // Use Freshworks standard initialization
   app.initialized().then(function(client) {
     console.log('Freshworks app initialized successfully');
     window.client = client;
+    
+    // Expose global debug functions
+    console.log('🔧 Setting up global debug functions...');
+    
+    // Make sure functions are available in console
+    if (typeof window.clearAllCache === 'undefined') {
+      console.warn('clearAllCache not found, will be defined after initialization');
+    }
+    
+    // Test function to verify console access
+    window.testConsole = function() {
+      console.log('✅ Console access working! Available functions:');
+      console.log('- clearAllCache() - Clear all caches and refresh');
+      console.log('- refreshServices() - Refresh just services');
+      console.log('- debugServiceFilter() - Debug service filtering');
+      console.log('- refreshServicesWithDebug() - Refresh with detailed logs');
+      console.log('- forceClearServices() - Simple cache clear (always works)');
+      return 'Console access confirmed';
+    };
+    
+    // Simple, reliable cache clearing function
+    window.forceClearServices = function() {
+      console.log('🧹 Force clearing services cache...');
+      
+      // Clear localStorage
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.includes('services_cache')) {
+          localStorage.removeItem(key);
+          console.log(`✅ Removed: ${key}`);
+        }
+      });
+      
+      // Reload the page to force fresh data
+      console.log('🔄 Reloading page to force fresh data...');
+      location.reload();
+    };
+    
+    console.log('💡 Type testConsole() in the console to verify access');
     
     // Wait a moment for everything to settle
     setTimeout(() => {
