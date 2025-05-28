@@ -193,15 +193,208 @@ async function fetchAndCacheServices() {
  * @returns {Promise<Array>} Services array
  */
 async function getServices() {
-  const now = Date.now();
-  const cacheAge = now - cache.services.timestamp;
+  try {
+    // Check for cached services first
+    const cachedServices = await getCachedServices();
+    if (cachedServices && cachedServices.length > 0) {
+      console.log(`Using cached services: ${cachedServices.length} services`);
+      return cachedServices;
+    }
 
-  if (cacheAge > CACHE.TIMEOUTS.SERVICES || cache.services.data.length === 0) {
-    console.log('Services cache expired or empty, refreshing...');
-    return await fetchAndCacheServices();
+    console.log('Fetching services from API...');
+    
+    // Get all asset types first to identify service categories
+    const allAssetTypes = await fetchAllAssetTypes();
+    
+    // Define service category keywords
+    const serviceCategoryKeywords = [
+      'software/services',
+      'business software', 
+      'it software',
+      'software',
+      'services',
+      'application',
+      'saas',
+      'platform'
+    ];
+    
+    // Find asset type IDs that match service categories
+    const serviceAssetTypeIds = allAssetTypes
+      .filter(assetType => {
+        const name = (assetType.name || '').toLowerCase();
+        const description = (assetType.description || '').toLowerCase();
+        
+        return serviceCategoryKeywords.some(keyword => 
+          name.includes(keyword) || description.includes(keyword)
+        );
+      })
+      .map(assetType => assetType.id);
+    
+    console.log(`Found ${serviceAssetTypeIds.length} service asset type IDs:`, serviceAssetTypeIds);
+    
+    if (serviceAssetTypeIds.length === 0) {
+      console.warn('No service asset types found, using all assets as potential services');
+      // Fallback to all assets if no service types found
+      const allAssets = await fetchAllAssets();
+      await cacheServices(allAssets);
+      return allAssets;
+    }
+
+    // Fetch assets for each service asset type
+    let allServices = [];
+    
+    for (const assetTypeId of serviceAssetTypeIds) {
+      try {
+        const assetsForType = await fetchAssetsByType(assetTypeId);
+        allServices = allServices.concat(assetsForType);
+        console.log(`Fetched ${assetsForType.length} assets for service type ID ${assetTypeId}`);
+      } catch (error) {
+        console.warn(`Error fetching assets for service type ${assetTypeId}:`, error);
+      }
+    }
+
+    // Remove duplicates based on ID
+    const uniqueServices = allServices.filter((service, index, self) => 
+      index === self.findIndex(s => s.id === service.id)
+    );
+
+    console.log(`Total unique services found: ${uniqueServices.length}`);
+    
+    // Cache the services for future use
+    await cacheServices(uniqueServices);
+    
+    return uniqueServices;
+    
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    
+    // Return empty array on error
+    return [];
   }
+}
 
-  return cache.services.data;
+/**
+ * Fetch assets by asset type ID
+ */
+async function fetchAssetsByType(assetTypeId) {
+  return new Promise((resolve, reject) => {
+    if (!window.client || !window.client.request) {
+      reject(new Error('Client not available'));
+      return;
+    }
+
+    // Use the asset search API with asset type filter
+    const requestUrl = `?asset_type_id=${assetTypeId}&per_page=100`;
+    
+    window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    })
+    .then(function(data) {
+      try {
+        if (!data || !data.response) {
+          resolve([]);
+          return;
+        }
+        
+        const response = JSON.parse(data.response);
+        const assets = response.assets || [];
+        
+        resolve(assets);
+      } catch (error) {
+        console.error(`Error parsing assets for type ${assetTypeId}:`, error);
+        resolve([]);
+      }
+    })
+    .catch(function(error) {
+      console.error(`API request failed for asset type ${assetTypeId}:`, error);
+      resolve([]);
+    });
+  });
+}
+
+/**
+ * Fetch all assets (fallback function)
+ */
+async function fetchAllAssets() {
+  return new Promise((resolve, reject) => {
+    if (!window.client || !window.client.request) {
+      reject(new Error('Client not available'));
+      return;
+    }
+
+    window.client.request.invokeTemplate("getAssets", {
+      path_suffix: "?per_page=100"
+    })
+    .then(function(data) {
+      try {
+        if (!data || !data.response) {
+          resolve([]);
+          return;
+        }
+        
+        const response = JSON.parse(data.response);
+        const assets = response.assets || [];
+        
+        resolve(assets);
+      } catch (error) {
+        console.error('Error parsing all assets:', error);
+        resolve([]);
+      }
+    })
+    .catch(function(error) {
+      console.error('API request failed for all assets:', error);
+      resolve([]);
+    });
+  });
+}
+
+/**
+ * Get cached services
+ */
+async function getCachedServices() {
+  try {
+    const params = await getInstallationParams();
+    const cacheKey = `services_cache_${params.domain || 'default'}`;
+    const cached = localStorage.getItem(cacheKey);
+    
+    if (cached) {
+      const data = JSON.parse(cached);
+      const now = Date.now();
+      
+      // Check if cache is still valid (24 hours)
+      if (now - data.timestamp < 24 * 60 * 60 * 1000) {
+        return data.services;
+      } else {
+        // Clear expired cache
+        localStorage.removeItem(cacheKey);
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting cached services:', error);
+    return null;
+  }
+}
+
+/**
+ * Cache services data
+ */
+async function cacheServices(services) {
+  try {
+    const params = await getInstallationParams();
+    const cacheKey = `services_cache_${params.domain || 'default'}`;
+    
+    const cacheData = {
+      services: services,
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+    console.log(`Cached ${services.length} services`);
+  } catch (error) {
+    console.error('Error caching services:', error);
+  }
 }
 
 const changeRequestData = {
