@@ -2050,5 +2050,348 @@ function getDefaultParams() {
   };
 }
 
+/**
+ * Get cached search results
+ * @param {string} type - Type of search (requesters, agents, assets)
+ * @param {string} searchTerm - Search term
+ * @returns {Promise<Array|null>} Cached results or null if not found
+ */
+async function getFromSearchCache(type, searchTerm) {
+  if (!searchCache[type] || !searchCache[type][searchTerm]) {
+    return null;
+  }
+  
+  const cachedData = searchCache[type][searchTerm];
+  const currentTime = Date.now();
+  
+  // Get the configured search cache timeout
+  const params = await getInstallationParams();
+  const cacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
+  
+  // Check if the cache is still valid
+  if (currentTime - cachedData.timestamp < cacheTimeout) {
+    console.log(`✅ Cache hit for ${type} search: "${searchTerm}" (${cachedData.results.length} items)`);
+    return cachedData.results;
+  } else {
+    console.log(`⏰ Cache expired for ${type} search: "${searchTerm}"`);
+    // Remove expired cache entry
+    delete searchCache[type][searchTerm];
+  }
+  
+  return null;
+}
+
+/**
+ * Add search results to cache
+ * @param {string} type - Type of search (requesters, agents, assets)
+ * @param {string} searchTerm - Search term
+ * @param {Array} results - Search results to cache
+ */
+function addToSearchCache(type, searchTerm, results) {
+  if (!searchCache[type]) {
+    searchCache[type] = {};
+  }
+  
+  searchCache[type][searchTerm] = {
+    results: results,
+    timestamp: Date.now()
+  };
+  
+  console.log(`💾 Cached ${results.length} ${type} results for "${searchTerm}"`);
+}
+
+/**
+ * Search for assets using Freshservice API
+ */
+function searchAssets(e) {
+  const searchTerm = e.target ? e.target.value.trim() : '';
+  const resultsContainer = document.getElementById('asset-results');
+  
+  // Clear and hide results if search term is too short
+  if (searchTerm.length < 3) {
+    if (resultsContainer) {
+      resultsContainer.style.display = 'none';
+    }
+    return;
+  }
+
+  // Show loading indicator
+  if (resultsContainer) {
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.style.display = 'block';
+  }
+  
+  // Check cache first
+  getFromSearchCache('assets', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      displayAssetResults('asset-results', cachedResults, selectAsset);
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
+        
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchTerm = document.getElementById('asset-search')?.value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
+            performAssetSearch(searchTerm, true);
+          }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
+    
+    // No cache hit, perform search immediately
+    performAssetSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking asset search cache:', error);
+    // Fallback to direct search on cache error
+    performAssetSearch(searchTerm);
+  });
+}
+
+/**
+ * Perform the actual API search for assets
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+async function performAssetSearch(searchTerm, isRefresh = false) {
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for asset search');
+    const resultsContainer = document.getElementById('asset-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized</div>';
+    }
+    return;
+  }
+
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('asset-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+      resultsContainer.style.display = 'block';
+    }
+  }
+  
+  try {
+    // Get configured asset type IDs
+    const assetTypeIds = await getConfiguredAssetTypeIds();
+    console.log(`Searching assets with term: "${searchTerm}" in asset types: ${assetTypeIds.join(', ')}`);
+    
+    // Build search query
+    const assetTypeFilter = assetTypeIds.length > 0 ? 
+      `(${assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    const nameFilter = `name:'*${searchTerm}*'`;
+    const query = assetTypeFilter ? 
+      `${assetTypeFilter} AND ${nameFilter}` : 
+      nameFilter;
+    
+    const requestUrl = `?query=${encodeURIComponent(query)}&per_page=50`;
+    
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    });
+    
+    if (!response || !response.response) {
+      throw new Error('Invalid response from assets API');
+    }
+    
+    const data = JSON.parse(response.response);
+    const assets = data.assets || [];
+    
+    // Process and filter results
+    const filteredAssets = assets.filter(asset => {
+      const assetName = (asset.display_name || asset.name || '').toLowerCase();
+      return assetName.includes(searchTerm.toLowerCase());
+    });
+    
+    // Cache the results
+    addToSearchCache('assets', searchTerm, filteredAssets);
+    
+    // Display results
+    displayAssetResults('asset-results', filteredAssets, selectAsset);
+    
+    console.log(`Asset search completed: ${filteredAssets.length} results for "${searchTerm}"`);
+    
+  } catch (error) {
+    console.error('Error performing asset search:', error);
+    const resultsContainer = document.getElementById('asset-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = `<div class="text-center p-3 text-danger">Error: ${error.message}</div>`;
+    }
+  }
+}
+
+/**
+ * Display asset search results
+ * @param {string} containerId - ID of container element
+ * @param {Array} results - Results to display
+ * @param {Function} selectionCallback - Callback for when an item is selected
+ */
+function displayAssetResults(containerId, results, selectionCallback) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  if (results.length === 0) {
+    container.innerHTML = '<div class="text-center p-3">No assets found</div>';
+    return;
+  }
+  
+  // Sort results by name
+  results.sort((a, b) => {
+    const nameA = (a.display_name || a.name || '').toLowerCase();
+    const nameB = (b.display_name || b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  // Create results list
+  let html = '<div class="list-group">';
+  results.forEach(result => {
+    const name = result.display_name || result.name || 'Unknown';
+    const description = result.description || '';
+    const assetTypeId = result.asset_type_id;
+    
+    html += `
+      <button type="button" class="list-group-item list-group-item-action" data-id="${result.id}">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-bold">${name}</div>
+            ${description ? `<div class="text-secondary small">${description}</div>` : ''}
+          </div>
+          <div class="text-end">
+            <div class="small text-muted">Type ID: ${assetTypeId}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  });
+  html += '</div>';
+  
+  container.innerHTML = html;
+  
+  // Add click handlers
+  container.querySelectorAll('.list-group-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const selectedId = parseInt(item.dataset.id);
+      const selectedResult = results.find(r => r.id === selectedId);
+      if (selectedResult && selectionCallback) {
+        selectionCallback(selectedResult);
+        container.style.display = 'none';
+      }
+    });
+  });
+}
+
+/**
+ * Handle asset selection
+ * @param {Object} asset - Selected asset
+ */
+function selectAsset(asset) {
+  console.log('Asset selected:', asset);
+  // Add logic to handle asset selection
+}
+
+/**
+ * Handle requester selection
+ * @param {Object} requester - Selected requester
+ */
+function selectRequester(requester) {
+  console.log('Requester selected:', requester);
+  
+  // Update the selected requester display
+  const selectedDiv = document.getElementById('selected-requester');
+  if (selectedDiv) {
+    const name = `${requester.first_name || ''} ${requester.last_name || ''}`.trim();
+    const email = requester.email || requester.primary_email || '';
+    
+    selectedDiv.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <strong>${name}</strong>
+          <div class="text-secondary small">${email}</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearRequester()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    selectedDiv.style.display = 'block';
+  }
+  
+  // Clear the search input
+  const searchInput = document.getElementById('requester-search');
+  if (searchInput) {
+    searchInput.value = '';
+  }
+  
+  // Store the selected requester
+  changeRequestData.requester = requester;
+}
+
+/**
+ * Handle agent selection
+ * @param {Object} agent - Selected agent
+ */
+function selectAgent(agent) {
+  console.log('Agent selected:', agent);
+  
+  // Update the selected agent display
+  const selectedDiv = document.getElementById('selected-agent');
+  if (selectedDiv) {
+    const name = `${agent.first_name || ''} ${agent.last_name || ''}`.trim();
+    const email = agent.email || agent.primary_email || '';
+    
+    selectedDiv.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <strong>${name}</strong>
+          <div class="text-secondary small">${email}</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearAgent()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    selectedDiv.style.display = 'block';
+  }
+  
+  // Clear the search input
+  const searchInput = document.getElementById('agent-search');
+  if (searchInput) {
+    searchInput.value = '';
+  }
+  
+  // Store the selected agent
+  changeRequestData.agent = agent;
+}
+
+/**
+ * Clear selected requester
+ */
+function clearRequester() {
+  const selectedDiv = document.getElementById('selected-requester');
+  if (selectedDiv) {
+    selectedDiv.style.display = 'none';
+  }
+  changeRequestData.requester = null;
+}
+
+/**
+ * Clear selected agent
+ */
+function clearAgent() {
+  const selectedDiv = document.getElementById('selected-agent');
+  if (selectedDiv) {
+    selectedDiv.style.display = 'none';
+  }
+  changeRequestData.agent = null;
+}
+
 
 
