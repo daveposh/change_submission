@@ -5237,21 +5237,22 @@ async function searchAssetsWithConfiguredTypes(searchTerm = '') {
 }
 
 /**
- * Get asset type name from cache
+ * Get asset type name from cache synchronously
  * @param {number} assetTypeId - Asset type ID
  * @returns {string} Asset type name
  */
-function getAssetTypeName(assetTypeId) {
+function getAssetTypeNameSync(assetTypeId) {
   if (!assetTypeId) return 'Unknown';
   return (assetTypeCache.types[assetTypeId]?.name || assetTypeCache.byId[assetTypeId]?.name || `Type ${assetTypeId}`);
 }
 
+// Removed duplicate findSoftwareServicesAssetTypeIds function
+// Using the original implementation from line 801
+
 /**
- * Get asset type IDs that match the configured names from iparams
- * Uses simple cached asset types approach
- * @returns {Array} Array of asset type IDs to search
+ * Test helper function
  */
-async function findSoftwareServicesAssetTypeIds() {
+window.testAssetSearch = async function(searchTerm = '') {
   console.log('🔍 Finding software/services asset type IDs...');
   
   try {
