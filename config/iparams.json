@@ -20,18 +20,18 @@
     "required": true,
     "default_value": "starter"
   },
-  "asset_type_names": {
+  "assetTypeNames": {
     "display_name": "Asset Type Names",
-    "description": "Comma-separated list of asset type names to include in searches (e.g., 'Software, IT Software, ISP'). Leave empty to include all asset types.",
+    "description": "Comma-separated list of asset type names to include (e.g., 'Software, IT Software, ISP')",
     "type": "text",
     "required": false,
     "default_value": "Software, IT Software, ISP"
   },
-  "api_safety_margin": {
-    "display_name": "API Safety Margin",
-    "description": "Safety margin for API limits (10-100). Example: 70 means 70% of rate limits",
+  "safetyMargin": {
+    "display_name": "API Safety Margin (%)",
+    "description": "Safety margin for API rate limits as percentage (default: 70)",
     "type": "number",
-    "required": true,
+    "required": false,
     "default_value": 70
   },
   "rate_limit_overall": {
@@ -69,18 +69,39 @@
     "required": true,
     "default_value": 40
   },
-  "search_cache_timeout": {
-    "display_name": "Search Cache Timeout",
-    "description": "Time in milliseconds to wait before refreshing search results from cache (default 7000 = 7 seconds)",
+  "searchCacheTimeout": {
+    "display_name": "Search Cache Timeout (ms)",
+    "description": "How long to cache search results in milliseconds (default: 7000)",
     "type": "number",
-    "required": true,
+    "required": false,
     "default_value": 7000
   },
-  "pagination_delay": {
-    "display_name": "Pagination Delay",
-    "description": "Time in milliseconds to wait between API pagination requests (default 500 = 0.5 seconds)",
+  "paginationDelay": {
+    "display_name": "Pagination Delay (ms)",
+    "description": "Delay between paginated API requests in milliseconds (default: 500)",
     "type": "number",
     "required": false,
     "default_value": 500
+  },
+  "listRequestersPageLimit": {
+    "display_name": "Requester Page Limit",
+    "description": "Maximum number of pages to fetch for requesters (default: 3)",
+    "type": "number",
+    "required": false,
+    "default_value": 3
+  },
+  "listAgentsPageLimit": {
+    "display_name": "Agent Page Limit",
+    "description": "Maximum number of pages to fetch for agents (default: 3)",
+    "type": "number",
+    "required": false,
+    "default_value": 3
+  },
+  "enableDebugMode": {
+    "display_name": "Enable Debug Mode",
+    "description": "Enable additional logging and debugging features",
+    "type": "checkbox",
+    "required": false,
+    "default_value": false
   }
 }

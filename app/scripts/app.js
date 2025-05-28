@@ -1503,7 +1503,6 @@ function initializeApp() {
 }
 
 function populateFormFields() {
-  // Helper functions for safe element access
   // Create services section
   const servicesSection = document.createElement('div');
   servicesSection.className = 'form-group mb-4';
@@ -1523,10 +1522,51 @@ function populateFormFields() {
     </div>
   `;
 
-  // Insert services section at the start of the form
+  // Create requester and agent search sections
+  const searchSection = document.createElement('div');
+  searchSection.className = 'row mb-4';
+  searchSection.innerHTML = `
+    <div class="col-md-6">
+      <div class="form-group">
+        <label for="requester-search" class="form-label">Search Requester:</label>
+        <div class="input-group">
+          <input type="text" id="requester-search" class="form-control" placeholder="Search by name or email">
+          <span class="input-group-text"><i class="fas fa-search"></i></span>
+        </div>
+        <div id="requester-results" class="search-results" style="display: none;"></div>
+        <div id="selected-requester" class="selected-user mt-2" style="display: none;"></div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="form-group">
+        <label for="agent-search" class="form-label">Search Technical SME:</label>
+        <div class="input-group">
+          <input type="text" id="agent-search" class="form-control" placeholder="Search by name or email">
+          <span class="input-group-text"><i class="fas fa-search"></i></span>
+        </div>
+        <div id="agent-results" class="search-results" style="display: none;"></div>
+        <div id="selected-agent" class="selected-user mt-2" style="display: none;"></div>
+      </div>
+    </div>
+  `;
+
+  // Insert sections at the start of the form
   const form = document.querySelector('form');
   if (form) {
+    form.insertBefore(searchSection, form.firstChild);
     form.insertBefore(servicesSection, form.firstChild);
+  }
+
+  // Set up event listeners for search inputs
+  const requesterSearch = document.getElementById('requester-search');
+  const agentSearch = document.getElementById('agent-search');
+  
+  if (requesterSearch) {
+    requesterSearch.addEventListener('input', debounce(searchRequesters, 300));
+  }
+  
+  if (agentSearch) {
+    agentSearch.addEventListener('input', debounce(searchAgents, 300));
   }
 
   // ... rest of the existing populateFormFields code ...
@@ -1851,6 +1891,68 @@ async function cacheIndividualUsers(users, type) {
   } catch (error) {
     console.error(`Error caching individual ${type}s:`, error);
   }
+}
+
+/**
+ * Get installation parameters from iparams
+ * @returns {Promise<Object>} Installation parameters
+ */
+async function getInstallationParams() {
+  try {
+    // Check if client is available
+    if (!window.client) {
+      console.error('Client not available for getting installation parameters');
+      return getDefaultParams();
+    }
+
+    // Get iparams using client.iparams.get()
+    const iparams = await window.client.iparams.get();
+    if (!iparams) {
+      console.warn('No installation parameters found, using defaults');
+      return getDefaultParams();
+    }
+
+    // Parse and validate the parameters
+    return {
+      // Asset type configuration
+      assetTypeNames: iparams.assetTypeNames || 'Software, IT Software, ISP',
+      
+      // Cache timeouts
+      searchCacheTimeout: parseInt(iparams.searchCacheTimeout) || DEFAULT_SEARCH_CACHE_TIMEOUT,
+      paginationDelay: parseInt(iparams.paginationDelay) || DEFAULT_PAGINATION_DELAY,
+      
+      // API rate limiting
+      safetyMargin: parseInt(iparams.safetyMargin) || DEFAULT_SAFETY_MARGIN,
+      
+      // Page limits for API calls
+      listRequestersPageLimit: parseInt(iparams.listRequestersPageLimit) || 3,
+      listAgentsPageLimit: parseInt(iparams.listAgentsPageLimit) || 3,
+      
+      // Other configuration
+      enableDebugMode: iparams.enableDebugMode === 'true',
+      customFields: iparams.customFields || {}
+    };
+  } catch (error) {
+    console.error('Error getting installation parameters:', error);
+    return getDefaultParams();
+  }
+}
+
+/**
+ * Get default parameters when iparams are not available
+ * @returns {Object} Default parameters
+ */
+function getDefaultParams() {
+  return {
+    assetTypeNames: 'Software, IT Software, ISP',
+    searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
+    paginationDelay: DEFAULT_PAGINATION_DELAY,
+    safetyMargin: DEFAULT_SAFETY_MARGIN,
+    listRequestersPageLimit: 3,
+    listAgentsPageLimit: 3,
+    enableDebugMode: false,
+    customFields: {}
+  };
 }
 
 
