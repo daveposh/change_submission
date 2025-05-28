@@ -20,6 +20,13 @@
     "required": true,
     "default_value": "starter"
   },
+  "asset_type_id": {
+    "display_name": "Asset Type ID",
+    "description": "ID of the asset type to filter searches (default: 37000374722). Set to 0 to disable filtering.",
+    "type": "number",
+    "required": false,
+    "default_value": 37000374722
+  },
   "api_safety_margin": {
     "display_name": "API Safety Margin",
     "description": "Safety margin for API limits (10-100). Example: 70 means 70% of rate limits",
@@ -68,5 +75,12 @@
     "type": "number",
     "required": true,
     "default_value": 7000
+  },
+  "pagination_delay": {
+    "display_name": "Pagination Delay",
+    "description": "Time in milliseconds to wait between API pagination requests (default 500 = 0.5 seconds)",
+    "type": "number",
+    "required": false,
+    "default_value": 500
   }
 }
