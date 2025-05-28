@@ -488,6 +488,60 @@ async function getAssetTypeName(assetTypeId) {
 }
 
 /**
+ * Debug function to check what asset types actually have assets
+ */
+async function checkAvailableAssetTypes() {
+  try {
+    console.log('🔍 Checking what asset types have assets...');
+    
+    // Get a sample of all assets without filtering
+    const data = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: `?page=1&per_page=50`
+    });
+    
+    if (!data || !data.response) {
+      console.log('❌ Could not fetch sample assets');
+      return;
+    }
+    
+    const response = JSON.parse(data.response);
+    const assets = response && response.assets ? response.assets : [];
+    
+    if (assets.length === 0) {
+      console.log('❌ No assets found in your Freshservice instance');
+      return;
+    }
+    
+    // Group assets by type
+    const assetsByType = {};
+    assets.forEach(asset => {
+      const typeId = asset.asset_type_id;
+      if (!assetsByType[typeId]) {
+        assetsByType[typeId] = {
+          count: 0,
+          typeName: asset.asset_type_name || 'Unknown',
+          samples: []
+        };
+      }
+      assetsByType[typeId].count++;
+      if (assetsByType[typeId].samples.length < 3) {
+        assetsByType[typeId].samples.push(asset.name);
+      }
+    });
+    
+    console.log('📊 Available asset types with assets:');
+    Object.entries(assetsByType).forEach(([typeId, info]) => {
+      console.log(`   Type ID: ${typeId} | Name: "${info.typeName}" | Count: ${info.count} | Examples: ${info.samples.join(', ')}`);
+    });
+    
+    console.log('💡 To use a different asset type, update the asset_type_id in your app configuration');
+    
+  } catch (error) {
+    console.error('❌ Error checking available asset types:', error);
+  }
+}
+
+/**
  * Find the software/services asset type ID from cached asset types
  * @returns {Promise<number|null>} - Asset type ID for software/services or null if not found
  */
@@ -2875,6 +2929,15 @@ function performInitialAssetListing() {
           if (matchingAssets.length === 0 && assets.length > 0) {
             const uniqueTypes = [...new Set(assets.map(a => a.asset_type_id))];
             console.log(`Found these asset types instead: ${uniqueTypes.join(', ')}`);
+            
+            // Show asset type names for debugging
+            const assetTypeSamples = assets.slice(0, 5).map(a => ({
+              id: a.id,
+              name: a.name,
+              asset_type_id: a.asset_type_id,
+              asset_type_name: a.asset_type_name
+            }));
+            console.log('Sample assets with their types:', assetTypeSamples);
           }
         }
         
@@ -2906,6 +2969,11 @@ function performInitialAssetListing() {
         
         if (assets.length === 0) {
           console.log('No assets found of the configured type, showing empty results');
+          console.log('🔍 DEBUGGING: Let me check what asset types actually have assets...');
+          
+          // Try to get a sample of all assets to see what types are available
+          checkAvailableAssetTypes();
+          
           displayAssetResults('asset-results', [], selectAsset);
           return;
         }
