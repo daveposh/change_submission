@@ -240,122 +240,75 @@ async function getServices(forceRefresh = false) {
       return [];
     }
     
-    // Build the filter query using the specific asset type IDs
-    const filterQuery = serviceAssetTypeIds
-      .map(id => `asset_type_id:${id}`)
-      .join(' OR ');
+    // New approach: Fetch assets for each asset type ID individually
+    console.log('🔄 Fetching assets for each asset type ID individually...');
     
-    console.log('📝 Service filter query:', filterQuery);
+    let allServices = [];
     
-    // Fetch services using the filter - try different URL formats
-    let requestUrl;
-    let response;
-    
-    // Try the filter approach first
-    try {
-      requestUrl = `?filter="${filterQuery}"&per_page=100`;
-      console.log('🌐 API request URL (filter approach):', requestUrl);
-      
-      response = await window.client.request.invokeTemplate("getAssets", {
-        path_suffix: requestUrl
-      });
-      
-      if (!response || !response.response) {
-        throw new Error('No response from filter approach');
-      }
-      
-      const data = JSON.parse(response.response);
-      let services = data.assets || [];
-      
-      // If we got services but they don't match our filter, the filter didn't work
-      const unmatchedServices = services.filter(service => 
-        !serviceAssetTypeIds.includes(service.asset_type_id)
-      );
-      
-      if (unmatchedServices.length > 0) {
-        console.warn(`⚠️ Filter returned ${unmatchedServices.length} services that don't match our criteria. Trying manual filtering...`);
-        console.log('🔍 Unmatched services:', unmatchedServices.slice(0, 3).map(s => ({
-          name: s.display_name || s.name,
-          asset_type_id: s.asset_type_id
-        })));
-        
-        // Fall back to getting all assets and filtering manually
-        throw new Error('Filter approach returned unmatched services');
-      }
-      
-      console.log(`✅ Filter approach worked! Found ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
-      
-    } catch (filterError) {
-      console.warn('❌ Filter approach failed or returned wrong results, trying manual filtering:', filterError.message);
-      
-      // Fallback: Get all assets and filter manually
+    for (const assetTypeId of serviceAssetTypeIds) {
       try {
-        requestUrl = `?per_page=100`;
-        console.log('🌐 API request URL (get all approach):', requestUrl);
+        console.log(`📋 Fetching assets for asset type ID: ${assetTypeId}`);
         
-        response = await window.client.request.invokeTemplate("getAssets", {
+        // Use asset_type_id parameter which should be more reliable
+        const requestUrl = `?asset_type_id=${assetTypeId}&per_page=100`;
+        console.log(`🌐 API request URL for type ${assetTypeId}:`, requestUrl);
+        
+        const response = await window.client.request.invokeTemplate("getAssets", {
           path_suffix: requestUrl
         });
         
         if (!response || !response.response) {
-          throw new Error('No response from get all approach');
+          console.warn(`No response for asset type ID ${assetTypeId}`);
+          continue;
         }
         
         const data = JSON.parse(response.response);
-        const allAssets = data.assets || [];
+        const assets = data.assets || [];
         
-        console.log(`📥 Retrieved ${allAssets.length} total assets, filtering by asset type IDs...`);
+        console.log(`📊 Asset type ${assetTypeId}: Found ${assets.length} assets`);
         
-        // Manual filtering
-        const services = allAssets.filter(asset => 
-          serviceAssetTypeIds.includes(asset.asset_type_id)
-        );
+        // Add these assets to our collection
+        allServices = allServices.concat(assets);
         
-        console.log(`✅ Manual filtering found ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+        // Add a small delay between requests to be API-friendly
+        if (serviceAssetTypeIds.indexOf(assetTypeId) < serviceAssetTypeIds.length - 1) {
+          const paginationDelay = params.paginationDelay || 300;
+          await new Promise(resolve => setTimeout(resolve, paginationDelay));
+        }
         
-        // Show which asset types we found
-        const foundTypes = [...new Set(services.map(s => s.asset_type_id))];
-        console.log('🔍 Found asset types:', foundTypes);
-        
-        response = { response: JSON.stringify({ assets: services }) };
-        
-      } catch (manualError) {
-        console.error('❌ Both filter and manual approaches failed:', manualError);
-        throw manualError;
+      } catch (error) {
+        console.error(`❌ Error fetching assets for asset type ID ${assetTypeId}:`, error);
+        // Continue with other asset types
       }
     }
     
-    // Process the response (either from filter or manual filtering)
-    const data = JSON.parse(response.response);
-    const services = data.assets || [];
+    console.log(`✅ Total services found across all asset types: ${allServices.length}`);
     
-    console.log(`✅ Final result: ${services.length} services from asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+    // Show breakdown by asset type
+    const typeBreakdown = {};
+    allServices.forEach(service => {
+      const typeId = service.asset_type_id;
+      if (!typeBreakdown[typeId]) {
+        typeBreakdown[typeId] = 0;
+      }
+      typeBreakdown[typeId]++;
+    });
+    console.log('📊 Services by asset type ID:', typeBreakdown);
     
     // Debug: show first service structure from API
-    if (services[0]) {
+    if (allServices[0]) {
       console.log('📋 Sample API service structure:', {
-        id: services[0].id,
-        name: services[0].name || services[0].display_name,
-        asset_type_id: services[0].asset_type_id,
-        keys: Object.keys(services[0])
+        id: allServices[0].id,
+        name: allServices[0].name || allServices[0].display_name,
+        asset_type_id: allServices[0].asset_type_id,
+        keys: Object.keys(allServices[0])
       });
-      
-      // Show breakdown by asset type
-      const typeBreakdown = {};
-      services.forEach(service => {
-        const typeId = service.asset_type_id;
-        if (!typeBreakdown[typeId]) {
-          typeBreakdown[typeId] = 0;
-        }
-        typeBreakdown[typeId]++;
-      });
-      console.log('📊 Services by asset type ID:', typeBreakdown);
     }
     
     // Cache the services
-    await cacheServices(services);
+    await cacheServices(allServices);
     
-    return services;
+    return allServices;
     
   } catch (error) {
     console.error('❌ Error fetching services:', error);
