@@ -240,65 +240,92 @@ async function getServices(forceRefresh = false) {
       return [];
     }
     
-    // New approach: Fetch assets for each asset type ID individually
-    console.log('🔄 Fetching assets for each asset type ID individually...');
+    // New approach: Get all assets in one call and filter client-side
+    console.log('🔄 Fetching all assets and filtering client-side...');
     
-    let allServices = [];
+    let allAssets = [];
+    let page = 1;
+    let hasMorePages = true;
+    const maxPages = 10; // Safety limit
     
-    for (const assetTypeId of serviceAssetTypeIds) {
+    while (hasMorePages && page <= maxPages) {
       try {
-        console.log(`📋 Fetching assets for asset type ID: ${assetTypeId}`);
-        
-        // Use asset_type_id parameter which should be more reliable
-        const requestUrl = `?asset_type_id=${assetTypeId}&per_page=100`;
-        console.log(`🌐 API request URL for type ${assetTypeId}:`, requestUrl);
+        const requestUrl = `?per_page=100&page=${page}`;
+        console.log(`🌐 API request URL (page ${page}):`, requestUrl);
         
         const response = await window.client.request.invokeTemplate("getAssets", {
           path_suffix: requestUrl
         });
         
         if (!response || !response.response) {
-          console.warn(`No response for asset type ID ${assetTypeId}`);
-          continue;
+          console.warn(`No response for page ${page}, stopping pagination`);
+          break;
         }
         
         const data = JSON.parse(response.response);
-        const assets = data.assets || [];
+        const pageAssets = data.assets || [];
         
-        console.log(`📊 Asset type ${assetTypeId}: Found ${assets.length} assets`);
+        console.log(`📄 Page ${page}: Retrieved ${pageAssets.length} assets`);
         
-        // Validate that returned assets actually match the requested asset type ID
-        const validAssets = assets.filter(asset => asset.asset_type_id === assetTypeId);
-        const invalidAssets = assets.filter(asset => asset.asset_type_id !== assetTypeId);
-        
-        if (invalidAssets.length > 0) {
-          console.warn(`⚠️ API returned ${invalidAssets.length} assets with wrong asset_type_id for request ${assetTypeId}:`);
-          console.log('❌ Invalid assets:', invalidAssets.slice(0, 3).map(a => ({
-            id: a.id,
-            name: a.display_name || a.name,
-            expected_type: assetTypeId,
-            actual_type: a.asset_type_id
-          })));
-        }
-        
-        console.log(`✅ Asset type ${assetTypeId}: Validated ${validAssets.length} correct assets (filtered out ${invalidAssets.length} wrong ones)`);
-        
-        // Add only the valid assets to our collection
-        allServices = allServices.concat(validAssets);
-        
-        // Add a small delay between requests to be API-friendly
-        if (serviceAssetTypeIds.indexOf(assetTypeId) < serviceAssetTypeIds.length - 1) {
-          const paginationDelay = params.paginationDelay || 300;
-          await new Promise(resolve => setTimeout(resolve, paginationDelay));
+        if (pageAssets.length === 0) {
+          console.log(`📄 Page ${page} returned no assets, stopping pagination`);
+          hasMorePages = false;
+        } else {
+          allAssets = allAssets.concat(pageAssets);
+          
+          // Check if we got a full page (100 items), indicating there might be more
+          hasMorePages = pageAssets.length === 100;
+          page++;
+          
+          // Add a small delay between requests to be API-friendly
+          if (hasMorePages) {
+            const paginationDelay = params.paginationDelay || 300;
+            await new Promise(resolve => setTimeout(resolve, paginationDelay));
+          }
         }
         
       } catch (error) {
-        console.error(`❌ Error fetching assets for asset type ID ${assetTypeId}:`, error);
-        // Continue with other asset types
+        console.error(`❌ Error fetching page ${page}:`, error);
+        break;
       }
     }
     
-    console.log(`✅ Total services found across all asset types: ${allServices.length}`);
+    console.log(`📥 Retrieved ${allAssets.length} total assets from ${page - 1} pages`);
+    
+    // Filter assets by our target asset type IDs
+    const targetServices = allAssets.filter(asset => 
+      serviceAssetTypeIds.includes(asset.asset_type_id)
+    );
+    
+    console.log(`🎯 Filtered to ${targetServices.length} assets matching target asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+    
+    // Show breakdown by asset type
+    const targetTypeBreakdown = {};
+    targetServices.forEach(service => {
+      const typeId = service.asset_type_id;
+      if (!targetTypeBreakdown[typeId]) {
+        targetTypeBreakdown[typeId] = 0;
+      }
+      targetTypeBreakdown[typeId]++;
+    });
+    console.log('📊 Target services by asset type ID:', targetTypeBreakdown);
+    
+    // Show which target asset types have no assets
+    serviceAssetTypeIds.forEach(targetId => {
+      if (!targetTypeBreakdown[targetId]) {
+        console.log(`⚠️ No assets found for target asset type ID: ${targetId}`);
+      }
+    });
+    
+    // Show which asset types we found that aren't in our target list
+    const foundNonTargetTypes = [...new Set(allAssets.map(a => a.asset_type_id))].filter(id => 
+      !serviceAssetTypeIds.includes(id)
+    );
+    if (foundNonTargetTypes.length > 0) {
+      console.log(`📋 Other asset types found (not in target list): ${foundNonTargetTypes.slice(0, 10).join(', ')}${foundNonTargetTypes.length > 10 ? '...' : ''}`);
+    }
+    
+    const allServices = targetServices;
     
     // Remove duplicates based on asset ID
     const uniqueServices = [];
