@@ -2136,41 +2136,8 @@ function searchRequesters(e) {
     return;
   }
 
-  // Show loading indicator
-  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-  resultsContainer.style.display = 'block';
-  
-  // Check cache first
-  getFromSearchCache('requesters', searchTerm).then(cachedResults => {
-    if (cachedResults) {
-      // Use cached results
-      displaySearchResults('requester-results', cachedResults, selectRequester);
-      
-      // Get the configured search cache timeout
-      getInstallationParams().then(params => {
-        const searchCacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
-        
-        // Set a timer to check for fresh results after the timeout
-        setTimeout(() => {
-          // Only perform API call if the search term is still the current one
-          const currentSearchTerm = document.getElementById('requester-search').value.trim();
-          if (currentSearchTerm === searchTerm) {
-            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing requester search for: ${searchTerm}`);
-            performRequesterSearch(searchTerm, true);
-          }
-        }, searchCacheTimeout);
-      });
-      
-      return;
-    }
-    
-    // No cache hit, perform search immediately
-    performRequesterSearch(searchTerm);
-  }).catch(error => {
-    console.error('Error checking requester search cache:', error);
-    // Fallback to direct search on cache error
-    performRequesterSearch(searchTerm);
-  });
+  // Show loading indicator and perform search immediately
+  performRequesterSearch(searchTerm);
 }
 
 /**
@@ -4074,91 +4041,988 @@ function performRequesterSearch(searchTerm, isRefresh = false) {
     return;
   }
 
-  // Use field-specific format for requesters API
-  const requesterQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  console.log(`Performing requester search for: "${searchTerm}"`);
   
-  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} requester search with query:`, requesterQuery);
+  // Show loading indicator
+  const resultsContainer = document.getElementById('requester-results');
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Use simple search without complex query encoding
+  const requestUrl = `?per_page=50`;
+  
+  window.client.request.invokeTemplate("getRequesters", {
+    path_suffix: requestUrl
+  })
+  .then(function(data) {
+    try {
+      if (!data || !data.response) {
+        console.error('No data returned from requester search');
+        resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">No response from API</div>';
+        return;
+      }
+      
+      const response = JSON.parse(data.response);
+      const requesters = response.requesters || [];
+      
+      console.log(`API returned ${requesters.length} requesters, filtering for "${searchTerm}"`);
+      
+      // Filter results client-side
+      const filteredRequesters = requesters.filter(requester => {
+        const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
+        const email = (requester.email || '').toLowerCase();
+        const term = searchTerm.toLowerCase();
+        return fullName.includes(term) || email.includes(term);
+      });
+      
+      console.log(`Filtered to ${filteredRequesters.length} matching requesters`);
+      
+      // Display results
+      displaySearchResults('requester-results', filteredRequesters, selectRequester);
+      
+    } catch (error) {
+      console.error('Error parsing requester response:', error);
+      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">Error parsing response</div>';
+    }
+  })
+  .catch(function(error) {
+    console.error('Requester API request failed:', error);
+    resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API request failed</div>';
+  });
+}
+
+/**
+ * Search for agents using Freshservice API
+ */
+function searchAgents(e) {
+  const searchTerm = e.target.value.trim();
+  const resultsContainer = document.getElementById('agent-results');
+  
+  // Clear and hide results if search term is too short
+  if (searchTerm.length < 3) {
+    resultsContainer.style.display = 'none';
+    return;
+  }
+
+  // Show loading indicator
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Check cache first
+  getFromSearchCache('agents', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      displaySearchResults('agent-results', cachedResults, selectAgent);
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
+        
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchTerm = document.getElementById('agent-search').value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing agent search for: ${searchTerm}`);
+            performAgentSearch(searchTerm, true);
+          }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
+    
+    // No cache hit, perform search immediately
+    performAgentSearch(searchTerm);
+  }).catch(error => {
+    console.error('Error checking agent search cache:', error);
+    // Fallback to direct search on cache error
+    performAgentSearch(searchTerm);
+  });
+}
+
+/**
+ * Perform the actual API search for agents
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+function performAgentSearch(searchTerm, isRefresh = false) {
+  // Ensure client is available
+  if (!window.client || !window.client.request) {
+    console.error('Client or request object not available for agent search');
+    handleErr('API client not initialized. Please refresh the page.');
+    return;
+  }
+
+  // Use field-specific format for agents API
+  const agentQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  
+  console.log(`${isRefresh ? 'Refreshing' : 'Performing'} agent search with query:`, agentQuery);
   
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
-    const resultsContainer = document.getElementById('requester-results');
+    const resultsContainer = document.getElementById('agent-results');
     resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
     resultsContainer.style.display = 'block';
   }
   
-  // Function to load requester results from a specific page
-  function loadRequestersPage(page = 1, allResults = []) {
+  // Function to load agent results from a specific page
+  function loadAgentsPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${requesterQuery}&page=${page}&per_page=30`;
+    const requestUrl = `?query=${agentQuery}&page=${page}&per_page=30`;
+    console.log('Agent API URL:', requestUrl);
     
-    window.client.request.invokeTemplate("getRequesters", {
+    window.client.request.invokeTemplate("getAgents", {
       path_suffix: requestUrl
     })
     .then(function(data) {
       try {
         if (!data) {
-          console.error('No data returned from requester search');
-          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+          console.error('No data returned from agent search');
+          finalizeAgentSearch(searchTerm, allResults, isRefresh);
           return;
         }
         
-        const response = JSON.parse(data.response || '{"requesters":[]}');
-        const requesters = response && response.requesters ? response.requesters : [];
+        console.log('Agent search raw response:', data.response);
+        const response = JSON.parse(data.response || '{"agents":[]}');
+        const agents = response && response.agents ? response.agents : [];
+        console.log(`Agent search returned ${agents.length} results`);
         
         // Manual filtering if the API filtering isn't working
-        const filteredRequesters = requesters.filter(requester => {
-          const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
-          const email = (requester.email || '').toLowerCase();
+        const filteredAgents = agents.filter(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
           const term = searchTerm.toLowerCase();
           return fullName.includes(term) || email.includes(term);
         });
         
+        console.log(`Manual filtering returned ${filteredAgents.length} results`);
+        
         // Combine with previous results
-        const combinedResults = [...allResults, ...filteredRequesters];
+        const combinedResults = [...allResults, ...filteredAgents];
         
         // If we got a full page of results, there might be more
-        if (requesters.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
+        if (agents.length === 30 && page < 3) { // Limit to 3 pages (90 results) max
           // Load next page
-          setTimeout(() => {
-            loadRequestersPage(page + 1, combinedResults);
-          }, 500);
+          (async function() {
+            const params = await getInstallationParams();
+            const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+            
+            updateLoadingMessage('agent-results', `Loading more results... (page ${page + 1})`);
+            setTimeout(() => {
+              loadAgentsPage(page + 1, combinedResults);
+            }, paginationDelay);
+          })().catch(err => {
+            console.error('Error getting pagination delay:', err);
+            // Default delay if error
+            setTimeout(() => {
+              loadAgentsPage(page + 1, combinedResults);
+            }, DEFAULT_PAGINATION_DELAY);
+          });
         } else {
           // Complete the search with all results
-          finalizeRequesterSearch(searchTerm, combinedResults, isRefresh);
+          finalizeAgentSearch(searchTerm, combinedResults, isRefresh);
         }
       } catch (error) {
-        console.error('Error parsing requester response:', error);
+        console.error('Error parsing response:', error);
         // Complete with existing results
-        finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+        finalizeAgentSearch(searchTerm, allResults, isRefresh);
       }
     })
     .catch(function(error) {
-      console.error('Requester API request failed:', error);
+      console.error('API request failed:', error);
       // Complete with existing results
-      finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+      finalizeAgentSearch(searchTerm, allResults, isRefresh);
     });
   }
   
   // Start loading from page 1
-  loadRequestersPage(1, []);
+  loadAgentsPage(1, []);
 }
 
 /**
- * Finalize requester search with results
+ * Finalize agent search with results
  * @param {string} searchTerm - Original search term
  * @param {Array} results - Search results
  * @param {boolean} isRefresh - Whether this is a cache refresh operation
  */
-// eslint-disable-next-line no-unused-vars
-function finalizeRequesterSearch(searchTerm, results, isRefresh) {
+function finalizeAgentSearch(searchTerm, results, isRefresh) {
   // Cache the results
-  addToSearchCache('requesters', searchTerm, results);
+  addToSearchCache('agents', searchTerm, results);
   
-  // Display all results
-  displaySearchResults('requester-results', results, selectRequester);
+  // Display all results with refresh status for logging
+  console.log(`Displaying ${results.length} agent results (refresh: ${isRefresh})`);
+  displaySearchResults('agent-results', results, selectAgent);
   
   // Add individual users to the user cache for later use
   if (results.length > 0) {
+    cacheIndividualUsers(results, 'agent');
+  }
+}
+
+/**
+ * Display search results in the specified container
+ * @param {string} containerId - ID of the container element
+ * @param {Array} results - Search results to display
+ * @param {Function} selectCallback - Callback function when a result is selected
+ */
+function displaySearchResults(containerId, results, selectCallback) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  if (results.length === 0) {
+    container.innerHTML = '<div class="text-center p-3">No results found</div>';
+    return;
+  }
+
+  // Sort results by name
+  results.sort((a, b) => {
+    const nameA = `${a.first_name || ''} ${a.last_name || ''}`.trim().toLowerCase();
+    const nameB = `${b.first_name || ''} ${b.last_name || ''}`.trim().toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  // Create results list
+  let html = '<div class="list-group">';
+  results.forEach(result => {
+    const name = `${result.first_name || ''} ${result.last_name || ''}`.trim() || 'Unknown';
+    const email = result.email || result.primary_email || '';
+    const jobTitle = result.job_title || '';
+    const department = result.department_names ? result.department_names[0] : '';
+    
+    // Check if this is an agent who can be a requester
+    const isAgentAsRequester = result._isAgent && result._canBeRequester;
+    const userTypeIndicator = isAgentAsRequester ? 
+      '<span class="badge bg-info ms-2">Agent</span>' : '';
+    
+    html += `
+      <button type="button" class="list-group-item list-group-item-action" data-id="${result.id}">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-bold">${name}${userTypeIndicator}</div>
+            <div class="text-secondary small"><i class="fas fa-envelope me-1"></i>${email}</div>
+          </div>
+          <div class="text-end">
+            ${jobTitle ? `<div class="small text-muted"><i class="fas fa-briefcase me-1"></i>${jobTitle}</div>` : ''}
+            ${department ? `<div class="small text-muted"><i class="fas fa-building me-1"></i>${department}</div>` : ''}
+          </div>
+        </div>
+      </button>
+    `;
+  });
+  html += '</div>';
+  
+  container.innerHTML = html;
+  
+  // Add click handlers
+  container.querySelectorAll('.list-group-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const selectedId = parseInt(item.dataset.id);
+      const selectedResult = results.find(r => r.id === selectedId);
+      if (selectedResult) {
+        selectCallback(selectedResult);
+        container.style.display = 'none';
+      }
+    });
+  });
+}
+
+/**
+ * Update the loading message in a results container
+ * @param {string} containerId - ID of the container element
+ * @param {string} message - Message to display
+ */
+function updateLoadingMessage(containerId, message) {
+  const container = document.getElementById(containerId);
+  if (container) {
+    container.innerHTML = `<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> ${message}</div>`;
+  }
+}
+
+/**
+ * Cache individual users for later use
+ * @param {Array} users - Array of user objects to cache
+ * @param {string} type - Type of users ('requester' or 'agent')
+ */
+async function cacheIndividualUsers(users, type) {
+  try {
+    const cachedUsers = await getCachedUsers();
+    
+    users.forEach(user => {
+      if (user && user.id) {
+        const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+        
+        // Determine the actual user type for caching
+        let cacheType = type;
+        if (type === 'requester' && user._isAgent) {
+          // This is an agent found in requester search, cache as 'both'
+          cacheType = 'both';
+        }
+        
+        // Clean the user data before caching
+        const cleanUser = { ...user };
+        delete cleanUser._isAgent;
+        delete cleanUser._canBeRequester;
+        
+        cachedUsers[user.id] = {
+          name: userName,
+          data: cleanUser,
+          timestamp: Date.now(),
+          type: cacheType
+        };
+      }
+    });
+    
+    await cacheUsers(cachedUsers);
+    console.log(`Cached ${users.length} individual users as ${type}s`);
+  } catch (error) {
+    console.error(`Error caching individual users as ${type}s:`, error);
+  }
+}
+
+/**
+ * Get installation parameters from iparams
+ * @returns {Promise<Object>} Installation parameters
+ */
+async function getInstallationParams() {
+  try {
+    // Check if client is available
+    if (!window.client || !window.client.iparams) {
+      console.warn('Client or iparams not available, using default parameters');
+      return getDefaultParams();
+    }
+
+    // Get iparams using client.iparams.get()
+    const iparams = await window.client.iparams.get();
+    if (!iparams) {
+      console.warn('No installation parameters found, using defaults');
+      return getDefaultParams();
+    }
+
+    // Parse and validate the parameters
+    return {
+      // Asset type configuration
+      assetTypeNames: iparams.assetTypeNames || 'Software, IT Software, ISP',
+      
+      // Cache timeouts
+      searchCacheTimeout: parseInt(iparams.searchCacheTimeout) || DEFAULT_SEARCH_CACHE_TIMEOUT,
+      paginationDelay: parseInt(iparams.paginationDelay) || DEFAULT_PAGINATION_DELAY,
+      
+      // API rate limiting
+      safetyMargin: parseInt(iparams.safetyMargin) || DEFAULT_SAFETY_MARGIN,
+      
+      // Page limits for API calls
+      listRequestersPageLimit: parseInt(iparams.listRequestersPageLimit) || 3,
+      listAgentsPageLimit: parseInt(iparams.listAgentsPageLimit) || 3,
+      
+      // Other configuration
+      enableDebugMode: iparams.enableDebugMode === 'true',
+      customFields: iparams.customFields || {}
+    };
+  } catch (error) {
+    console.error('Error getting installation parameters:', error);
+    return getDefaultParams();
+  }
+}
+
+/**
+ * Get default parameters when iparams are not available
+ * @returns {Object} Default parameters
+ */
+function getDefaultParams() {
+  return {
+    assetTypeNames: 'Software, IT Software, ISP',
+    searchCacheTimeout: DEFAULT_SEARCH_CACHE_TIMEOUT,
+    paginationDelay: DEFAULT_PAGINATION_DELAY,
+    safetyMargin: DEFAULT_SAFETY_MARGIN,
+    listRequestersPageLimit: 3,
+    listAgentsPageLimit: 3,
+    enableDebugMode: false,
+    customFields: {}
+  };
+}
+
+/**
+ * Get cached search results
+ * @param {string} type - Type of search (requesters, agents, assets)
+ * @param {string} searchTerm - Search term
+ * @returns {Promise<Array|null>} Cached results or null if not found
+ */
+async function getFromSearchCache(type, searchTerm) {
+  if (!searchCache[type] || !searchCache[type][searchTerm]) {
+    return null;
+  }
+  
+  const cachedData = searchCache[type][searchTerm];
+  const currentTime = Date.now();
+  
+  // Get the configured search cache timeout
+  const params = await getInstallationParams();
+  const cacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
+  
+  // Check if the cache is still valid
+  if (currentTime - cachedData.timestamp < cacheTimeout) {
+    console.log(`✅ Cache hit for ${type} search: "${searchTerm}" (${cachedData.results.length} items)`);
+    return cachedData.results;
+  } else {
+    console.log(`⏰ Cache expired for ${type} search: "${searchTerm}"`);
+    // Remove expired cache entry
+    delete searchCache[type][searchTerm];
+  }
+  
+  return null;
+}
+
+/**
+ * Add search results to cache
+ * @param {string} type - Type of search (requesters, agents, assets)
+ * @param {string} searchTerm - Search term
+ * @param {Array} results - Search results to cache
+ */
+function addToSearchCache(type, searchTerm, results) {
+  if (!searchCache[type]) {
+    searchCache[type] = {};
+  }
+  
+  searchCache[type][searchTerm] = {
+    results: results,
+    timestamp: Date.now()
+  };
+  
+  console.log(`💾 Cached ${results.length} ${type} results for "${searchTerm}"`);
+}
+
+/**
+ * Search for assets (handles both main asset search and asset association)
+ */
+function searchAssets(e) {
+  const searchTerm = e.target ? e.target.value.trim() : '';
+  const searchInputId = e.target ? e.target.id : '';
+  
+  // Determine which search container to use
+  let resultsContainer;
+  let selectionCallback;
+  
+  if (searchInputId === 'asset-search') {
+    // Asset association search
+    resultsContainer = document.getElementById('asset-search-results');
+    selectionCallback = selectAsset; // This will be our updated selectAsset for associations
+  } else {
+    // Main asset search (existing functionality)
+    resultsContainer = document.getElementById('asset-results');
+    selectionCallback = selectAsset; // Keep existing behavior for main search
+  }
+  
+  // Clear and hide results if search term is too short
+  if (searchTerm.length < 3) {
+    if (resultsContainer) {
+      resultsContainer.style.display = 'none';
+    }
+    return;
+  }
+
+  // Show loading indicator
+  if (resultsContainer) {
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.style.display = 'block';
+  }
+  
+  // Check cache first
+  getFromSearchCache('assets', searchTerm).then(cachedResults => {
+    if (cachedResults) {
+      // Use cached results
+      if (searchInputId === 'asset-search') {
+        displayAssetAssociationResults(cachedResults);
+      } else {
+        displayAssetResults('asset-results', cachedResults, selectionCallback);
+      }
+      
+      // Get the configured search cache timeout
+      getInstallationParams().then(params => {
+        const searchCacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
+        
+        // Set a timer to check for fresh results after the timeout
+        setTimeout(() => {
+          // Only perform API call if the search term is still the current one
+          const currentSearchInput = document.getElementById(searchInputId);
+          const currentSearchTerm = currentSearchInput?.value.trim();
+          if (currentSearchTerm === searchTerm) {
+            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
+            performAssetSearch(searchTerm, true, searchInputId);
+          }
+        }, searchCacheTimeout);
+      });
+      
+      return;
+    }
+    
+    // No cache hit, perform search immediately
+    performAssetSearch(searchTerm, false, searchInputId);
+  }).catch(error => {
+    console.error('Error checking asset search cache:', error);
+    // Fallback to direct search on cache error
+    performAssetSearch(searchTerm, false, searchInputId);
+  });
+}
+
+/**
+ * Perform the actual API search for assets
+ * @param {string} searchTerm - The search term
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) {
+  // Check for client availability
+  if (!window.client || !window.client.request) {
+    console.error('Client not available for asset search');
+    const resultsContainer = document.getElementById(searchInputId);
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized</div>';
+    }
+    return;
+  }
+
+  // Only show loading indicator for non-refresh operations
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById(searchInputId);
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+      resultsContainer.style.display = 'block';
+    }
+  }
+  
+  try {
+    // Get configured asset type IDs
+    const assetTypeIds = await getConfiguredAssetTypeIds();
+    console.log(`Searching assets with term: "${searchTerm}" in asset types: ${assetTypeIds.join(', ')}`);
+    
+    // Build search query
+    const assetTypeFilter = assetTypeIds.length > 0 ? 
+      `(${assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    const nameFilter = `name:'*${searchTerm}*'`;
+    const query = assetTypeFilter ? 
+      `${assetTypeFilter} AND ${nameFilter}` : 
+      nameFilter;
+    
+    const requestUrl = `?query=${encodeURIComponent(query)}&per_page=50`;
+    
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    });
+    
+    if (!response || !response.response) {
+      throw new Error('Invalid response from assets API');
+    }
+    
+    const data = JSON.parse(response.response);
+    const assets = data.assets || [];
+    
+    // Process and filter results
+    const filteredAssets = assets.filter(asset => {
+      const assetName = (asset.display_name || asset.name || '').toLowerCase();
+      return assetName.includes(searchTerm.toLowerCase());
+    });
+    
+    // Cache the results
+    addToSearchCache('assets', searchTerm, filteredAssets);
+    
+    // Display results based on search type
+    if (searchInputId === 'asset-search') {
+      displayAssetAssociationResults(filteredAssets);
+    } else {
+      displayAssetResults('asset-results', filteredAssets, selectAsset);
+    }
+    
+    console.log(`Asset search completed: ${filteredAssets.length} results for "${searchTerm}"`);
+    
+  } catch (error) {
+    console.error('Error submitting change request:', error);
+    
+    // Show error notification
+    showNotification('error', `Failed to submit change request: ${error.message}. Please try again.`);
+    
+  } finally {
+    // Re-enable button
+    confirmSubmitBtn.disabled = false;
+    confirmSubmitBtn.innerHTML = 'Confirm & Submit';
+  }
+}
+
+/**
+ * Map internal change type to Freshservice change type
+ */
+function mapChangeType(changeType) {
+  const typeMapping = {
+    'standard': 1,
+    'emergency': 3,
+    'non-standard': 2
+  };
+  return typeMapping[changeType] || 1;
+}
+
+/**
+ * Map risk level to Freshservice priority
+ */
+function mapRiskToPriority(riskLevel) {
+  const priorityMapping = {
+    'Low': 1,      // Low priority
+    'Medium': 2,   // Medium priority
+    'High': 3      // High priority
+  };
+  return priorityMapping[riskLevel] || 2;
+}
+
+/**
+ * Generate change request subject
+ */
+function generateChangeSubject() {
+  const requesterName = changeRequestData.requester ? 
+    `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() : 
+    'Unknown';
+  
+  const changeTypeLabel = changeRequestData.changeType || 'Standard';
+  const riskLevel = changeRequestData.riskAssessment.riskLevel || 'Unknown';
+  
+  return `${changeTypeLabel} Change Request - ${riskLevel} Risk - Requested by ${requesterName}`;
+}
+
+/**
+ * Generate change request description
+ */
+function generateChangeDescription() {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    return new Date(dateString).toLocaleString();
+  };
+
+  return `
+=== CHANGE REQUEST DETAILS ===
+
+Requester: ${changeRequestData.requester ? 
+  `${changeRequestData.requester.first_name || ''} ${changeRequestData.requester.last_name || ''}`.trim() + 
+  ` (${changeRequestData.requester.email || ''})` 
+  : 'Not specified'}
+
+Technical SME: ${changeRequestData.agent ? 
+  `${changeRequestData.agent.first_name || ''} ${changeRequestData.agent.last_name || ''}`.trim() + 
+  ` (${changeRequestData.agent.email || ''})` 
+  : 'Not specified'}
+
+Change Type: ${changeRequestData.changeType || 'Standard'}
+Lead Time: ${changeRequestData.leadTime || '2 business days'}
+
+=== TIMING ===
+Planned Start: ${formatDate(changeRequestData.plannedStart)}
+Planned End: ${formatDate(changeRequestData.plannedEnd)}
+
+=== IMPLEMENTATION PLAN ===
+${changeRequestData.implementationPlan || 'Not provided'}
+
+=== BACKOUT (RECOVERY) PLAN ===
+${changeRequestData.backoutPlan || 'Not provided'}
+
+=== VALIDATION PLAN ===
+${changeRequestData.validationPlan || 'Not provided'}
+
+=== RISK ASSESSMENT ===
+Risk Score: ${changeRequestData.riskAssessment.totalScore}
+Risk Level: ${changeRequestData.riskAssessment.riskLevel}
+
+Risk Assessment Details:
+- Business Impact: ${getRiskLabel('businessImpact', changeRequestData.riskAssessment.businessImpact)}
+- Affected Users: ${getRiskLabel('affectedUsers', changeRequestData.riskAssessment.affectedUsers)}
+- Complexity: ${getRiskLabel('complexity', changeRequestData.riskAssessment.complexity)}
+- Testing Level: ${getRiskLabel('testing', changeRequestData.riskAssessment.testing)}
+- Rollback Plan: ${getRiskLabel('rollback', changeRequestData.riskAssessment.rollback)}
+
+=== SUBMISSION INFO ===
+Submitted via Change Request App
+Submission Date: ${new Date().toLocaleString()}
+  `.trim();
+}
+
+/**
+ * Get risk assessment label for description
+ */
+function getRiskLabel(category, value) {
+  const labels = {
+    businessImpact: ['Low', 'Medium', 'High'],
+    affectedUsers: ['Few (<50)', 'Some (50-200)', 'Many (>200)'],
+    complexity: ['Simple', 'Moderate', 'Complex'],
+    testing: ['Comprehensive', 'Adequate', 'Limited'],
+    rollback: ['Yes - Detailed', 'Partial', 'No']
+  };
+  
+  return value > 0 ? labels[category][value - 1] : 'Not answered';
+}
+
+/**
+ * Reset form after successful submission
+ */
+function resetForm() {
+  // Reset change request data
+  Object.assign(changeRequestData, {
+    requester: null,
+    agent: null,
+    changeType: 'standard',
+    leadTime: '2 business days',
+    plannedStart: '',
+    plannedEnd: '',
+    implementationPlan: '',
+    backoutPlan: '',
+    validationPlan: '',
+    selectedServices: [],
+    selectedAssets: [],
+    riskAssessment: {
+      businessImpact: 0,
+      affectedUsers: 0,
+      complexity: 0,
+      testing: 0,
+      rollback: 0,
+      totalScore: 0,
+      riskLevel: ''
+    }
+  });
+
+  // Clear form fields
+  document.getElementById('requester-search').value = '';
+  document.getElementById('agent-search').value = '';
+  document.getElementById('planned-start').value = '';
+  document.getElementById('planned-end').value = '';
+  document.getElementById('implementation-plan').value = '';
+  document.getElementById('backout-plan').value = '';
+  document.getElementById('validation-plan').value = '';
+
+  // Clear asset association dropdown and search fields
+  const serviceSelect = document.getElementById('service-select');
+  const assetSearch = document.getElementById('asset-search');
+  if (serviceSelect) serviceSelect.value = '';
+  if (assetSearch) assetSearch.value = '';
+
+  // Clear selected users displays
+  const selectedRequester = document.getElementById('selected-requester');
+  const selectedAgent = document.getElementById('selected-agent');
+  if (selectedRequester) selectedRequester.style.display = 'none';
+  if (selectedAgent) selectedAgent.style.display = 'none';
+
+  // Clear selected services and assets displays
+  updateSelectedServicesDisplay();
+  updateSelectedAssetsDisplay();
+  updateAssociationCounts();
+
+  // Clear risk assessment
+  document.querySelectorAll('.risk-options input[type="radio"]').forEach(radio => {
+    radio.checked = false;
+  });
+
+  // Hide risk results
+  const riskResult = document.getElementById('risk-result');
+  if (riskResult) {
+    riskResult.classList.add('hidden');
+    riskResult.style.display = 'none';
+  }
+
+  // Reset change type to default
+  const changeTypeSelect = document.getElementById('change-type');
+  if (changeTypeSelect) {
+    changeTypeSelect.value = 'standard';
+  }
+
+  // Re-initialize defaults
+  initializeChangeTypeDefaults();
+
+  // Switch back to first tab
+  switchTab('change-details');
+
+  console.log('Form reset completed');
+}
+
+/**
+ * Search for services for asset association
+ */
+function searchServices(e) {
+  const searchTerm = e.target.value.trim();
+  const resultsContainer = document.getElementById('service-search-results');
+  
+  // Clear and hide results if search term is too short
+  if (searchTerm.length < 2) {
+    resultsContainer.style.display = 'none';
+    return;
+  }
+
+  // Show loading indicator
+  resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+  resultsContainer.style.display = 'block';
+  
+  // Filter from cached services
+  getServices().then(services => {
+    const filteredServices = services.filter(service => {
+      const serviceName = (service.display_name || service.name || '').toLowerCase();
+      const description = (service.description || '').toLowerCase();
+      const term = searchTerm.toLowerCase();
+      return serviceName.includes(term) || description.includes(term);
+    });
+    
+    // Display service results
+    displayServiceResults(filteredServices);
+  }).catch(error => {
+    console.error('Error searching services:', error);
+    resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">Error loading services</div>';
+  });
+}
+
+/**
+ * Display service search results
+ */
+function displayServiceResults(services) {
+  const container = document.getElementById('service-search-results');
+  if (!container) return;
+  
+  if (services.length === 0) {
+    container.innerHTML = '<div class="text-center p-3">No services found</div>';
+    return;
+  }
+  
+  // Sort services by name
+  services.sort((a, b) => {
+    const nameA = (a.display_name || a.name || '').toLowerCase();
+    const nameB = (b.display_name || b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  // Create results list
+  let html = '<div class="list-group">';
+  services.forEach(service => {
+    const name = service.display_name || service.name || 'Unknown';
+    const description = service.description || '';
+    const assetTypeId = service.asset_type_id;
+    
+    // Check if already selected
+    const isSelected = changeRequestData.selectedServices.some(s => s.id === service.id);
+    
+    html += `
+      <button type="button" class="list-group-item list-group-item-action ${isSelected ? 'disabled' : ''}" 
+              data-id="${service.id}" ${isSelected ? 'disabled' : ''}>
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-bold">${name} ${isSelected ? '<span class="badge bg-success ms-2">Selected</span>' : ''}</div>
+            ${description ? `<div class="text-secondary small">${description}</div>` : ''}
+          </div>
+          <div class="text-end">
+            <div class="small text-muted">Type ID: ${assetTypeId}</div>
+          </div>
+        </div>
+      </button>
+    `;
+  });
+  html += '</div>';
+  
+  container.innerHTML = html;
+  
+  // Add click handlers
+  container.querySelectorAll('.list-group-item:not(.disabled)').forEach(item => {
+    item.addEventListener('click', () => {
+      const selectedId = parseInt(item.dataset.id);
+      const selectedService = services.find(s => s.id === selectedId);
+      if (selectedService) {
+        selectService(selectedService);
+        container.style.display = 'none';
+        // Clear search input
+        document.getElementById('service-search').value = '';
+      }
+    });
+  });
+}
+
+/**
+ * Select a service for association
+ */
+function selectService(service) {
+  // Check if already selected
+  if (changeRequestData.selectedServices.some(s => s.id === service.id)) {
+    return;
+  }
+  
+  // Add to selected services
+  changeRequestData.selectedServices.push(service);
+  
+  // Update the display
+  updateSelectedServicesDisplay();
+  updateAssociationCounts();
+  
+  console.log('Service selected:', service);
+}
+
+/**
+ * Update the selected services display
+ */
+function updateSelectedServicesDisplay() {
+  const container = document.getElementById('selected-services-list');
+  if (!container) return;
+  
+  if (changeRequestData.selectedServices.length === 0) {
+    container.innerHTML = '<div class="text-muted">No services selected</div>';
+    return;
+  }
+  
+  let html = '<div class="selected-items">';
+  changeRequestData.selectedServices.forEach(service => {
+    const name = service.display_name || service.name || 'Unknown';
+    const description = service.description || '';
+    
+    html += `
+      <div class="selected-item d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+        <div>
+          <div class="fw-bold">${name}</div>
+          ${description ? `<div class="text-secondary small">${description}</div>` : ''}
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeService(${service.id})">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+  });
+  html += '</div>';
+  
+  container.innerHTML = html;
+}
+
+/**
+ * Remove a selected service
+ */
+function removeService(serviceId) {
+  changeRequestData.selectedServices = changeRequestData.selectedServices.filter(s => s.id !== serviceId);
+  updateSelectedServicesDisplay();
+  updateAssociationCounts();
+  console.log('Service removed:', serviceId);
+}
+
+/**
+ * Select an asset for association
+ */
+function selectAsset(asset) {
+  // Check if already selected
+  if (changeRequestData.selectedAssets.some(a => a.id === asset.id)) {
+    return;
+  }
+  
+  // Add to selected assets
+  changeRequestData.selectedAssets.push(asset);
+  
+  // Update the display
+  updateSelectedAssetsDisplay();
+  updateAssociationCounts();
+  
+  console.log('Asset selected:', asset);
+}
+
+/**
+ * Update the selected assets display
+ */
+function updateSelectedAssetsDisplay() {
+  const container = document.getElementById('selected-assets-list');
+  if (!container) return;
+  
+  if (changeRequestData.selectedAssets.length === 0) {
     cacheIndividualUsers(results, 'requester');
   }
 }
