@@ -5538,6 +5538,42 @@ window.testCacheManager = async function() {
       console.log('ℹ️ No locations found in cache to test');
     }
     
+    // Test asset search with type_fields
+    console.log('🔍 Testing asset search with type_fields...');
+    try {
+      const searchResults = await window.CacheManager.searchAssets('laptop', 'name');
+      console.log(`✅ Asset search returned ${searchResults.length} results`);
+      
+      if (searchResults.length > 0) {
+        const sampleAsset = searchResults[0];
+        console.log(`📦 Sample asset structure:`, {
+          id: sampleAsset.id,
+          name: sampleAsset.name,
+          asset_type_id: sampleAsset.asset_type_id,
+          has_type_fields: !!(sampleAsset.type_fields && sampleAsset.type_fields.length > 0),
+          type_fields_count: sampleAsset.type_fields ? sampleAsset.type_fields.length : 0
+        });
+        
+        // Test field extraction on the sample asset
+        if (sampleAsset.type_fields && sampleAsset.type_fields.length > 0) {
+          console.log('🔍 Testing field extraction on sample asset:');
+          const environment = window.CacheManager.getEnvironmentInfo(sampleAsset);
+          const managedBy = window.CacheManager.getManagedByInfo(sampleAsset);
+          console.log(`   Environment: "${environment}"`);
+          console.log(`   Managed By: "${managedBy}"`);
+          
+          // Show all type_fields for debugging
+          console.log(`📋 All type_fields for sample asset:`, sampleAsset.type_fields);
+        } else {
+          console.log('⚠️ Sample asset has no type_fields data');
+        }
+      } else {
+        console.log('ℹ️ No assets found in search results to test');
+      }
+    } catch (searchError) {
+      console.error('❌ Error testing asset search:', searchError);
+    }
+    
     // Show cache statistics
     const assetTypes = await window.CacheManager.getCachedAssetTypes();
     const locations = await window.CacheManager.getCachedLocations();
@@ -5560,6 +5596,22 @@ window.testCacheManager = async function() {
       sampleLocations.forEach(([id, location]) => {
         console.log(`   ${id}: "${location.name}"`);
       });
+    }
+    
+    // Test asset search cache functionality
+    console.log('🔍 Testing asset search cache functionality...');
+    try {
+      // First search (should hit API)
+      console.log('   First search (should hit API)...');
+      const firstSearch = await window.CacheManager.searchAssets('test', 'name');
+      
+      // Second search (should use cache)
+      console.log('   Second search (should use cache)...');
+      const secondSearch = await window.CacheManager.searchAssets('test', 'name');
+      
+      console.log(`   ✅ Cache test complete: ${firstSearch.length} and ${secondSearch.length} results`);
+    } catch (cacheError) {
+      console.error('❌ Error testing asset search cache:', cacheError);
     }
     
   } catch (error) {
@@ -5588,5 +5640,82 @@ window.clearAllCaches = async function() {
     
   } catch (error) {
     console.error('❌ Error clearing caches:', error);
+  }
+};
+
+/**
+ * Global debug function to test asset search with type_fields
+ * @param {string} searchTerm - Term to search for (defaults to 'laptop')
+ * @param {string} searchField - Field to search in (defaults to 'name')
+ */
+window.testAssetSearchWithTypeFields = async function(searchTerm = 'laptop', searchField = 'name') {
+  try {
+    console.log('🔧 === TESTING ASSET SEARCH WITH TYPE_FIELDS ===');
+    console.log(`🔍 Searching for "${searchTerm}" in field "${searchField}"`);
+    
+    if (!window.CacheManager) {
+      console.error('❌ CacheManager not available');
+      return;
+    }
+    
+    // Perform the search
+    const searchResults = await window.CacheManager.searchAssets(searchTerm, searchField);
+    console.log(`✅ Search returned ${searchResults.length} results`);
+    
+    if (searchResults.length === 0) {
+      console.log('ℹ️ No assets found. Try searching for a different term.');
+      return;
+    }
+    
+    // Analyze the first few results
+    const resultsToAnalyze = searchResults.slice(0, 3);
+    console.log(`📋 Analyzing first ${resultsToAnalyze.length} results:`);
+    
+    resultsToAnalyze.forEach((asset, index) => {
+      console.log(`\n📦 Asset ${index + 1}: "${asset.name}" (ID: ${asset.id})`);
+      console.log(`   Asset Type ID: ${asset.asset_type_id}`);
+      console.log(`   Description: ${asset.description || 'N/A'}`);
+      console.log(`   Location ID: ${asset.location_id || 'N/A'}`);
+      console.log(`   Asset Tag: ${asset.asset_tag || 'N/A'}`);
+      console.log(`   Serial Number: ${asset.serial_number || 'N/A'}`);
+      
+      // Check type_fields
+      if (asset.type_fields && Array.isArray(asset.type_fields)) {
+        console.log(`   ✅ Has type_fields: ${asset.type_fields.length} fields`);
+        
+        // Show all type_fields
+        asset.type_fields.forEach((field, fieldIndex) => {
+          console.log(`      ${fieldIndex + 1}. ${field.field_name || field.name || 'Unknown'}: "${field.value || field.field_value || field.display_value || 'N/A'}"`);
+        });
+        
+        // Test field extraction
+        const environment = window.CacheManager.getEnvironmentInfo(asset);
+        const managedBy = window.CacheManager.getManagedByInfo(asset);
+        
+        console.log(`   🔍 Extracted fields:`);
+        console.log(`      Environment: "${environment}"`);
+        console.log(`      Managed By: "${managedBy}"`);
+        
+      } else {
+        console.log(`   ❌ No type_fields found`);
+      }
+    });
+    
+    // Test cache functionality
+    console.log(`\n🔄 Testing cache functionality with same search...`);
+    const startTime = Date.now();
+    const cachedResults = await window.CacheManager.searchAssets(searchTerm, searchField);
+    const endTime = Date.now();
+    
+    console.log(`✅ Cached search returned ${cachedResults.length} results in ${endTime - startTime}ms`);
+    console.log(`📊 Cache working: ${cachedResults.length === searchResults.length ? 'YES' : 'NO'}`);
+    
+    // Clean cache for testing
+    console.log(`\n🧹 Testing cache cleanup...`);
+    await window.CacheManager.cleanAssetSearchCache();
+    console.log(`✅ Cache cleanup completed`);
+    
+  } catch (error) {
+    console.error('❌ Error testing asset search with type_fields:', error);
   }
 };

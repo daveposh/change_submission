@@ -12,7 +12,8 @@ const CacheManager = {
   STORAGE_KEYS: {
     ASSET_TYPE_CACHE: 'asset_type_cache',
     LOCATION_CACHE: 'location_cache',
-    USER_CACHE: 'user_cache'
+    USER_CACHE: 'user_cache',
+    ASSET_SEARCH_CACHE: 'asset_search_cache'
   },
 
   /**
@@ -470,11 +471,278 @@ const CacheManager = {
     try {
       await window.client.db.set(this.STORAGE_KEYS.ASSET_TYPE_CACHE, {});
       await window.client.db.set(this.STORAGE_KEYS.LOCATION_CACHE, {});
+      await window.client.db.set(this.STORAGE_KEYS.ASSET_SEARCH_CACHE, {});
       console.log('✅ All caches cleared');
       return true;
     } catch (error) {
       console.error('❌ Error clearing caches:', error);
       return false;
+    }
+  },
+
+  /**
+   * Search assets from API with type_fields included
+   * @param {string} searchTerm - The search term
+   * @param {string} searchField - The field to search (optional, defaults to 'name')
+   * @returns {Promise<Array>} - Array of matching assets with type_fields
+   */
+  async searchAssets(searchTerm, searchField = 'name') {
+    if (!searchTerm || searchTerm.trim().length < 2) {
+      return [];
+    }
+
+    console.log(`🔍 CacheManager: Searching assets for "${searchTerm}" in field "${searchField}"`);
+
+    // Check for client availability
+    if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
+      console.log('⚠️ Client or invokeTemplate not available for asset search');
+      return [];
+    }
+
+    // Check cache first
+    const cacheKey = `${searchField}:${searchTerm.toLowerCase()}`;
+    const cachedResults = await this.getCachedAssetSearch(cacheKey);
+    if (cachedResults) {
+      console.log(`📦 Using cached asset search results for "${searchTerm}"`);
+      return cachedResults;
+    }
+
+    try {
+      // Use field-specific search format as required by API: field:'searchterm'
+      const fieldQuery = `${searchField}:'${searchTerm}'`;
+      
+      console.log(`📡 CacheManager: API call with query "${fieldQuery}" and include=type_fields`);
+      
+      const templateContext = {
+        search_query: fieldQuery,
+        include_fields: "type_fields"
+      };
+      
+      const response = await window.client.request.invokeTemplate("getAssets", {
+        context: templateContext
+      });
+
+      if (!response || !response.response) {
+        console.log(`⚠️ No response from asset search`);
+        return [];
+      }
+
+      const data = JSON.parse(response.response);
+      const assets = data.assets || [];
+
+      console.log(`✅ CacheManager: Asset search returned ${assets.length} results with type_fields`);
+
+      // Log sample of type_fields structure for debugging
+      if (assets.length > 0 && assets[0].type_fields) {
+        console.log(`📋 Sample type_fields structure:`, assets[0].type_fields);
+      }
+
+      // Sort results by name for better UX
+      assets.sort((a, b) => {
+        const nameA = (a.display_name || a.name || '').toLowerCase();
+        const nameB = (b.display_name || b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      // Cache the results
+      await this.cacheAssetSearch(cacheKey, assets);
+
+      return assets;
+
+    } catch (error) {
+      console.error(`❌ CacheManager: Error searching assets:`, error);
+      return [];
+    }
+  },
+
+  /**
+   * Get cached asset search results
+   * @param {string} cacheKey - The cache key for the search
+   * @returns {Promise<Array|null>} - Cached results or null
+   */
+  async getCachedAssetSearch(cacheKey) {
+    try {
+      const cache = await window.client.db.get(this.STORAGE_KEYS.ASSET_SEARCH_CACHE);
+      if (!cache || !cache[cacheKey]) {
+        return null;
+      }
+
+      const cachedItem = cache[cacheKey];
+      
+      // Check if cache is expired
+      if (Date.now() - cachedItem.timestamp > this.CACHE_TIMEOUT) {
+        console.log(`⏰ Asset search cache expired for "${cacheKey}"`);
+        return null;
+      }
+
+      return cachedItem.results;
+    } catch (error) {
+      console.log('No asset search cache found or error:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Cache asset search results
+   * @param {string} cacheKey - The cache key for the search
+   * @param {Array} assets - Assets to cache
+   * @returns {Promise<boolean>} - Success status
+   */
+  async cacheAssetSearch(cacheKey, assets) {
+    try {
+      const existingCache = await window.client.db.get(this.STORAGE_KEYS.ASSET_SEARCH_CACHE) || {};
+      
+      existingCache[cacheKey] = {
+        results: assets,
+        timestamp: Date.now()
+      };
+
+      await window.client.db.set(this.STORAGE_KEYS.ASSET_SEARCH_CACHE, existingCache);
+      console.log(`📦 Cached ${assets.length} asset search results for "${cacheKey}"`);
+      return true;
+    } catch (error) {
+      console.error('Failed to save asset search cache:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Clear expired asset search cache entries
+   * @returns {Promise<boolean>} - Success status
+   */
+  async cleanAssetSearchCache() {
+    try {
+      const cache = await window.client.db.get(this.STORAGE_KEYS.ASSET_SEARCH_CACHE) || {};
+      const now = Date.now();
+      let cleaned = 0;
+
+      // Remove expired entries
+      Object.keys(cache).forEach(key => {
+        if (now - cache[key].timestamp > this.CACHE_TIMEOUT) {
+          delete cache[key];
+          cleaned++;
+        }
+      });
+
+      if (cleaned > 0) {
+        await window.client.db.set(this.STORAGE_KEYS.ASSET_SEARCH_CACHE, cache);
+        console.log(`🧹 Cleaned ${cleaned} expired asset search cache entries`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('❌ Error cleaning asset search cache:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Extract field value from asset type_fields (helper method)
+   * @param {Object} asset - The asset object
+   * @param {string} fieldName - The field name to extract
+   * @returns {string} - The field value or 'N/A' if not found
+   */
+  getAssetTypeField(asset, fieldName) {
+    try {
+      // Check if type_fields exists and has the field
+      if (asset.type_fields && Array.isArray(asset.type_fields)) {
+        const field = asset.type_fields.find(f => 
+          f.field_name === fieldName || 
+          f.name === fieldName ||
+          f.label === fieldName ||
+          f.field_label === fieldName
+        );
+        
+        if (field) {
+          // Handle different value property names
+          const value = field.value || field.field_value || field.display_value;
+          if (value !== null && value !== undefined && value !== '') {
+            return String(value);
+          }
+        }
+      }
+      
+      // Fallback to direct property access
+      if (asset[fieldName] !== null && asset[fieldName] !== undefined && asset[fieldName] !== '') {
+        return String(asset[fieldName]);
+      }
+      
+      return 'N/A';
+    } catch (error) {
+      console.warn(`Error extracting field ${fieldName} from asset:`, error);
+      return 'N/A';
+    }
+  },
+
+  /**
+   * Get managed by information from asset (helper method)
+   * @param {Object} asset - The asset object
+   * @returns {string} - The managed by information
+   */
+  getManagedByInfo(asset) {
+    try {
+      // First try to get from type_fields
+      const managedByField = this.getAssetTypeField(asset, 'managed_by');
+      if (managedByField && managedByField !== 'N/A') {
+        return managedByField;
+      }
+
+      // Try various direct property names
+      if (asset.managed_by_name) {
+        return asset.managed_by_name;
+      }
+      
+      if (asset.managed_by) {
+        return `User ID: ${asset.managed_by}`;
+      }
+      
+      // Try additional field variations in type_fields
+      const alternativeFields = ['managed_by_name', 'owner', 'assigned_to', 'responsible_user'];
+      for (const fieldName of alternativeFields) {
+        const value = this.getAssetTypeField(asset, fieldName);
+        if (value && value !== 'N/A') {
+          return value;
+        }
+      }
+      
+      return 'N/A';
+    } catch (error) {
+      console.warn('Error getting managed by info:', error);
+      return 'N/A';
+    }
+  },
+
+  /**
+   * Get environment information from asset (helper method)
+   * @param {Object} asset - The asset object
+   * @returns {string} - The environment information
+   */
+  getEnvironmentInfo(asset) {
+    try {
+      // First try to get from type_fields
+      const environmentField = this.getAssetTypeField(asset, 'environment');
+      if (environmentField && environmentField !== 'N/A') {
+        return environmentField;
+      }
+
+      // Try direct property access
+      if (asset.environment) {
+        return asset.environment;
+      }
+      
+      // Try additional field variations in type_fields
+      const alternativeFields = ['env', 'deployment_environment', 'stage'];
+      for (const fieldName of alternativeFields) {
+        const value = this.getAssetTypeField(asset, fieldName);
+        if (value && value !== 'N/A') {
+          return value;
+        }
+      }
+      
+      return 'N/A';
+    } catch (error) {
+      console.warn('Error getting environment info:', error);
+      return 'N/A';
     }
   }
 };

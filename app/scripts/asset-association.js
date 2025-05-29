@@ -245,6 +245,116 @@ const AssetAssociation = {
   },
 
   /**
+   * Extract field value from asset type_fields
+   * @param {Object} asset - The asset object
+   * @param {string} fieldName - The field name to extract
+   * @returns {string} - The field value or 'N/A' if not found
+   */
+  getAssetTypeField(asset, fieldName) {
+    try {
+      // Check if type_fields exists and has the field
+      if (asset.type_fields && Array.isArray(asset.type_fields)) {
+        const field = asset.type_fields.find(f => 
+          f.field_name === fieldName || 
+          f.name === fieldName ||
+          f.label === fieldName ||
+          f.field_label === fieldName
+        );
+        
+        if (field) {
+          // Handle different value property names
+          const value = field.value || field.field_value || field.display_value;
+          if (value !== null && value !== undefined && value !== '') {
+            return String(value);
+          }
+        }
+      }
+      
+      // Fallback to direct property access
+      if (asset[fieldName] !== null && asset[fieldName] !== undefined && asset[fieldName] !== '') {
+        return String(asset[fieldName]);
+      }
+      
+      return 'N/A';
+    } catch (error) {
+      console.warn(`Error extracting field ${fieldName} from asset:`, error);
+      return 'N/A';
+    }
+  },
+
+  /**
+   * Get managed by information from asset
+   * @param {Object} asset - The asset object
+   * @returns {string} - The managed by information
+   */
+  getManagedByInfo(asset) {
+    try {
+      // First try to get from type_fields
+      const managedByField = this.getAssetTypeField(asset, 'managed_by');
+      if (managedByField && managedByField !== 'N/A') {
+        return managedByField;
+      }
+
+      // Try various direct property names
+      if (asset.managed_by_name) {
+        return asset.managed_by_name;
+      }
+      
+      if (asset.managed_by) {
+        return `User ID: ${asset.managed_by}`;
+      }
+      
+      // Try additional field variations in type_fields
+      const alternativeFields = ['managed_by_name', 'owner', 'assigned_to', 'responsible_user'];
+      for (const fieldName of alternativeFields) {
+        const value = this.getAssetTypeField(asset, fieldName);
+        if (value && value !== 'N/A') {
+          return value;
+        }
+      }
+      
+      return 'N/A';
+    } catch (error) {
+      console.warn('Error getting managed by info:', error);
+      return 'N/A';
+    }
+  },
+
+  /**
+   * Get environment information from asset
+   * @param {Object} asset - The asset object
+   * @returns {string} - The environment information
+   */
+  getEnvironmentInfo(asset) {
+    try {
+      // First try to get from type_fields
+      const environmentField = this.getAssetTypeField(asset, 'environment');
+      if (environmentField && environmentField !== 'N/A') {
+        return environmentField;
+      }
+
+      // Try direct property access
+      if (asset.environment) {
+        return asset.environment;
+      }
+      
+      // Try additional field variations in type_fields
+      const alternativeFields = ['env', 'deployment_environment', 'stage'];
+      for (const fieldName of alternativeFields) {
+        const value = this.getAssetTypeField(asset, fieldName);
+        if (value && value !== 'N/A') {
+          return value;
+        }
+      }
+      
+      return 'N/A';
+    } catch (error) {
+      console.warn('Error getting environment info:', error);
+      return 'N/A';
+    }
+  },
+
+  /**
    * Display search results
    * @param {Array} assets - Array of assets to display
    */
@@ -264,12 +374,25 @@ const AssetAssociation = {
     
     // Process assets with asset type and location name resolution
     for (const asset of assets) {
+      // Log the asset structure for debugging
+      console.log(`📦 Asset structure for "${asset.name}":`, {
+        id: asset.id,
+        name: asset.name,
+        type_fields: asset.type_fields,
+        environment: asset.environment,
+        managed_by: asset.managed_by,
+        managed_by_name: asset.managed_by_name
+      });
+      
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
       const assetTypeId = asset.asset_type_id;
       const assetTypeName = await this.getAssetTypeName(assetTypeId);
-      const environment = asset.environment || 'N/A';
-      const managedBy = asset.managed_by_name || (asset.managed_by ? `User ID: ${asset.managed_by}` : 'N/A');
+      
+      // Use the new helper methods to extract field values
+      const environment = this.getEnvironmentInfo(asset);
+      const managedBy = this.getManagedByInfo(asset);
+      
       const locationId = asset.location_id;
       const location = await this.getLocationName(locationId);
       const assetTag = asset.asset_tag || 'N/A';
@@ -465,8 +588,11 @@ const AssetAssociation = {
       const description = asset.description || '';
       const assetTypeId = asset.asset_type_id;
       const assetTypeName = await this.getAssetTypeName(assetTypeId);
-      const environment = asset.environment || 'N/A';
-      const managedBy = asset.managed_by_name || (asset.managed_by ? `User ID: ${asset.managed_by}` : 'N/A');
+      
+      // Use the new helper methods to extract field values
+      const environment = this.getEnvironmentInfo(asset);
+      const managedBy = this.getManagedByInfo(asset);
+      
       const locationId = asset.location_id;
       const location = await this.getLocationName(locationId);
       const assetTag = asset.asset_tag || 'N/A';
@@ -851,36 +977,87 @@ const AssetAssociation = {
 
   /**
    * Setup description toggle event listeners
-   * @param {Element} container - Container element with toggle buttons
+   * @param {Element} container - Container element with description toggles
    */
   setupDescriptionToggles(container) {
-    const toggleButtons = container.querySelectorAll('.description-toggle');
-    
-    toggleButtons.forEach(button => {
-      button.addEventListener('click', (e) => {
+    container.querySelectorAll('.description-toggle').forEach(toggle => {
+      toggle.addEventListener('click', (e) => {
         e.preventDefault();
-        e.stopPropagation();
+        const targetId = toggle.dataset.target;
+        const targetElement = container.querySelector(`#${targetId}`);
+        const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
         
-        const targetId = button.dataset.target;
-        const descElement = document.getElementById(targetId);
-        
-        if (!descElement) return;
-        
-        const isExpanded = descElement.classList.contains('expanded');
-        
-        if (isExpanded) {
-          // Collapse
-          descElement.classList.remove('expanded');
-          descElement.classList.add('truncated');
-          button.textContent = 'Show more';
-        } else {
-          // Expand
-          descElement.classList.remove('truncated');
-          descElement.classList.add('expanded');
-          button.textContent = 'Show less';
+        if (targetElement) {
+          if (isExpanded) {
+            targetElement.style.display = 'none';
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.innerHTML = '<i class="fas fa-chevron-down"></i> Show Description';
+          } else {
+            targetElement.style.display = 'block';
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.innerHTML = '<i class="fas fa-chevron-up"></i> Hide Description';
+          }
         }
       });
     });
+  },
+
+  /**
+   * Debug function to test type_fields extraction for a specific asset
+   * @param {Object} asset - Asset object to analyze
+   */
+  debugAssetTypeFields(asset) {
+    console.log('🔧 === DEBUGGING ASSET TYPE FIELDS ===');
+    console.log(`📦 Asset: ${asset.name} (ID: ${asset.id})`);
+    console.log(`📋 Raw asset object:`, asset);
+    
+    if (asset.type_fields && Array.isArray(asset.type_fields)) {
+      console.log(`✅ type_fields found with ${asset.type_fields.length} fields:`);
+      asset.type_fields.forEach((field, index) => {
+        console.log(`   ${index + 1}. Field:`, field);
+        console.log(`      - field_name: "${field.field_name}"`);
+        console.log(`      - name: "${field.name}"`);
+        console.log(`      - label: "${field.label}"`);
+        console.log(`      - field_label: "${field.field_label}"`);
+        console.log(`      - value: "${field.value}"`);
+        console.log(`      - field_value: "${field.field_value}"`);
+        console.log(`      - display_value: "${field.display_value}"`);
+      });
+    } else {
+      console.log(`❌ No type_fields found or not an array`);
+    }
+    
+    // Test field extraction
+    console.log(`🔍 Testing field extraction:`);
+    console.log(`   Environment: "${this.getEnvironmentInfo(asset)}"`);
+    console.log(`   Managed By: "${this.getManagedByInfo(asset)}"`);
+    
+    // Test various field name variations
+    const fieldNames = ['environment', 'env', 'managed_by', 'managed_by_name', 'owner', 'assigned_to'];
+    fieldNames.forEach(fieldName => {
+      const value = this.getAssetTypeField(asset, fieldName);
+      console.log(`   ${fieldName}: "${value}"`);
+    });
+  }
+};
+
+// Global debug function to test asset type fields extraction
+window.debugAssetTypeFields = function(assetId) {
+  if (!window.AssetAssociation) {
+    console.error('❌ AssetAssociation module not available');
+    return;
+  }
+  
+  // Find asset in search results or selected assets
+  const asset = window.AssetAssociation.state.searchResults.find(a => a.id === assetId) ||
+                window.AssetAssociation.state.selectedAssets.find(a => a.id === assetId);
+  
+  if (asset) {
+    window.AssetAssociation.debugAssetTypeFields(asset);
+  } else {
+    console.error(`❌ Asset with ID ${assetId} not found in current results or selected assets`);
+    console.log(`📋 Available search results:`, window.AssetAssociation.state.searchResults.map(a => `${a.id}: ${a.name}`));
+    console.log(`📋 Available selected assets:`, window.AssetAssociation.state.selectedAssets.map(a => `${a.id}: ${a.name}`));
   }
 };
 
