@@ -1624,6 +1624,21 @@ function populateFormFields() {
 function setupEventListeners() {
   console.log('🎯 Setting up event listeners...');
   
+  // Tab event listeners
+  const assetAssociationTab = document.getElementById('asset-association-tab');
+  if (assetAssociationTab) {
+    assetAssociationTab.addEventListener('shown.bs.tab', function () {
+      // Initialize Asset Association Module when tab is first shown
+      if (window.AssetAssociation && !window.AssetAssociation._initialized) {
+        console.log('🔧 Initializing Asset Association Module...');
+        window.AssetAssociation.init();
+        window.AssetAssociation._initialized = true;
+        console.log('✅ Asset Association Module initialized');
+      }
+    });
+    console.log('✅ Asset Association tab listener added');
+  }
+  
   // Change type selection
   const changeTypeSelect = document.getElementById('change-type');
   if (changeTypeSelect) {

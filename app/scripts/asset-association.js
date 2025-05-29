@@ -127,7 +127,7 @@ const AssetAssociation = {
   },
 
   /**
-   * Search assets from API using client-side filtering
+   * Search assets from API using the search endpoint
    * @param {string} searchTerm - The search term
    * @returns {Promise<Array>} - Array of matching assets
    */
@@ -136,78 +136,41 @@ const AssetAssociation = {
       throw new Error('Client not available for asset search');
     }
 
-    const allResults = [];
-    let page = 1;
-    const maxPages = 5; // Limit for performance
-    
-    while (page <= maxPages) {
-      try {
-        const requestUrl = `?per_page=${this.config.pagination.perPage}&page=${page}`;
-        
-        console.log(`📄 Fetching assets page ${page}...`);
-        
-        const response = await window.client.request.invokeTemplate("getAssets", {
-          path_suffix: requestUrl
-        });
+    try {
+      // Use the search endpoint with the search query parameter
+      const requestUrl = `?search=${encodeURIComponent(searchTerm)}`;
+      
+      console.log(`🔍 Searching assets with query: "${searchTerm}"`);
+      console.log(`📡 Request URL: /api/v2/assets${requestUrl}`);
+      
+      const response = await window.client.request.invokeTemplate("getAssets", {
+        path_suffix: requestUrl
+      });
 
-        if (!response || !response.response) {
-          console.log(`⚠️ No response for page ${page}`);
-          break;
-        }
-
-        const data = JSON.parse(response.response);
-        const pageAssets = data.assets || [];
-
-        if (pageAssets.length === 0) {
-          console.log(`📄 No more assets on page ${page}`);
-          break;
-        }
-
-        // Filter assets by search term (client-side filtering)
-        const matchingAssets = pageAssets.filter(asset => {
-          const assetName = (asset.display_name || asset.name || '').toLowerCase();
-          const description = (asset.description || '').toLowerCase();
-          const term = searchTerm.toLowerCase();
-          
-          return assetName.includes(term) || description.includes(term);
-        });
-
-        allResults.push(...matchingAssets);
-        console.log(`📄 Page ${page}: ${matchingAssets.length} matching assets found`);
-
-        // Stop if we have enough results
-        if (allResults.length >= this.config.maxResults) {
-          console.log(`✅ Reached maximum results (${this.config.maxResults})`);
-          break;
-        }
-
-        // Stop if we didn't get a full page (no more data)
-        if (pageAssets.length < this.config.pagination.perPage) {
-          console.log(`📄 Partial page received, stopping search`);
-          break;
-        }
-
-        page++;
-
-        // Add delay between requests to be respectful to the API
-        if (page <= maxPages) {
-          await new Promise(resolve => setTimeout(resolve, this.config.paginationDelay));
-        }
-
-      } catch (error) {
-        console.error(`❌ Error fetching assets page ${page}:`, error);
-        break;
+      if (!response || !response.response) {
+        console.log(`⚠️ No response from asset search`);
+        return [];
       }
+
+      const data = JSON.parse(response.response);
+      const assets = data.assets || [];
+
+      console.log(`✅ Asset search returned ${assets.length} results`);
+
+      // Sort results by name for better UX
+      assets.sort((a, b) => {
+        const nameA = (a.display_name || a.name || '').toLowerCase();
+        const nameB = (b.display_name || b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      // Limit results if needed
+      return assets.slice(0, this.config.maxResults);
+
+    } catch (error) {
+      console.error(`❌ Error searching assets:`, error);
+      throw error;
     }
-
-    // Sort results by name for better UX
-    allResults.sort((a, b) => {
-      const nameA = (a.display_name || a.name || '').toLowerCase();
-      const nameB = (b.display_name || b.name || '').toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
-
-    return allResults.slice(0, this.config.maxResults); // Limit final results
   },
 
   /**
@@ -217,6 +180,9 @@ const AssetAssociation = {
   displaySearchResults(assets) {
     const resultsContainer = document.getElementById('asset-search-results');
     if (!resultsContainer) return;
+
+    // Store search results in state
+    this.state.searchResults = assets;
 
     if (assets.length === 0) {
       this.showSearchMessage('No assets found matching your search criteria');
