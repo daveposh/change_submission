@@ -173,18 +173,19 @@ const AssetAssociation = {
       // Determine the best field to search based on the search term pattern
       const searchField = this.getSearchField(searchTerm);
       
-      // Use field-specific search format: field:'searchterm'
-      // Let the template engine handle encoding - pass clean values
-      const fieldQuery = `${searchField}:'${searchTerm}'`;
+      // Simplified search - just use the search term directly
+      console.log(`🔍 Searching assets with search term: "${searchTerm}" (detected field: ${searchField})`);
+      console.log(`📡 Will construct URL: /api/v2/assets?search=${searchTerm}&include=type_fields`);
       
-      console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
-      console.log(`📡 Will construct URL: /api/v2/assets?search="${fieldQuery}"&include=type_fields`);
+      const templateContext = {
+        search_query: searchTerm,
+        include_fields: "type_fields"
+      };
+      
+      console.log(`📦 Template context:`, templateContext);
       
       const response = await window.client.request.invokeTemplate("getAssets", {
-        context: {
-          search_query: `"${fieldQuery}"`,
-          include_fields: "type_fields"
-        }
+        context: templateContext
       });
 
       if (!response || !response.response) {
