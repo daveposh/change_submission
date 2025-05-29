@@ -2365,7 +2365,6 @@ function selectService(service) {
   
   // Update the display
   updateSelectedServicesDisplay();
-  updateAssociationCounts();
   
   console.log('Service selected:', service);
 }
@@ -2424,7 +2423,6 @@ function updateSelectedServicesDisplay() {
 function removeService(serviceId) {
   changeRequestData.selectedServices = changeRequestData.selectedServices.filter(s => s.id !== serviceId);
   updateSelectedServicesDisplay();
-  updateAssociationCounts();
   console.log('Service removed:', serviceId);
 }
 
