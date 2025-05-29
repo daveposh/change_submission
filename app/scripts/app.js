@@ -477,6 +477,8 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- showConfiguredAssetTypes() - Show configured asset types');
       console.log('- findSoftwareServicesAssetTypeIds() - Find asset type IDs');
       console.log('- checkAvailableAssetTypes() - Check available asset types');
+      console.log('- testAssetTypeCaching() - Test asset type caching system');
+      console.log('- fetchLaptopAssetType() - Specifically fetch laptop asset type');
       console.log('🗑️ Asset search test functions removed - see blank slate comment');
     };
     
@@ -591,11 +593,11 @@ async function fetchAllLocations() {
  * @returns {Promise<Object>} - Cached asset types
  */
 async function fetchAllAssetTypes() {
-  console.log('🔄 Attempting to fetch asset types from API (optional)');
+  console.log('🔄 Fetching asset types from API...');
   
   // Check for client availability
   if (!window.client || !window.client.request) {
-    console.log('⚠️ Client not available for asset types fetch - this is optional');
+    console.log('⚠️ Client not available for asset types fetch');
     return {};
   }
 
@@ -603,6 +605,7 @@ async function fetchAllAssetTypes() {
     const allAssetTypes = {};
     let page = 1;
     let hasMorePages = true;
+    let totalFetched = 0;
     
     // Function to load asset types from a specific page
     async function loadAssetTypesPage(pageNum) {
@@ -631,22 +634,29 @@ async function fetchAllAssetTypes() {
           
           console.log(`✅ Loaded ${assetTypes.length} asset types from page ${pageNum}`);
           
+          // Log some sample asset types for debugging
+          if (assetTypes.length > 0) {
+            assetTypes.slice(0, 3).forEach(type => {
+              console.log(`   📋 Asset Type: "${type.name}" (ID: ${type.id})`);
+            });
+          }
+          
           // Check if we might have more pages (received full page of results)
           const hasMore = assetTypes.length === 100;
           
           return { assetTypes, more: hasMore };
         } catch (parseError) {
-          console.log('⚠️ Error parsing asset types response - this is optional:', parseError.message);
+          console.log('⚠️ Error parsing asset types response:', parseError.message);
           return { assetTypes: [], more: false };
         }
       } catch (error) {
-        console.log(`⚠️ Error fetching asset types page ${pageNum} - this is optional:`, error.message);
+        console.log(`⚠️ Error fetching asset types page ${pageNum}:`, error.message);
         return { assetTypes: [], more: false };
       }
     }
     
     // Load all pages of asset types
-    while (hasMorePages && page <= 5) { // Limit to 5 pages for safety
+    while (hasMorePages && page <= 10) { // Increased limit to 10 pages for more coverage
       const { assetTypes, more } = await loadAssetTypesPage(page);
       
       if (assetTypes.length === 0) {
@@ -660,9 +670,15 @@ async function fetchAllAssetTypes() {
           allAssetTypes[assetType.id] = {
             name: assetType.name,
             description: assetType.description || '',
-            visible: assetType.visible || false,
+            visible: assetType.visible !== false, // Default to true if not specified
             timestamp: Date.now()
           };
+          totalFetched++;
+          
+          // Log specific asset types we're looking for
+          if (assetType.id === 37000374826 || assetType.name.toLowerCase().includes('laptop')) {
+            console.log(`🎯 Found laptop asset type: "${assetType.name}" (ID: ${assetType.id})`);
+          }
         }
       });
       
@@ -672,24 +688,37 @@ async function fetchAllAssetTypes() {
       
       // Add pagination delay if we're loading more pages
       if (hasMorePages) {
-        const params = await getInstallationParams();
+        const params = await getInstallationParams().catch(() => ({}));
         const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
         await new Promise(resolve => setTimeout(resolve, paginationDelay));
       }
     }
     
     // Save all asset types to cache if we got any
-    const totalTypes = Object.keys(allAssetTypes).length;
-    if (totalTypes > 0) {
-      console.log(`✅ Successfully cached ${totalTypes} asset types`);
+    if (totalFetched > 0) {
+      console.log(`✅ Successfully cached ${totalFetched} asset types from ${page - 1} pages`);
       await cacheAssetTypes(allAssetTypes);
+      
+      // Specifically check if we got the laptop asset type
+      if (allAssetTypes[37000374826]) {
+        console.log(`🎯 ✅ Laptop asset type cached: "${allAssetTypes[37000374826].name}"`);
+      } else {
+        console.log('🎯 ⚠️ Laptop asset type (ID: 37000374826) not found in fetched data');
+      }
+      
+      // Log sample of cached asset types for debugging
+      const sampleTypes = Object.entries(allAssetTypes).slice(0, 5);
+      console.log('📋 Sample cached asset types:');
+      sampleTypes.forEach(([id, type]) => {
+        console.log(`   ${id}: "${type.name}"`);
+      });
     } else {
-      console.log('⚠️ No asset types were fetched - this is optional and the app will still work');
+      console.log('⚠️ No asset types were fetched');
     }
     
     return allAssetTypes;
   } catch (error) {
-    console.log('⚠️ Error in fetchAllAssetTypes - this is optional and the app will still work:', error.message);
+    console.log('⚠️ Error in fetchAllAssetTypes:', error.message);
     return {};
   }
 }
@@ -734,6 +763,8 @@ async function cacheAssetTypes(assetTypes) {
 async function getAssetTypeName(assetTypeId) {
   if (!assetTypeId) return 'Unknown';
   
+  console.log(`🔍 Looking up asset type name for ID: ${assetTypeId}`);
+  
   // Check for client availability
   if (!window.client || !window.client.db) {
     console.error('Client not available for asset type lookup');
@@ -747,25 +778,30 @@ async function getAssetTypeName(assetTypeId) {
     // If asset type is in cache and not expired, use it
     if (cachedAssetTypes[assetTypeId] && 
         cachedAssetTypes[assetTypeId].timestamp > Date.now() - CACHE_TIMEOUT) {
-      console.log(`Using cached asset type: ${cachedAssetTypes[assetTypeId].name}`);
+      console.log(`✅ Using cached asset type: "${cachedAssetTypes[assetTypeId].name}" for ID ${assetTypeId}`);
       return cachedAssetTypes[assetTypeId].name;
     }
     
-    // If not in cache or expired, fetch from API
-    // But first, check if we can trigger a full refresh to benefit other asset types too
-    if (Object.keys(cachedAssetTypes).length === 0 || 
-        Object.values(cachedAssetTypes).some(type => type.timestamp < Date.now() - CACHE_TIMEOUT)) {
-      console.log('Asset type cache expired or empty, fetching all asset types');
+    console.log(`🔄 Asset type ${assetTypeId} not in cache or expired, checking refresh options...`);
+    
+    // If not in cache or expired, check if we should refresh the entire cache
+    const cacheAge = Object.keys(cachedAssetTypes).length === 0 ? 
+      Infinity : 
+      Math.max(...Object.values(cachedAssetTypes).map(type => Date.now() - type.timestamp));
+    
+    if (cacheAge > CACHE_TIMEOUT) {
+      console.log(`🔄 Asset type cache is old (${Math.round(cacheAge / 60000)} minutes), refreshing all asset types`);
       const allAssetTypes = await fetchAllAssetTypes();
       
       // Check if our target asset type was included in the refresh
       if (allAssetTypes[assetTypeId]) {
+        console.log(`✅ Found asset type ${assetTypeId} after cache refresh: "${allAssetTypes[assetTypeId].name}"`);
         return allAssetTypes[assetTypeId].name;
       }
     }
     
     // If we still don't have the asset type after a refresh attempt, get it individually
-    console.log(`Fetching individual asset type ${assetTypeId} from API`);
+    console.log(`🔍 Fetching individual asset type ${assetTypeId} from API`);
     
     // Check if the client request method is available
     if (!window.client.request || !window.client.request.invokeTemplate) {
@@ -778,7 +814,7 @@ async function getAssetTypeName(assetTypeId) {
     });
     
     if (!response || !response.response) {
-      console.error('Invalid asset type response:', response);
+      console.error(`❌ Invalid asset type response for ID ${assetTypeId}:`, response);
       return `Asset Type ${assetTypeId}`;
     }
     
@@ -787,24 +823,28 @@ async function getAssetTypeName(assetTypeId) {
       if (parsedData && parsedData.asset_type && parsedData.asset_type.name) {
         const assetTypeName = parsedData.asset_type.name;
         
-        // Update cache
-        cachedAssetTypes[assetTypeId] = {
+        console.log(`✅ Successfully fetched individual asset type: "${assetTypeName}" (ID: ${assetTypeId})`);
+        
+        // Update cache with the individual asset type
+        const updatedCache = await getCachedAssetTypes();
+        updatedCache[assetTypeId] = {
           name: assetTypeName,
           description: parsedData.asset_type.description || '',
-          visible: parsedData.asset_type.visible || false,
+          visible: parsedData.asset_type.visible !== false,
           timestamp: Date.now()
         };
-        await cacheAssetTypes(cachedAssetTypes);
+        await cacheAssetTypes(updatedCache);
         
         return assetTypeName;
       }
+      console.error(`❌ Invalid asset type data structure for ID ${assetTypeId}`);
       return `Asset Type ${assetTypeId}`;
     } catch (parseError) {
-      console.error('Error parsing asset type response:', parseError);
+      console.error(`❌ Error parsing asset type response for ID ${assetTypeId}:`, parseError);
       return `Asset Type ${assetTypeId}`;
     }
   } catch (error) {
-    console.error('Error fetching asset type:', error);
+    console.error(`❌ Error fetching asset type ${assetTypeId}:`, error);
     return `Asset Type ${assetTypeId}`;
   }
 }
@@ -4894,3 +4934,90 @@ async function cacheLocations(locations) {
 
 // Expose the getLocationName function globally for use by other modules
 window.getLocationName = getLocationName;
+
+/**
+ * Global debug function to test asset type caching and lookup
+ */
+window.testAssetTypeCaching = async function() {
+  try {
+    console.log('🔧 === TESTING ASSET TYPE CACHING ===');
+    
+    // Check current cache
+    const cachedTypes = await getCachedAssetTypes();
+    console.log(`📦 Current cache contains ${Object.keys(cachedTypes).length} asset types`);
+    
+    // Specifically check for laptop type
+    if (cachedTypes[37000374826]) {
+      console.log(`✅ Laptop asset type in cache: "${cachedTypes[37000374826].name}"`);
+    } else {
+      console.log('❌ Laptop asset type (37000374826) NOT in cache');
+    }
+    
+    // Force refresh cache
+    console.log('🔄 Force refreshing asset type cache...');
+    await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {});
+    
+    const freshTypes = await fetchAllAssetTypes();
+    console.log(`📦 Fresh fetch returned ${Object.keys(freshTypes).length} asset types`);
+    
+    // Check for laptop type again
+    if (freshTypes[37000374826]) {
+      console.log(`✅ Laptop asset type fetched: "${freshTypes[37000374826].name}"`);
+    } else {
+      console.log('❌ Laptop asset type (37000374826) NOT found in fresh fetch');
+    }
+    
+    // Test individual lookup
+    console.log('🔍 Testing individual asset type lookup...');
+    const laptopTypeName = await getAssetTypeName(37000374826);
+    console.log(`🎯 Laptop type name result: "${laptopTypeName}"`);
+    
+    // Show sample of cached types
+    const sampleTypes = Object.entries(freshTypes).slice(0, 10);
+    console.log('📋 Sample cached asset types:');
+    sampleTypes.forEach(([id, type]) => {
+      console.log(`   ${id}: "${type.name}"`);
+    });
+    
+  } catch (error) {
+    console.error('❌ Error testing asset type caching:', error);
+  }
+};
+
+/**
+ * Global debug function to specifically fetch the laptop asset type
+ */
+window.fetchLaptopAssetType = async function() {
+  try {
+    console.log('🔧 === FETCHING LAPTOP ASSET TYPE ===');
+    
+    // Try individual fetch
+    const response = await window.client.request.invokeTemplate("getAssetTypes", {
+      path_suffix: `/37000374826`
+    });
+    
+    if (response && response.response) {
+      const data = JSON.parse(response.response);
+      console.log('📦 Laptop asset type response:', data);
+      
+      if (data.asset_type) {
+        console.log(`✅ Laptop asset type: "${data.asset_type.name}" (ID: ${data.asset_type.id})`);
+        
+        // Cache it manually
+        const cache = await getCachedAssetTypes();
+        cache[37000374826] = {
+          name: data.asset_type.name,
+          description: data.asset_type.description || '',
+          visible: data.asset_type.visible !== false,
+          timestamp: Date.now()
+        };
+        await cacheAssetTypes(cache);
+        console.log('✅ Manually cached laptop asset type');
+      }
+    } else {
+      console.log('❌ No response for laptop asset type');
+    }
+  } catch (error) {
+    console.error('❌ Error fetching laptop asset type:', error);
+  }
+};
