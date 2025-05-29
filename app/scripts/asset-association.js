@@ -127,6 +127,44 @@ const AssetAssociation = {
   },
 
   /**
+   * Determine the best search field based on the search term pattern
+   * @param {string} searchTerm - The search term
+   * @returns {string} - The field name to search
+   */
+  getSearchField(searchTerm) {
+    // Simple pattern detection for different asset field types
+    const term = searchTerm.trim();
+    
+    // MAC Address pattern (xx:xx:xx:xx:xx:xx or xx-xx-xx-xx-xx-xx)
+    if (/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(term)) {
+      return 'mac_addresses';
+    }
+    
+    // IP Address pattern (xxx.xxx.xxx.xxx)
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(term)) {
+      return 'ip_addresses';
+    }
+    
+    // UUID pattern (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(term)) {
+      return 'uuid';
+    }
+    
+    // IMEI pattern (15 digits)
+    if (/^\d{15}$/.test(term)) {
+      return 'imei_number';
+    }
+    
+    // If it looks like a serial number (mix of letters and numbers, typically 6+ chars)
+    if (/^[A-Za-z0-9]{6,}$/.test(term) && /\d/.test(term) && /[A-Za-z]/.test(term)) {
+      return 'serial_number';
+    }
+    
+    // Default to name search for everything else
+    return 'name';
+  },
+
+  /**
    * Search assets from API using the search endpoint with field-specific filtering
    * @param {string} searchTerm - The search term
    * @returns {Promise<Array>} - Array of matching assets
@@ -137,11 +175,15 @@ const AssetAssociation = {
     }
 
     try {
-      // Use field-specific search format with multiple fields: name:'searchterm' OR display_name:'searchterm'
-      const fieldQuery = `name:'${searchTerm}' OR display_name:'${searchTerm}'`;
+      // Determine the best field to search based on the search term pattern
+      const searchField = this.getSearchField(searchTerm);
+      
+      // Use field-specific search format: field:'searchterm'
+      // Supported fields: name, asset_tag, serial_number, mac_addresses, ip_addresses, uuid, item_id, imei_number
+      const fieldQuery = `${searchField}:'${searchTerm}'`;
       const requestUrl = `?search=${encodeURIComponent(fieldQuery)}`;
       
-      console.log(`🔍 Searching assets with field query: "${fieldQuery}"`);
+      console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
       console.log(`📡 Request URL: /api/v2/assets${requestUrl}`);
       console.log(`📡 Encoded query: ${encodeURIComponent(fieldQuery)}`);
       
