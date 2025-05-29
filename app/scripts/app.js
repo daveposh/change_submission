@@ -2535,19 +2535,6 @@ function displayAssetAssociationResults() {
 }
 
 /**
- * Display asset search results
- * @param {string} containerId - ID of container element
- * @param {Array} results - Results to display
- * @param {Function} selectionCallback - Callback for when an item is selected
- */
-function displayAssetResults(containerId, results, selectionCallback) {
-  // Asset search results display functionality removed - blank slate for new implementation
-  console.log('Asset results display - functionality removed');
-  // Prevent lint errors by referencing the parameters
-  console.log(`Function called with containerId: ${containerId}, results: ${results?.length || 0}, callback: ${typeof selectionCallback}`);
-}
-
-/**
  * Handle requester selection
  * @param {Object} requester - Selected requester
  */
@@ -4486,157 +4473,6 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
 };
 
 /**
- * Handle change type selection
- * @param {Event} event Change event
- */
-function handleChangeTypeSelection(event) {
-  const changeType = event.target.value;
-  
-  // Update lead time display
-  const leadTimeElement = document.getElementById('lead-time');
-  if (leadTimeElement) {
-    leadTimeElement.textContent = leadTimeText[changeType] || '2 business days';
-  }
-  
-  // Update change type description/tooltip
-  const tooltipElement = document.getElementById('change-type-tooltip');
-  if (tooltipElement) {
-    tooltipElement.textContent = changeTypeTooltips[changeType] || '';
-  }
-  
-  // Update the stored change request data
-  changeRequestData.changeType = changeType;
-  changeRequestData.leadTime = leadTimeText[changeType] || '2 business days';
-  
-  console.log(`Change type updated to: ${changeType}, Lead time: ${changeRequestData.leadTime}`);
-}
-
-/**
- * Initialize change type defaults on page load
- */
-function initializeChangeTypeDefaults() {
-  const changeTypeSelect = document.getElementById('change-type');
-  if (!changeTypeSelect) return;
-  
-  // Get the currently selected change type (default is 'standard')
-  const currentChangeType = changeTypeSelect.value || 'standard';
-  
-  // Update lead time display
-  const leadTimeElement = document.getElementById('lead-time');
-  if (leadTimeElement) {
-    leadTimeElement.textContent = leadTimeText[currentChangeType] || '2 business days';
-  }
-  
-  // Update change type description/tooltip
-  const tooltipElement = document.getElementById('change-type-tooltip');
-  if (tooltipElement) {
-    tooltipElement.textContent = changeTypeTooltips[currentChangeType] || '';
-  }
-  
-  // Initialize the stored change request data
-  changeRequestData.changeType = currentChangeType;
-  changeRequestData.leadTime = leadTimeText[currentChangeType] || '2 business days';
-  
-  console.log(`Initialized change type: ${currentChangeType}, Lead time: ${changeRequestData.leadTime}`);
-}
-
-/**
- * Global debug function to find assets containing a specific term (ALL asset types)
- */
-window.findAssetsContaining = async function(searchTerm = 'server') {
-  try {
-    console.log('🔧 === FINDING ASSETS BY NAME (ALL TYPES) ===');
-    console.log(`Search term: "${searchTerm}"`);
-    console.log('🎯 Searching ALL asset types by name/displayname');
-    
-    // Search ALL assets without filters
-    const response = await window.client.request.invokeTemplate("getAssets", {
-      path_suffix: "?per_page=30&page=1"
-    });
-    
-    if (response && response.response) {
-      const data = JSON.parse(response.response);
-      const assets = data.assets || [];
-      
-      console.log(`📄 Retrieved ${assets.length} total assets (all types)`);
-      
-      // Find assets that contain the search term in name or display_name
-      const matchingAssets = assets.filter(asset => {
-        const assetName = (asset.display_name || asset.name || '').toLowerCase();
-        return assetName.includes(searchTerm.toLowerCase());
-      });
-      
-      console.log(`🎯 Found ${matchingAssets.length} assets containing "${searchTerm}" in name`);
-      
-      if (matchingAssets.length > 0) {
-        console.log(`📋 Matching assets:`);
-        matchingAssets.forEach((asset, index) => {
-          const assetName = asset.display_name || asset.name || 'Unknown';
-          console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
-        });
-      } else {
-        console.log(`📋 Sample assets (first 10):`);
-        assets.slice(0, 10).forEach((asset, index) => {
-          const assetName = asset.display_name || asset.name || 'Unknown';
-          console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
-        });
-      }
-    } else {
-      console.log('❌ No response from API');
-    }
-    
-  } catch (error) {
-    console.error('❌ Error finding assets:', error);
-  }
-};
-
-/**
- * Global debug function to find assets containing a specific term using direct API query
- */
-window.findAssetsContaining = async function(searchTerm = 'middleware') {
-  try {
-    console.log('🔧 === TESTING DIRECT API NAME SEARCH ===');
-    console.log(`Search term: "${searchTerm}"`);
-    console.log('🎯 Using direct API name query (no client-side filtering)');
-    
-    // Use direct API name search
-    const query = `name:'*${searchTerm}*'`;
-    const encodedQuery = encodeURIComponent(query);
-    const requestUrl = `?query=${encodedQuery}&per_page=30&page=1`;
-    
-    console.log(`🔍 Query: ${query}`);
-    console.log(`🌐 Request URL: ${requestUrl}`);
-    
-    const response = await window.client.request.invokeTemplate("getAssets", {
-      path_suffix: requestUrl
-    });
-    
-    if (response && response.response) {
-      const data = JSON.parse(response.response);
-      const assets = data.assets || [];
-      
-      console.log(`📄 Retrieved ${assets.length} assets directly from API`);
-      
-      if (assets.length > 0) {
-        console.log(`📋 Assets found (showing all results):`);
-        assets.forEach((asset, index) => {
-          const assetName = asset.display_name || asset.name || 'Unknown';
-          console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
-        });
-      } else {
-        console.log(`📋 No assets found matching "${searchTerm}"`);
-        console.log('💡 Try different search terms like: server, laptop, printer, etc.');
-      }
-    } else {
-      console.log('❌ No response from API');
-    }
-    
-  } catch (error) {
-    console.error('❌ Error finding assets:', error);
-  }
-};
-
-/**
  * Global debug function to find assets containing a specific term using basic API endpoint
  */
 window.findAssetsContaining = async function(searchTerm = 'middleware') {
@@ -4739,3 +4575,155 @@ function displayAssetResults() {
   // Asset search results display functionality removed - blank slate for new implementation
   console.log('Asset results display - functionality removed');
 }
+
+/**
+ * Handle change type selection
+ * @param {Event} event Change event
+ */
+function handleChangeTypeSelection(event) {
+  const changeType = event.target.value;
+  
+  // Update lead time display
+  const leadTimeElement = document.getElementById('lead-time');
+  if (leadTimeElement) {
+    leadTimeElement.textContent = leadTimeText[changeType] || '2 business days';
+  }
+  
+  // Update change type description/tooltip
+  const tooltipElement = document.getElementById('change-type-tooltip');
+  if (tooltipElement) {
+    tooltipElement.textContent = changeTypeTooltips[changeType] || '';
+  }
+  
+  // Update the stored change request data
+  changeRequestData.changeType = changeType;
+  changeRequestData.leadTime = leadTimeText[changeType] || '2 business days';
+  
+  console.log(`Change type updated to: ${changeType}, Lead time: ${changeRequestData.leadTime}`);
+}
+
+/**
+ * Initialize change type defaults on page load
+ */
+function initializeChangeTypeDefaults() {
+  const changeTypeSelect = document.getElementById('change-type');
+  if (!changeTypeSelect) return;
+  
+  // Get the currently selected change type (default is 'standard')
+  const currentChangeType = changeTypeSelect.value || 'standard';
+  
+  // Update lead time display
+  const leadTimeElement = document.getElementById('lead-time');
+  if (leadTimeElement) {
+    leadTimeElement.textContent = leadTimeText[currentChangeType] || '2 business days';
+  }
+  
+  // Update change type description/tooltip
+  const tooltipElement = document.getElementById('change-type-tooltip');
+  if (tooltipElement) {
+    tooltipElement.textContent = changeTypeTooltips[currentChangeType] || '';
+  }
+  
+  // Initialize the stored change request data
+  changeRequestData.changeType = currentChangeType;
+  changeRequestData.leadTime = leadTimeText[currentChangeType] || '2 business days';
+  
+  console.log(`Initialized change type: ${currentChangeType}, Lead time: ${changeRequestData.leadTime}`);
+}
+
+/**
+ * Global debug function to test the new efficient asset search
+ */
+window.testEfficientAssetSearch = async function(searchTerm = 'active') {
+  try {
+    console.log('🔧 === TESTING BASIC ASSET SEARCH ===');
+    console.log(`Search term: "${searchTerm}"`);
+    console.log('🎯 Using basic assets endpoint (no query parameters)');
+    console.log('⚠️ Client-side filtering for names (API does not support name queries)');
+    
+    let allAssets = [];
+    let matchingAssets = [];
+    let page = 1;
+    const maxPages = 3; // Limit for testing
+    
+    while (page <= maxPages) {
+      const requestUrl = `?per_page=30&page=${page}`;
+      
+      console.log(`🌐 Page ${page} request: ${requestUrl}`);
+      
+      const response = await window.client.request.invokeTemplate("getAssets", {
+        path_suffix: requestUrl
+      });
+      
+      if (response && response.response) {
+        const data = JSON.parse(response.response);
+        const pageAssets = data.assets || [];
+        
+        console.log(`📄 Page ${page}: Retrieved ${pageAssets.length} assets`);
+        
+        if (pageAssets.length === 0) {
+          console.log('📄 No more assets, stopping');
+          break;
+        }
+        
+        // Filter for matching assets by name
+        const pageMatches = pageAssets.filter(asset => {
+          const assetName = (asset.display_name || asset.name || '').toLowerCase();
+          return assetName.includes(searchTerm.toLowerCase());
+        });
+        
+        console.log(`🔽 Page ${page}: ${pageMatches.length} assets match "${searchTerm}" by name`);
+        
+        allAssets = allAssets.concat(pageAssets);
+        matchingAssets = matchingAssets.concat(pageMatches);
+        
+        // Show matches found on this page
+        if (pageMatches.length > 0) {
+          pageMatches.forEach((asset, index) => {
+            const assetName = asset.display_name || asset.name || 'Unknown';
+            console.log(`   ✅ ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+          });
+        }
+        
+        // Stop if we have enough matches
+        if (matchingAssets.length >= 10) {
+          console.log(`✅ Found enough matches (${matchingAssets.length}), stopping early`);
+          break;
+        }
+        
+        // Stop if we didn't get a full page
+        if (pageAssets.length < 30) {
+          console.log('📄 Partial page received, stopping');
+          break;
+        }
+        
+        page++;
+        
+        // Small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } else {
+        console.log(`❌ No response for page ${page}`);
+        break;
+      }
+    }
+    
+    console.log(`\n📊 Summary:`);
+    console.log(`   Total assets retrieved: ${allAssets.length}`);
+    console.log(`   Matching assets found: ${matchingAssets.length}`);
+    console.log(`   Pages searched: ${page - 1}`);
+    console.log(`   Efficiency: ${((matchingAssets.length / allAssets.length) * 100).toFixed(1)}% relevant`);
+    
+    if (matchingAssets.length > 0) {
+      console.log(`\n📋 All matching assets:`);
+      matchingAssets.forEach((asset, index) => {
+        const assetName = asset.display_name || asset.name || 'Unknown';
+        console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+      });
+    }
+    
+    console.log('\n🔧 === BASIC ASSET SEARCH TEST COMPLETE ===');
+    
+  } catch (error) {
+    console.error('❌ Error testing basic asset search:', error);
+  }
+};
