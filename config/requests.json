@@ -35,6 +35,18 @@
       }
     }
   },
+  "getLocations": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/locations",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    }
+  },
   "getLocation": {
     "schema": {
       "method": "GET",
