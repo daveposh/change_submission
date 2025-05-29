@@ -479,6 +479,9 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- checkAvailableAssetTypes() - Check available asset types');
       console.log('- testAssetTypeCaching() - Test asset type caching system');
       console.log('- fetchLaptopAssetType() - Specifically fetch laptop asset type');
+      console.log('- testLocationCaching() - Test location caching system');
+      console.log('- testLocationsAPI() - Test locations API endpoint');
+      console.log('- testAvailableAPIs() - Test all available API endpoints');
       console.log('🗑️ Asset search test functions removed - see blank slate comment');
     };
     
@@ -502,7 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
  * @returns {Promise<Object>} - Cached locations
  */
 async function fetchAllLocations() {
-  console.log('Fetching all locations from API');
+  console.log('🔄 Fetching all locations from API');
   
   // Check for client availability
   if (!window.client || !window.client.request) {
@@ -514,16 +517,33 @@ async function fetchAllLocations() {
     const allLocations = {};
     let page = 1;
     let hasMorePages = true;
+    let totalFetched = 0;
     
-    // Function to load locations from a specific page
+    // Function to load locations from a specific page using direct API call
     async function loadLocationsPage(pageNum) {
-      console.log(`Loading locations page ${pageNum}`);
+      console.log(`📄 Loading locations page ${pageNum}`);
       
       try {
-        // Use invokeTemplate to access locations API
-        const response = await window.client.request.invokeTemplate("getLocation", {
-          path_suffix: `?page=${pageNum}&per_page=100`
-        });
+        // Try using the template first
+        let response;
+        try {
+          response = await window.client.request.invokeTemplate("getLocations", {
+            path_suffix: `?page=${pageNum}&per_page=100`
+          });
+        } catch (templateError) {
+          console.log(`⚠️ getLocations template failed: ${templateError.message}, trying direct API call`);
+          
+          // Fallback to direct API call if template fails
+          try {
+            response = await window.client.request.get('/api/v2/locations', {
+              page: pageNum,
+              per_page: 100
+            });
+          } catch (directError) {
+            console.log(`⚠️ Direct locations API call also failed: ${directError.message}`);
+            return { locations: [], more: false };
+          }
+        }
         
         if (!response || !response.response) {
           console.error('Invalid locations response:', response);
@@ -533,6 +553,15 @@ async function fetchAllLocations() {
         try {
           const parsedData = JSON.parse(response.response || '{"locations":[]}');
           const locations = parsedData.locations || [];
+          
+          console.log(`✅ Loaded ${locations.length} locations from page ${pageNum}`);
+          
+          // Log some sample locations for debugging
+          if (locations.length > 0) {
+            locations.slice(0, 3).forEach(location => {
+              console.log(`   📍 Location: "${location.name}" (ID: ${location.id})`);
+            });
+          }
           
           // Check if we might have more pages (received full page of results)
           const hasMore = locations.length === 100;
@@ -549,8 +578,13 @@ async function fetchAllLocations() {
     }
     
     // Load all pages of locations
-    while (hasMorePages) {
+    while (hasMorePages && page <= 5) { // Limit to 5 pages for safety
       const { locations, more } = await loadLocationsPage(page);
+      
+      if (locations.length === 0) {
+        console.log('📄 No more locations to load');
+        break;
+      }
       
       // Process locations and add to cache
       locations.forEach(location => {
@@ -559,6 +593,7 @@ async function fetchAllLocations() {
             name: location.name,
             timestamp: Date.now()
           };
+          totalFetched++;
         }
       });
       
@@ -566,24 +601,25 @@ async function fetchAllLocations() {
       hasMorePages = more;
       page++;
       
-      // Safety check to prevent infinite loops
-      if (page > 10) {
-        console.warn('Reached maximum number of location pages (10)');
-        break;
+      // Add pagination delay if we're loading more pages
+      if (hasMorePages) {
+        const params = await getInstallationParams().catch(() => ({}));
+        const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+        await new Promise(resolve => setTimeout(resolve, paginationDelay));
       }
     }
     
     // Save all locations to cache
-    if (Object.keys(allLocations).length > 0) {
-      console.log(`Caching ${Object.keys(allLocations).length} locations`);
+    if (totalFetched > 0) {
+      console.log(`✅ Successfully cached ${totalFetched} locations from ${page - 1} pages`);
       await cacheLocations(allLocations);
     } else {
-      console.warn('No locations found to cache');
+      console.warn('⚠️ No locations found to cache - locations API may not be available');
     }
     
     return allLocations;
   } catch (error) {
-    console.error('Error in fetchAllLocations:', error);
+    console.error('❌ Error in fetchAllLocations:', error);
     return {};
   }
 }
@@ -809,38 +845,56 @@ async function getAssetTypeName(assetTypeId) {
       return `Asset Type ${assetTypeId}`;
     }
     
-    const response = await window.client.request.invokeTemplate("getAssetTypes", {
-      path_suffix: `/${assetTypeId}`
-    });
-    
-    if (!response || !response.response) {
-      console.error(`❌ Invalid asset type response for ID ${assetTypeId}:`, response);
-      return `Asset Type ${assetTypeId}`;
-    }
-    
     try {
-      const parsedData = JSON.parse(response.response || '{}');
-      if (parsedData && parsedData.asset_type && parsedData.asset_type.name) {
-        const assetTypeName = parsedData.asset_type.name;
-        
-        console.log(`✅ Successfully fetched individual asset type: "${assetTypeName}" (ID: ${assetTypeId})`);
-        
-        // Update cache with the individual asset type
-        const updatedCache = await getCachedAssetTypes();
-        updatedCache[assetTypeId] = {
-          name: assetTypeName,
-          description: parsedData.asset_type.description || '',
-          visible: parsedData.asset_type.visible !== false,
-          timestamp: Date.now()
-        };
-        await cacheAssetTypes(updatedCache);
-        
-        return assetTypeName;
+      const response = await window.client.request.invokeTemplate("getAssetTypes", {
+        path_suffix: `/${assetTypeId}`
+      });
+      
+      if (!response || !response.response) {
+        console.error(`❌ Invalid asset type response for ID ${assetTypeId}:`, response);
+        return `Asset Type ${assetTypeId}`;
       }
-      console.error(`❌ Invalid asset type data structure for ID ${assetTypeId}`);
-      return `Asset Type ${assetTypeId}`;
-    } catch (parseError) {
-      console.error(`❌ Error parsing asset type response for ID ${assetTypeId}:`, parseError);
+      
+      try {
+        const parsedData = JSON.parse(response.response || '{}');
+        console.log(`📦 Individual asset type response for ${assetTypeId}:`, parsedData);
+        
+        // Try different possible response structures
+        let assetTypeData = null;
+        if (parsedData.asset_type) {
+          assetTypeData = parsedData.asset_type;
+        } else if (parsedData.asset_types && parsedData.asset_types.length > 0) {
+          assetTypeData = parsedData.asset_types[0];
+        } else if (parsedData.name) {
+          assetTypeData = parsedData;
+        }
+        
+        if (assetTypeData && assetTypeData.name) {
+          const assetTypeName = assetTypeData.name;
+          
+          console.log(`✅ Successfully fetched individual asset type: "${assetTypeName}" (ID: ${assetTypeId})`);
+          
+          // Update cache with the individual asset type
+          const updatedCache = await getCachedAssetTypes();
+          updatedCache[assetTypeId] = {
+            name: assetTypeName,
+            description: assetTypeData.description || '',
+            visible: assetTypeData.visible !== false,
+            timestamp: Date.now()
+          };
+          await cacheAssetTypes(updatedCache);
+          
+          return assetTypeName;
+        }
+        
+        console.error(`❌ Invalid asset type data structure for ID ${assetTypeId}:`, parsedData);
+        return `Asset Type ${assetTypeId}`;
+      } catch (parseError) {
+        console.error(`❌ Error parsing asset type response for ID ${assetTypeId}:`, parseError);
+        return `Asset Type ${assetTypeId}`;
+      }
+    } catch (individualError) {
+      console.error(`❌ Error fetching individual asset type ${assetTypeId}:`, individualError);
       return `Asset Type ${assetTypeId}`;
     }
   } catch (error) {
@@ -4834,6 +4888,8 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
 async function getLocationName(locationId) {
   if (!locationId) return 'N/A';
   
+  console.log(`🔍 Looking up location name for ID: ${locationId}`);
+  
   // Check for client availability
   if (!window.client || !window.client.db) {
     console.error('Client not available for location lookup');
@@ -4847,56 +4903,106 @@ async function getLocationName(locationId) {
     // If location is in cache and not expired, use it
     if (cachedLocations[locationId] && 
         cachedLocations[locationId].timestamp > Date.now() - CACHE_TIMEOUT) {
-      console.log(`Using cached location: ${cachedLocations[locationId].name}`);
+      console.log(`✅ Using cached location: "${cachedLocations[locationId].name}" for ID ${locationId}`);
       return cachedLocations[locationId].name;
     }
     
-    // If not in cache or expired, fetch from API
-    // But first, check if we can trigger a full refresh to benefit other locations too
-    if (Object.keys(cachedLocations).length === 0 || 
-        Object.values(cachedLocations).some(loc => loc.timestamp < Date.now() - CACHE_TIMEOUT)) {
-      console.log('Location cache expired or empty, fetching all locations');
-      const allLocations = await fetchAllLocations();
-      
-      // Check if our target location was included in the refresh
-      if (allLocations[locationId]) {
-        return allLocations[locationId].name;
+    console.log(`🔄 Location ${locationId} not in cache or expired, checking refresh options...`);
+    
+    // If not in cache or expired, check if we should refresh the entire cache
+    const cacheAge = Object.keys(cachedLocations).length === 0 ? 
+      Infinity : 
+      Math.max(...Object.values(cachedLocations).map(loc => Date.now() - loc.timestamp));
+    
+    if (cacheAge > CACHE_TIMEOUT) {
+      console.log(`🔄 Location cache is old (${Math.round(cacheAge / 60000)} minutes), trying to refresh all locations`);
+      try {
+        const allLocations = await fetchAllLocations();
+        
+        // Check if our target location was included in the refresh
+        if (allLocations[locationId]) {
+          console.log(`✅ Found location ${locationId} after cache refresh: "${allLocations[locationId].name}"`);
+          return allLocations[locationId].name;
+        }
+      } catch (bulkError) {
+        console.log(`⚠️ Bulk location fetch failed: ${bulkError.message}, trying individual fetch`);
       }
     }
     
-    // If we still don't have the location after a refresh attempt, get it individually
-    console.log(`Fetching individual location ${locationId} from API`);
-    const response = await window.client.request.invokeTemplate("getLocation", {
-      path_suffix: `/${locationId}`
-    });
-    
-    if (!response || !response.response) {
-      console.error('Invalid location response:', response);
-      return 'Unknown';
-    }
+    // If we still don't have the location, try individual fetch
+    console.log(`🔍 Fetching individual location ${locationId} from API`);
     
     try {
-      const parsedData = JSON.parse(response.response || '{}');
-      if (parsedData && parsedData.location && parsedData.location.name) {
-        const locationName = parsedData.location.name;
+      // Try using the template first
+      let response;
+      try {
+        response = await window.client.request.invokeTemplate("getLocation", {
+          context: {
+            location_id: locationId
+          }
+        });
+      } catch (templateError) {
+        console.log(`⚠️ getLocation template failed: ${templateError.message}, trying direct API call`);
         
-        // Update cache
-        cachedLocations[locationId] = {
-          name: locationName,
-          timestamp: Date.now()
-        };
-        await cacheLocations(cachedLocations);
-        
-        return locationName;
+        // Fallback to direct API call if template fails
+        try {
+          response = await window.client.request.get(`/api/v2/locations/${locationId}`);
+        } catch (directError) {
+          console.log(`⚠️ Direct location API call also failed: ${directError.message}`);
+          console.log(`ℹ️ Locations API may not be available in this Freshservice instance`);
+          return `Location ID: ${locationId}`;
+        }
       }
-      return 'Unknown';
-    } catch (parseError) {
-      console.error('Error parsing location response:', parseError);
-      return 'Unknown';
+      
+      if (!response || !response.response) {
+        console.error(`❌ Invalid location response for ID ${locationId}:`, response);
+        return `Location ID: ${locationId}`;
+      }
+      
+      try {
+        const parsedData = JSON.parse(response.response || '{}');
+        console.log(`📦 Individual location response for ${locationId}:`, parsedData);
+        
+        // Try different possible response structures
+        let locationData = null;
+        if (parsedData.location) {
+          locationData = parsedData.location;
+        } else if (parsedData.locations && parsedData.locations.length > 0) {
+          locationData = parsedData.locations[0];
+        } else if (parsedData.name) {
+          locationData = parsedData;
+        }
+        
+        if (locationData && locationData.name) {
+          const locationName = locationData.name;
+          
+          console.log(`✅ Successfully fetched individual location: "${locationName}" (ID: ${locationId})`);
+          
+          // Update cache with the individual location
+          const updatedCache = await getCachedLocations();
+          updatedCache[locationId] = {
+            name: locationName,
+            timestamp: Date.now()
+          };
+          await cacheLocations(updatedCache);
+          
+          return locationName;
+        }
+        
+        console.error(`❌ Invalid location data structure for ID ${locationId}:`, parsedData);
+        return `Location ID: ${locationId}`;
+      } catch (parseError) {
+        console.error(`❌ Error parsing location response for ID ${locationId}:`, parseError);
+        return `Location ID: ${locationId}`;
+      }
+    } catch (individualError) {
+      console.error(`❌ Error fetching individual location ${locationId}:`, individualError);
+      console.log(`ℹ️ Locations API may not be available in this Freshservice instance`);
+      return `Location ID: ${locationId}`;
     }
   } catch (error) {
-    console.error('Error fetching location:', error);
-    return 'Unknown';
+    console.error(`❌ Error in getLocationName for ${locationId}:`, error);
+    return `Location ID: ${locationId}`;
   }
 }
 
@@ -5019,5 +5125,186 @@ window.fetchLaptopAssetType = async function() {
     }
   } catch (error) {
     console.error('❌ Error fetching laptop asset type:', error);
+  }
+};
+
+/**
+ * Global debug function to test location caching and lookup
+ */
+window.testLocationCaching = async function() {
+  try {
+    console.log('🔧 === TESTING LOCATION CACHING ===');
+    
+    // Check current cache
+    const cachedLocations = await getCachedLocations();
+    console.log(`📦 Current cache contains ${Object.keys(cachedLocations).length} locations`);
+    
+    // Show sample cached locations
+    if (Object.keys(cachedLocations).length > 0) {
+      const sampleLocations = Object.entries(cachedLocations).slice(0, 5);
+      console.log('📋 Sample cached locations:');
+      sampleLocations.forEach(([id, location]) => {
+        console.log(`   ${id}: "${location.name}"`);
+      });
+    }
+    
+    // Force refresh cache
+    console.log('🔄 Force refreshing location cache...');
+    await window.client.db.set(STORAGE_KEYS.LOCATION_CACHE, {});
+    
+    const freshLocations = await fetchAllLocations();
+    console.log(`📦 Fresh fetch returned ${Object.keys(freshLocations).length} locations`);
+    
+    // Show sample fresh locations
+    if (Object.keys(freshLocations).length > 0) {
+      const sampleFresh = Object.entries(freshLocations).slice(0, 5);
+      console.log('📋 Sample fresh locations:');
+      sampleFresh.forEach(([id, location]) => {
+        console.log(`   ${id}: "${location.name}"`);
+      });
+    }
+    
+    // Test individual lookup
+    if (Object.keys(freshLocations).length > 0) {
+      const firstLocationId = Object.keys(freshLocations)[0];
+      console.log(`🔍 Testing individual location lookup for ID: ${firstLocationId}`);
+      const locationName = await getLocationName(firstLocationId);
+      console.log(`🎯 Location name result: "${locationName}"`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error testing location caching:', error);
+  }
+};
+
+/**
+ * Global debug function to test the locations API endpoint
+ */
+window.testLocationsAPI = async function() {
+  try {
+    console.log('🔧 === TESTING LOCATIONS API ===');
+    
+    console.log('🔄 Testing getLocations template...');
+    const response = await window.client.request.invokeTemplate("getLocations", {
+      path_suffix: "?page=1&per_page=10"
+    });
+    
+    if (response && response.response) {
+      const data = JSON.parse(response.response);
+      console.log('📦 Locations API response:', data);
+      
+      if (data.locations && data.locations.length > 0) {
+        console.log(`✅ Found ${data.locations.length} locations`);
+        data.locations.forEach((location, index) => {
+          console.log(`   ${index + 1}. "${location.name}" (ID: ${location.id})`);
+        });
+      } else {
+        console.log('❌ No locations found in response');
+      }
+    } else {
+      console.log('❌ No response from locations API');
+    }
+  } catch (error) {
+    console.error('❌ Error testing locations API:', error);
+  }
+};
+
+/**
+ * Global debug function to test which API endpoints are available
+ */
+window.testAvailableAPIs = async function() {
+  try {
+    console.log('🔧 === TESTING AVAILABLE APIs ===');
+    
+    // Test asset types API
+    console.log('🔄 Testing Asset Types API...');
+    try {
+      const assetTypesResponse = await window.client.request.invokeTemplate("getAssetTypes", {
+        path_suffix: "?page=1&per_page=5"
+      });
+      if (assetTypesResponse && assetTypesResponse.response) {
+        const data = JSON.parse(assetTypesResponse.response);
+        console.log(`✅ Asset Types API: Working (${data.asset_types?.length || 0} types found)`);
+      }
+    } catch (error) {
+      console.log(`❌ Asset Types API: Failed - ${error.message}`);
+    }
+    
+    // Test locations API with template
+    console.log('🔄 Testing Locations API (template)...');
+    try {
+      const locationsResponse = await window.client.request.invokeTemplate("getLocations", {
+        path_suffix: "?page=1&per_page=5"
+      });
+      if (locationsResponse && locationsResponse.response) {
+        const data = JSON.parse(locationsResponse.response);
+        console.log(`✅ Locations API (template): Working (${data.locations?.length || 0} locations found)`);
+      }
+    } catch (error) {
+      console.log(`❌ Locations API (template): Failed - ${error.message}`);
+    }
+    
+    // Test direct locations API
+    console.log('🔄 Testing Locations API (direct)...');
+    try {
+      const directResponse = await window.client.request.get('/api/v2/locations', {
+        page: 1,
+        per_page: 5
+      });
+      if (directResponse && directResponse.response) {
+        const data = JSON.parse(directResponse.response);
+        console.log(`✅ Locations API (direct): Working (${data.locations?.length || 0} locations found)`);
+      }
+    } catch (error) {
+      console.log(`❌ Locations API (direct): Failed - ${error.message}`);
+    }
+    
+    // Test individual asset type fetch
+    console.log('🔄 Testing Individual Asset Type API...');
+    try {
+      const assetTypeResponse = await window.client.request.invokeTemplate("getAssetTypes", {
+        path_suffix: "/37000374826"
+      });
+      if (assetTypeResponse && assetTypeResponse.response) {
+        const data = JSON.parse(assetTypeResponse.response);
+        console.log(`✅ Individual Asset Type API: Working`);
+        console.log(`📦 Sample response structure:`, Object.keys(data));
+      }
+    } catch (error) {
+      console.log(`❌ Individual Asset Type API: Failed - ${error.message}`);
+    }
+    
+    // Test individual location fetch with template
+    console.log('🔄 Testing Individual Location API (template)...');
+    try {
+      const locationResponse = await window.client.request.invokeTemplate("getLocation", {
+        context: {
+          location_id: 37000074320
+        }
+      });
+      if (locationResponse && locationResponse.response) {
+        const data = JSON.parse(locationResponse.response);
+        console.log(`✅ Individual Location API (template): Working`);
+        console.log(`📦 Sample response structure:`, Object.keys(data));
+      }
+    } catch (error) {
+      console.log(`❌ Individual Location API (template): Failed - ${error.message}`);
+    }
+    
+    // Test individual location fetch direct
+    console.log('🔄 Testing Individual Location API (direct)...');
+    try {
+      const directLocationResponse = await window.client.request.get('/api/v2/locations/37000074320');
+      if (directLocationResponse && directLocationResponse.response) {
+        const data = JSON.parse(directLocationResponse.response);
+        console.log(`✅ Individual Location API (direct): Working`);
+        console.log(`📦 Sample response structure:`, Object.keys(data));
+      }
+    } catch (error) {
+      console.log(`❌ Individual Location API (direct): Failed - ${error.message}`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Error testing APIs:', error);
   }
 };
