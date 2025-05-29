@@ -782,7 +782,10 @@ async function fetchAllLocations() {
   try {
     console.log('🔬 Testing if locations API is available...');
     const testResponse = await window.client.request.invokeTemplate("getLocations", {
-      path_suffix: "?page=1&per_page=1"
+      context: {
+        page: 1,
+        per_page: 1
+      }
     });
     
     if (!testResponse || !testResponse.response) {
@@ -790,7 +793,7 @@ async function fetchAllLocations() {
       return {};
     }
     
-    console.log('✅ Locations API is available, proceeding with full fetch');
+    console.log('✅ Locations API is available, proceeding with pagination fetch');
   } catch (testError) {
     console.log('⚠️ Locations API is not available in this Freshservice instance:', testError);
     console.log('ℹ️ Location resolution will fall back to displaying Location IDs');
@@ -801,7 +804,7 @@ async function fetchAllLocations() {
     const allLocations = {};
     let page = 1;
     let totalFetched = 0;
-    const maxPages = 10; // Reduce to 10 pages to avoid potential infinite loops
+    const maxPages = 10; // Use same limit as asset types initially
     
     console.log(`📡 Starting location pagination fetch (max ${maxPages} pages)`);
     console.log(`📋 Will fetch pages until: (1) 0 results returned, OR (2) max pages reached`);
@@ -889,7 +892,7 @@ async function fetchAllLocations() {
         console.log(`🎯 ✅ Target location cached: "${allLocations[37000074320].name}"`);
       } else {
         console.log('🎯 ⚠️ Target location (ID: 37000074320) not found in fetched data');
-        console.log(`🔍 Available location IDs: ${Object.keys(allLocations).slice(0, 10).join(', ')}...`);
+        console.log(`🔍 Available location IDs: ${Object.keys(allLocations).slice(0, 10).join(', ')}${Object.keys(allLocations).length > 10 ? '...' : ''}`);
       }
       
       // Log sample of cached locations for debugging

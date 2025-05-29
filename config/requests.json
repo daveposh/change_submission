@@ -42,8 +42,8 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/locations",
       "query": {
-        "page": "<%= context.page || 1 %>",
-        "per_page": "<%= context.per_page || 30 %>"
+        "page": "<%= context.page || '1' %>",
+        "per_page": "<%= context.per_page || '30' %>"
       },
       "headers": {
         "Content-Type": "application/json",
@@ -98,8 +98,8 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/asset_types",
       "query": {
-        "page": "<%= context.page || 1 %>",
-        "per_page": "<%= context.per_page || 30 %>"
+        "page": "<%= context.page || '1' %>",
+        "per_page": "<%= context.per_page || '30' %>"
       },
       "headers": {
         "Content-Type": "application/json",
