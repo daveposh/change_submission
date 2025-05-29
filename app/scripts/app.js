@@ -1086,7 +1086,14 @@ async function cacheAssetTypes(assetTypes) {
 async function getAssetTypeName(assetTypeId) {
   if (!assetTypeId) return 'Unknown';
   
-  console.log(`🔍 Looking up asset type name for ID: ${assetTypeId}`);
+  // Check if CacheManager is available and use it
+  if (window.CacheManager && window.CacheManager.getAssetTypeName) {
+    console.log(`🔍 Using CacheManager to lookup asset type name for ID: ${assetTypeId}`);
+    return await window.CacheManager.getAssetTypeName(assetTypeId);
+  }
+  
+  // Fallback to original logic if CacheManager is not available
+  console.log(`🔍 CacheManager not available, using fallback logic for asset type ID: ${assetTypeId}`);
   
   // Check for client availability
   if (!window.client || !window.client.db) {
@@ -1105,122 +1112,18 @@ async function getAssetTypeName(assetTypeId) {
       return cachedAssetTypes[assetTypeId].name;
     }
     
-    console.log(`🔄 Asset type ${assetTypeId} not in cache or expired, checking refresh options...`);
+    console.log(`🔄 Asset type ${assetTypeId} not in cache or expired, refreshing cache...`);
     
-    // If not in cache or expired, check if we should refresh the entire cache
-    const cacheAge = Object.keys(cachedAssetTypes).length === 0 ? 
-      Infinity : 
-      Math.max(...Object.values(cachedAssetTypes).map(type => Date.now() - type.timestamp));
-    
-    if (cacheAge > CACHE_TIMEOUT) {
-      console.log(`🔄 Asset type cache is old (${Math.round(cacheAge / 60000)} minutes), refreshing all asset types`);
-      const allAssetTypes = await fetchAllAssetTypes();
-      
-      // Check if our target asset type was included in the refresh
-      if (allAssetTypes[assetTypeId]) {
-        console.log(`✅ Found asset type ${assetTypeId} after cache refresh: "${allAssetTypes[assetTypeId].name}"`);
-        return allAssetTypes[assetTypeId].name;
-      }
+    // Refresh cache and try again
+    const freshAssetTypes = await fetchAllAssetTypes();
+    if (freshAssetTypes[assetTypeId]) {
+      console.log(`✅ Found asset type after refresh: "${freshAssetTypes[assetTypeId].name}"`);
+      return freshAssetTypes[assetTypeId].name;
     }
     
-    // If we still don't have the asset type after a refresh attempt, get it individually
-    console.log(`🔍 Fetching individual asset type ${assetTypeId} from API`);
+    console.log(`❌ Asset type ${assetTypeId} not found even after refresh`);
+    return `Asset Type ${assetTypeId}`;
     
-    
-    // Check if the client request method is available
-    if (!window.client.request || !window.client.request.invokeTemplate) {
-      console.error('Client request.invokeTemplate not available');
-      return `Asset Type ${assetTypeId}`;
-    }
-    
-    try {
-      const response = await window.client.request.invokeTemplate("getAssetTypes", {
-        path_suffix: `/${assetTypeId}`
-      });
-      
-      if (!response || !response.response) {
-        console.error(`❌ Invalid asset type response for ID ${assetTypeId}:`, response);
-        
-        // If individual fetch fails, try forcing a full cache refresh
-        console.log(`🔄 Individual fetch failed, forcing full cache refresh to find asset type ${assetTypeId}`);
-        try {
-          const allAssetTypes = await fetchAllAssetTypes();
-          if (allAssetTypes[assetTypeId]) {
-            console.log(`✅ Found asset type ${assetTypeId} after full refresh: "${allAssetTypes[assetTypeId].name}"`);
-            return allAssetTypes[assetTypeId].name;
-          }
-        } catch (refreshError) {
-          console.error(`❌ Full refresh also failed:`, refreshError);
-        }
-        
-        return `Asset Type ${assetTypeId}`;
-      }
-      
-      try {
-        const parsedData = JSON.parse(response.response || '{}');
-        console.log(`📦 Individual asset type response for ${assetTypeId}:`, parsedData);
-        
-        // Try different possible response structures
-        let assetTypeData = null;
-        if (parsedData.asset_type) {
-          assetTypeData = parsedData.asset_type;
-        } else if (parsedData.asset_types && parsedData.asset_types.length > 0) {
-          // Find the specific asset type that matches our requested ID
-          assetTypeData = parsedData.asset_types.find(type => type.id === assetTypeId);
-          
-          // If we didn't find the exact ID match, this means the individual endpoint is broken
-          if (!assetTypeData) {
-            console.log(`⚠️ Requested asset type ID ${assetTypeId} not found in response array`);
-            console.log(`📋 Available asset types in response:`, parsedData.asset_types.map(t => `${t.id}: "${t.name}"`));
-            
-            // The individual endpoint is broken, force a full cache refresh instead
-            console.log(`🔄 Individual endpoint returned wrong data, forcing full cache refresh`);
-            try {
-              const allAssetTypes = await fetchAllAssetTypes();
-              if (allAssetTypes[assetTypeId]) {
-                console.log(`✅ Found asset type ${assetTypeId} via full refresh: "${allAssetTypes[assetTypeId].name}"`);
-                return allAssetTypes[assetTypeId].name;
-              } else {
-                console.log(`❌ Asset type ${assetTypeId} not found even after full refresh`);
-              }
-            } catch (refreshError) {
-              console.error(`❌ Full refresh failed:`, refreshError);
-            }
-            
-            return `Asset Type ${assetTypeId}`;
-          }
-        } else if (parsedData.name) {
-          assetTypeData = parsedData;
-        }
-        
-        if (assetTypeData && assetTypeData.name) {
-          const assetTypeName = assetTypeData.name;
-          
-          console.log(`✅ Successfully fetched individual asset type: "${assetTypeName}" (ID: ${assetTypeId})`);
-          
-          // Update cache with the individual asset type
-          const updatedCache = await getCachedAssetTypes();
-          updatedCache[assetTypeId] = {
-            name: assetTypeName,
-            description: assetTypeData.description || '',
-            visible: assetTypeData.visible !== false,
-            timestamp: Date.now()
-          };
-          await cacheAssetTypes(updatedCache);
-          
-          return assetTypeName;
-        }
-        
-        console.error(`❌ Invalid asset type data structure for ID ${assetTypeId}:`, parsedData);
-        return `Asset Type ${assetTypeId}`;
-      } catch (parseError) {
-        console.error(`❌ Error parsing asset type response for ID ${assetTypeId}:`, parseError);
-        return `Asset Type ${assetTypeId}`;
-      }
-    } catch (individualError) {
-      console.error(`❌ Error fetching individual asset type ${assetTypeId}:`, individualError);
-      return `Asset Type ${assetTypeId}`;
-    }
   } catch (error) {
     console.error(`❌ Error fetching asset type ${assetTypeId}:`, error);
     return `Asset Type ${assetTypeId}`;
@@ -1959,25 +1862,42 @@ async function initializeApp() {
   try {
     console.log('🚀 Starting app initialization...');
     
-    // Initialize caches in parallel for better performance
-    console.log('📦 Preloading asset types and locations caches...');
+    // Initialize all caches using the centralized cache manager
+    console.log('📦 Initializing cache manager...');
     
-    const cachePromises = [
-      fetchAllAssetTypes().catch(error => {
-        console.error('⚠️ Asset types cache initialization failed:', error);
-        return {}; // Return empty cache on failure
-      }),
-      fetchAllLocations().catch(error => {
-        console.error('⚠️ Locations cache initialization failed:', error);
-        return {}; // Return empty cache on failure
-      })
-    ];
-    
-    const [assetTypesCache, locationsCache] = await Promise.all(cachePromises);
-    
-    console.log(`✅ Cache initialization complete:`);
-    console.log(`   📋 Asset types: ${Object.keys(assetTypesCache).length} cached`);
-    console.log(`   📍 Locations: ${Object.keys(locationsCache).length} cached`);
+    // Check if CacheManager is available
+    if (!window.CacheManager) {
+      console.error('❌ CacheManager not available - falling back to individual cache initialization');
+      
+      // Fallback to original cache initialization
+      const cachePromises = [
+        fetchAllAssetTypes().catch(error => {
+          console.error('⚠️ Asset types cache initialization failed:', error);
+          return {}; // Return empty cache on failure
+        }),
+        fetchAllLocations().catch(error => {
+          console.error('⚠️ Locations cache initialization failed:', error);
+          return {}; // Return empty cache on failure
+        })
+      ];
+      
+      const [assetTypesCache, locationsCache] = await Promise.all(cachePromises);
+      
+      console.log(`✅ Fallback cache initialization complete:`);
+      console.log(`   📋 Asset types: ${Object.keys(assetTypesCache).length} cached`);
+      console.log(`   📍 Locations: ${Object.keys(locationsCache).length} cached`);
+    } else {
+      // Use the centralized cache manager
+      const cacheResults = await window.CacheManager.initializeAllCaches();
+      
+      console.log(`✅ Cache manager initialization complete:`);
+      console.log(`   📋 Asset types: ${cacheResults.assetTypes} cached`);
+      console.log(`   📍 Locations: ${cacheResults.locations} cached`);
+      
+      if (cacheResults.errors.length > 0) {
+        console.warn(`⚠️ Some caches failed to initialize: ${cacheResults.errors.join(', ')}`);
+      }
+    }
     
     // Initialize form components
     populateFormFields();
@@ -5226,7 +5146,14 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
 async function getLocationName(locationId) {
   if (!locationId) return 'N/A';
   
-  console.log(`🔍 Looking up location name for ID: ${locationId}`);
+  // Check if CacheManager is available and use it
+  if (window.CacheManager && window.CacheManager.getLocationName) {
+    console.log(`🔍 Using CacheManager to lookup location name for ID: ${locationId}`);
+    return await window.CacheManager.getLocationName(locationId);
+  }
+  
+  // Fallback to original logic if CacheManager is not available
+  console.log(`🔍 CacheManager not available, using fallback logic for location ID: ${locationId}`);
   
   // Check for client availability
   if (!window.client || !window.client.db) {
@@ -5245,105 +5172,27 @@ async function getLocationName(locationId) {
       return cachedLocations[locationId].name;
     }
     
-    console.log(`🔄 Location ${locationId} not in cache or expired, checking refresh options...`);
+    console.log(`🔄 Location ${locationId} not in cache or expired, trying to refresh...`);
     
-    // If not in cache or expired, check if we should refresh the entire cache
-    const cacheAge = Object.keys(cachedLocations).length === 0 ? 
-      Infinity : 
-      Math.max(...Object.values(cachedLocations).map(loc => Date.now() - loc.timestamp));
-    
-    if (cacheAge > CACHE_TIMEOUT) {
-      console.log(`🔄 Location cache is old (${Math.round(cacheAge / 60000)} minutes), trying to refresh all locations`);
-      try {
-        const allLocations = await fetchAllLocations();
-        
-        // Check if our target location was included in the refresh
-        if (allLocations[locationId]) {
-          console.log(`✅ Found location ${locationId} after cache refresh: "${allLocations[locationId].name}"`);
-          return allLocations[locationId].name;
-        }
-      } catch (bulkError) {
-        console.log(`⚠️ Bulk location fetch failed: ${bulkError.message}, trying individual fetch`);
-      }
-    }
-    
-    // If we still don't have the location, try individual fetch
-    console.log(`🔍 Fetching individual location ${locationId} from API`);
-    
+    // Try to refresh cache and look again
     try {
-      // Check if client and template are available
-      if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
-        console.log('⚠️ Client or invokeTemplate not available for individual location fetch');
-        return `Location ID: ${locationId}`;
-      }
-
-      // Try using the template first
-      let response;
-      try {
-        console.log(`🔄 Attempting getLocation template with context parameter`);
-        response = await window.client.request.invokeTemplate("getLocation", {
-          context: {
-            location_id: locationId
-          }
-        });
-        console.log(`✅ getLocation template with context parameter succeeded`);
-      } catch (templateError) {
-        console.log(`⚠️ getLocation template failed:`, templateError);
-        
-        // If the template completely fails, fall back to graceful degradation
-        console.log(`ℹ️ Locations API may not be available in this Freshservice instance`);
-        return `Location ID: ${locationId}`;
-      }
+      const allLocations = await fetchAllLocations();
       
-      if (!response || !response.response) {
-        console.error(`❌ Invalid location response for ID ${locationId}:`, response);
-        return `Location ID: ${locationId}`;
+      // Check if our target location was included in the refresh
+      if (allLocations[locationId]) {
+        console.log(`✅ Found location ${locationId} after cache refresh: "${allLocations[locationId].name}"`);
+        return allLocations[locationId].name;
       }
-      
-      try {
-        const parsedData = JSON.parse(response.response || '{}');
-        console.log(`📦 Individual location response for ${locationId}:`, parsedData);
-        
-        // Try different possible response structures
-        let locationData = null;
-        if (parsedData.location) {
-          locationData = parsedData.location;
-        } else if (parsedData.locations && parsedData.locations.length > 0) {
-          locationData = parsedData.locations[0];
-        } else if (parsedData.name) {
-          locationData = parsedData;
-        }
-        
-        if (locationData && locationData.name) {
-          const locationName = locationData.name;
-          
-          console.log(`✅ Successfully fetched individual location: "${locationName}" (ID: ${locationId})`);
-          
-          // Update cache with the individual location
-          const updatedCache = await getCachedLocations();
-          updatedCache[locationId] = {
-            name: locationName,
-            timestamp: Date.now()
-          };
-          await cacheLocations(updatedCache);
-          
-          return locationName;
-        }
-        
-        console.error(`❌ Invalid location data structure for ID ${locationId}:`, parsedData);
-        return `Location ID: ${locationId}`;
-      } catch (parseError) {
-        console.error(`❌ Error parsing location response for ID ${locationId}:`, parseError);
-        return `Location ID: ${locationId}`;
-      }
-    } catch (individualError) {
-      console.error(`❌ Error fetching individual location ${locationId}:`, individualError);
-      console.log(`ℹ️ Locations API may not be available in this Freshservice instance`);
-      return `Location ID: ${locationId}`;
+    } catch (bulkError) {
+      console.log(`⚠️ Bulk location fetch failed: ${bulkError.message}`);
     }
+    
+    console.log(`❌ Location ${locationId} not found even after refresh`);
+    return `Location ${locationId}`;
+    
   } catch (error) {
     console.error(`❌ Error in getLocationName for ${locationId}:`, error);
-    return `Location ID: ${locationId}`;
+    return `Location ${locationId}`;
   }
 }
 
@@ -5648,5 +5497,96 @@ window.testAvailableAPIs = async function() {
     
   } catch (error) {
     console.error('❌ Error testing APIs:', error);
+  }
+};
+
+/**
+ * Global debug function to test the new cache manager
+ */
+window.testCacheManager = async function() {
+  try {
+    console.log('🔧 === TESTING CACHE MANAGER ===');
+    
+    // Check if cache manager is available
+    if (!window.CacheManager) {
+      console.error('❌ CacheManager not available');
+      return;
+    }
+    
+    console.log('✅ CacheManager is available');
+    
+    // Test cache manager initialization
+    console.log('🚀 Testing cache manager initialization...');
+    const results = await window.CacheManager.initializeAllCaches();
+    console.log('✅ Cache manager initialization results:', results);
+    
+    // Test asset type lookup
+    console.log('🔍 Testing asset type lookup for laptop (ID: 37000374826)...');
+    const laptopTypeName = await window.CacheManager.getAssetTypeName(37000374826);
+    console.log(`🎯 Laptop type name result: "${laptopTypeName}"`);
+    
+    // Test location lookup (if any locations exist)
+    const cachedLocations = await window.CacheManager.getCachedLocations();
+    const locationIds = Object.keys(cachedLocations);
+    
+    if (locationIds.length > 0) {
+      const testLocationId = locationIds[0];
+      console.log(`🔍 Testing location lookup for ID: ${testLocationId}...`);
+      const locationName = await window.CacheManager.getLocationName(testLocationId);
+      console.log(`🎯 Location name result: "${locationName}"`);
+    } else {
+      console.log('ℹ️ No locations found in cache to test');
+    }
+    
+    // Show cache statistics
+    const assetTypes = await window.CacheManager.getCachedAssetTypes();
+    const locations = await window.CacheManager.getCachedLocations();
+    
+    console.log('📊 Cache Statistics:');
+    console.log(`   📋 Asset types cached: ${Object.keys(assetTypes).length}`);
+    console.log(`   📍 Locations cached: ${Object.keys(locations).length}`);
+    
+    // Show sample asset types
+    const sampleAssetTypes = Object.entries(assetTypes).slice(0, 5);
+    console.log('📋 Sample cached asset types:');
+    sampleAssetTypes.forEach(([id, type]) => {
+      console.log(`   ${id}: "${type.name}"`);
+    });
+    
+    // Show sample locations
+    if (Object.keys(locations).length > 0) {
+      const sampleLocations = Object.entries(locations).slice(0, 5);
+      console.log('📍 Sample cached locations:');
+      sampleLocations.forEach(([id, location]) => {
+        console.log(`   ${id}: "${location.name}"`);
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error testing cache manager:', error);
+  }
+};
+
+/**
+ * Global debug function to clear all caches via cache manager
+ */
+window.clearAllCaches = async function() {
+  try {
+    console.log('🧹 Clearing all caches via CacheManager...');
+    
+    if (!window.CacheManager) {
+      console.error('❌ CacheManager not available');
+      return;
+    }
+    
+    const success = await window.CacheManager.clearAllCaches();
+    if (success) {
+      console.log('✅ All caches cleared successfully');
+    } else {
+      console.log('⚠️ Cache clearing may have failed');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error clearing caches:', error);
   }
 };
