@@ -181,11 +181,15 @@ const AssetAssociation = {
       // Use field-specific search format: field:'searchterm'
       // Supported fields: name, asset_tag, serial_number, mac_addresses, ip_addresses, uuid, item_id, imei_number
       const fieldQuery = `${searchField}:'${searchTerm}'`;
-      const requestUrl = `?search=${encodeURIComponent(fieldQuery)}`;
+      
+      // Encode the query and manually encode single quotes as %27
+      let encodedQuery = encodeURIComponent(fieldQuery);
+      encodedQuery = encodedQuery.replace(/'/g, '%27');
+      const requestUrl = `?search=${encodedQuery}`;
       
       console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
       console.log(`📡 Request URL: /api/v2/assets${requestUrl}`);
-      console.log(`📡 Encoded query: ${encodeURIComponent(fieldQuery)}`);
+      console.log(`📡 Encoded query: ${encodedQuery}`);
       
       const response = await window.client.request.invokeTemplate("getAssets", {
         path_suffix: requestUrl
