@@ -155,12 +155,7 @@ const AssetAssociation = {
       return 'imei_number';
     }
     
-    // If it looks like a serial number (mix of letters and numbers, typically 6+ chars)
-    if (/^[A-Za-z0-9]{6,}$/.test(term) && /\d/.test(term) && /[A-Za-z]/.test(term)) {
-      return 'serial_number';
-    }
-    
-    // Default to name search for everything else
+    // Default to name search for everything else (including what might look like serial numbers)
     return 'name';
   },
 
