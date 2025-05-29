@@ -127,7 +127,7 @@ const AssetAssociation = {
   },
 
   /**
-   * Search assets from API using the search endpoint
+   * Search assets from API using the search endpoint with field-specific filtering
    * @param {string} searchTerm - The search term
    * @returns {Promise<Array>} - Array of matching assets
    */
@@ -137,11 +137,13 @@ const AssetAssociation = {
     }
 
     try {
-      // Use the search endpoint with the search query parameter
-      const requestUrl = `?search=${encodeURIComponent(searchTerm)}`;
+      // Use field-specific search format with multiple fields: name:'searchterm' OR display_name:'searchterm'
+      const fieldQuery = `name:'${searchTerm}' OR display_name:'${searchTerm}'`;
+      const requestUrl = `?search=${encodeURIComponent(fieldQuery)}`;
       
-      console.log(`🔍 Searching assets with query: "${searchTerm}"`);
+      console.log(`🔍 Searching assets with field query: "${fieldQuery}"`);
       console.log(`📡 Request URL: /api/v2/assets${requestUrl}`);
+      console.log(`📡 Encoded query: ${encodeURIComponent(fieldQuery)}`);
       
       const response = await window.client.request.invokeTemplate("getAssets", {
         path_suffix: requestUrl
