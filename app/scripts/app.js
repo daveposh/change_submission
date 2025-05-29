@@ -1,10 +1,14 @@
 /**
  * Freshservice Change Request App
- * Version: 2024.01.15-EnterKeySearch
+ * Version: 7.2.4
  */
 
-console.log('🚀 Loading Freshservice Change Request App - Version 2024.01.15-EnterKeySearch');
-console.log('✅ This version uses Enter key + Search button for asset search (no auto-search on typing)');
+console.log('🔧 Change Request App Loading - Version 7.2.4');
+console.log('🔧 This version includes app.initialized() fix for Freshworks apps');
+console.log('⚡ This version has user/agent search caching features enabled');
+console.log('🔍 User/Agent search caching: Enabled with configurable timeout');
+console.log('📧 Debug mode: Check console for detailed logs');
+console.log('🗑️ Asset search functionality removed - blank slate provided');
 
 /**
  * Change Request App
@@ -27,12 +31,10 @@ function debounce(func, wait) {
 // Cache structures
 const CACHE = {
   KEYS: {
-    ASSET_TYPES: 'asset_types_cache',
-    SERVICES: 'services_cache'
+    ASSET_TYPES: 'asset_types_cache'
   },
   TIMEOUTS: {
-    ASSET_TYPES: 20 * 60 * 1000, // 20 minutes
-    SERVICES: 10 * 60 * 1000     // 10 minutes
+    ASSET_TYPES: 20 * 60 * 1000 // 20 minutes
   }
 };
 
@@ -40,10 +42,6 @@ const CACHE = {
 const cache = {
   asset_types: {
     data: {},
-    timestamp: 0
-  },
-  services: {
-    data: [],
     timestamp: 0
   }
 };
@@ -120,287 +118,18 @@ async function getConfiguredAssetTypeIds() {
  * @returns {Promise<Array>} Cached services
  */
 async function fetchAndCacheServices() {
-  console.log('Fetching services...');
-  
-  // Check for client availability
-  if (!window.client || !window.client.request) {
-    console.error('Client not available for services fetch');
-    throw new Error('Client not initialized');
-  }
-
-  try {
-    // Get configured asset type IDs
-    const assetTypeIds = await getConfiguredAssetTypeIds();
-    if (assetTypeIds.length === 0) {
-      throw new Error('No configured asset types found');
-    }
-
-    // Build filter query
-    const filter = assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ');
-    const query = `?query="${encodeURIComponent(filter)}"&per_page=100`;
-
-    // Fetch services
-    const response = await window.client.request.invokeTemplate("getAssets", {
-      path_suffix: query
-    });
-
-    if (!response || !response.response) {
-      throw new Error('Invalid response from assets API');
-    }
-
-    const data = JSON.parse(response.response);
-    const services = data.assets || [];
-
-    // Update cache
-    cache.services = {
-      data: services,
-      timestamp: Date.now()
-    };
-
-    return services;
-  } catch (error) {
-    console.error('Error fetching services:', error);
-    throw error;
-  }
+  // Services functionality removed - blank slate provided
+  console.log('Services functionality removed');
+  return [];
 }
 
 /**
  * Get services (filtered from assets by specific service asset type IDs)
  */
 async function getServices(forceRefresh = false) {
-  try {
-    console.log('🔍 getServices called with forceRefresh:', forceRefresh);
-    
-    // Check for cached services first (unless forcing refresh)
-    if (!forceRefresh) {
-      const cachedServices = await getCachedServices();
-      if (cachedServices && cachedServices.length > 0) {
-        console.log(`Using cached services: ${cachedServices.length} services`);
-        // Debug: show first service structure
-        if (cachedServices[0]) {
-          console.log('📋 Sample cached service structure:', {
-            id: cachedServices[0].id,
-            name: cachedServices[0].name || cachedServices[0].display_name,
-            asset_type_id: cachedServices[0].asset_type_id,
-            keys: Object.keys(cachedServices[0])
-          });
-        }
-        return cachedServices;
-      }
-    } else {
-      console.log('Force refresh requested, clearing services cache');
-      await clearServicesCache();
-    }
-
-    console.log('Fetching services from API using specific asset type IDs...');
-    
-    // Get installation parameters to check for custom service asset type IDs
-    const params = await getInstallationParams();
-    console.log('🔧 Installation params loaded:', params);
-    
-    // Define the default service asset type IDs (can be overridden in installation params)
-    const defaultServiceAssetTypeIds = [
-      37000374722, // Applications/Software - 8 assets (DBT, Middleware, EBCFX, AWS Core, etc.)
-      37000374723, // Additional asset type from original query
-      37000374726, // IT Software - 3 assets (Active Directory, GoAnyWhere, Microsoft Entra ID)
-      37000374730  // ISP/Network Services - 19 assets (Orlando Colo, various ISP connections, etc.)
-    ];
-    console.log('🎯 Default service asset type IDs:', defaultServiceAssetTypeIds);
-    
-    // Allow configuration override via installation parameters
-    const serviceAssetTypeIds = params.serviceAssetTypeIds || defaultServiceAssetTypeIds;
-    console.log('🎯 Final service asset type IDs to use:', serviceAssetTypeIds);
-    console.log('🔍 Using default IDs?', !params.serviceAssetTypeIds);
-    
-    console.log('🎯 Service asset type IDs:', serviceAssetTypeIds);
-    
-    if (!Array.isArray(serviceAssetTypeIds) || serviceAssetTypeIds.length === 0) {
-      console.warn('No service asset type IDs configured');
-      await cacheServices([]);
-      return [];
-    }
-    
-    // Use filtered API query instead of fetching all assets
-    console.log('🔄 Using filtered API query for efficiency...');
-    
-    // Build query to filter by asset type IDs
-    const assetTypeFilter = serviceAssetTypeIds.length > 0 ? 
-      `(${serviceAssetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
-    
-    console.log('🔍 Asset type filter query:', assetTypeFilter);
-    
-    let allAssets = [];
-    let page = 1;
-    let hasMorePages = true;
-    const maxPages = 40; // Respect API limit: maximum 40 pages
-    const perPage = 30; // Freshworks API limit is 30 objects per page
-    let totalCount = null;
-    
-    while (hasMorePages && page <= maxPages) {
-      try {
-        const encodedQuery = encodeURIComponent(assetTypeFilter);
-        const requestUrl = `?query=${encodedQuery}&per_page=${perPage}&page=${page}`;
-        console.log(`🌐 API request URL (page ${page}):`, requestUrl);
-        
-        const response = await window.client.request.invokeTemplate("getAssets", {
-          path_suffix: requestUrl
-        });
-        
-        if (!response || !response.response) {
-          console.warn(`No response for page ${page}, stopping pagination`);
-          break;
-        }
-        
-        // Parse response headers for total count (if available)
-        if (response.headers && totalCount === null) {
-          try {
-            const headers = typeof response.headers === 'string' ? 
-              JSON.parse(response.headers) : response.headers;
-            
-            // Look for common pagination headers
-            const totalCountHeader = headers['x-total-count'] || 
-                                   headers['X-Total-Count'] || 
-                                   headers['total-count'] ||
-                                   headers['Total-Count'];
-            
-            if (totalCountHeader) {
-              totalCount = parseInt(totalCountHeader);
-              const expectedPages = Math.ceil(totalCount / perPage);
-              console.log(`📊 Total count from headers: ${totalCount} (${expectedPages} pages expected)`);
-            }
-          } catch (headerError) {
-            console.log('📊 Could not parse headers for total count:', headerError.message);
-          }
-        }
-        
-        const data = JSON.parse(response.response);
-        const pageAssets = data.assets || [];
-        
-        console.log(`📄 Page ${page}: Retrieved ${pageAssets.length} assets`);
-        
-        if (pageAssets.length === 0) {
-          console.log(`📄 Page ${page} returned no assets, stopping pagination`);
-          hasMorePages = false;
-        } else {
-          allAssets = allAssets.concat(pageAssets);
-          
-          // Check for excessive duplication - if we have way more assets than unique ones, stop early
-          if (page >= 3) {
-            const uniqueIds = new Set(allAssets.map(a => a.id));
-            const duplicationRatio = allAssets.length / uniqueIds.size;
-            
-            if (duplicationRatio > 10) {
-              console.log(`🛑 Stopping early due to excessive duplication: ${allAssets.length} assets but only ${uniqueIds.size} unique (${duplicationRatio.toFixed(1)}x duplication)`);
-              hasMorePages = false;
-              break;
-            }
-          }
-          
-          // More intelligent pagination logic
-          const isFullPage = pageAssets.length === perPage;
-          const withinPageLimit = page < maxPages;
-          const belowTotalCount = totalCount === null || allAssets.length < totalCount;
-          
-          hasMorePages = isFullPage && withinPageLimit && belowTotalCount;
-          
-          console.log(`📊 Pagination decision for page ${page + 1}:`, {
-            isFullPage,
-            withinPageLimit,
-            belowTotalCount,
-            totalRetrieved: allAssets.length,
-            expectedTotal: totalCount,
-            willContinue: hasMorePages
-          });
-          
-          page++;
-          
-          // Add a small delay between requests to be API-friendly
-          if (hasMorePages) {
-            const paginationDelay = params.paginationDelay || 300;
-            await new Promise(resolve => setTimeout(resolve, paginationDelay));
-          }
-        }
-        
-      } catch (error) {
-        console.error(`❌ Error fetching page ${page}:`, error);
-        break;
-      }
-    }
-    
-    console.log(`📥 Retrieved ${allAssets.length} total assets from ${page - 1} pages`);
-    if (totalCount !== null) {
-      console.log(`📊 Expected ${totalCount} assets, retrieved ${allAssets.length} (${((allAssets.length / totalCount) * 100).toFixed(1)}%)`);
-    }
-    
-    // Show all unique asset type IDs found for debugging
-    const allAssetTypes = [...new Set(allAssets.map(a => a.asset_type_id))].sort((a, b) => a - b);
-    console.log(`🔍 All asset type IDs found in results: ${allAssetTypes.join(', ')}`);
-    
-    // Show breakdown of all asset types for debugging
-    const allTypeBreakdown = {};
-    allAssets.forEach(asset => {
-      const typeId = asset.asset_type_id;
-      if (!allTypeBreakdown[typeId]) {
-        allTypeBreakdown[typeId] = [];
-      }
-      allTypeBreakdown[typeId].push(asset.name);
-    });
-    
-    console.log('📊 Asset types with counts:');
-    Object.entries(allTypeBreakdown).forEach(([typeId, assets]) => {
-      console.log(`   Type ${typeId}: ${assets.length} assets - ${assets.slice(0, 3).join(', ')}${assets.length > 3 ? '...' : ''}`);
-    });
-    
-    // Since we're already filtering by asset type in the query, all results should be relevant
-    const targetServices = allAssets;
-    
-    console.log(`🎯 Using ${targetServices.length} assets from filtered query`);
-    
-    // Remove duplicates based on asset ID
-    const uniqueServices = [];
-    const seenIds = new Set();
-    
-    targetServices.forEach(service => {
-      if (!seenIds.has(service.id)) {
-        seenIds.add(service.id);
-        uniqueServices.push(service);
-      }
-    });
-    
-    console.log(`🔧 After deduplication: ${uniqueServices.length} unique services (removed ${targetServices.length - uniqueServices.length} duplicates)`);
-    
-    // Show breakdown by asset type
-    const typeBreakdown = {};
-    uniqueServices.forEach(service => {
-      const typeId = service.asset_type_id;
-      if (!typeBreakdown[typeId]) {
-        typeBreakdown[typeId] = 0;
-      }
-      typeBreakdown[typeId]++;
-    });
-    console.log('📊 Unique services by asset type ID:', typeBreakdown);
-    
-    // Debug: show first service structure from API
-    if (uniqueServices[0]) {
-      console.log('📋 Sample API service structure:', {
-        id: uniqueServices[0].id,
-        name: uniqueServices[0].name || uniqueServices[0].display_name,
-        asset_type_id: uniqueServices[0].asset_type_id,
-        keys: Object.keys(uniqueServices[0])
-      });
-    }
-    
-    // Cache the unique services
-    await cacheServices(uniqueServices);
-    
-    return uniqueServices;
-    
-  } catch (error) {
-    console.error('❌ Error fetching services:', error);
-    
-    // Return empty array on error but don't cache the error
-    return [];
-  }
+  // Services functionality removed - blank slate provided
+  console.log('Services functionality removed');
+  return [];
 }
 
 /**
@@ -482,74 +211,25 @@ function fetchAllAssets() {
  * Get cached services
  */
 async function getCachedServices() {
-  try {
-    const params = await getInstallationParams();
-    const cacheKey = `services_cache_${params.domain || 'default'}`;
-    const cached = localStorage.getItem(cacheKey);
-    
-    if (cached) {
-      const data = JSON.parse(cached);
-      const now = Date.now();
-      
-      // Check version first - invalidate if using old logic
-      const expectedVersion = 'v2_specific_asset_types';
-      if (data.version !== expectedVersion) {
-        console.log(`Cache version mismatch. Expected: ${expectedVersion}, Found: ${data.version || 'v1'}. Clearing cache.`);
-        localStorage.removeItem(cacheKey);
-        return null;
-      }
-      
-      // Check if cache is still valid (24 hours)
-      if (now - data.timestamp < 24 * 60 * 60 * 1000) {
-        console.log(`Using cached services (version ${data.version}): ${data.services.length} services`);
-        return data.services;
-      } else {
-        // Clear expired cache
-        console.log('Services cache expired, clearing');
-        localStorage.removeItem(cacheKey);
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error getting cached services:', error);
-    return null;
-  }
+  // Services functionality removed - blank slate provided
+  console.log('Services cache functionality removed');
+  return null;
 }
 
 /**
  * Cache services data
  */
 async function cacheServices(services) {
-  try {
-    const params = await getInstallationParams();
-    const cacheKey = `services_cache_${params.domain || 'default'}`;
-    
-    const cacheData = {
-      services: services,
-      timestamp: Date.now(),
-      version: 'v2_specific_asset_types' // Version to track cache format changes
-    };
-    
-    localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-    console.log(`Cached ${services.length} services with version ${cacheData.version}`);
-  } catch (error) {
-    console.error('Error caching services:', error);
-  }
+  // Services functionality removed - blank slate provided
+  console.log('Services cache functionality removed');
 }
 
 /**
  * Clear services cache (useful when changing service logic)
  */
 async function clearServicesCache() {
-  try {
-    const params = await getInstallationParams();
-    const cacheKey = `services_cache_${params.domain || 'default'}`;
-    localStorage.removeItem(cacheKey);
-    console.log('Services cache cleared');
-  } catch (error) {
-    console.error('Error clearing services cache:', error);
-  }
+  // Services functionality removed - blank slate provided
+  console.log('Services cache functionality removed');
 }
 
 const changeRequestData = {
@@ -744,21 +424,13 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- refreshServicesWithDebug() - Refresh with detailed logs');
       console.log('- forceClearServices() - Simple cache clear (always works)');
       console.log('- showApiLimits() - Show API limits and constraints');
-      console.log('- testAssetSearchPagination("term") - Test asset search pagination');
-      console.log('- testSearchStrategies("term") - Test different search strategies');
-      console.log('- testAssetHeaders("term") - Test API response headers');
-      console.log('- testApiSearchSyntax("term") - Test different API search syntaxes');
-      console.log('- findAssetsContaining("term") - Find assets containing specific term');
-      console.log('- testEfficientAssetSearch("term") - Test new efficient asset search');
       console.log('- testEfficientServicesLoading() - Test new efficient services loading');
       console.log('- compareLoadingStrategies() - Compare old vs new loading approaches');
       console.log('- debugAssetTypes() - Debug asset type configuration');
       console.log('- showConfiguredAssetTypes() - Show configured asset types');
       console.log('- findSoftwareServicesAssetTypeIds() - Find asset type IDs');
       console.log('- checkAvailableAssetTypes() - Check available asset types');
-      console.log('- findAssetByName("name") - Find specific asset by name');
-      console.log('- testSingleQuery("query", "description") - Test single API query');
-      console.log('- testSearchBehavior() - Test Enter key search behavior');
+      console.log('🗑️ Asset search test functions removed - see blank slate comment');
     };
     
     // Simple, reliable cache clearing function
@@ -1331,25 +1003,14 @@ window.clearAssetCache = async function() {
     await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {});
     console.log('✅ Cleared asset type cache');
     
-    // Clear asset search cache
-    if (window.client.db.set && STORAGE_KEYS.ASSET_CACHE) {
-      await window.client.db.set(STORAGE_KEYS.ASSET_CACHE, {});
-      console.log('✅ Cleared asset search cache');
-    }
+    // Clear asset search cache (removed functionality)
+    console.log('ℹ️ Asset search cache clearing skipped - functionality removed');
     
-    // Clear in-memory caches
-    searchCache.assets = {};
-    searchCache.assetsByType = {};
+    // Clear in-memory caches for users/agents only
+    delete searchCache.assets;
+    delete searchCache.assetsByType;
     
-    // Clear asset type configuration cache if it exists
-    if (typeof assetTypeCache !== 'undefined') {
-      assetTypeCache.byId = {};
-      assetTypeCache.list = [];
-      assetTypeCache.timestamp = 0;
-      assetTypeCache.types = {};
-    }
-    
-    console.log('✅ Cleared in-memory caches');
+    console.log('✅ Cleared in-memory user/agent caches');
     
     // Force refresh asset types
     console.log('🔄 Fetching fresh asset types...');
@@ -1929,208 +1590,41 @@ function populateFormFields() {
  * Set up event listeners for form inputs
  */
 function setupEventListeners() {
-  // Service selection
-  const serviceSelect = document.getElementById('service-select');
-  if (serviceSelect) {
-    serviceSelect.addEventListener('change', handleServiceSelection);
-  }
-
+  console.log('🎯 Setting up event listeners...');
+  
   // Change type selection
   const changeTypeSelect = document.getElementById('change-type');
   if (changeTypeSelect) {
     changeTypeSelect.addEventListener('change', handleChangeTypeSelection);
+    console.log('✅ Change type selection listener added');
   }
-
+  
   // Requester search
   const requesterSearch = document.getElementById('requester-search');
   if (requesterSearch) {
-    requesterSearch.addEventListener('input', debounce(searchRequesters, 300));
+    const debouncedRequesterSearch = debounce(searchRequesters, 300);
+    requesterSearch.addEventListener('input', debouncedRequesterSearch);
+    console.log('✅ Requester search listener added');
   }
-
+  
   // Agent search
   const agentSearch = document.getElementById('agent-search');
   if (agentSearch) {
-    agentSearch.addEventListener('input', debounce(searchAgents, 300));
+    const debouncedAgentSearch = debounce(searchAgents, 300);
+    agentSearch.addEventListener('input', debouncedAgentSearch);
+    console.log('✅ Agent search listener added');
   }
 
-  // Form navigation buttons
-  const detailsNext = document.getElementById('details-next');
-  if (detailsNext) {
-    detailsNext.addEventListener('click', validateDetailsAndNext);
-  }
-
-  const calculateRiskBtn = document.getElementById('calculate-risk');
-  if (calculateRiskBtn) {
-    calculateRiskBtn.addEventListener('click', calculateRisk);
-  }
-
-  const submitChangeBtn = document.getElementById('submit-change');
-  if (submitChangeBtn) {
-    submitChangeBtn.addEventListener('click', function() {
-      // Clear any previous highlighting
-      clearFieldHighlighting();
-      
-      // Validate that risk has been calculated
-      if (changeRequestData.riskAssessment.totalScore === 0) {
-        showNotification('error', 'Please calculate the risk score before submitting the change request');
-        
-        // Scroll to the calculate risk button
-        const calculateRiskBtn = document.getElementById('calculate-risk');
-        if (calculateRiskBtn) {
-          calculateRiskBtn.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
-          // Add highlighting to the button
-          calculateRiskBtn.classList.add('btn-outline-danger');
-          setTimeout(() => {
-            calculateRiskBtn.classList.remove('btn-outline-danger');
-          }, 3000);
-        }
-        return;
-      }
-      
-      // Final validation of all required fields
-      let hasErrors = false;
-      
-      if (!changeRequestData.requester) {
-        showNotification('error', 'Missing requester information. Please go back to Change Details tab.');
-        hasErrors = true;
-      }
-      
-      if (!changeRequestData.agent) {
-        showNotification('error', 'Missing agent information. Please go back to Change Details tab.');
-        hasErrors = true;
-      }
-      
-      if (!changeRequestData.plannedStart || !changeRequestData.plannedEnd) {
-        showNotification('error', 'Missing planned dates. Please go back to Change Details tab.');
-        hasErrors = true;
-      }
-      
-      if (!changeRequestData.implementationPlan || !changeRequestData.backoutPlan || !changeRequestData.validationPlan) {
-        showNotification('error', 'Missing required plans. Please go back to Change Details tab.');
-        hasErrors = true;
-      }
-      
-      if (hasErrors) {
-        // Switch back to details tab if there are errors
-        switchTab('change-details');
-        return;
-      }
-      
-      // Show confirmation modal with summary
-      showSubmissionSummary();
-    });
-  }
-
-  // Handle confirmation modal buttons
-  const editRequestBtn = document.getElementById('edit-request');
-  if (editRequestBtn) {
-    editRequestBtn.addEventListener('click', function() {
-      // Modal will close automatically due to data-bs-dismiss="modal"
-      // User can continue editing the form
-      console.log('User chose to edit the request');
-    });
-  }
-
-  const confirmSubmitBtn = document.getElementById('confirm-submit');
-  if (confirmSubmitBtn) {
-    confirmSubmitBtn.addEventListener('click', function() {
-      // Perform actual submission to Freshservice
-      submitToFreshservice();
-    });
-  }
-
-  // Risk assessment radio buttons
-  const riskRadios = document.querySelectorAll('.risk-options input[type="radio"]');
-  riskRadios.forEach(radio => {
-    radio.addEventListener('change', updateRiskSelection);
+  // Risk assessment inputs
+  const riskInputs = document.querySelectorAll('input[name^="risk-"]');
+  riskInputs.forEach(input => {
+    input.addEventListener('change', updateRiskSelection);
   });
+  console.log(`✅ Risk assessment listeners added (${riskInputs.length} inputs)`);
 
-  // Form inputs with auto-save
-  const plannedStart = document.getElementById('planned-start');
-  if (plannedStart) {
-    plannedStart.addEventListener('change', function() {
-      changeRequestData.plannedStart = this.value;
-      console.log('Planned start updated:', this.value);
-    });
-  }
+  // Services functionality removed - no service dropdown listeners
 
-  const plannedEnd = document.getElementById('planned-end');
-  if (plannedEnd) {
-    plannedEnd.addEventListener('change', function() {
-      changeRequestData.plannedEnd = this.value;
-      console.log('Planned end updated:', this.value);
-    });
-  }
-
-  const implementationPlan = document.getElementById('implementation-plan');
-  if (implementationPlan) {
-    implementationPlan.addEventListener('input', debounce(function() {
-      changeRequestData.implementationPlan = this.value;
-      console.log('Implementation plan updated');
-    }, 1000));
-  }
-
-  const backoutPlan = document.getElementById('backout-plan');
-  if (backoutPlan) {
-    backoutPlan.addEventListener('input', debounce(function() {
-      changeRequestData.backoutPlan = this.value;
-      console.log('Backout plan updated');
-    }, 1000));
-  }
-
-  const validationPlan = document.getElementById('validation-plan');
-  if (validationPlan) {
-    validationPlan.addEventListener('input', debounce(function() {
-      changeRequestData.validationPlan = this.value;
-      console.log('Validation plan updated');
-    }, 1000));
-  }
-
-  // Asset association - service dropdown and asset search
-  // const serviceSelect = document.getElementById('service-select');
-  // if (serviceSelect) {
-  //   serviceSelect.addEventListener('change', handleServiceSelection);
-  // }
-
-  // Asset search (service dropdown already handled in main section above)
-  const assetSearch = document.getElementById('asset-search');
-  if (assetSearch) {
-    // Listen for keydown events to catch Enter key press
-    assetSearch.addEventListener('keydown', searchAssets);
-  }
-
-  // Asset association navigation
-  const assetsNext = document.getElementById('assets-next');
-  if (assetsNext) {
-    assetsNext.addEventListener('click', validateAssetsAndNext);
-  }
-
-  // Asset search button
-  const assetSearchBtn = document.getElementById('asset-search-btn');
-  if (assetSearchBtn) {
-    assetSearchBtn.addEventListener('click', function() {
-      // Simulate a keydown event with Enter key for the search input
-      const assetSearchInput = document.getElementById('asset-search');
-      if (assetSearchInput) {
-        const event = new KeyboardEvent('keydown', {
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          which: 13,
-          bubbles: true
-        });
-        // Set the target to the input element
-        Object.defineProperty(event, 'target', {
-          value: assetSearchInput,
-          writable: false
-        });
-        searchAssets(event);
-      }
-    });
-  }
+  console.log('✅ All event listeners setup complete');
 }
 
 /**
@@ -2584,295 +2078,6 @@ function addToSearchCache(type, searchTerm, results) {
   console.log(`💾 Cached ${results.length} ${type} results for "${searchTerm}"`);
 }
 
-// Global variable to track current search requests and prevent duplicates
-let currentAssetSearchRequest = null;
-
-/**
- * Search for assets (handles both main asset search and asset association)
- */
-function searchAssets(e) {
-  console.log('🔧 NEW VERSION: searchAssets function called (Enter key + Search button only)');
-  
-  // Only trigger search on Enter key press or explicit search button click
-  if (e.type === 'keydown' && e.key !== 'Enter') {
-    console.log('⏸️ Ignoring keystroke (not Enter key) - NEW VERSION WORKING!');
-    return; // Don't search on every keystroke
-  }
-  
-  const searchTerm = e.target ? e.target.value.trim() : '';
-  const searchInputId = e.target ? e.target.id : '';
-  
-  // Log how the search was triggered
-  if (e.type === 'keydown' && e.key === 'Enter') {
-    console.log(`🔍 Asset search triggered by Enter key for: "${searchTerm}"`);
-  } else {
-    console.log(`🔍 Asset search triggered by search button for: "${searchTerm}"`);
-  }
-  
-  // Clear results if search term is empty
-  if (searchTerm.length === 0) {
-    const resultsContainer = getResultsContainer(searchInputId);
-    if (resultsContainer) {
-      resultsContainer.style.display = 'none';
-    }
-    // Cancel any ongoing search
-    if (currentAssetSearchRequest) {
-      currentAssetSearchRequest.cancelled = true;
-      currentAssetSearchRequest = null;
-    }
-    console.log(`❌ Search cancelled: empty search term`);
-    return;
-  }
-  
-  console.log(`🔍 Asset search triggered for: "${searchTerm}"`);
-  
-  // Determine which search container to use
-  let resultsContainer;
-  let selectionCallback;
-  
-  if (searchInputId === 'asset-search') {
-    // Asset association search
-    resultsContainer = document.getElementById('asset-search-results');
-    selectionCallback = selectAsset; // This will be our updated selectAsset for associations
-  } else {
-    // Main asset search (existing functionality)
-    resultsContainer = document.getElementById('asset-results');
-    selectionCallback = selectAsset; // Keep existing behavior for main search
-  }
-
-  // Cancel any ongoing search for a different term
-  if (currentAssetSearchRequest && currentAssetSearchRequest.searchTerm !== searchTerm) {
-    console.log(`🚫 Cancelling previous search for "${currentAssetSearchRequest.searchTerm}" to search for "${searchTerm}"`);
-    currentAssetSearchRequest.cancelled = true;
-    currentAssetSearchRequest = null;
-  }
-
-  // If we already have a search running for this exact term, don't start another
-  if (currentAssetSearchRequest && currentAssetSearchRequest.searchTerm === searchTerm) {
-    console.log(`⏳ Search already in progress for "${searchTerm}", skipping duplicate request`);
-    return;
-  }
-
-  // Show loading indicator
-  if (resultsContainer) {
-    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Searching assets...</div>';
-    resultsContainer.style.display = 'block';
-  }
-  
-  // Check cache first
-  getFromSearchCache('assets', searchTerm).then(cachedResults => {
-    if (cachedResults) {
-      console.log(`💾 Using cached results for "${searchTerm}" (${cachedResults.length} assets)`);
-      // Use cached results
-      if (searchInputId === 'asset-search') {
-        displayAssetAssociationResults(cachedResults);
-      } else {
-        displayAssetResults('asset-results', cachedResults, selectionCallback);
-      }
-      
-      // Get the configured search cache timeout
-      getInstallationParams().then(params => {
-        const searchCacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
-        
-        // Set a timer to check for fresh results after the timeout
-        setTimeout(() => {
-          // Only perform API call if the search term is still the current one
-          const currentSearchInput = document.getElementById(searchInputId);
-          const currentSearchTerm = currentSearchInput?.value.trim();
-          if (currentSearchTerm === searchTerm) {
-            console.log(`Cache timeout reached (${searchCacheTimeout}ms), refreshing asset search for: ${searchTerm}`);
-            performAssetSearch(searchTerm, true, searchInputId);
-          }
-        }, searchCacheTimeout);
-      });
-      
-      return;
-    }
-    
-    // No cache hit, perform search immediately
-    console.log(`🆕 No cached results for "${searchTerm}", performing fresh search`);
-    performAssetSearch(searchTerm, false, searchInputId);
-  }).catch(error => {
-    console.error('Error checking asset search cache:', error);
-    // Fallback to direct search on cache error
-    performAssetSearch(searchTerm, false, searchInputId);
-  });
-}
-
-/**
- * Helper function to get the appropriate results container
- */
-function getResultsContainer(searchInputId) {
-  if (searchInputId === 'asset-search') {
-    return document.getElementById('asset-search-results');
-  } else {
-    return document.getElementById('asset-results');
-  }
-}
-
-/**
- * Perform the actual API search for assets
- * @param {string} searchTerm - The search term
- * @param {boolean} isRefresh - Whether this is a cache refresh operation
- */
-async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) {
-  // Check for client availability
-  if (!window.client || !window.client.request) {
-    console.error('Client not available for asset search');
-    const resultsContainer = document.getElementById(searchInputId);
-    if (resultsContainer) {
-      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized</div>';
-    }
-    return;
-  }
-
-  // Create a search request tracker
-  const searchRequest = {
-    searchTerm: searchTerm,
-    cancelled: false,
-    startTime: Date.now()
-  };
-  currentAssetSearchRequest = searchRequest;
-
-  // Only show loading indicator for non-refresh operations
-  if (!isRefresh) {
-    const resultsContainer = document.getElementById(searchInputId);
-    if (resultsContainer) {
-      resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
-      resultsContainer.style.display = 'block';
-    }
-  }
-  
-  try {
-    console.log(`🔍 Starting asset search for "${searchTerm}" using basic API endpoint`);
-    
-    // Use basic assets endpoint without query parameters (API doesn't support name search)
-    // We'll get assets and do simple client-side name matching
-    console.log('🔍 Asset search: Using basic assets endpoint + client-side name matching');
-    console.log('⚠️ Note: API does not support name queries, using simple endpoint');
-    
-    // Get installation parameters for pagination settings
-    const params = await getInstallationParams();
-    
-    // Start with first page
-    let allAssets = [];
-    let matchingAssets = [];
-    let page = 1;
-    const perPage = 30; // API limit is 30 objects per page
-    const maxPages = 5; // Reasonable limit for search to avoid loading too many assets
-    
-    while (page <= maxPages) {
-      // Check if search was cancelled
-      if (searchRequest.cancelled) {
-        console.log(`🚫 Search for "${searchTerm}" was cancelled`);
-        return;
-      }
-      
-      const requestUrl = `?per_page=${perPage}&page=${page}`;
-      console.log(`🌐 Asset search API request (page ${page}): ${requestUrl}`);
-      
-      const response = await window.client.request.invokeTemplate("getAssets", {
-        path_suffix: requestUrl
-      });
-      
-      if (!response || !response.response) {
-        throw new Error('Invalid response from assets API');
-      }
-      
-      const data = JSON.parse(response.response);
-      const pageAssets = data.assets || [];
-      
-      console.log(`📄 Asset search page ${page}: Retrieved ${pageAssets.length} assets`);
-      
-      if (pageAssets.length === 0) {
-        console.log(`📄 No more assets found, stopping pagination`);
-        break;
-      }
-      
-      // Add all assets for potential future use
-      allAssets = allAssets.concat(pageAssets);
-      
-      // Filter by search term client-side
-      const pageMatches = pageAssets.filter(asset => {
-        const assetName = (asset.display_name || asset.name || '').toLowerCase();
-        return assetName.includes(searchTerm.toLowerCase());
-      });
-      
-      matchingAssets = matchingAssets.concat(pageMatches);
-      
-      console.log(`🔽 Page ${page}: ${pageMatches.length} assets match "${searchTerm}" by name`);
-      console.log(`📊 Total matching assets so far: ${matchingAssets.length}`);
-      
-      // Stop if we didn't get a full page (end of results)
-      if (pageAssets.length < perPage) {
-        console.log(`📄 Partial page received, stopping pagination`);
-        break;
-      }
-      
-      // Stop if we have enough matching results for UI performance
-      if (matchingAssets.length >= 50) {
-        console.log(`✅ Found ${matchingAssets.length} matching assets, stopping for performance`);
-        break;
-      }
-      
-      page++;
-      
-      // Small delay between requests to be API-friendly
-      if (page <= maxPages) {
-        const paginationDelay = params.paginationDelay || 300;
-        await new Promise(resolve => setTimeout(resolve, paginationDelay));
-      }
-    }
-    
-    // Use the matching assets as our final result
-    allAssets = matchingAssets;
-    
-    console.log(`📥 Asset search completed: ${allAssets.length} total assets from ${page - 1} pages`);
-    
-    // Clear the current search request
-    if (currentAssetSearchRequest === searchRequest) {
-      currentAssetSearchRequest = null;
-    }
-    
-    // Cache the results
-    addToSearchCache('assets', searchTerm, allAssets);
-    
-    // Display results based on search type
-    if (searchInputId === 'asset-search') {
-      displayAssetAssociationResults(allAssets);
-    } else {
-      displayAssetResults('asset-results', allAssets, selectAsset);
-    }
-    
-    console.log(`Asset search completed: ${allAssets.length} results for "${searchTerm}"`);
-    
-  } catch (error) {
-    console.error('Error performing asset search:', error);
-    
-    // Clear the current search request
-    if (currentAssetSearchRequest === searchRequest) {
-      currentAssetSearchRequest = null;
-    }
-    
-    // Show error notification
-    showNotification('error', `Failed to search assets: ${error.message}. Please try again.`);
-    
-    // Show error in results container if available
-    if (!isRefresh) {
-      const resultsContainer = document.getElementById(searchInputId);
-      if (resultsContainer) {
-        resultsContainer.innerHTML = `
-          <div class="text-center p-3 text-danger">
-            <i class="fas fa-exclamation-triangle mb-2"></i>
-            <div>Error searching assets</div>
-            <small>${error.message}</small>
-          </div>
-        `;
-      }
-    }
-  }
-}
-
 /**
  * Map internal change type to Freshservice change type
  */
@@ -3224,6 +2429,7 @@ function removeService(serviceId) {
   console.log('Service removed:', serviceId);
 }
 
+
 /**
  * Select an asset for association
  */
@@ -3324,63 +2530,8 @@ function validateAssetsAndNext() {
  * Display asset search results for asset association
  */
 function displayAssetAssociationResults(assets) {
-  const container = document.getElementById('asset-search-results');
-  if (!container) return;
-  
-  if (assets.length === 0) {
-    container.innerHTML = '<div class="text-center p-3">No assets found</div>';
-    return;
-  }
-  
-  // Sort assets by name
-  assets.sort((a, b) => {
-    const nameA = (a.display_name || a.name || '').toLowerCase();
-    const nameB = (b.display_name || b.name || '').toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
-
-  // Create results list
-  let html = '<div class="list-group">';
-  assets.forEach(asset => {
-    const name = asset.display_name || asset.name || 'Unknown';
-    const description = asset.description || '';
-    const assetTypeId = asset.asset_type_id;
-    
-    // Check if already selected
-    const isSelected = changeRequestData.selectedAssets.some(a => a.id === asset.id);
-    
-    html += `
-      <button type="button" class="list-group-item list-group-item-action ${isSelected ? 'disabled' : ''}" 
-              data-id="${asset.id}" ${isSelected ? 'disabled' : ''}>
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="fw-bold">${name} ${isSelected ? '<span class="badge bg-success ms-2">Selected</span>' : ''}</div>
-            ${description ? `<div class="text-secondary small">${description}</div>` : ''}
-          </div>
-          <div class="text-end">
-            <div class="small text-muted">Type ID: ${assetTypeId}</div>
-          </div>
-        </div>
-      </button>
-    `;
-  });
-  html += '</div>';
-  
-  container.innerHTML = html;
-  
-  // Add click handlers
-  container.querySelectorAll('.list-group-item:not(.disabled)').forEach(item => {
-    item.addEventListener('click', () => {
-      const selectedId = parseInt(item.dataset.id);
-      const selectedAsset = assets.find(a => a.id === selectedId);
-      if (selectedAsset) {
-        selectAsset(selectedAsset);
-        container.style.display = 'none';
-        // Clear search input
-        document.getElementById('asset-search').value = '';
-      }
-    });
-  });
+  // Asset search display functionality removed - blank slate for new implementation
+  console.log('Asset association results display - functionality removed');
 }
 
 /**
@@ -3390,57 +2541,8 @@ function displayAssetAssociationResults(assets) {
  * @param {Function} selectionCallback - Callback for when an item is selected
  */
 function displayAssetResults(containerId, results, selectionCallback) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  
-  if (results.length === 0) {
-    container.innerHTML = '<div class="text-center p-3">No assets found</div>';
-    return;
-  }
-  
-  // Sort results by name
-  results.sort((a, b) => {
-    const nameA = (a.display_name || a.name || '').toLowerCase();
-    const nameB = (b.display_name || b.name || '').toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
-
-  // Create results list
-  let html = '<div class="list-group">';
-  results.forEach(result => {
-    const name = result.display_name || result.name || 'Unknown';
-    const description = result.description || '';
-    const assetTypeId = result.asset_type_id;
-    
-    html += `
-      <button type="button" class="list-group-item list-group-item-action" data-id="${result.id}">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="fw-bold">${name}</div>
-            ${description ? `<div class="text-secondary small">${description}</div>` : ''}
-          </div>
-          <div class="text-end">
-            <div class="small text-muted">Type ID: ${assetTypeId}</div>
-          </div>
-        </div>
-      </button>
-    `;
-  });
-  html += '</div>';
-  
-  container.innerHTML = html;
-  
-  // Add click handlers
-  container.querySelectorAll('.list-group-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const selectedId = parseInt(item.dataset.id);
-      const selectedResult = results.find(r => r.id === selectedId);
-      if (selectedResult && selectionCallback) {
-        selectionCallback(selectedResult);
-        container.style.display = 'none';
-      }
-    });
-  });
+  // Asset search results display functionality removed - blank slate for new implementation
+  console.log('Asset results display - functionality removed');
 }
 
 /**
