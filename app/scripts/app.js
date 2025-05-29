@@ -308,6 +308,18 @@ async function getServices(forceRefresh = false) {
         } else {
           allAssets = allAssets.concat(pageAssets);
           
+          // Check for excessive duplication - if we have way more assets than unique ones, stop early
+          if (page >= 3) {
+            const uniqueIds = new Set(allAssets.map(a => a.id));
+            const duplicationRatio = allAssets.length / uniqueIds.size;
+            
+            if (duplicationRatio > 10) {
+              console.log(`🛑 Stopping early due to excessive duplication: ${allAssets.length} assets but only ${uniqueIds.size} unique (${duplicationRatio.toFixed(1)}x duplication)`);
+              hasMorePages = false;
+              break;
+            }
+          }
+          
           // More intelligent pagination logic
           const isFullPage = pageAssets.length === perPage;
           const withinPageLimit = page < maxPages;
@@ -762,6 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- testAssetHeaders("term") - Test API response headers');
       console.log('- testApiSearchSyntax("term") - Test different API search syntaxes');
       console.log('- findAssetsContaining("term") - Find assets containing specific term');
+      console.log('- testEfficientAssetSearch("term") - Test new efficient asset search');
       console.log('- testEfficientServicesLoading() - Test new efficient services loading');
       console.log('- compareLoadingStrategies() - Compare old vs new loading approaches');
       console.log('- debugAssetTypes() - Debug asset type configuration');
@@ -2936,15 +2949,15 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
     const assetTypeIds = await getConfiguredAssetTypeIds();
     console.log(`🔍 Starting asset search for "${searchTerm}" in asset types: ${assetTypeIds.join(', ')}`);
     
-    // Build search query according to API documentation
+    // Build query - since API name filtering is broken, just use asset type filter
     const assetTypeFilter = assetTypeIds.length > 0 ? 
       `(${assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
-    const nameFilter = `name:'*${searchTerm}*'`;
-    const query = assetTypeFilter ? 
-      `${assetTypeFilter} AND ${nameFilter}` : 
-      nameFilter;
     
-    console.log(`🔍 Asset search query: "${query}"`);
+    // Note: API search syntax for names appears to be broken, so we'll filter client-side
+    const query = assetTypeFilter;
+    
+    console.log('🔍 Asset search query:', query);
+    console.log('⚠️ Note: Using client-side filtering for names due to API search limitations');
     
     // Get installation parameters for pagination settings
     const params = await getInstallationParams();
@@ -3077,13 +3090,16 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
         let shouldContinue = false;
         
         if (totalPages > 1) {
-          // We know the total pages, so continue until we reach the end
-          shouldContinue = page < totalPages && page < 10; // Cap at 10 pages for performance
-          console.log(`📊 Using header info: page ${page}/${totalPages}, shouldContinue=${shouldContinue}`);
+          // We know the total pages, so continue until we reach the end or find enough matches
+          const hasEnoughMatches = allAssets.length >= 10; // Stop if we have 10+ matches
+          shouldContinue = page < totalPages && page < 10 && !hasEnoughMatches;
+          console.log(`📊 Using header info: page ${page}/${totalPages}, matches found: ${allAssets.length}, shouldContinue=${shouldContinue}`);
         } else {
-          // No header info, use traditional pagination logic
-          shouldContinue = pageAssets.length === perPage && page < 10;
-          console.log(`📊 Using traditional pagination: got ${pageAssets.length} assets, shouldContinue=${shouldContinue}`);
+          // No header info, use traditional pagination logic but stop early if we have enough matches
+          const hasEnoughMatches = allAssets.length >= 10; // Stop if we have 10+ matches
+          const hasMoreData = pageAssets.length === perPage;
+          shouldContinue = hasMoreData && page < 10 && !hasEnoughMatches;
+          console.log(`📊 Using traditional pagination: got ${pageAssets.length} assets, matches found: ${allAssets.length}, shouldContinue=${shouldContinue}`);
         }
         
         // Continue with remaining pages if needed
@@ -3137,7 +3153,8 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
               // Process and filter results on this page
               const filteredCurrentPageAssets = currentPageAssets.filter(asset => {
                 const assetName = (asset.display_name || asset.name || '').toLowerCase();
-                return assetName.includes(searchTerm.toLowerCase());
+                const searchTermLower = searchTerm.toLowerCase();
+                return assetName.includes(searchTermLower);
               });
               
               console.log(`🔽 Page ${page}: ${filteredCurrentPageAssets.length} assets match search term after filtering`);
@@ -5634,5 +5651,112 @@ window.findAssetsContaining = async function(searchTerm = 'middleware') {
     
   } catch (error) {
     console.error('❌ Error finding assets:', error);
+  }
+};
+
+/**
+ * Global debug function to test the new efficient asset search
+ */
+window.testEfficientAssetSearch = async function(searchTerm = 'active') {
+  try {
+    console.log('🔧 === TESTING EFFICIENT ASSET SEARCH ===');
+    console.log(`Search term: "${searchTerm}"`);
+    
+    // Get configured asset type IDs
+    const assetTypeIds = await getConfiguredAssetTypeIds();
+    console.log(`🎯 Asset type IDs: ${assetTypeIds.join(', ')}`);
+    
+    // Build query (asset type filter only)
+    const assetTypeFilter = assetTypeIds.length > 0 ? 
+      `(${assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    
+    console.log(`🔍 Query: "${assetTypeFilter}"`);
+    console.log('⚠️ Using client-side filtering for names due to API limitations');
+    
+    let allAssets = [];
+    let matchingAssets = [];
+    let page = 1;
+    const maxPages = 5; // Limit for testing
+    
+    while (page <= maxPages) {
+      const encodedQuery = encodeURIComponent(assetTypeFilter);
+      const requestUrl = `?query=${encodedQuery}&per_page=30&page=${page}`;
+      
+      console.log(`🌐 Page ${page} request: ${requestUrl}`);
+      
+      const response = await window.client.request.invokeTemplate("getAssets", {
+        path_suffix: requestUrl
+      });
+      
+      if (response && response.response) {
+        const data = JSON.parse(response.response);
+        const pageAssets = data.assets || [];
+        
+        console.log(`📄 Page ${page}: Retrieved ${pageAssets.length} assets`);
+        
+        if (pageAssets.length === 0) {
+          console.log('📄 No more assets, stopping');
+          break;
+        }
+        
+        // Filter for matching assets
+        const pageMatches = pageAssets.filter(asset => {
+          const assetName = (asset.display_name || asset.name || '').toLowerCase();
+          return assetName.includes(searchTerm.toLowerCase());
+        });
+        
+        console.log(`🔽 Page ${page}: ${pageMatches.length} assets match "${searchTerm}"`);
+        
+        allAssets = allAssets.concat(pageAssets);
+        matchingAssets = matchingAssets.concat(pageMatches);
+        
+        // Show matches found on this page
+        if (pageMatches.length > 0) {
+          pageMatches.forEach((asset, index) => {
+            const assetName = asset.display_name || asset.name || 'Unknown';
+            console.log(`   ✅ ${index + 1}. "${assetName}" (ID: ${asset.id})`);
+          });
+        }
+        
+        // Stop if we have enough matches
+        if (matchingAssets.length >= 10) {
+          console.log(`✅ Found enough matches (${matchingAssets.length}), stopping early`);
+          break;
+        }
+        
+        // Stop if we didn't get a full page
+        if (pageAssets.length < 30) {
+          console.log('📄 Partial page received, stopping');
+          break;
+        }
+        
+        page++;
+        
+        // Small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } else {
+        console.log(`❌ No response for page ${page}`);
+        break;
+      }
+    }
+    
+    console.log(`\n📊 Summary:`);
+    console.log(`   Total assets retrieved: ${allAssets.length}`);
+    console.log(`   Matching assets found: ${matchingAssets.length}`);
+    console.log(`   Pages searched: ${page - 1}`);
+    console.log(`   Efficiency: ${((matchingAssets.length / allAssets.length) * 100).toFixed(1)}% relevant`);
+    
+    if (matchingAssets.length > 0) {
+      console.log(`\n📋 All matching assets:`);
+      matchingAssets.forEach((asset, index) => {
+        const assetName = asset.display_name || asset.name || 'Unknown';
+        console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+      });
+    }
+    
+    console.log('\n🔧 === EFFICIENT ASSET SEARCH TEST COMPLETE ===');
+    
+  } catch (error) {
+    console.error('❌ Error testing efficient asset search:', error);
   }
 };
