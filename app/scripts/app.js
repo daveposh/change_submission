@@ -551,23 +551,61 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Test the specific problematic asset type
       console.log('🔍 Testing asset type ID 37000374826 (ORLIT20-LT laptop)...');
+      console.log('🎯 Expected result: Should show "Laptop" or similar, NOT "Software/Services"');
+      
+      // First, test the broken individual endpoint
+      console.log('\n1️⃣ Testing individual asset type endpoint (known to be broken):');
+      try {
+        const response = await window.client.request.invokeTemplate("getAssetTypes", {
+          path_suffix: `/37000374826`
+        });
+        
+        if (response && response.response) {
+          const data = JSON.parse(response.response);
+          console.log(`   📦 Individual endpoint returned: ${data.asset_types?.length || 0} asset types`);
+          if (data.asset_types && data.asset_types.length > 0) {
+            const firstType = data.asset_types[0];
+            console.log(`   ❌ Individual endpoint incorrectly returns: "${firstType.name}" (ID: ${firstType.id})`);
+            console.log(`   ⚠️ This is why laptop shows as "Software/Services"`);
+          }
+        }
+      } catch (error) {
+        console.log(`   ❌ Individual endpoint failed: ${error.message}`);
+      }
+      
+      // Now test the pagination approach
+      console.log('\n2️⃣ Testing pagination approach to find the correct asset type:');
       const laptopTypeName = await getAssetTypeName(37000374826);
-      console.log(`🎯 Result: "${laptopTypeName}"`);
+      console.log(`🎯 Result via pagination: "${laptopTypeName}"`);
       
       // Show what's in cache now
       const cache = await getCachedAssetTypes();
       if (cache[37000374826]) {
         console.log(`✅ Cache entry: "${cache[37000374826].name}"`);
+        if (cache[37000374826].name !== 'Software/Services') {
+          console.log('🎉 SUCCESS: Asset type resolution fixed!');
+        } else {
+          console.log('❌ STILL BROKEN: Still showing as Software/Services');
+        }
       } else {
         console.log('❌ Asset type not found in cache');
       }
       
-      // Test a few other asset types for comparison
-      console.log('🔍 Testing other asset types for comparison...');
-      const testIds = [37000374722, 37000374723, 37000374726];
-      for (const id of testIds) {
-        const name = await getAssetTypeName(id);
-        console.log(`   ${id}: "${name}"`);
+      // Show cache statistics
+      const cacheSize = Object.keys(cache).length;
+      console.log(`📊 Total asset types in cache: ${cacheSize}`);
+      
+      if (cacheSize > 0) {
+        const cacheIds = Object.keys(cache).map(Number).sort((a, b) => a - b);
+        const minId = cacheIds[0];
+        const maxId = cacheIds[cacheIds.length - 1];
+        console.log(`📋 Cache ID range: ${minId} to ${maxId}`);
+        
+        if (37000374826 >= minId && 37000374826 <= maxId) {
+          console.log('✅ Target ID is within cached range');
+        } else {
+          console.log(`❌ Target ID (37000374826) is outside cached range - need more pagination`);
+        }
       }
     };
     
@@ -884,10 +922,11 @@ async function fetchAllAssetTypes() {
     const allAssetTypes = {};
     let page = 1;
     let totalFetched = 0;
-    const maxPages = 10; // Reduce to 10 pages to avoid potential infinite loops
+    const maxPages = 20; // Increase to 20 pages since laptop type is on later pages
     
     console.log(`📡 Starting asset type pagination fetch (max ${maxPages} pages)`);
     console.log(`📋 Will fetch pages until: (1) 0 results returned, OR (2) max pages reached`);
+    console.log(`🎯 Looking for laptop asset type ID: 37000374826`);
     
     // Continue fetching pages until we get no more results
     while (page <= maxPages) {
@@ -914,6 +953,13 @@ async function fetchAllAssetTypes() {
         
         const assetTypes = parsedData.asset_types || [];
         console.log(`✅ Page ${page}: Retrieved ${assetTypes.length} asset types`);
+        
+        // Show the ID range on this page for debugging
+        if (assetTypes.length > 0) {
+          const firstId = assetTypes[0].id;
+          const lastId = assetTypes[assetTypes.length - 1].id;
+          console.log(`   📋 ID range on page ${page}: ${firstId} to ${lastId}`);
+        }
         
         // If we got no results, we've reached the end
         if (assetTypes.length === 0) {
@@ -1084,6 +1130,19 @@ async function getAssetTypeName(assetTypeId) {
       
       if (!response || !response.response) {
         console.error(`❌ Invalid asset type response for ID ${assetTypeId}:`, response);
+        
+        // If individual fetch fails, try forcing a full cache refresh
+        console.log(`🔄 Individual fetch failed, forcing full cache refresh to find asset type ${assetTypeId}`);
+        try {
+          const allAssetTypes = await fetchAllAssetTypes();
+          if (allAssetTypes[assetTypeId]) {
+            console.log(`✅ Found asset type ${assetTypeId} after full refresh: "${allAssetTypes[assetTypeId].name}"`);
+            return allAssetTypes[assetTypeId].name;
+          }
+        } catch (refreshError) {
+          console.error(`❌ Full refresh also failed:`, refreshError);
+        }
+        
         return `Asset Type ${assetTypeId}`;
       }
       
@@ -1099,12 +1158,26 @@ async function getAssetTypeName(assetTypeId) {
           // Find the specific asset type that matches our requested ID
           assetTypeData = parsedData.asset_types.find(type => type.id === assetTypeId);
           
-          // If we didn't find the exact ID match, log this as an issue
+          // If we didn't find the exact ID match, this means the individual endpoint is broken
           if (!assetTypeData) {
             console.log(`⚠️ Requested asset type ID ${assetTypeId} not found in response array`);
             console.log(`📋 Available asset types in response:`, parsedData.asset_types.map(t => `${t.id}: "${t.name}"`));
-            // Fall back to the first one, but this indicates a potential API issue
-            assetTypeData = parsedData.asset_types[0];
+            
+            // The individual endpoint is broken, force a full cache refresh instead
+            console.log(`🔄 Individual endpoint returned wrong data, forcing full cache refresh`);
+            try {
+              const allAssetTypes = await fetchAllAssetTypes();
+              if (allAssetTypes[assetTypeId]) {
+                console.log(`✅ Found asset type ${assetTypeId} via full refresh: "${allAssetTypes[assetTypeId].name}"`);
+                return allAssetTypes[assetTypeId].name;
+              } else {
+                console.log(`❌ Asset type ${assetTypeId} not found even after full refresh`);
+              }
+            } catch (refreshError) {
+              console.error(`❌ Full refresh failed:`, refreshError);
+            }
+            
+            return `Asset Type ${assetTypeId}`;
           }
         } else if (parsedData.name) {
           assetTypeData = parsedData;
