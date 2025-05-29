@@ -750,6 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- checkAvailableAssetTypes() - Check available asset types');
       console.log('- findAssetByName("name") - Find specific asset by name');
       console.log('- testSingleQuery("query", "description") - Test single API query');
+      console.log('- testSearchBehavior() - Test Enter key search behavior');
     };
     
     // Simple, reliable cache clearing function
@@ -2089,13 +2090,38 @@ function setupEventListeners() {
   // Asset search (service dropdown already handled in main section above)
   const assetSearch = document.getElementById('asset-search');
   if (assetSearch) {
-    assetSearch.addEventListener('input', debounce(searchAssets, 300));
+    // Listen for keydown events to catch Enter key press
+    assetSearch.addEventListener('keydown', searchAssets);
   }
 
   // Asset association navigation
   const assetsNext = document.getElementById('assets-next');
   if (assetsNext) {
     assetsNext.addEventListener('click', validateAssetsAndNext);
+  }
+
+  // Asset search button
+  const assetSearchBtn = document.getElementById('asset-search-btn');
+  if (assetSearchBtn) {
+    assetSearchBtn.addEventListener('click', function() {
+      // Simulate a keydown event with Enter key for the search input
+      const assetSearchInput = document.getElementById('asset-search');
+      if (assetSearchInput) {
+        const event = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true
+        });
+        // Set the target to the input element
+        Object.defineProperty(event, 'target', {
+          value: assetSearchInput,
+          writable: false
+        });
+        searchAssets(event);
+      }
+    });
   }
 }
 
@@ -2557,8 +2583,37 @@ let currentAssetSearchRequest = null;
  * Search for assets (handles both main asset search and asset association)
  */
 function searchAssets(e) {
+  // Only trigger search on Enter key press or explicit search button click
+  if (e.type === 'keydown' && e.key !== 'Enter') {
+    return; // Don't search on every keystroke
+  }
+  
   const searchTerm = e.target ? e.target.value.trim() : '';
   const searchInputId = e.target ? e.target.id : '';
+  
+  // Log how the search was triggered
+  if (e.type === 'keydown' && e.key === 'Enter') {
+    console.log(`🔍 Asset search triggered by Enter key for: "${searchTerm}"`);
+  } else {
+    console.log(`🔍 Asset search triggered by search button for: "${searchTerm}"`);
+  }
+  
+  // Clear results if search term is empty
+  if (searchTerm.length === 0) {
+    const resultsContainer = getResultsContainer(searchInputId);
+    if (resultsContainer) {
+      resultsContainer.style.display = 'none';
+    }
+    // Cancel any ongoing search
+    if (currentAssetSearchRequest) {
+      currentAssetSearchRequest.cancelled = true;
+      currentAssetSearchRequest = null;
+    }
+    console.log(`❌ Search cancelled: empty search term`);
+    return;
+  }
+  
+  console.log(`🔍 Asset search triggered for: "${searchTerm}"`);
   
   // Determine which search container to use
   let resultsContainer;
@@ -2572,19 +2627,6 @@ function searchAssets(e) {
     // Main asset search (existing functionality)
     resultsContainer = document.getElementById('asset-results');
     selectionCallback = selectAsset; // Keep existing behavior for main search
-  }
-  
-  // Clear and hide results if search term is too short
-  if (searchTerm.length < 3) {
-    if (resultsContainer) {
-      resultsContainer.style.display = 'none';
-    }
-    // Cancel any ongoing search
-    if (currentAssetSearchRequest) {
-      currentAssetSearchRequest.cancelled = true;
-      currentAssetSearchRequest = null;
-    }
-    return;
   }
 
   // Cancel any ongoing search for a different term
@@ -2602,13 +2644,14 @@ function searchAssets(e) {
 
   // Show loading indicator
   if (resultsContainer) {
-    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+    resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Searching assets...</div>';
     resultsContainer.style.display = 'block';
   }
   
   // Check cache first
   getFromSearchCache('assets', searchTerm).then(cachedResults => {
     if (cachedResults) {
+      console.log(`💾 Using cached results for "${searchTerm}" (${cachedResults.length} assets)`);
       // Use cached results
       if (searchInputId === 'asset-search') {
         displayAssetAssociationResults(cachedResults);
@@ -2636,12 +2679,24 @@ function searchAssets(e) {
     }
     
     // No cache hit, perform search immediately
+    console.log(`🆕 No cached results for "${searchTerm}", performing fresh search`);
     performAssetSearch(searchTerm, false, searchInputId);
   }).catch(error => {
     console.error('Error checking asset search cache:', error);
     // Fallback to direct search on cache error
     performAssetSearch(searchTerm, false, searchInputId);
   });
+}
+
+/**
+ * Helper function to get the appropriate results container
+ */
+function getResultsContainer(searchInputId) {
+  if (searchInputId === 'asset-search') {
+    return document.getElementById('asset-search-results');
+  } else {
+    return document.getElementById('asset-results');
+  }
 }
 
 /**
@@ -2678,22 +2733,22 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
   }
   
   try {
-    console.log(`🔍 Starting asset search for "${searchTerm}" using direct API name query`);
+    console.log(`🔍 Starting asset search for "${searchTerm}" using basic API endpoint`);
     
-    // Use API's name search capability directly
-    const query = `name:'*${searchTerm}*'`;
-    
-    console.log(`🔍 Asset search query: ${query}`);
-    console.log('⚠️ Using direct API name search (no client-side filtering)');
+    // Use basic assets endpoint without query parameters (API doesn't support name search)
+    // We'll get assets and do simple client-side name matching
+    console.log('🔍 Asset search: Using basic assets endpoint + client-side name matching');
+    console.log('⚠️ Note: API does not support name queries, using simple endpoint');
     
     // Get installation parameters for pagination settings
     const params = await getInstallationParams();
     
     // Start with first page
     let allAssets = [];
+    let matchingAssets = [];
     let page = 1;
     const perPage = 30; // API limit is 30 objects per page
-    const maxPages = 10; // Reasonable limit for search results
+    const maxPages = 5; // Reasonable limit for search to avoid loading too many assets
     
     while (page <= maxPages) {
       // Check if search was cancelled
@@ -2702,7 +2757,7 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
         return;
       }
       
-      const requestUrl = `?query=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
+      const requestUrl = `?per_page=${perPage}&page=${page}`;
       console.log(`🌐 Asset search API request (page ${page}): ${requestUrl}`);
       
       const response = await window.client.request.invokeTemplate("getAssets", {
@@ -2723,10 +2778,19 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
         break;
       }
       
-      // Add all results (no client-side filtering needed)
+      // Add all assets for potential future use
       allAssets = allAssets.concat(pageAssets);
       
-      console.log(`📊 Total assets found so far: ${allAssets.length}`);
+      // Filter by search term client-side
+      const pageMatches = pageAssets.filter(asset => {
+        const assetName = (asset.display_name || asset.name || '').toLowerCase();
+        return assetName.includes(searchTerm.toLowerCase());
+      });
+      
+      matchingAssets = matchingAssets.concat(pageMatches);
+      
+      console.log(`🔽 Page ${page}: ${pageMatches.length} assets match "${searchTerm}" by name`);
+      console.log(`📊 Total matching assets so far: ${matchingAssets.length}`);
       
       // Stop if we didn't get a full page (end of results)
       if (pageAssets.length < perPage) {
@@ -2734,9 +2798,9 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
         break;
       }
       
-      // Stop if we have enough results for UI performance
-      if (allAssets.length >= 100) {
-        console.log(`✅ Found ${allAssets.length} assets, stopping for performance`);
+      // Stop if we have enough matching results for UI performance
+      if (matchingAssets.length >= 50) {
+        console.log(`✅ Found ${matchingAssets.length} matching assets, stopping for performance`);
         break;
       }
       
@@ -2749,14 +2813,10 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
       }
     }
     
-    // Check if search was cancelled before completing
-    if (searchRequest.cancelled) {
-      console.log(`🚫 Search for "${searchTerm}" was cancelled before completion`);
-      return;
-    }
+    // Use the matching assets as our final result
+    allAssets = matchingAssets;
     
-    const searchDuration = Date.now() - searchRequest.startTime;
-    console.log(`📥 Asset search completed: ${allAssets.length} total assets from ${page - 1} pages in ${searchDuration}ms`);
+    console.log(`📥 Asset search completed: ${allAssets.length} total assets from ${page - 1} pages`);
     
     // Clear the current search request
     if (currentAssetSearchRequest === searchRequest) {
@@ -5218,24 +5278,18 @@ window.findAssetsContaining = async function(searchTerm = 'middleware') {
  */
 window.testEfficientAssetSearch = async function(searchTerm = 'active') {
   try {
-    console.log('🔧 === TESTING ASSET SEARCH (ALL TYPES) ===');
+    console.log('🔧 === TESTING BASIC ASSET SEARCH ===');
     console.log(`Search term: "${searchTerm}"`);
-    console.log('🎯 Searching ALL asset types by name/displayname (no filters)');
-    
-    // Search ALL assets - no asset type filters
-    const query = ''; // Empty query = all assets across all types
-    
-    console.log(`🔍 Query: "${query}" (no filters)`);
-    console.log('⚠️ Using client-side filtering for names due to API limitations');
+    console.log('🎯 Using basic assets endpoint (no query parameters)');
+    console.log('⚠️ Client-side filtering for names (API does not support name queries)');
     
     let allAssets = [];
     let matchingAssets = [];
     let page = 1;
-    const maxPages = 5; // Limit for testing
+    const maxPages = 3; // Limit for testing
     
     while (page <= maxPages) {
-      const encodedQuery = encodeURIComponent(query);
-      const requestUrl = `?query=${encodedQuery}&per_page=30&page=${page}`;
+      const requestUrl = `?per_page=30&page=${page}`;
       
       console.log(`🌐 Page ${page} request: ${requestUrl}`);
       
@@ -5247,7 +5301,7 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
         const data = JSON.parse(response.response);
         const pageAssets = data.assets || [];
         
-        console.log(`📄 Page ${page}: Retrieved ${pageAssets.length} assets (all types)`);
+        console.log(`📄 Page ${page}: Retrieved ${pageAssets.length} assets`);
         
         if (pageAssets.length === 0) {
           console.log('📄 No more assets, stopping');
@@ -5296,7 +5350,7 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
     }
     
     console.log(`\n📊 Summary:`);
-    console.log(`   Total assets retrieved: ${allAssets.length} (all types)`);
+    console.log(`   Total assets retrieved: ${allAssets.length}`);
     console.log(`   Matching assets found: ${matchingAssets.length}`);
     console.log(`   Pages searched: ${page - 1}`);
     console.log(`   Efficiency: ${((matchingAssets.length / allAssets.length) * 100).toFixed(1)}% relevant`);
@@ -5309,10 +5363,10 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
       });
     }
     
-    console.log('\n🔧 === ASSET SEARCH TEST COMPLETE ===');
+    console.log('\n🔧 === BASIC ASSET SEARCH TEST COMPLETE ===');
     
   } catch (error) {
-    console.error('❌ Error testing asset search:', error);
+    console.error('❌ Error testing basic asset search:', error);
   }
 };
 
@@ -5466,3 +5520,99 @@ window.findAssetsContaining = async function(searchTerm = 'middleware') {
     console.error('❌ Error finding assets:', error);
   }
 };
+
+/**
+ * Global debug function to find assets containing a specific term using basic API endpoint
+ */
+window.findAssetsContaining = async function(searchTerm = 'middleware') {
+  try {
+    console.log('🔧 === TESTING BASIC ASSETS ENDPOINT ===');
+    console.log(`Search term: "${searchTerm}"`);
+    console.log('🎯 Using basic assets endpoint (no query parameters)');
+    
+    // Use basic assets endpoint without query parameters
+    const requestUrl = `?per_page=30&page=1`;
+    
+    console.log(`🔍 No query parameters (API doesn't support name search)`);
+    console.log(`🌐 Request URL: ${requestUrl}`);
+    
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    });
+    
+    if (response && response.response) {
+      const data = JSON.parse(response.response);
+      const assets = data.assets || [];
+      
+      console.log(`📄 Retrieved ${assets.length} assets from basic endpoint`);
+      
+      // Filter client-side for matches
+      const matchingAssets = assets.filter(asset => {
+        const assetName = (asset.display_name || asset.name || '').toLowerCase();
+        return assetName.includes(searchTerm.toLowerCase());
+      });
+      
+      console.log(`🔽 ${matchingAssets.length} assets match "${searchTerm}" after client-side filtering`);
+      
+      if (matchingAssets.length > 0) {
+        console.log(`📋 Matching assets:`);
+        matchingAssets.forEach((asset, index) => {
+          const assetName = asset.display_name || asset.name || 'Unknown';
+          console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+        });
+      } else {
+        console.log(`📋 No matches found. Sample assets (first 5):`);
+        assets.slice(0, 5).forEach((asset, index) => {
+          const assetName = asset.display_name || asset.name || 'Unknown';
+          console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+        });
+        console.log('💡 Try different search terms that might match the asset names above');
+      }
+    } else {
+      console.log('❌ No response from API');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error finding assets:', error);
+  }
+};
+
+/**
+ * Test the new Enter key search behavior
+ */
+window.testSearchBehavior = function() {
+  console.log('🧪 === TESTING ENTER KEY SEARCH BEHAVIOR ===');
+  
+  const assetSearchInput = document.getElementById('asset-search');
+  const assetSearchBtn = document.getElementById('asset-search-btn');
+  
+  if (!assetSearchInput) {
+    console.error('❌ Asset search input not found');
+    return;
+  }
+  
+  if (!assetSearchBtn) {
+    console.error('❌ Asset search button not found');
+    return;
+  }
+  
+  console.log('✅ Asset search input found:', assetSearchInput);
+  console.log('✅ Asset search button found:', assetSearchBtn);
+  console.log('📝 Placeholder text:', assetSearchInput.placeholder);
+  
+  // Test that keydown events are properly bound
+  const events = getEventListeners ? getEventListeners(assetSearchInput) : null;
+  if (events) {
+    console.log('🔗 Event listeners on input:', Object.keys(events));
+  } else {
+    console.log('🔗 Event listeners check not available (use dev tools)');
+  }
+  
+  console.log('\n💡 Testing instructions:');
+  console.log('1. Type a search term in the asset search input');
+  console.log('2. Press Enter or click the search button');
+  console.log('3. Verify search only triggers on Enter/click, not on typing');
+  console.log('4. Check console for search trigger messages');
+  
+  console.log('\n🔧 === SEARCH BEHAVIOR TEST COMPLETE ===');
+}
