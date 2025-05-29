@@ -177,8 +177,9 @@ const AssetAssociation = {
       // Supported fields: name, asset_tag, serial_number, mac_addresses, ip_addresses, uuid, item_id, imei_number
       const fieldQuery = `${searchField}:'${searchTerm}'`;
       
-      // Encode the query and manually encode single quotes as %27
-      let encodedQuery = encodeURIComponent(fieldQuery);
+      // Wrap the query in double quotes and encode properly
+      const quotedQuery = `"${fieldQuery}"`;
+      let encodedQuery = encodeURIComponent(quotedQuery);
       encodedQuery = encodedQuery.replace(/'/g, '%27');
       const requestUrl = `?search=${encodedQuery}`;
       
