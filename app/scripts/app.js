@@ -16,15 +16,18 @@ console.log('🗑️ Asset search functionality removed - blank slate provided')
  */
 
 // Utility functions
+/**
+ * Debounce function to limit API calls
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in milliseconds
+ * @returns {Function} - Debounced function
+ */
 function debounce(func, wait) {
-  let timeout;
+  let timeoutId;
   return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
+    const context = this;
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(context, args), wait);
   };
 }
 
@@ -1443,7 +1446,7 @@ async function findSoftwareServicesAssetTypeIds() {
       37000374722, // From user's Middleware asset
       37000374726  // IT Software - has assets according to logs
     ];
-    let assetTypeIds = [...KNOWN_SOFTWARE_TYPE_IDS];
+    const assetTypeIds = [...KNOWN_SOFTWARE_TYPE_IDS];
     
     console.log(`✅ Using known software/services asset type IDs: ${KNOWN_SOFTWARE_TYPE_IDS.join(', ')}`);
     
@@ -5813,7 +5816,6 @@ window.testClearFunctionality = function() {
   
   const requesterDiv = document.getElementById('selected-requester');
   const requesterSearch = document.getElementById('requester-search');
-  const requesterResults = document.getElementById('requester-search-results');
   
   console.log(`   Before clear - requester div visible:`, requesterDiv ? requesterDiv.style.display !== 'none' : 'not found');
   console.log(`   Before clear - requester search value:`, requesterSearch ? requesterSearch.value : 'not found');
@@ -5831,7 +5833,6 @@ window.testClearFunctionality = function() {
   
   const agentDiv = document.getElementById('selected-agent');
   const agentSearch = document.getElementById('agent-search');
-  const agentResults = document.getElementById('agent-search-results');
   
   console.log(`   Before clear - agent div visible:`, agentDiv ? agentDiv.style.display !== 'none' : 'not found');
   console.log(`   Before clear - agent search value:`, agentSearch ? agentSearch.value : 'not found');
