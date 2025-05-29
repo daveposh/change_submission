@@ -64,19 +64,35 @@ async function fetchAndCacheAssetTypes() {
 }
 
 /**
- * Get asset types from cache or fetch if expired
- * @returns {Promise<Object>} Asset types map
+ * Get asset types (from cache or fetch if needed)
+ * @returns {Promise<Object>} - Asset types object
  */
 async function getAssetTypes() {
-  const now = Date.now();
-  const cacheAge = now - cache.asset_types.timestamp;
-
-  if (cacheAge > CACHE.TIMEOUTS.ASSET_TYPES || Object.keys(cache.asset_types.data).length === 0) {
-    console.log('Asset types cache expired or empty, refreshing...');
-    return await fetchAndCacheAssetTypes();
+  try {
+    // Try to get cached asset types first
+    const cachedTypes = await getCachedAssetTypes();
+    
+    // Check if cache is valid and not expired
+    if (Object.keys(cachedTypes).length > 0) {
+      // Check if any cached item is not expired (5 minute timeout)
+      const now = Date.now();
+      const hasValidCache = Object.values(cachedTypes).some(type => 
+        type.timestamp && (now - type.timestamp) < CACHE_TIMEOUT
+      );
+      
+      if (hasValidCache) {
+        console.log(`✅ Using cached asset types (${Object.keys(cachedTypes).length} types)`);
+        return cachedTypes;
+      }
+    }
+    
+    // Cache is empty or expired, fetch fresh data
+    console.log('🔄 Asset types cache expired or empty, fetching fresh data...');
+    return await fetchAllAssetTypes();
+  } catch (error) {
+    console.error('❌ Error getting asset types:', error);
+    return {};
   }
-
-  return cache.asset_types.data;
 }
 
 /**
@@ -254,13 +270,16 @@ const changeRequestData = {
   }
 };
 
+// Make changeRequestData available globally
+window.changeRequestData = changeRequestData;
+
 // Data storage keys
 const STORAGE_KEYS = {
-  CHANGE_DATA: 'change_request_data',
+  CHANGE_REQUEST_DATA: 'change_request_data',
   DRAFT_ID: 'change_request_draft_id',
-  LOCATION_CACHE: 'location_cache',
   USER_CACHE: 'user_cache',
-  ASSET_TYPE_CACHE: 'asset_type_cache'
+  ASSET_TYPE_CACHE: 'asset_type_cache',
+  LOCATION_CACHE: 'location_cache'
 };
 
 // Cache timeout in milliseconds (24 hours)
@@ -487,6 +506,39 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('💡 Type testConsole() in the console to verify access');
     
+    // Simple validation test function
+    window.testValidation = function() {
+      console.log('🧪 Testing validation functions...');
+      
+      console.log('changeRequestData:', changeRequestData);
+      console.log('window.changeRequestData:', window.changeRequestData);
+      
+      // Test risk inputs
+      const riskInputs = document.querySelectorAll('input[name="business-impact"], input[name="affected-users"], input[name="complexity"], input[name="testing"], input[name="rollback"]');
+      console.log('Risk inputs found:', riskInputs.length);
+      
+      // Test form fields
+      const formFields = ['requester-search', 'agent-search', 'planned-start', 'planned-end', 'implementation-plan', 'backout-plan', 'validation-plan'];
+      formFields.forEach(id => {
+        const field = document.getElementById(id);
+        console.log(`Field ${id}:`, field ? 'Found' : 'Missing');
+      });
+      
+      // Test functions
+      const functions = ['validateDetailsAndNext', 'validateAssetsAndNext', 'validateRiskAndNext', 'updateRiskSelection', 'calculateRisk'];
+      functions.forEach(funcName => {
+        console.log(`Function ${funcName}:`, typeof window[funcName] === 'function' ? 'Available' : 'Missing');
+      });
+      
+      // Test event listeners on risk inputs
+      console.log('Testing risk input event listeners...');
+      riskInputs.forEach((input, index) => {
+        console.log(`Risk input ${index}: name="${input.name}", value="${input.value}", listeners attached: ${input.onchange ? 'Yes' : 'No'}`);
+      });
+    };
+    
+    console.log('✅ Debug functions setup complete');
+    
     // Wait a moment for everything to settle
     setTimeout(() => {
       initializeApp().catch(error => {
@@ -508,8 +560,8 @@ async function fetchAllLocations() {
   console.log('🔄 Fetching all locations from API');
   
   // Check for client availability
-  if (!window.client || !window.client.request) {
-    console.log('⚠️ Client not available for locations fetch - using graceful degradation');
+  if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
+    console.log('⚠️ Client or invokeTemplate not available for locations fetch - using graceful degradation');
     return {};
   }
 
@@ -535,103 +587,78 @@ async function fetchAllLocations() {
   try {
     const allLocations = {};
     let page = 1;
-    let hasMorePages = true;
     let totalFetched = 0;
+    const maxPages = 50; // Increase to ensure we get all locations
     
-    // Function to load locations from a specific page using direct API call
-    async function loadLocationsPage(pageNum) {
-      console.log(`📄 Loading locations page ${pageNum}`);
+    console.log(`📡 Starting location pagination fetch (max ${maxPages} pages)`);
+    
+    // Continue fetching pages until we get no more results
+    while (page <= maxPages) {
+      console.log(`📄 Fetching locations page ${page}...`);
       
       try {
-        // Check if client and template are available
-        if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
-          console.log('⚠️ Client or invokeTemplate not available for locations');
-          return { locations: [], more: false };
-        }
-
-        // Try using the template first
-        let response;
-        try {
-          console.log(`🔄 Attempting getLocations template with path_suffix`);
-          response = await window.client.request.invokeTemplate("getLocations", {
-            path_suffix: `?page=${pageNum}&per_page=100`
-          });
-          console.log(`✅ getLocations template with path_suffix succeeded`);
-        } catch (templateError) {
-          console.log(`⚠️ getLocations template failed:`, templateError);
-          
-          // Fallback to template without path_suffix if template fails
-          try {
-            console.log(`🔄 Attempting getLocations template without path_suffix`);
-            response = await window.client.request.invokeTemplate("getLocations");
-            console.log(`✅ getLocations template without path_suffix succeeded`);
-          } catch (fallbackError) {
-            console.log(`⚠️ getLocations template also failed without path_suffix:`, fallbackError);
-            return { locations: [], more: false };
-          }
-        }
+        // Use invokeTemplate to access locations API
+        const response = await window.client.request.invokeTemplate("getLocations", {
+          path_suffix: `?page=${page}&per_page=100`
+        });
         
         if (!response || !response.response) {
-          console.error('Invalid locations response:', response);
-          return { locations: [], more: false };
+          console.log(`⚠️ No response for locations page ${page}, stopping pagination`);
+          break;
         }
         
+        let parsedData;
         try {
-          const parsedData = JSON.parse(response.response || '{"locations":[]}');
-          const locations = parsedData.locations || [];
-          
-          console.log(`✅ Loaded ${locations.length} locations from page ${pageNum}`);
-          
-          // Log some sample locations for debugging
-          if (locations.length > 0) {
-            locations.slice(0, 3).forEach(location => {
-              console.log(`   📍 Location: "${location.name}" (ID: ${location.id})`);
-            });
-          }
-          
-          // Check if we might have more pages (received full page of results)
-          const hasMore = locations.length === 100;
-          
-          return { locations, more: hasMore };
+          parsedData = JSON.parse(response.response);
         } catch (parseError) {
-          console.error('Error parsing locations response:', parseError);
-          return { locations: [], more: false };
+          console.log(`⚠️ Error parsing locations page ${page}:`, parseError);
+          break;
         }
-      } catch (error) {
-        console.error(`Error fetching locations page ${pageNum}:`, error);
-        return { locations: [], more: false };
-      }
-    }
-    
-    // Load all pages of locations
-    while (hasMorePages && page <= 5) { // Limit to 5 pages for safety
-      const { locations, more } = await loadLocationsPage(page);
-      
-      if (locations.length === 0) {
-        console.log('📄 No more locations to load');
-        break;
-      }
-      
-      // Process locations and add to cache
-      locations.forEach(location => {
-        if (location && location.id && location.name) {
-          allLocations[location.id] = {
-            name: location.name,
-            timestamp: Date.now()
-          };
-          totalFetched++;
+        
+        const locations = parsedData.locations || [];
+        console.log(`✅ Retrieved ${locations.length} locations from page ${page}`);
+        
+        // If we got no results, we've reached the end
+        if (locations.length === 0) {
+          console.log(`📄 No more locations found, stopping at page ${page}`);
+          break;
         }
-      });
-      
-      // Check if we should load more pages
-      hasMorePages = more;
-      page++;
-      
-      // Add pagination delay if we're loading more pages
-      if (hasMorePages) {
-        const params = await getInstallationParams().catch(() => ({}));
-        const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-        await new Promise(resolve => setTimeout(resolve, paginationDelay));
+        
+        // Process and cache the locations from this page
+        locations.forEach(location => {
+          if (location && location.id && location.name) {
+            allLocations[location.id] = {
+              name: location.name,
+              description: location.description || '',
+              timestamp: Date.now()
+            };
+            totalFetched++;
+            
+            // Log specific locations we're looking for
+            if (location.id === 37000074320) {
+              console.log(`🎯 Found target location: "${location.name}" (ID: ${location.id})`);
+            }
+          }
+        });
+        
+        // If we got less than 100 results, this is likely the last page
+        if (locations.length < 100) {
+          console.log(`📄 Received ${locations.length} results (< 100), likely last page`);
+          break;
+        }
+        
+        page++;
+        
+        // Add a small delay between pages to be API-friendly
+        if (page <= maxPages) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+      } catch (pageError) {
+        console.log(`⚠️ Error fetching locations page ${page}:`, pageError);
+        // Don't break on individual page errors, try next page
+        page++;
+        continue;
       }
     }
     
@@ -639,8 +666,23 @@ async function fetchAllLocations() {
     if (totalFetched > 0) {
       console.log(`✅ Successfully cached ${totalFetched} locations from ${page - 1} pages`);
       await cacheLocations(allLocations);
+      
+      // Specifically check if we got the target location
+      if (allLocations[37000074320]) {
+        console.log(`🎯 ✅ Target location cached: "${allLocations[37000074320].name}"`);
+      } else {
+        console.log('🎯 ⚠️ Target location (ID: 37000074320) not found in fetched data');
+        console.log(`🔍 Available location IDs: ${Object.keys(allLocations).slice(0, 10).join(', ')}...`);
+      }
+      
+      // Log sample of cached locations for debugging
+      const sampleLocations = Object.entries(allLocations).slice(0, 5);
+      console.log('📋 Sample cached locations:');
+      sampleLocations.forEach(([id, location]) => {
+        console.log(`   ${id}: "${location.name}"`);
+      });
     } else {
-      console.warn('⚠️ No locations found to cache - locations API may not be available');
+      console.log('⚠️ No locations found to cache - locations API may not be available');
     }
     
     return allLocations;
@@ -655,108 +697,94 @@ async function fetchAllLocations() {
  * @returns {Promise<Object>} - Cached asset types
  */
 async function fetchAllAssetTypes() {
-  console.log('🔄 Fetching asset types from API...');
+  console.log('🔄 Fetching all asset types from API...');
   
   // Check for client availability
-  if (!window.client || !window.client.request) {
-    console.log('⚠️ Client not available for asset types fetch');
+  if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
+    console.log('⚠️ Client or invokeTemplate not available for asset types fetch');
     return {};
   }
 
   try {
     const allAssetTypes = {};
     let page = 1;
-    let hasMorePages = true;
     let totalFetched = 0;
+    const maxPages = 50; // Increase to ensure we get all asset types
     
-    // Function to load asset types from a specific page
-    async function loadAssetTypesPage(pageNum) {
-      console.log(`📄 Loading asset types page ${pageNum}`);
+    console.log(`📡 Starting asset type pagination fetch (max ${maxPages} pages)`);
+    
+    // Continue fetching pages until we get no more results
+    while (page <= maxPages) {
+      console.log(`📄 Fetching asset types page ${page}...`);
       
       try {
-        // Check if the client request method is available
-        if (!window.client.request.invokeTemplate) {
-          console.log('⚠️ Client request.invokeTemplate not available for asset types');
-          return { assetTypes: [], more: false };
-        }
-        
         // Use invokeTemplate to access asset types API
         const response = await window.client.request.invokeTemplate("getAssetTypes", {
-          path_suffix: `?page=${pageNum}&per_page=100`
+          path_suffix: `?page=${page}&per_page=100`
         });
         
         if (!response || !response.response) {
-          console.log('⚠️ Invalid asset types API response');
-          return { assetTypes: [], more: false };
+          console.log(`⚠️ No response for asset types page ${page}, stopping pagination`);
+          break;
         }
         
+        let parsedData;
         try {
-          const parsedData = JSON.parse(response.response || '{"asset_types":[]}');
-          const assetTypes = parsedData.asset_types || [];
-          
-          console.log(`✅ Loaded ${assetTypes.length} asset types from page ${pageNum}`);
-          
-          // Log some sample asset types for debugging
-          if (assetTypes.length > 0) {
-            assetTypes.slice(0, 3).forEach(type => {
-              console.log(`   📋 Asset Type: "${type.name}" (ID: ${type.id})`);
-            });
-          }
-          
-          // Check if we might have more pages (received full page of results)
-          const hasMore = assetTypes.length === 100;
-          
-          return { assetTypes, more: hasMore };
+          parsedData = JSON.parse(response.response);
         } catch (parseError) {
-          console.log('⚠️ Error parsing asset types response:', parseError.message);
-          return { assetTypes: [], more: false };
+          console.log(`⚠️ Error parsing asset types page ${page}:`, parseError);
+          break;
         }
-      } catch (error) {
-        console.log(`⚠️ Error fetching asset types page ${pageNum}:`, error.message);
-        return { assetTypes: [], more: false };
-      }
-    }
-    
-    // Load all pages of asset types
-    while (hasMorePages && page <= 10) { // Increased limit to 10 pages for more coverage
-      const { assetTypes, more } = await loadAssetTypesPage(page);
-      
-      if (assetTypes.length === 0) {
-        console.log('📄 No more asset types to load');
-        break;
-      }
-      
-      // Process asset types and add to cache
-      assetTypes.forEach(assetType => {
-        if (assetType && assetType.id && assetType.name) {
-          allAssetTypes[assetType.id] = {
-            name: assetType.name,
-            description: assetType.description || '',
-            visible: assetType.visible !== false, // Default to true if not specified
-            timestamp: Date.now()
-          };
-          totalFetched++;
-          
-          // Log specific asset types we're looking for
-          if (assetType.id === 37000374826 || assetType.name.toLowerCase().includes('laptop')) {
-            console.log(`🎯 Found laptop asset type: "${assetType.name}" (ID: ${assetType.id})`);
+        
+        const assetTypes = parsedData.asset_types || [];
+        console.log(`✅ Retrieved ${assetTypes.length} asset types from page ${page}`);
+        
+        // If we got no results, we've reached the end
+        if (assetTypes.length === 0) {
+          console.log(`📄 No more asset types found, stopping at page ${page}`);
+          break;
+        }
+        
+        // Process and cache the asset types from this page
+        assetTypes.forEach(assetType => {
+          if (assetType && assetType.id && assetType.name) {
+            allAssetTypes[assetType.id] = {
+              name: assetType.name,
+              description: assetType.description || '',
+              visible: assetType.visible !== false,
+              timestamp: Date.now()
+            };
+            totalFetched++;
+            
+            // Log specific asset types we're looking for
+            if (assetType.id === 37000374826 || assetType.name.toLowerCase().includes('laptop')) {
+              console.log(`🎯 Found laptop asset type: "${assetType.name}" (ID: ${assetType.id})`);
+            }
           }
+        });
+        
+        // If we got less than 100 results, this is likely the last page
+        if (assetTypes.length < 100) {
+          console.log(`📄 Received ${assetTypes.length} results (< 100), likely last page`);
+          break;
         }
-      });
-      
-      // Check if we should load more pages
-      hasMorePages = more;
-      page++;
-      
-      // Add pagination delay if we're loading more pages
-      if (hasMorePages) {
-        const params = await getInstallationParams().catch(() => ({}));
-        const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-        await new Promise(resolve => setTimeout(resolve, paginationDelay));
+        
+        page++;
+        
+        // Add a small delay between pages to be API-friendly
+        if (page <= maxPages) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+      } catch (pageError) {
+        console.log(`⚠️ Error fetching asset types page ${page}:`, pageError);
+        // Don't break on individual page errors, try next page
+        page++;
+        continue;
       }
     }
     
-    // Save all asset types to cache if we got any
+    // Save all asset types to cache
     if (totalFetched > 0) {
       console.log(`✅ Successfully cached ${totalFetched} asset types from ${page - 1} pages`);
       await cacheAssetTypes(allAssetTypes);
@@ -766,6 +794,7 @@ async function fetchAllAssetTypes() {
         console.log(`🎯 ✅ Laptop asset type cached: "${allAssetTypes[37000374826].name}"`);
       } else {
         console.log('🎯 ⚠️ Laptop asset type (ID: 37000374826) not found in fetched data');
+        console.log(`🔍 Available asset type IDs: ${Object.keys(allAssetTypes).slice(0, 10).join(', ')}...`);
       }
       
       // Log sample of cached asset types for debugging
@@ -780,7 +809,7 @@ async function fetchAllAssetTypes() {
     
     return allAssetTypes;
   } catch (error) {
-    console.log('⚠️ Error in fetchAllAssetTypes:', error.message);
+    console.error('❌ Error in fetchAllAssetTypes:', error);
     return {};
   }
 }
@@ -864,6 +893,7 @@ async function getAssetTypeName(assetTypeId) {
     
     // If we still don't have the asset type after a refresh attempt, get it individually
     console.log(`🔍 Fetching individual asset type ${assetTypeId} from API`);
+    
     
     // Check if the client request method is available
     if (!window.client.request || !window.client.request.invokeTemplate) {
@@ -1659,14 +1689,27 @@ async function getManagerName(managerId) {
  */
 async function initializeApp() {
   try {
-    console.log('Starting app initialization...');
+    console.log('🚀 Starting app initialization...');
     
     // Initialize caches in parallel for better performance
-    await Promise.all([
-      fetchAndCacheAssetTypes()
-    ]);
+    console.log('📦 Preloading asset types and locations caches...');
     
-    console.log('Caches initialized successfully');
+    const cachePromises = [
+      fetchAllAssetTypes().catch(error => {
+        console.error('⚠️ Asset types cache initialization failed:', error);
+        return {}; // Return empty cache on failure
+      }),
+      fetchAllLocations().catch(error => {
+        console.error('⚠️ Locations cache initialization failed:', error);
+        return {}; // Return empty cache on failure
+      })
+    ];
+    
+    const [assetTypesCache, locationsCache] = await Promise.all(cachePromises);
+    
+    console.log(`✅ Cache initialization complete:`);
+    console.log(`   📋 Asset types: ${Object.keys(assetTypesCache).length} cached`);
+    console.log(`   📍 Locations: ${Object.keys(locationsCache).length} cached`);
     
     // Initialize form components
     populateFormFields();
@@ -1675,10 +1718,10 @@ async function initializeApp() {
     // Initialize change type defaults
     initializeChangeTypeDefaults();
     
-    console.log('App initialization completed successfully');
+    console.log('✅ App initialization completed successfully');
     
   } catch (error) {
-    console.error('Error in app initialization:', error);
+    console.error('❌ Error in app initialization:', error);
     displayInitError('Failed to initialize application: ' + error.message);
   }
 }
@@ -1786,7 +1829,7 @@ function setupEventListeners() {
   }
 
   // Risk assessment inputs
-  const riskInputs = document.querySelectorAll('input[name^="risk-"]');
+  const riskInputs = document.querySelectorAll('input[name="business-impact"], input[name="affected-users"], input[name="complexity"], input[name="testing"], input[name="rollback"]');
   riskInputs.forEach(input => {
     input.addEventListener('change', updateRiskSelection);
   });
@@ -4365,6 +4408,7 @@ window.compareLoadingStrategies = async function() {
     const filteredTime = Date.now() - startTime1;
     const filteredData = JSON.parse(filteredResponse.response);
     const filteredAssets = filteredData.assets || [];
+    
     
     console.log(`✅ Strategy 1: ${filteredAssets.length} assets in ${filteredTime}ms`);
     
