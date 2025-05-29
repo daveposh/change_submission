@@ -447,28 +447,60 @@ const AssetAssociation = {
       return;
     }
 
-    // Confirm with user
-    if (!confirm(`Are you sure you want to remove all ${this.state.selectedAssets.length} selected assets?`)) {
-      return;
-    }
+    // Create a custom confirmation modal instead of using browser confirm()
+    const confirmClear = () => {
+      this.state.selectedAssets = [];
+      
+      // Update displays
+      this.updateSelectedAssetsDisplay();
+      this.updateAssetCount();
+      
+      // Update the search results to show new state
+      if (this.state.searchResults.length > 0) {
+        this.displaySearchResults(this.state.searchResults);
+      }
 
-    this.state.selectedAssets = [];
-    
-    // Update displays
-    this.updateSelectedAssetsDisplay();
-    this.updateAssetCount();
-    
-    // Update the search results to show new state
-    if (this.state.searchResults.length > 0) {
-      this.displaySearchResults(this.state.searchResults);
-    }
+      // Update main app state if available
+      if (window.changeRequestData) {
+        window.changeRequestData.selectedAssets = [];
+      }
 
-    // Update main app state if available
-    if (window.changeRequestData) {
-      window.changeRequestData.selectedAssets = [];
-    }
+      console.log('🧹 Cleared all selected assets');
+    };
 
-    console.log('🧹 Cleared all selected assets');
+    // Show a notification with confirmation instead of using confirm()
+    if (window.showNotification) {
+      window.showNotification('warning', 
+        `This will remove all ${this.state.selectedAssets.length} selected assets. Click the Clear All button again to confirm.`, 
+        false
+      );
+      
+      // Add a temporary class to the button to indicate confirmation needed
+      const clearBtn = document.getElementById('clear-all-assets-btn');
+      if (clearBtn && !clearBtn.classList.contains('confirm-required')) {
+        clearBtn.classList.add('confirm-required', 'btn-danger');
+        clearBtn.classList.remove('btn-outline-danger');
+        clearBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>Confirm Clear';
+        
+        // Reset button after 5 seconds if no second click
+        setTimeout(() => {
+          if (clearBtn.classList.contains('confirm-required')) {
+            clearBtn.classList.remove('confirm-required', 'btn-danger');
+            clearBtn.classList.add('btn-outline-danger');
+            clearBtn.innerHTML = '<i class="fas fa-trash me-1"></i>Clear All';
+          }
+        }, 5000);
+      } else if (clearBtn && clearBtn.classList.contains('confirm-required')) {
+        // Second click - actually clear
+        clearBtn.classList.remove('confirm-required', 'btn-danger');
+        clearBtn.classList.add('btn-outline-danger');
+        clearBtn.innerHTML = '<i class="fas fa-trash me-1"></i>Clear All';
+        confirmClear();
+      }
+    } else {
+      // Fallback - just clear without confirmation
+      confirmClear();
+    }
   },
 
   /**

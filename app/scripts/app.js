@@ -1563,7 +1563,8 @@ async function initializeApp() {
     console.log('App initialization completed successfully');
     
   } catch (error) {
-    console.error(`Error caching individual users as ${type}s:`, error);
+    console.error('Error in app initialization:', error);
+    displayInitError('Failed to initialize application: ' + error.message);
   }
 }
 
@@ -2052,6 +2053,13 @@ function selectAsset(asset) {
  * Update the selected assets display
  */
 function updateSelectedAssetsDisplay() {
+  // Delegate to Asset Association module if available
+  if (window.AssetAssociation) {
+    window.AssetAssociation.updateSelectedAssetsDisplay();
+    return;
+  }
+  
+  // Fallback implementation
   const container = document.getElementById('selected-assets-list');
   if (!container) return;
   
@@ -2106,22 +2114,28 @@ function updateAssociationCounts() {
  * Validate asset associations and proceed to next step
  */
 function validateAssetsAndNext() {
-  // Check if at least one asset is selected
-  if (changeRequestData.selectedAssets.length === 0) {
-    showNotification('error', 'Please select at least one asset before proceeding.');
-    return;
+  // Use the Asset Association module validation if available
+  if (window.AssetAssociation) {
+    const validation = window.AssetAssociation.validateSelection();
+    
+    if (!validation.isValid) {
+      showNotification('error', validation.message);
+      return;
+    }
+    
+    // Update main app state with selected assets
+    changeRequestData.selectedAssets = window.AssetAssociation.getSelectedAssets();
+    console.log(`✅ Asset validation passed. ${changeRequestData.selectedAssets.length} assets selected`);
+  } else {
+    // Fallback validation if module not available
+    if (changeRequestData.selectedAssets.length === 0) {
+      showNotification('error', 'Please select at least one asset before proceeding.');
+      return;
+    }
   }
-
-  // Services functionality removed - no longer needed
-  // getServices().then(services => {
-  //   displayAssetAssociationResults(services);
-  // });
   
-  // Directly display asset association results
-  displayAssetAssociationResults([]);
-  
-  // Switch to the next tab
-  switchTab('details-tab');
+  // Switch to the risk assessment tab
+  switchTab('risk-assessment');
 }
 
 /**
@@ -2335,8 +2349,8 @@ function validateDetailsAndNext() {
     return;
   }
   
-  // Switch to risk assessment tab
-  switchTab('risk-assessment');
+  // Switch to asset association tab
+  switchTab('asset-association');
 }
 
 /**
