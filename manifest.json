@@ -15,6 +15,7 @@
         "getAssets": {},
         "getServices": {},
         "getRequesterDetails": {},
+        "getLocations": {},
         "getLocation": {},
         "getAssetTypes": {},
         "createChange": {}

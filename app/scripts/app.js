@@ -509,7 +509,26 @@ async function fetchAllLocations() {
   
   // Check for client availability
   if (!window.client || !window.client.request) {
-    console.error('Client not available for locations fetch');
+    console.log('⚠️ Client not available for locations fetch - using graceful degradation');
+    return {};
+  }
+
+  // Test if locations API is available first
+  try {
+    console.log('🔬 Testing if locations API is available...');
+    const testResponse = await window.client.request.invokeTemplate("getLocations", {
+      path_suffix: "?page=1&per_page=1"
+    });
+    
+    if (!testResponse || !testResponse.response) {
+      console.log('⚠️ Locations API test failed - API may not be available in this instance');
+      return {};
+    }
+    
+    console.log('✅ Locations API is available, proceeding with full fetch');
+  } catch (testError) {
+    console.log('⚠️ Locations API is not available in this Freshservice instance:', testError);
+    console.log('ℹ️ Location resolution will fall back to displaying Location IDs');
     return {};
   }
 
@@ -524,20 +543,30 @@ async function fetchAllLocations() {
       console.log(`📄 Loading locations page ${pageNum}`);
       
       try {
+        // Check if client and template are available
+        if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
+          console.log('⚠️ Client or invokeTemplate not available for locations');
+          return { locations: [], more: false };
+        }
+
         // Try using the template first
         let response;
         try {
+          console.log(`🔄 Attempting getLocations template with path_suffix`);
           response = await window.client.request.invokeTemplate("getLocations", {
             path_suffix: `?page=${pageNum}&per_page=100`
           });
+          console.log(`✅ getLocations template with path_suffix succeeded`);
         } catch (templateError) {
-          console.log(`⚠️ getLocations template failed: ${templateError.message}, trying without path_suffix`);
+          console.log(`⚠️ getLocations template failed:`, templateError);
           
           // Fallback to template without path_suffix if template fails
           try {
+            console.log(`🔄 Attempting getLocations template without path_suffix`);
             response = await window.client.request.invokeTemplate("getLocations");
+            console.log(`✅ getLocations template without path_suffix succeeded`);
           } catch (fallbackError) {
-            console.log(`⚠️ getLocations template also failed without path_suffix: ${fallbackError.message}`);
+            console.log(`⚠️ getLocations template also failed without path_suffix:`, fallbackError);
             return { locations: [], more: false };
           }
         }
@@ -4930,27 +4959,28 @@ async function getLocationName(locationId) {
     console.log(`🔍 Fetching individual location ${locationId} from API`);
     
     try {
+      // Check if client and template are available
+      if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
+        console.log('⚠️ Client or invokeTemplate not available for individual location fetch');
+        return `Location ID: ${locationId}`;
+      }
+
       // Try using the template first
       let response;
       try {
+        console.log(`🔄 Attempting getLocation template with context parameter`);
         response = await window.client.request.invokeTemplate("getLocation", {
           context: {
             location_id: locationId
           }
         });
+        console.log(`✅ getLocation template with context parameter succeeded`);
       } catch (templateError) {
-        console.log(`⚠️ getLocation template failed: ${templateError.message}, trying with path_suffix`);
+        console.log(`⚠️ getLocation template failed:`, templateError);
         
-        // Fallback to template with path_suffix if template fails
-        try {
-          response = await window.client.request.invokeTemplate("getLocation", {
-            path_suffix: `/${locationId}`
-          });
-        } catch (fallbackError) {
-          console.log(`⚠️ getLocation template with path_suffix also failed: ${fallbackError.message}`);
-          console.log(`ℹ️ Locations API may not be available in this Freshservice instance`);
-          return `Location ID: ${locationId}`;
-        }
+        // If the template completely fails, fall back to graceful degradation
+        console.log(`ℹ️ Locations API may not be available in this Freshservice instance`);
+        return `Location ID: ${locationId}`;
       }
       
       if (!response || !response.response) {
