@@ -266,6 +266,11 @@ const AssetAssociation = {
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
       const assetTypeId = asset.asset_type_id || 'N/A';
+      const environment = asset.environment || 'N/A';
+      const managedBy = asset.managed_by_name || (asset.managed_by ? `User ID: ${asset.managed_by}` : 'N/A');
+      const location = asset.location_name || (asset.location_id ? `Location ID: ${asset.location_id}` : 'N/A');
+      const assetTag = asset.asset_tag || 'N/A';
+      const serialNumber = asset.serial_number || 'N/A';
       const isSelected = this.isAssetSelected(asset.id);
       
       html += `
@@ -273,9 +278,34 @@ const AssetAssociation = {
           <div class="asset-info">
             <div class="asset-name">${this.escapeHtml(name)}</div>
             ${description ? `<div class="asset-description">${this.escapeHtml(description)}</div>` : ''}
+            <div class="asset-details">
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Asset Type:</span>
+                <span class="asset-detail-value">${this.escapeHtml(assetTypeId)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Environment:</span>
+                <span class="asset-detail-value">${this.escapeHtml(environment)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Managed By:</span>
+                <span class="asset-detail-value">${this.escapeHtml(managedBy)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Location:</span>
+                <span class="asset-detail-value">${this.escapeHtml(location)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Asset Tag:</span>
+                <span class="asset-detail-value">${this.escapeHtml(assetTag)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Serial Number:</span>
+                <span class="asset-detail-value">${this.escapeHtml(serialNumber)}</span>
+              </div>
+            </div>
             <div class="asset-meta">
-              <span class="asset-id">ID: ${asset.id}</span>
-              <span class="asset-type">Type: ${assetTypeId}</span>
+              <small class="text-muted">Asset ID: ${asset.id}</small>
             </div>
           </div>
           <div class="asset-actions">
@@ -427,6 +457,11 @@ const AssetAssociation = {
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
       const assetTypeId = asset.asset_type_id || 'N/A';
+      const environment = asset.environment || 'N/A';
+      const managedBy = asset.managed_by_name || (asset.managed_by ? `User ID: ${asset.managed_by}` : 'N/A');
+      const location = asset.location_name || (asset.location_id ? `Location ID: ${asset.location_id}` : 'N/A');
+      const assetTag = asset.asset_tag || 'N/A';
+      const serialNumber = asset.serial_number || 'N/A';
       
       html += `
         <div class="selected-asset-card" data-asset-id="${asset.id}">
@@ -439,8 +474,34 @@ const AssetAssociation = {
           </div>
           <div class="asset-card-body">
             ${description ? `<p class="asset-card-description">${this.escapeHtml(description)}</p>` : ''}
+            <div class="asset-card-details">
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Type:</span>
+                <span class="asset-detail-value">${this.escapeHtml(assetTypeId)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Environment:</span>
+                <span class="asset-detail-value">${this.escapeHtml(environment)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Managed By:</span>
+                <span class="asset-detail-value">${this.escapeHtml(managedBy)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Location:</span>
+                <span class="asset-detail-value">${this.escapeHtml(location)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Asset Tag:</span>
+                <span class="asset-detail-value">${this.escapeHtml(assetTag)}</span>
+              </div>
+              <div class="asset-detail-row">
+                <span class="asset-detail-label">Serial #:</span>
+                <span class="asset-detail-value">${this.escapeHtml(serialNumber)}</span>
+              </div>
+            </div>
             <div class="asset-card-meta">
-              <small class="text-muted">ID: ${asset.id} | Type: ${assetTypeId}</small>
+              <small class="text-muted">Asset ID: ${asset.id}</small>
             </div>
           </div>
         </div>
