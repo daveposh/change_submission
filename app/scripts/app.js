@@ -697,7 +697,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
           const response = await window.client.request.invokeTemplate("getLocations", {
-            path_suffix: `?page=${page}&per_page=30`
+            context: {
+              page: page,
+              per_page: 30
+            }
           });
           
           if (!response || !response.response) {
@@ -810,7 +813,10 @@ async function fetchAllLocations() {
       try {
         // Use invokeTemplate to access locations API with proper pagination
         const response = await window.client.request.invokeTemplate("getLocations", {
-          path_suffix: `?page=${page}&per_page=30`  // Use 30 per page (API default)
+          context: {
+            page: page,
+            per_page: 30
+          }
         });
         
         if (!response || !response.response) {
@@ -933,7 +939,10 @@ async function fetchAllAssetTypes() {
       try {
         // Use invokeTemplate to access asset types API with proper pagination
         const response = await window.client.request.invokeTemplate("getAssetTypes", {
-          path_suffix: `?page=${page}&per_page=30`  // Use 30 per page (API default)
+          context: {
+            page: page,
+            per_page: 30
+          }
         });
         
         if (!response || !response.response) {
