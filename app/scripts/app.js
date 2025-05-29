@@ -5719,3 +5719,6 @@ window.testAssetSearchWithTypeFields = async function(searchTerm = 'laptop', sea
     console.error('❌ Error testing asset search with type_fields:', error);
   }
 };
+
+// Make getUserName available globally for cache manager
+window.getUserName = getUserName;

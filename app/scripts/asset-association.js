@@ -285,13 +285,23 @@ const AssetAssociation = {
   /**
    * Get managed by information from asset
    * @param {Object} asset - The asset object
-   * @returns {string} - The managed by information
+   * @returns {Promise<string>} - The managed by information
    */
-  getManagedByInfo(asset) {
+  async getManagedByInfo(asset) {
     try {
       // First try to get from type_fields
       const managedByField = this.getAssetTypeField(asset, 'managed_by');
       if (managedByField && managedByField !== 'N/A') {
+        // Check if it's a numeric user ID that needs resolution
+        const numericId = parseInt(managedByField);
+        if (!isNaN(numericId) && numericId > 0) {
+          console.log(`🔍 Resolving managed_by user ID: ${numericId}`);
+          const userName = await this.resolveUserName(numericId);
+          if (userName && userName !== 'Unknown') {
+            return userName;
+          }
+        }
+        // If not a user ID or resolution failed, return the field value as-is
         return managedByField;
       }
 
@@ -301,6 +311,16 @@ const AssetAssociation = {
       }
       
       if (asset.managed_by) {
+        // Check if it's a numeric user ID that needs resolution
+        const numericId = parseInt(asset.managed_by);
+        if (!isNaN(numericId) && numericId > 0) {
+          console.log(`🔍 Resolving direct managed_by user ID: ${numericId}`);
+          const userName = await this.resolveUserName(numericId);
+          if (userName && userName !== 'Unknown') {
+            return userName;
+          }
+        }
+        // If not a user ID or resolution failed, return with ID label
         return `User ID: ${asset.managed_by}`;
       }
       
@@ -309,6 +329,16 @@ const AssetAssociation = {
       for (const fieldName of alternativeFields) {
         const value = this.getAssetTypeField(asset, fieldName);
         if (value && value !== 'N/A') {
+          // Check if it's a numeric user ID that needs resolution
+          const numericId = parseInt(value);
+          if (!isNaN(numericId) && numericId > 0) {
+            console.log(`🔍 Resolving ${fieldName} user ID: ${numericId}`);
+            const userName = await this.resolveUserName(numericId);
+            if (userName && userName !== 'Unknown') {
+              return userName;
+            }
+          }
+          // If not a user ID or resolution failed, return the value as-is
           return value;
         }
       }
@@ -317,6 +347,45 @@ const AssetAssociation = {
     } catch (error) {
       console.warn('Error getting managed by info:', error);
       return 'N/A';
+    }
+  },
+
+  /**
+   * Resolve user ID to user name using global user functions
+   * @param {number} userId - User ID to resolve
+   * @returns {Promise<string>} - User name or 'Unknown'
+   */
+  async resolveUserName(userId) {
+    try {
+      if (!userId || isNaN(userId)) {
+        return 'Unknown';
+      }
+
+      // Use the global getUserName function if available
+      if (typeof window.getUserName === 'function') {
+        const userName = await window.getUserName(userId);
+        if (userName && userName !== 'N/A' && userName !== 'Unknown') {
+          console.log(`✅ Resolved user ID ${userId} to: "${userName}"`);
+          return userName;
+        }
+      }
+
+      // Fallback: try to access global functions directly
+      if (typeof getUserName === 'function') {
+        const userName = await getUserName(userId);
+        if (userName && userName !== 'N/A' && userName !== 'Unknown') {
+          console.log(`✅ Resolved user ID ${userId} to: "${userName}" (fallback)`);
+          return userName;
+        }
+      }
+
+      // If user resolution functions are not available, return with ID
+      console.log(`⚠️ Could not resolve user ID ${userId} - user functions not available`);
+      return `User ID: ${userId}`;
+      
+    } catch (error) {
+      console.warn(`Error resolving user ID ${userId}:`, error);
+      return `User ID: ${userId}`;
     }
   },
 
@@ -391,7 +460,7 @@ const AssetAssociation = {
       
       // Use the new helper methods to extract field values
       const environment = this.getEnvironmentInfo(asset);
-      const managedBy = this.getManagedByInfo(asset);
+      const managedBy = await this.getManagedByInfo(asset);
       
       const locationId = asset.location_id;
       const location = await this.getLocationName(locationId);
@@ -591,7 +660,7 @@ const AssetAssociation = {
       
       // Use the new helper methods to extract field values
       const environment = this.getEnvironmentInfo(asset);
-      const managedBy = this.getManagedByInfo(asset);
+      const managedBy = await this.getManagedByInfo(asset);
       
       const locationId = asset.location_id;
       const location = await this.getLocationName(locationId);
