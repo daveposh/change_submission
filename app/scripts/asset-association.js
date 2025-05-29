@@ -252,7 +252,38 @@ const AssetAssociation = {
    */
   getAssetTypeField(asset, fieldName) {
     try {
-      // Check if type_fields exists and has the field
+      // Check if type_fields exists as an object (not array)
+      if (asset.type_fields && typeof asset.type_fields === 'object' && !Array.isArray(asset.type_fields)) {
+        // Look for the field directly or with suffix pattern (fieldname_assettypeid)
+        const directValue = asset.type_fields[fieldName];
+        if (directValue !== null && directValue !== undefined && directValue !== '') {
+          return String(directValue);
+        }
+        
+        // Look for field with asset type ID suffix pattern
+        if (asset.asset_type_id) {
+          const suffixedFieldName = `${fieldName}_${asset.asset_type_id}`;
+          const suffixedValue = asset.type_fields[suffixedFieldName];
+          if (suffixedValue !== null && suffixedValue !== undefined && suffixedValue !== '') {
+            return String(suffixedValue);
+          }
+        }
+        
+        // Look for partial matches in field names
+        const matchingKey = Object.keys(asset.type_fields).find(key => 
+          key.toLowerCase().includes(fieldName.toLowerCase()) ||
+          fieldName.toLowerCase().includes(key.toLowerCase())
+        );
+        
+        if (matchingKey) {
+          const value = asset.type_fields[matchingKey];
+          if (value !== null && value !== undefined && value !== '') {
+            return String(value);
+          }
+        }
+      }
+      
+      // Also check if type_fields exists as an array (legacy support)
       if (asset.type_fields && Array.isArray(asset.type_fields)) {
         const field = asset.type_fields.find(f => 
           f.field_name === fieldName || 
@@ -289,15 +320,29 @@ const AssetAssociation = {
    */
   async getManagedByInfo(asset) {
     try {
-      // First try to get from type_fields
+      // First check agent_id - this is the primary managed by field in Freshservice assets
+      if (asset.agent_id) {
+        const numericId = parseInt(asset.agent_id);
+        if (!isNaN(numericId) && numericId > 0) {
+          console.log(`🔍 Resolving agent_id (managed by): ${numericId}`);
+          const userName = await this.resolveUserName(numericId);
+          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+            return userName;
+          }
+        }
+        // If resolution failed, return with ID label
+        return `Agent ID: ${asset.agent_id}`;
+      }
+      
+      // Try to get from type_fields with various field name patterns
       const managedByField = this.getAssetTypeField(asset, 'managed_by');
       if (managedByField && managedByField !== 'N/A') {
         // Check if it's a numeric user ID that needs resolution
         const numericId = parseInt(managedByField);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving managed_by user ID: ${numericId}`);
+          console.log(`🔍 Resolving managed_by from type_fields: ${numericId}`);
           const userName = await this.resolveUserName(numericId);
-          if (userName && userName !== 'Unknown') {
+          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
             return userName;
           }
         }
@@ -316,7 +361,7 @@ const AssetAssociation = {
         if (!isNaN(numericId) && numericId > 0) {
           console.log(`🔍 Resolving direct managed_by user ID: ${numericId}`);
           const userName = await this.resolveUserName(numericId);
-          if (userName && userName !== 'Unknown') {
+          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
             return userName;
           }
         }
@@ -324,8 +369,21 @@ const AssetAssociation = {
         return `User ID: ${asset.managed_by}`;
       }
       
+      // Check user_id field as another possibility
+      if (asset.user_id) {
+        const numericId = parseInt(asset.user_id);
+        if (!isNaN(numericId) && numericId > 0) {
+          console.log(`🔍 Resolving user_id (alternative managed by): ${numericId}`);
+          const userName = await this.resolveUserName(numericId);
+          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+            return userName;
+          }
+        }
+        return `User ID: ${asset.user_id}`;
+      }
+      
       // Try additional field variations in type_fields
-      const alternativeFields = ['managed_by_name', 'owner', 'assigned_to', 'responsible_user'];
+      const alternativeFields = ['owner', 'assigned_to', 'responsible_user', 'assigned_agent'];
       for (const fieldName of alternativeFields) {
         const value = this.getAssetTypeField(asset, fieldName);
         if (value && value !== 'N/A') {
@@ -334,7 +392,7 @@ const AssetAssociation = {
           if (!isNaN(numericId) && numericId > 0) {
             console.log(`🔍 Resolving ${fieldName} user ID: ${numericId}`);
             const userName = await this.resolveUserName(numericId);
-            if (userName && userName !== 'Unknown') {
+            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
               return userName;
             }
           }
