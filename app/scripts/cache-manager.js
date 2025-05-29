@@ -707,16 +707,18 @@ const CacheManager = {
 
   /**
    * Get managed by information from asset (helper method)
+   * Handles both agent IDs and requester IDs for managed by resolution
    * @param {Object} asset - The asset object
-   * @returns {string} - The managed by information
+   * @returns {Promise<string>} - The managed by information (resolved to actual name)
    */
   async getManagedByInfo(asset) {
     try {
       // First check agent_id - this is the primary managed by field in Freshservice assets
+      // Can contain either agent IDs or requester IDs
       if (asset.agent_id) {
         const numericId = parseInt(asset.agent_id);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving agent_id (managed by): ${numericId}`);
+          console.log(`🔍 Resolving agent_id (managed by): ${numericId} (could be agent or requester)`);
           const userName = await this.resolveUserName(numericId);
           if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
             return userName;
@@ -727,12 +729,13 @@ const CacheManager = {
       }
       
       // Try to get from type_fields with various field name patterns
+      // These can also contain either agent IDs or requester IDs
       const managedByField = this.getAssetTypeField(asset, 'managed_by');
       if (managedByField && managedByField !== 'N/A') {
         // Check if it's a numeric user ID that needs resolution
         const numericId = parseInt(managedByField);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving managed_by from type_fields: ${numericId}`);
+          console.log(`🔍 Resolving managed_by from type_fields: ${numericId} (could be agent or requester)`);
           const userName = await this.resolveUserName(numericId);
           if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
             return userName;
@@ -748,10 +751,10 @@ const CacheManager = {
       }
       
       if (asset.managed_by) {
-        // Check if it's a numeric user ID that needs resolution
+        // Check if it's a numeric user ID that needs resolution (agent or requester)
         const numericId = parseInt(asset.managed_by);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving direct managed_by user ID: ${numericId}`);
+          console.log(`🔍 Resolving direct managed_by user ID: ${numericId} (could be agent or requester)`);
           const userName = await this.resolveUserName(numericId);
           if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
             return userName;
@@ -761,11 +764,11 @@ const CacheManager = {
         return `User ID: ${asset.managed_by}`;
       }
       
-      // Check user_id field as another possibility
+      // Check user_id field as another possibility (typically requester)
       if (asset.user_id) {
         const numericId = parseInt(asset.user_id);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving user_id (alternative managed by): ${numericId}`);
+          console.log(`🔍 Resolving user_id (alternative managed by): ${numericId} (typically requester)`);
           const userName = await this.resolveUserName(numericId);
           if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
             return userName;
@@ -779,10 +782,10 @@ const CacheManager = {
       for (const fieldName of alternativeFields) {
         const value = this.getAssetTypeField(asset, fieldName);
         if (value && value !== 'N/A') {
-          // Check if it's a numeric user ID that needs resolution
+          // Check if it's a numeric user ID that needs resolution (agent or requester)
           const numericId = parseInt(value);
           if (!isNaN(numericId) && numericId > 0) {
-            console.log(`🔍 Resolving ${fieldName} user ID: ${numericId}`);
+            console.log(`🔍 Resolving ${fieldName} user ID: ${numericId} (could be agent or requester)`);
             const userName = await this.resolveUserName(numericId);
             if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
               return userName;
@@ -811,7 +814,9 @@ const CacheManager = {
         return 'Unknown';
       }
 
-      // Use the global getUserName function if available
+      console.log(`🔍 Resolving user ID ${userId} (checking both requesters and agents)...`);
+
+      // Use the global getUserName function if available (this checks both requesters and agents)
       if (typeof window.getUserName === 'function') {
         const userName = await window.getUserName(userId);
         if (userName && userName !== 'N/A' && userName !== 'Unknown') {
@@ -826,6 +831,28 @@ const CacheManager = {
         if (userName && userName !== 'N/A' && userName !== 'Unknown') {
           console.log(`✅ Resolved user ID ${userId} to: "${userName}" (fallback)`);
           return userName;
+        }
+      }
+
+      // If global functions aren't available, try direct cache access
+      if (window.client && window.client.db) {
+        console.log(`🔄 Trying direct cache access for user ID ${userId}...`);
+        
+        try {
+          // Check user cache (which should contain both requesters and agents)
+          const userCache = await window.client.db.get('user_cache') || {};
+          
+          if (userCache[userId]) {
+            const cachedUser = userCache[userId];
+            if (cachedUser.name && cachedUser.name !== 'Unknown') {
+              console.log(`✅ Found user ID ${userId} in cache: "${cachedUser.name}" (${cachedUser.type || 'unknown type'})`);
+              return cachedUser.name;
+            }
+          }
+          
+          console.log(`⚠️ User ID ${userId} not found in cache`);
+        } catch (cacheError) {
+          console.warn(`⚠️ Error accessing user cache for ID ${userId}:`, cacheError);
         }
       }
 
@@ -870,6 +897,40 @@ const CacheManager = {
     } catch (error) {
       console.warn('Error getting environment info:', error);
       return 'N/A';
+    }
+  },
+
+  /**
+   * Get impact information from asset (helper method)
+   * @param {Object} asset - The asset object
+   * @returns {string} - The impact information
+   */
+  getImpactInfo(asset) {
+    try {
+      // Check direct impact property first
+      if (asset.impact) {
+        return asset.impact;
+      }
+      
+      // Try to get from type_fields
+      const impactField = this.getAssetTypeField(asset, 'impact');
+      if (impactField && impactField !== 'N/A') {
+        return impactField;
+      }
+      
+      // Try additional field variations in type_fields
+      const alternativeFields = ['business_impact', 'criticality', 'priority'];
+      for (const fieldName of alternativeFields) {
+        const value = this.getAssetTypeField(asset, fieldName);
+        if (value && value !== 'N/A') {
+          return value;
+        }
+      }
+      
+      return 'unknown';
+    } catch (error) {
+      console.warn('Error getting impact info:', error);
+      return 'unknown';
     }
   }
 };
@@ -997,6 +1058,86 @@ window.testActiveDirectoryAsset = async function() {
     
   } catch (error) {
     console.error(`❌ Error testing Active Directory asset:`, error);
+    return null;
+  }
+};
+
+// Test function for managed by resolution with both requesters and agents
+window.testManagedByResolution = async function() {
+  console.log(`🧪 Testing managed by resolution for both requesters and agents...`);
+  
+  if (!window.CacheManager) {
+    console.error('❌ CacheManager not available');
+    return;
+  }
+  
+  // Test asset with agent_id (most common case)
+  const assetWithAgent = {
+    "name": "Test Server",
+    "asset_type_id": 37000374726,
+    "agent_id": 37000300103, // Agent managed asset
+    "user_id": null,
+    "type_fields": {
+      "environment_37000374726": "PROD"
+    }
+  };
+  
+  // Test asset with user_id (requester managed asset)
+  const assetWithUser = {
+    "name": "Test Laptop", 
+    "asset_type_id": 37000374726,
+    "agent_id": null,
+    "user_id": 37000300002, // Requester managed asset
+    "type_fields": {
+      "environment_37000374726": "DEV"
+    }
+  };
+  
+  // Test asset with managed_by in type_fields
+  const assetWithTypeFieldsManaged = {
+    "name": "Test Application",
+    "asset_type_id": 37000374726, 
+    "agent_id": null,
+    "user_id": null,
+    "type_fields": {
+      "environment_37000374726": "TEST",
+      "managed_by_37000374726": "37000300105" // Could be either requester or agent
+    }
+  };
+  
+  try {
+    console.log(`\n📋 Testing asset with agent_id (${assetWithAgent.agent_id}):`);
+    const agentManagedBy = await window.CacheManager.getManagedByInfo(assetWithAgent);
+    console.log(`   Result: "${agentManagedBy}"`);
+    
+    console.log(`\n📋 Testing asset with user_id (${assetWithUser.user_id}):`);
+    const userManagedBy = await window.CacheManager.getManagedByInfo(assetWithUser);
+    console.log(`   Result: "${userManagedBy}"`);
+    
+    console.log(`\n📋 Testing asset with type_fields managed_by (${assetWithTypeFieldsManaged.type_fields.managed_by_37000374726}):`);
+    const typeFieldsManagedBy = await window.CacheManager.getManagedByInfo(assetWithTypeFieldsManaged);
+    console.log(`   Result: "${typeFieldsManagedBy}"`);
+    
+    // Test direct user resolution
+    console.log(`\n🔍 Testing direct user ID resolution:`);
+    const testUserIds = [37000300103, 37000300002, 37000300105];
+    
+    for (const userId of testUserIds) {
+      console.log(`   Testing user ID ${userId}:`);
+      const resolvedName = await window.CacheManager.resolveUserName(userId);
+      console.log(`     Resolved to: "${resolvedName}"`);
+    }
+    
+    console.log(`\n✅ Managed by resolution test complete`);
+    
+    return {
+      agentManaged: agentManagedBy,
+      userManaged: userManagedBy,
+      typeFieldsManaged: typeFieldsManagedBy
+    };
+    
+  } catch (error) {
+    console.error(`❌ Error testing managed by resolution:`, error);
     return null;
   }
 };

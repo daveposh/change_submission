@@ -419,7 +419,9 @@ const AssetAssociation = {
         return 'Unknown';
       }
 
-      // Use the global getUserName function if available
+      console.log(`🔍 Resolving user ID ${userId} (checking both requesters and agents)...`);
+
+      // Use the global getUserName function if available (this checks both requesters and agents)
       if (typeof window.getUserName === 'function') {
         const userName = await window.getUserName(userId);
         if (userName && userName !== 'N/A' && userName !== 'Unknown') {
@@ -434,6 +436,28 @@ const AssetAssociation = {
         if (userName && userName !== 'N/A' && userName !== 'Unknown') {
           console.log(`✅ Resolved user ID ${userId} to: "${userName}" (fallback)`);
           return userName;
+        }
+      }
+
+      // If global functions aren't available, try direct cache access
+      if (window.client && window.client.db) {
+        console.log(`🔄 Trying direct cache access for user ID ${userId}...`);
+        
+        try {
+          // Check user cache (which should contain both requesters and agents)
+          const userCache = await window.client.db.get('user_cache') || {};
+          
+          if (userCache[userId]) {
+            const cachedUser = userCache[userId];
+            if (cachedUser.name && cachedUser.name !== 'Unknown') {
+              console.log(`✅ Found user ID ${userId} in cache: "${cachedUser.name}" (${cachedUser.type || 'unknown type'})`);
+              return cachedUser.name;
+            }
+          }
+          
+          console.log(`⚠️ User ID ${userId} not found in cache`);
+        } catch (cacheError) {
+          console.warn(`⚠️ Error accessing user cache for ID ${userId}:`, cacheError);
         }
       }
 
@@ -508,7 +532,8 @@ const AssetAssociation = {
         type_fields: asset.type_fields,
         environment: asset.environment,
         managed_by: asset.managed_by,
-        managed_by_name: asset.managed_by_name
+        managed_by_name: asset.managed_by_name,
+        impact: asset.impact
       });
       
       const name = asset.display_name || asset.name || 'Unknown Asset';
@@ -524,50 +549,80 @@ const AssetAssociation = {
       const location = await this.getLocationName(locationId);
       const assetTag = asset.asset_tag || 'N/A';
       const serialNumber = asset.serial_number || 'N/A';
+      const impact = asset.impact || 'unknown';
       const isSelected = this.isAssetSelected(asset.id);
+      
+      // Get impact badge styling
+      const impactBadge = this.getImpactBadge(impact);
+      const environmentBadge = this.getEnvironmentBadge(environment);
+      const assetTypeIcon = this.getAssetTypeIcon(assetTypeName);
       
       html += `
         <div class="asset-result-item ${isSelected ? 'selected' : ''}" data-asset-id="${asset.id}">
           <div class="asset-info">
-            <div class="asset-name">${this.escapeHtml(name)}</div>
+            <div class="asset-header">
+              <div class="asset-name-section">
+                ${assetTypeIcon}
+                <span class="asset-name">${this.escapeHtml(name)}</span>
+                <div class="asset-badges">
+                  ${impactBadge}
+                  ${environmentBadge}
+                </div>
+              </div>
+              <div class="asset-status">
+                ${isSelected ? 
+                  '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Selected</span>' :
+                  '<span class="badge bg-outline-primary"><i class="fas fa-plus-circle me-1"></i>Available</span>'
+                }
+              </div>
+            </div>
             ${this.createExpandableDescription(description, asset.id)}
             <div class="asset-details">
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Asset Type:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-layer-group me-1 text-muted"></i>Asset Type:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(assetTypeName)}</span>
               </div>
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Environment:</span>
-                <span class="asset-detail-value">${this.escapeHtml(environment)}</span>
-              </div>
-              <div class="asset-detail-row">
-                <span class="asset-detail-label">Managed By:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-user-cog me-1 text-muted"></i>Managed By:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(managedBy)}</span>
               </div>
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Location:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-map-marker-alt me-1 text-muted"></i>Location:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(location)}</span>
               </div>
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Asset Tag:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-tag me-1 text-muted"></i>Asset Tag:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(assetTag)}</span>
               </div>
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Serial Number:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-barcode me-1 text-muted"></i>Serial Number:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(serialNumber)}</span>
               </div>
             </div>
             <div class="asset-meta">
-              <small class="text-muted">Asset ID: ${asset.id}</small>
+              <small class="text-muted">
+                <i class="fas fa-hashtag me-1"></i>Asset ID: ${asset.id}
+                ${asset.display_id ? ` | Display ID: ${asset.display_id}` : ''}
+              </small>
             </div>
           </div>
           <div class="asset-actions">
             ${isSelected ? 
               `<button type="button" class="btn btn-sm btn-outline-danger remove-asset-btn" data-asset-id="${asset.id}">
-                <i class="fas fa-times"></i> Remove
+                <i class="fas fa-times me-1"></i>Remove
               </button>` :
               `<button type="button" class="btn btn-sm btn-primary add-asset-btn" data-asset-id="${asset.id}">
-                <i class="fas fa-plus"></i> Add
+                <i class="fas fa-plus me-1"></i>Add Asset
               </button>`
             }
           </div>
@@ -577,9 +632,9 @@ const AssetAssociation = {
     
     html += '</div>';
     
-    // Add result count
+    // Add result count with icon
     const resultCount = `<div class="search-results-header">
-      <h6>Search Results (${assets.length} found)</h6>
+      <h6><i class="fas fa-search me-2"></i>Search Results (${assets.length} found)</h6>
     </div>`;
     
     resultsContainer.innerHTML = resultCount + html;
@@ -724,46 +779,73 @@ const AssetAssociation = {
       const location = await this.getLocationName(locationId);
       const assetTag = asset.asset_tag || 'N/A';
       const serialNumber = asset.serial_number || 'N/A';
+      const impact = asset.impact || 'unknown';
+      
+      // Get badge styling
+      const impactBadge = this.getImpactBadge(impact);
+      const environmentBadge = this.getEnvironmentBadge(environment);
+      const assetTypeIcon = this.getAssetTypeIcon(assetTypeName);
       
       html += `
         <div class="selected-asset-card" data-asset-id="${asset.id}">
           <div class="asset-card-header">
-            <h6 class="asset-card-title">${this.escapeHtml(name)}</h6>
-            <button type="button" class="btn btn-sm btn-outline-danger remove-selected-asset-btn" 
-                    data-asset-id="${asset.id}" title="Remove this asset">
-              <i class="fas fa-times"></i>
-            </button>
+            <div class="asset-card-title-section">
+              ${assetTypeIcon}
+              <h6 class="asset-card-title">${this.escapeHtml(name)}</h6>
+            </div>
+            <div class="asset-card-actions">
+              <span class="badge bg-success me-2">
+                <i class="fas fa-check-circle me-1"></i>Selected
+              </span>
+              <button type="button" class="btn btn-sm btn-outline-danger remove-selected-asset-btn" 
+                      data-asset-id="${asset.id}" title="Remove this asset">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+          <div class="asset-card-badges">
+            ${impactBadge}
+            ${environmentBadge}
           </div>
           <div class="asset-card-body">
             ${this.createExpandableDescription(description, asset.id)}
             <div class="asset-card-details">
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Type:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-layer-group me-1 text-muted"></i>Type:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(assetTypeName)}</span>
               </div>
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Environment:</span>
-                <span class="asset-detail-value">${this.escapeHtml(environment)}</span>
-              </div>
-              <div class="asset-detail-row">
-                <span class="asset-detail-label">Managed By:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-user-cog me-1 text-muted"></i>Managed By:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(managedBy)}</span>
               </div>
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Location:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-map-marker-alt me-1 text-muted"></i>Location:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(location)}</span>
               </div>
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Asset Tag:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-tag me-1 text-muted"></i>Asset Tag:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(assetTag)}</span>
               </div>
               <div class="asset-detail-row">
-                <span class="asset-detail-label">Serial #:</span>
+                <span class="asset-detail-label">
+                  <i class="fas fa-barcode me-1 text-muted"></i>Serial #:
+                </span>
                 <span class="asset-detail-value">${this.escapeHtml(serialNumber)}</span>
               </div>
             </div>
             <div class="asset-card-meta">
-              <small class="text-muted">Asset ID: ${asset.id}</small>
+              <small class="text-muted">
+                <i class="fas fa-hashtag me-1"></i>Asset ID: ${asset.id}
+                ${asset.display_id ? ` | Display ID: ${asset.display_id}` : ''}
+              </small>
             </div>
           </div>
         </div>
@@ -1165,6 +1247,128 @@ const AssetAssociation = {
       const value = this.getAssetTypeField(asset, fieldName);
       console.log(`   ${fieldName}: "${value}"`);
     });
+  },
+
+  /**
+   * Get impact badge HTML with appropriate styling
+   * @param {string} impact - Impact level (high, medium, low, unknown)
+   * @returns {string} - HTML for impact badge
+   */
+  getImpactBadge(impact) {
+    const impactLower = (impact || 'unknown').toLowerCase();
+    
+    switch (impactLower) {
+      case 'high':
+        return '<span class="badge bg-danger ms-2"><i class="fas fa-exclamation-triangle me-1"></i>High Impact</span>';
+      case 'medium':
+        return '<span class="badge bg-warning text-dark ms-2"><i class="fas fa-exclamation-circle me-1"></i>Medium Impact</span>';
+      case 'low':
+        return '<span class="badge bg-success ms-2"><i class="fas fa-info-circle me-1"></i>Low Impact</span>';
+      case 'critical':
+        return '<span class="badge bg-dark ms-2"><i class="fas fa-skull-crossbones me-1"></i>Critical Impact</span>';
+      default:
+        return '<span class="badge bg-secondary ms-2"><i class="fas fa-question-circle me-1"></i>Unknown Impact</span>';
+    }
+  },
+
+  /**
+   * Get environment badge HTML with appropriate styling
+   * @param {string} environment - Environment (PROD, DEV, TEST, etc.)
+   * @returns {string} - HTML for environment badge
+   */
+  getEnvironmentBadge(environment) {
+    if (!environment || environment === 'N/A') {
+      return '';
+    }
+    
+    const envLower = environment.toLowerCase();
+    
+    switch (envLower) {
+      case 'prod':
+      case 'production':
+        return '<span class="badge bg-danger ms-1"><i class="fas fa-server me-1"></i>PROD</span>';
+      case 'dev':
+      case 'development':
+        return '<span class="badge bg-info ms-1"><i class="fas fa-code me-1"></i>DEV</span>';
+      case 'test':
+      case 'testing':
+      case 'qa':
+        return '<span class="badge bg-warning text-dark ms-1"><i class="fas fa-vial me-1"></i>TEST</span>';
+      case 'stage':
+      case 'staging':
+        return '<span class="badge bg-purple ms-1"><i class="fas fa-theater-masks me-1"></i>STAGE</span>';
+      case 'uat':
+        return '<span class="badge bg-orange ms-1"><i class="fas fa-user-check me-1"></i>UAT</span>';
+      default:
+        return `<span class="badge bg-light text-dark ms-1"><i class="fas fa-cloud me-1"></i>${this.escapeHtml(environment)}</span>`;
+    }
+  },
+
+  /**
+   * Get asset type icon based on asset type name
+   * @param {string} assetTypeName - Name of the asset type
+   * @returns {string} - HTML for asset type icon
+   */
+  getAssetTypeIcon(assetTypeName) {
+    if (!assetTypeName || assetTypeName === 'Unknown') {
+      return '<i class="fas fa-cube text-muted me-2"></i>';
+    }
+    
+    const typeLower = assetTypeName.toLowerCase();
+    
+    // Hardware icons
+    if (typeLower.includes('laptop') || typeLower.includes('notebook')) {
+      return '<i class="fas fa-laptop text-primary me-2"></i>';
+    }
+    if (typeLower.includes('desktop') || typeLower.includes('workstation')) {
+      return '<i class="fas fa-desktop text-info me-2"></i>';
+    }
+    if (typeLower.includes('server')) {
+      return '<i class="fas fa-server text-success me-2"></i>';
+    }
+    if (typeLower.includes('phone') || typeLower.includes('mobile')) {
+      return '<i class="fas fa-mobile-alt text-warning me-2"></i>';
+    }
+    if (typeLower.includes('tablet') || typeLower.includes('ipad')) {
+      return '<i class="fas fa-tablet-alt text-info me-2"></i>';
+    }
+    if (typeLower.includes('printer')) {
+      return '<i class="fas fa-print text-secondary me-2"></i>';
+    }
+    if (typeLower.includes('monitor') || typeLower.includes('display')) {
+      return '<i class="fas fa-tv text-dark me-2"></i>';
+    }
+    if (typeLower.includes('router') || typeLower.includes('switch') || typeLower.includes('network')) {
+      return '<i class="fas fa-network-wired text-primary me-2"></i>';
+    }
+    
+    // Software icons
+    if (typeLower.includes('software') || typeLower.includes('application') || typeLower.includes('app')) {
+      return '<i class="fas fa-code text-purple me-2"></i>';
+    }
+    if (typeLower.includes('license')) {
+      return '<i class="fas fa-certificate text-warning me-2"></i>';
+    }
+    if (typeLower.includes('database') || typeLower.includes('db')) {
+      return '<i class="fas fa-database text-success me-2"></i>';
+    }
+    if (typeLower.includes('service')) {
+      return '<i class="fas fa-cogs text-info me-2"></i>';
+    }
+    
+    // Infrastructure icons
+    if (typeLower.includes('cloud')) {
+      return '<i class="fas fa-cloud text-primary me-2"></i>';
+    }
+    if (typeLower.includes('virtual') || typeLower.includes('vm')) {
+      return '<i class="fas fa-layer-group text-info me-2"></i>';
+    }
+    if (typeLower.includes('storage')) {
+      return '<i class="fas fa-hdd text-secondary me-2"></i>';
+    }
+    
+    // Default icon
+    return '<i class="fas fa-cube text-muted me-2"></i>';
   }
 };
 
@@ -1186,6 +1390,121 @@ window.debugAssetTypeFields = function(assetId) {
     console.log(`📋 Available search results:`, window.AssetAssociation.state.searchResults.map(a => `${a.id}: ${a.name}`));
     console.log(`📋 Available selected assets:`, window.AssetAssociation.state.selectedAssets.map(a => `${a.id}: ${a.name}`));
   }
+};
+
+// Test function to demonstrate enhanced asset display
+window.testEnhancedAssetDisplay = function() {
+  console.log('🎨 Testing Enhanced Asset Display with Badges and Icons...');
+  
+  if (!window.AssetAssociation) {
+    console.error('❌ AssetAssociation module not available');
+    return;
+  }
+  
+  // Create sample assets with different types and impacts for testing
+  const sampleAssets = [
+    {
+      id: 999001,
+      name: "ORLIT20-LT",
+      display_name: "ORLIT20-LT Laptop",
+      description: "High-performance laptop for development work with enhanced security features",
+      asset_type_id: 37000374826,
+      asset_tag: "LT-2024-001",
+      serial_number: "SN123456789",
+      impact: "high",
+      location_id: 37000001234,
+      agent_id: 37000300103,
+      type_fields: {
+        environment_37000374826: "PROD",
+        health_37000374826: "Operational",
+        vendor_37000374826: "Dell"
+      }
+    },
+    {
+      id: 999002,
+      name: "Active Directory",
+      description: "On premise active directory environment ceifx.local",
+      asset_type_id: 37000374726,
+      asset_tag: "ASSET-1081",
+      impact: "critical",
+      agent_id: 37000300103,
+      type_fields: {
+        environment_37000374726: "PROD",
+        hosting_model_37000374726: "Self-Hosted",
+        vendor_37000374726: "Microsoft"
+      }
+    },
+    {
+      id: 999003,
+      name: "Development Server",
+      description: "Primary development server for testing applications",
+      asset_type_id: 37000374727,
+      asset_tag: "SRV-DEV-001",
+      serial_number: "SRV987654321",
+      impact: "medium",
+      location_id: 37000001235,
+      user_id: 37000300002,
+      type_fields: {
+        environment_37000374727: "DEV",
+        health_37000374727: "Operational"
+      }
+    },
+    {
+      id: 999004,
+      name: "Office Printer",
+      description: "Multi-function printer for office use",
+      asset_type_id: 37000374728,
+      asset_tag: "PRT-001",
+      impact: "low",
+      location_id: 37000001236,
+      type_fields: {
+        environment_37000374728: "PROD"
+      }
+    },
+    {
+      id: 999005,
+      name: "Mobile App License",
+      description: "Enterprise mobile application license",
+      asset_type_id: 37000374729,
+      impact: "medium",
+      type_fields: {
+        environment_37000374729: "PROD"
+      }
+    }
+  ];
+  
+  // Test badge generation
+  console.log('🏷️ Testing Badge Generation:');
+  sampleAssets.forEach(asset => {
+    console.log(`\n📦 Asset: ${asset.name}`);
+    console.log(`   Impact Badge: ${window.AssetAssociation.getImpactBadge(asset.impact)}`);
+    
+    const environment = window.AssetAssociation.getEnvironmentInfo(asset);
+    console.log(`   Environment Badge: ${window.AssetAssociation.getEnvironmentBadge(environment)}`);
+    
+    // Mock asset type name for icon testing
+    const mockAssetTypeNames = {
+      37000374826: "Laptop",
+      37000374726: "Software/Services", 
+      37000374727: "Server",
+      37000374728: "Printer",
+      37000374729: "Software License"
+    };
+    const assetTypeName = mockAssetTypeNames[asset.asset_type_id] || "Unknown";
+    console.log(`   Asset Type Icon: ${window.AssetAssociation.getAssetTypeIcon(assetTypeName)}`);
+  });
+  
+  // Simulate adding these assets to search results for visual testing
+  console.log('\n🎯 Adding sample assets to search results for visual testing...');
+  window.AssetAssociation.state.searchResults = sampleAssets;
+  
+  // Display the enhanced results
+  window.AssetAssociation.displaySearchResults(sampleAssets);
+  
+  console.log('✅ Enhanced asset display test complete!');
+  console.log('💡 Check the Asset Association tab to see the enhanced display with badges and icons');
+  
+  return sampleAssets;
 };
 
 // Export for use in other modules

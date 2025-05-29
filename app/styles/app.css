@@ -1,0 +1,277 @@
+/* Asset Association Enhanced Styling */
+
+/* Asset Search Results */
+.asset-results-list {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.asset-result-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 16px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.asset-result-item:hover {
+  border-color: #007bff;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  transform: translateY(-1px);
+}
+
+.asset-result-item.selected {
+  border-color: #28a745;
+  background: #f8fff9;
+  box-shadow: 0 4px 8px rgba(40,167,69,0.15);
+}
+
+.asset-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.asset-name-section {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.asset-name {
+  font-weight: 600;
+  font-size: 1.1em;
+  color: #2c3e50;
+  margin: 0;
+}
+
+.asset-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.asset-status {
+  flex-shrink: 0;
+}
+
+/* Selected Assets Grid */
+.selected-assets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.selected-asset-card {
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.selected-asset-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+}
+
+.asset-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 16px 8px 16px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.asset-card-title-section {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.asset-card-title {
+  margin: 0;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.asset-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.asset-card-badges {
+  padding: 8px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: #fafbfc;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.asset-card-body {
+  padding: 16px;
+}
+
+.asset-card-details {
+  margin-top: 12px;
+}
+
+.asset-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.asset-detail-row:last-child {
+  border-bottom: none;
+}
+
+.asset-detail-label {
+  font-weight: 500;
+  color: #6c757d;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  min-width: 120px;
+}
+
+.asset-detail-value {
+  color: #2c3e50;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+}
+
+.asset-card-meta {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Custom Badge Colors */
+.badge.bg-purple {
+  background-color: #6f42c1 !important;
+}
+
+.badge.bg-orange {
+  background-color: #fd7e14 !important;
+}
+
+.badge.bg-outline-primary {
+  color: #007bff;
+  border: 1px solid #007bff;
+  background: transparent;
+}
+
+/* Search Results Header */
+.search-results-header {
+  padding: 12px 0;
+  border-bottom: 2px solid #e9ecef;
+  margin-bottom: 16px;
+}
+
+.search-results-header h6 {
+  margin: 0;
+  color: #495057;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+/* No Assets Message */
+.no-assets-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+}
+
+.no-assets-message i {
+  font-size: 2em;
+  margin-bottom: 12px;
+  display: block;
+}
+
+/* Search Message and Loading */
+.search-message,
+.search-loading {
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+/* Asset Actions */
+.asset-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .selected-assets-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .asset-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .asset-name-section {
+    width: 100%;
+  }
+  
+  .asset-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .asset-detail-value {
+    text-align: left;
+  }
+}
+
+/* Animation for badge hover effects */
+.badge {
+  transition: all 0.2s ease;
+}
+
+.badge:hover {
+  transform: scale(1.05);
+}
+
+/* Icon styling improvements */
+.fas, .far {
+  width: 16px;
+  text-align: center;
+}
+
+/* Clear All Button Confirmation State */
+.btn.confirm-required {
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+} 
