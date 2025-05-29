@@ -189,7 +189,9 @@ const AssetAssociation = {
       console.log(`📡 Encoded query: ${encodedQuery}`);
       
       const response = await window.client.request.invokeTemplate("getAssets", {
-        path_suffix: requestUrl
+        context: {
+          query_params: requestUrl
+        }
       });
 
       if (!response || !response.response) {
