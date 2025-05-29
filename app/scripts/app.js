@@ -4785,3 +4785,112 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
     console.error('❌ Error testing basic asset search:', error);
   }
 };
+
+/**
+ * Get location name by ID with caching
+ * @param {number} locationId - Location ID 
+ * @returns {Promise<string>} - Location name
+ */
+async function getLocationName(locationId) {
+  if (!locationId) return 'N/A';
+  
+  // Check for client availability
+  if (!window.client || !window.client.db) {
+    console.error('Client not available for location lookup');
+    return 'Unknown';
+  }
+
+  try {
+    // Check cache first
+    const cachedLocations = await getCachedLocations();
+    
+    // If location is in cache and not expired, use it
+    if (cachedLocations[locationId] && 
+        cachedLocations[locationId].timestamp > Date.now() - CACHE_TIMEOUT) {
+      console.log(`Using cached location: ${cachedLocations[locationId].name}`);
+      return cachedLocations[locationId].name;
+    }
+    
+    // If not in cache or expired, fetch from API
+    // But first, check if we can trigger a full refresh to benefit other locations too
+    if (Object.keys(cachedLocations).length === 0 || 
+        Object.values(cachedLocations).some(loc => loc.timestamp < Date.now() - CACHE_TIMEOUT)) {
+      console.log('Location cache expired or empty, fetching all locations');
+      const allLocations = await fetchAllLocations();
+      
+      // Check if our target location was included in the refresh
+      if (allLocations[locationId]) {
+        return allLocations[locationId].name;
+      }
+    }
+    
+    // If we still don't have the location after a refresh attempt, get it individually
+    console.log(`Fetching individual location ${locationId} from API`);
+    const response = await window.client.request.invokeTemplate("getLocation", {
+      path_suffix: `/${locationId}`
+    });
+    
+    if (!response || !response.response) {
+      console.error('Invalid location response:', response);
+      return 'Unknown';
+    }
+    
+    try {
+      const parsedData = JSON.parse(response.response || '{}');
+      if (parsedData && parsedData.location && parsedData.location.name) {
+        const locationName = parsedData.location.name;
+        
+        // Update cache
+        cachedLocations[locationId] = {
+          name: locationName,
+          timestamp: Date.now()
+        };
+        await cacheLocations(cachedLocations);
+        
+        return locationName;
+      }
+      return 'Unknown';
+    } catch (parseError) {
+      console.error('Error parsing location response:', parseError);
+      return 'Unknown';
+    }
+  } catch (error) {
+    console.error('Error fetching location:', error);
+    return 'Unknown';
+  }
+}
+
+/**
+ * Get cached locations from storage
+ * @returns {Promise<Object>} - Cached locations
+ */
+async function getCachedLocations() {
+  try {
+    // Try to get cached locations
+    const result = await window.client.db.get(STORAGE_KEYS.LOCATION_CACHE);
+    return result || {};
+  } catch (error) {
+    // If error or not found, return empty cache
+    console.log('No location cache found or error:', error);
+    return {};
+  }
+}
+
+/**
+ * Save locations to cache
+ * @param {Object} locations - Locations to cache
+ * @returns {Promise<boolean>} - Success status
+ */
+async function cacheLocations(locations) {
+  try {
+    await window.client.db.set(STORAGE_KEYS.LOCATION_CACHE, locations);
+    console.log('Location cache updated');
+    return true;
+  } catch (error) {
+    console.error('Failed to save location cache:', error);
+    return false;
+  }
+}
+
+// Expose the getLocationName function globally for use by other modules
+window.getLocationName = getLocationName;

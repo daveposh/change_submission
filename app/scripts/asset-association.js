@@ -262,15 +262,16 @@ const AssetAssociation = {
 
     let html = '<div class="asset-results-list">';
     
-    // Process assets with asset type name resolution
+    // Process assets with asset type and location name resolution
     for (const asset of assets) {
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
       const assetTypeId = asset.asset_type_id;
-      const assetTypeName = assetTypeId ? await this.getAssetTypeName(assetTypeId) : 'N/A';
+      const assetTypeName = await this.getAssetTypeName(assetTypeId);
       const environment = asset.environment || 'N/A';
       const managedBy = asset.managed_by_name || (asset.managed_by ? `User ID: ${asset.managed_by}` : 'N/A');
-      const location = asset.location_name || (asset.location_id ? `Location ID: ${asset.location_id}` : 'N/A');
+      const locationId = asset.location_id;
+      const location = await this.getLocationName(locationId);
       const assetTag = asset.asset_tag || 'N/A';
       const serialNumber = asset.serial_number || 'N/A';
       const isSelected = this.isAssetSelected(asset.id);
@@ -458,15 +459,16 @@ const AssetAssociation = {
 
     let html = '<div class="selected-assets-grid">';
     
-    // Process assets with asset type name resolution
+    // Process assets with asset type and location name resolution
     for (const asset of this.state.selectedAssets) {
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
       const assetTypeId = asset.asset_type_id;
-      const assetTypeName = assetTypeId ? await this.getAssetTypeName(assetTypeId) : 'N/A';
+      const assetTypeName = await this.getAssetTypeName(assetTypeId);
       const environment = asset.environment || 'N/A';
       const managedBy = asset.managed_by_name || (asset.managed_by ? `User ID: ${asset.managed_by}` : 'N/A');
-      const location = asset.location_name || (asset.location_id ? `Location ID: ${asset.location_id}` : 'N/A');
+      const locationId = asset.location_id;
+      const location = await this.getLocationName(locationId);
       const assetTag = asset.asset_tag || 'N/A';
       const serialNumber = asset.serial_number || 'N/A';
       
@@ -769,6 +771,8 @@ const AssetAssociation = {
    * @returns {Promise<string>} - Asset type name
    */
   async getAssetTypeName(assetTypeId) {
+    if (!assetTypeId) return 'N/A';
+    
     try {
       // Use the global getAssetTypeName function from main app if available
       if (typeof window.getAssetTypeName === 'function') {
@@ -786,6 +790,34 @@ const AssetAssociation = {
     } catch (error) {
       console.error('Error getting asset type name:', error);
       return `Asset Type ${assetTypeId}`;
+    }
+  },
+
+  /**
+   * Get location name using the global function from main app
+   * @param {number} locationId - Location ID
+   * @returns {Promise<string>} - Location name
+   */
+  async getLocationName(locationId) {
+    if (!locationId) return 'N/A';
+    
+    try {
+      // Use the global getLocationName function from main app if available
+      if (typeof window.getLocationName === 'function') {
+        return await window.getLocationName(locationId);
+      }
+      
+      // Fallback: try to call the function directly if it exists in global scope
+      if (typeof getLocationName === 'function') {
+        return await getLocationName(locationId);
+      }
+      
+      // If no function available, return the ID with a label
+      console.warn('getLocationName function not available, falling back to ID display');
+      return `Location ID: ${locationId}`;
+    } catch (error) {
+      console.error('Error getting location name:', error);
+      return `Location ID: ${locationId}`;
     }
   },
 
