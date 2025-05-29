@@ -546,7 +546,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('🔧 === TESTING ASSET TYPE RESOLUTION ===');
       
       // Clear cache first to force fresh fetch
-      await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {});
+      await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {
+        timestamp: Date.now(),
+        data: {}
+      });
       console.log('🧹 Cleared asset type cache');
       
       // Test the specific problematic asset type
@@ -590,23 +593,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         console.log('❌ Asset type not found in cache');
       }
-      
-      // Show cache statistics
-      const cacheSize = Object.keys(cache).length;
-      console.log(`📊 Total asset types in cache: ${cacheSize}`);
-      
-      if (cacheSize > 0) {
-        const cacheIds = Object.keys(cache).map(Number).sort((a, b) => a - b);
-        const minId = cacheIds[0];
-        const maxId = cacheIds[cacheIds.length - 1];
-        console.log(`📋 Cache ID range: ${minId} to ${maxId}`);
-        
-        if (37000374826 >= minId && 37000374826 <= maxId) {
-          console.log('✅ Target ID is within cached range');
-        } else {
-          console.log(`❌ Target ID (37000374826) is outside cached range - need more pagination`);
-        }
-      }
     };
     
     console.log('💡 Type testAssetTypeResolution() to test the laptop asset type fix');
@@ -616,7 +602,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('🔧 === TESTING ASSET TYPE PAGINATION ===');
       
       // Clear cache first
-      await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {});
+      await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {
+        timestamp: Date.now(),
+        data: {}
+      });
       console.log('🧹 Cleared asset type cache');
       
       console.log('🔍 Testing pagination to find laptop asset type (ID: 37000374826)...');
@@ -635,47 +624,51 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           if (!response || !response.response) {
-            console.log(`⚠️ No response for page ${page}`);
+            console.log(`❌ No response from page ${page}`);
             break;
           }
           
           const data = JSON.parse(response.response);
           const assetTypes = data.asset_types || [];
           
-          console.log(`   Retrieved ${assetTypes.length} asset types`);
+          console.log(`   📦 Page ${page}: ${assetTypes.length} asset types`);
           totalTypes += assetTypes.length;
           
+          // Check if laptop type is on this page
+          const laptopType = assetTypes.find(type => type.id === 37000374826);
+          if (laptopType) {
+            foundLaptopType = laptopType;
+            console.log(`🎯 FOUND LAPTOP TYPE on page ${page}!`);
+            console.log(`   Name: "${laptopType.name}"`);
+            console.log(`   ID: ${laptopType.id}`);
+            console.log(`   Description: ${laptopType.description || 'N/A'}`);
+            break;
+          }
+          
+          // If no results, we've reached the end
           if (assetTypes.length === 0) {
-            console.log(`   No more results, stopping at page ${page}`);
+            console.log(`📄 No more results on page ${page}, stopping`);
             break;
           }
-          
-          // Look for laptop asset type
-          foundLaptopType = assetTypes.find(type => type.id === 37000374826);
-          if (foundLaptopType) {
-            console.log(`🎉 FOUND! Laptop asset type on page ${page}: "${foundLaptopType.name}"`);
-            break;
-          }
-          
-          // Show IDs on this page
-          const idsOnPage = assetTypes.map(type => type.id).sort((a, b) => a - b);
-          console.log(`   Asset type IDs on page ${page}: ${idsOnPage.slice(0, 5).join(', ')}${idsOnPage.length > 5 ? '...' : ''}`);
-          
-          page++;
-          await new Promise(resolve => setTimeout(resolve, 200)); // Small delay
           
         } catch (error) {
-          console.log(`❌ Error on page ${page}:`, error);
+          console.log(`❌ Error on page ${page}: ${error.message}`);
           break;
         }
+        
+        page++;
       }
       
-      console.log(`📊 Total asset types found: ${totalTypes} across ${page - 1} pages`);
+      console.log(`\n📊 Summary:`);
+      console.log(`   Total pages tested: ${page - 1}`);
+      console.log(`   Total asset types found: ${totalTypes}`);
+      
       if (foundLaptopType) {
-        console.log(`✅ Laptop asset type located: "${foundLaptopType.name}" (ID: ${foundLaptopType.id})`);
+        console.log(`✅ SUCCESS: Found laptop asset type "${foundLaptopType.name}" on page ${page - 1}`);
+        console.log(`🔧 Recommendation: Increase maxPages to at least ${page} in fetchAllAssetTypes()`);
       } else {
-        console.log(`❌ Laptop asset type (ID: 37000374826) not found in ${page - 1} pages`);
-        console.log(`💡 The asset type might be on a later page or have a different ID`);
+        console.log(`❌ FAILED: Laptop asset type (37000374826) not found in ${page - 1} pages`);
+        console.log(`🔧 Recommendation: Check if asset type exists or increase pagination further`);
       }
     };
     
@@ -686,7 +679,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('🔧 === TESTING LOCATION PAGINATION ===');
       
       // Clear cache first
-      await window.client.db.set(STORAGE_KEYS.LOCATION_CACHE, {});
+      await window.client.db.set(STORAGE_KEYS.LOCATION_CACHE, {
+        timestamp: Date.now(),
+        data: {}
+      });
       console.log('🧹 Cleared location cache');
       
       console.log('🔍 Testing pagination to find target location (ID: 37000074320)...');
@@ -705,47 +701,49 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           
           if (!response || !response.response) {
-            console.log(`⚠️ No response for page ${page}`);
+            console.log(`❌ No response from page ${page}`);
             break;
           }
           
           const data = JSON.parse(response.response);
           const locations = data.locations || [];
           
-          console.log(`   Retrieved ${locations.length} locations`);
+          console.log(`   📦 Page ${page}: ${locations.length} locations`);
           totalLocations += locations.length;
           
+          // Check if target location is on this page
+          const targetLocation = locations.find(loc => loc.id === 37000074320);
+          if (targetLocation) {
+            foundTargetLocation = targetLocation;
+            console.log(`🎯 FOUND TARGET LOCATION on page ${page}!`);
+            console.log(`   Name: "${targetLocation.name}"`);
+            console.log(`   ID: ${targetLocation.id}`);
+            break;
+          }
+          
+          // If no results, we've reached the end
           if (locations.length === 0) {
-            console.log(`   No more results, stopping at page ${page}`);
+            console.log(`📄 No more results on page ${page}, stopping`);
             break;
           }
-          
-          // Look for target location
-          foundTargetLocation = locations.find(loc => loc.id === 37000074320);
-          if (foundTargetLocation) {
-            console.log(`🎉 FOUND! Target location on page ${page}: "${foundTargetLocation.name}"`);
-            break;
-          }
-          
-          // Show IDs on this page
-          const idsOnPage = locations.map(loc => loc.id).sort((a, b) => a - b);
-          console.log(`   Location IDs on page ${page}: ${idsOnPage.slice(0, 5).join(', ')}${idsOnPage.length > 5 ? '...' : ''}`);
-          
-          page++;
-          await new Promise(resolve => setTimeout(resolve, 200)); // Small delay
           
         } catch (error) {
-          console.log(`❌ Error on page ${page}:`, error);
+          console.log(`❌ Error on page ${page}: ${error.message}`);
           break;
         }
+        
+        page++;
       }
       
-      console.log(`📊 Total locations found: ${totalLocations} across ${page - 1} pages`);
+      console.log(`\n📊 Summary:`);
+      console.log(`   Total pages tested: ${page - 1}`);
+      console.log(`   Total locations found: ${totalLocations}`);
+      
       if (foundTargetLocation) {
-        console.log(`✅ Target location located: "${foundTargetLocation.name}" (ID: ${foundTargetLocation.id})`);
+        console.log(`✅ SUCCESS: Found target location "${foundTargetLocation.name}" on page ${page - 1}`);
       } else {
-        console.log(`❌ Target location (ID: 37000074320) not found in ${page - 1} pages`);
-        console.log(`💡 The location might be on a later page, have a different ID, or not exist`);
+        console.log(`❌ FAILED: Target location (37000074320) not found in ${page - 1} pages`);
+        console.log(`🔧 This location may not exist in the system`);
       }
     };
     
