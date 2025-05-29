@@ -45,46 +45,14 @@ const cache = {
  * @returns {Promise<Object>} Cached asset types
  */
 async function fetchAndCacheAssetTypes() {
-  console.log('Fetching all asset types...');
-  
-  // Check for client availability
-  if (!window.client || !window.client.request) {
-    console.error('Client not available for asset types fetch');
-    throw new Error('Client not initialized');
-  }
-
   try {
-    const response = await window.client.request.invokeTemplate("getAssetTypes", {
-      path_suffix: "?per_page=100"
-    });
-
-    if (!response || !response.response) {
-      throw new Error('Invalid response from asset types API');
-    }
-
-    const data = JSON.parse(response.response);
-    const assetTypes = data.asset_types || [];
-    
-    // Transform into id -> name map
-    const assetTypeMap = {};
-    assetTypes.forEach(type => {
-      if (type.id && type.name) {
-        assetTypeMap[type.id] = {
-          name: type.name,
-          description: type.description || ''
-        };
-      }
-    });
-
-    // Update cache
-    cache.asset_types = {
-      data: assetTypeMap,
-      timestamp: Date.now()
-    };
-
-    return assetTypeMap;
+    console.log('Fetching and caching asset types...');
+    const assetTypes = await fetchAllAssetTypes();
+    await cacheAssetTypes(assetTypes);
+    console.log(`Cached ${assetTypes.length} asset types`);
+    return assetTypes;
   } catch (error) {
-    console.error('Error fetching asset types:', error);
+    console.error('Error fetching and caching asset types:', error);
     throw error;
   }
 }
@@ -1860,195 +1828,8 @@ async function getUserName(userId) {
  * @returns {Promise<string>} - Manager name
  */
 async function getManagerName(managerId) {
-  // Since manager IDs are just user IDs, use the user cache/lookup
-  return await getUserName(managerId);
-}
-
-/**
- * Initialize the services dropdown with software services
- */
-async function initializeServicesDropdown() {
-  try {
-    console.log('Initializing services dropdown...');
-    
-    const services = await getServices();
-    const dropdown = document.getElementById('service-select');
-    if (!dropdown) {
-      console.error('Service select dropdown not found');
-      return;
-    }
-    
-    // Clear existing options
-    dropdown.innerHTML = '<option value="">Select a service...</option>';
-
-    if (services.length === 0) {
-      dropdown.innerHTML = '<option value="">No software services available</option>';
-      dropdown.disabled = true;
-      return;
-    }
-        
-    // Sort services by name
-    services.sort((a, b) => {
-      const nameA = (a.display_name || a.name || '').toLowerCase();
-      const nameB = (b.display_name || b.name || '').toLowerCase();
-      return nameA.localeCompare(nameB);
-    });
-
-    // Add options for each service
-    services.forEach(service => {
-      const option = document.createElement('option');
-      option.value = service.id;
-      option.textContent = service.display_name || service.name || 'Unknown Service';
-      option.dataset.description = service.description || '';
-      // Store the complete service data as JSON for later retrieval
-      option.dataset.serviceData = JSON.stringify(service);
-      dropdown.appendChild(option);
-    });
-
-    // Enable the dropdown
-    dropdown.disabled = false;
-    
-    console.log(`Services dropdown initialized with ${services.length} services`);
-    
-    // Debug: Log first few services to verify asset_type_id is preserved
-    if (services.length > 0) {
-      console.log('📋 Sample services in dropdown:', services.slice(0, 3).map(s => ({
-        id: s.id,
-        name: s.display_name || s.name,
-        asset_type_id: s.asset_type_id,
-        hasAssetTypeId: !!s.asset_type_id
-      })));
-    }
-  } catch (error) {
-    console.error('Error initializing services dropdown:', error);
-    const dropdown = document.getElementById('service-select');
-    if (dropdown) {
-      dropdown.innerHTML = '<option value="">Error loading services</option>';
-      dropdown.disabled = true;
-    }
-  }
-}
-
-/**
- * Handle service selection from dropdown
- * @param {Event} event Change event from dropdown
- */
-function handleServiceSelection(event) {
-  const serviceId = event.target.value;
-  
-  if (!serviceId) {
-    // No service selected, clear any previous selection display
-    return;
-  }
-
-  // Find the selected service data from the dropdown option
-  const selectedOption = event.target.selectedOptions[0];
-  const serviceDataJson = selectedOption.dataset.serviceData;
-  
-  let service;
-  
-  if (serviceDataJson) {
-    try {
-      // Parse the complete service data stored in the option
-      service = JSON.parse(serviceDataJson);
-      console.log('📋 Retrieved complete service data from dropdown:', {
-        id: service.id,
-        name: service.display_name || service.name,
-        asset_type_id: service.asset_type_id,
-        description: service.description,
-        hasAssetTypeId: !!service.asset_type_id
-      });
-    } catch (error) {
-      console.error('Error parsing service data:', error);
-      // Fallback to basic service object
-      service = {
-        id: parseInt(serviceId),
-        name: selectedOption.textContent,
-        display_name: selectedOption.textContent,
-        description: selectedOption.dataset.description || ''
-      };
-    }
-  } else {
-    console.warn('No service data found in dropdown option, using fallback');
-    // Fallback to basic service object
-    service = {
-      id: parseInt(serviceId),
-      name: selectedOption.textContent,
-      display_name: selectedOption.textContent,
-      description: selectedOption.dataset.description || ''
-    };
-  }
-
-  // Add to selected services if not already selected
-  if (!changeRequestData.selectedServices.some(s => s.id === service.id)) {
-    changeRequestData.selectedServices.push(service);
-    
-    // Update the display
-    updateSelectedServicesDisplay();
-    updateAssociationCounts();
-    
-    console.log('✅ Service selected and stored with complete data:', service);
-  } else {
-    console.log('⚠️ Service already selected:', service.id);
-  }
-
-  // Reset dropdown to placeholder
-  event.target.value = '';
-}
-
-/**
- * Handle change type selection
- * @param {Event} event Change event
- */
-function handleChangeTypeSelection(event) {
-  const changeType = event.target.value;
-  
-  // Update lead time display
-  const leadTimeElement = document.getElementById('lead-time');
-  if (leadTimeElement) {
-    leadTimeElement.textContent = leadTimeText[changeType] || '2 business days';
-  }
-  
-  // Update change type description/tooltip
-  const tooltipElement = document.getElementById('change-type-tooltip');
-  if (tooltipElement) {
-    tooltipElement.textContent = changeTypeTooltips[changeType] || '';
-  }
-  
-  // Update the stored change request data
-  changeRequestData.changeType = changeType;
-  changeRequestData.leadTime = leadTimeText[changeType] || '2 business days';
-  
-  console.log(`Change type updated to: ${changeType}, Lead time: ${changeRequestData.leadTime}`);
-}
-
-/**
- * Initialize change type defaults on page load
- */
-function initializeChangeTypeDefaults() {
-  const changeTypeSelect = document.getElementById('change-type');
-  if (!changeTypeSelect) return;
-  
-  // Get the currently selected change type (default is 'standard')
-  const currentChangeType = changeTypeSelect.value || 'standard';
-  
-  // Update lead time display
-  const leadTimeElement = document.getElementById('lead-time');
-  if (leadTimeElement) {
-    leadTimeElement.textContent = leadTimeText[currentChangeType] || '2 business days';
-  }
-  
-  // Update change type description/tooltip
-  const tooltipElement = document.getElementById('change-type-tooltip');
-  if (tooltipElement) {
-    tooltipElement.textContent = changeTypeTooltips[currentChangeType] || '';
-  }
-  
-  // Initialize the stored change request data
-  changeRequestData.changeType = currentChangeType;
-  changeRequestData.leadTime = leadTimeText[currentChangeType] || '2 business days';
-  
-  console.log(`Initialized change type: ${currentChangeType}, Lead time: ${changeRequestData.leadTime}`);
+  const manager = await getUserDetails(managerId);
+  return manager ? `${manager.first_name || ''} ${manager.last_name || ''}`.trim() : 'Unknown Manager';
 }
 
 /**
@@ -2059,38 +1840,22 @@ async function initializeApp() {
   try {
     console.log('Starting app initialization...');
     
-    // Client should already be available from app.initialized()
-    if (!window.client) {
-      throw new Error('Client not available after initialization');
-    }
+    // Initialize caches in parallel for better performance
+    await Promise.all([
+      fetchAndCacheAssetTypes()
+    ]);
     
-    // Initialize form fields first
+    console.log('Caches initialized successfully');
+    
+    // Initialize form components
     populateFormFields();
-    
-    // Initialize caches and services dropdown
-    try {
-      await Promise.all([
-        getAssetTypes(),
-        getServices(true) // Force refresh to ensure we get fresh services with new logic
-      ]);
-      console.log('Caches initialized successfully');
-      await initializeServicesDropdown();
-    } catch (error) {
-      console.error('Error initializing caches:', error);
-      const dropdown = document.getElementById('service-select');
-      if (dropdown) {
-        dropdown.innerHTML = '<option value="">Error loading services</option>';
-        dropdown.disabled = true;
-      }
-    }
-
-    // Set up event listeners
     setupEventListeners();
-
-    // Initialize change type, lead time, and tooltip on page load
+    
+    // Initialize change type defaults
     initializeChangeTypeDefaults();
-
+    
     console.log('App initialization completed successfully');
+    
   } catch (error) {
     console.error('Error in app initialization:', error);
     displayInitError('Failed to initialize application: ' + error.message);
@@ -2114,73 +1879,42 @@ function displayInitError(message) {
 }
 
 function populateFormFields() {
-  // Create services section
-  const servicesSection = document.createElement('div');
-  servicesSection.className = 'form-group mb-4';
-  servicesSection.innerHTML = `
-    <label for="service-select" class="form-label">Select Service</label>
-    <select id="service-select" class="form-select" disabled>
-      <option value="">Loading services...</option>
-    </select>
-    <div id="selected-service-details" class="mt-3" style="display: none;">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title" id="selected-service-name"></h5>
-          <h6 class="card-subtitle mb-2 text-muted" id="selected-service-type"></h6>
-          <p class="card-text" id="selected-service-description"></p>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Create requester and agent search sections
-  const searchSection = document.createElement('div');
-  searchSection.className = 'row mb-4';
-  searchSection.innerHTML = `
-    <div class="col-md-6">
-      <div class="form-group">
-        <label for="requester-search" class="form-label">Search Requester:</label>
-        <div class="input-group">
-          <input type="text" id="requester-search" class="form-control" placeholder="Search by name or email">
-          <span class="input-group-text"><i class="fas fa-search"></i></span>
-        </div>
-        <div id="requester-results" class="search-results" style="display: none;"></div>
-        <div id="selected-requester" class="selected-user mt-2" style="display: none;"></div>
-      </div>
-    </div>
-    <div class="col-md-6">
-      <div class="form-group">
-        <label for="agent-search" class="form-label">Search Technical SME:</label>
-        <div class="input-group">
-          <input type="text" id="agent-search" class="form-control" placeholder="Search by name or email">
-          <span class="input-group-text"><i class="fas fa-search"></i></span>
-        </div>
-        <div id="agent-results" class="search-results" style="display: none;"></div>
-        <div id="selected-agent" class="selected-user mt-2" style="display: none;"></div>
-      </div>
-    </div>
-  `;
-
-  // Insert sections at the start of the form
-  const form = document.querySelector('form');
-  if (form) {
-    form.insertBefore(searchSection, form.firstChild);
-    form.insertBefore(servicesSection, form.firstChild);
-  }
-
-  // Set up event listeners for search inputs
-  const requesterSearch = document.getElementById('requester-search');
-  const agentSearch = document.getElementById('agent-search');
+  // Get current date for default values
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
   
-  if (requesterSearch) {
-    requesterSearch.addEventListener('input', debounce(searchRequesters, 300));
+  // Format dates for input fields (YYYY-MM-DDTHH:MM)
+  const formatDateTime = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
+  // Set default planned start time (tomorrow at 9 AM)
+  const plannedStart = new Date(tomorrow);
+  plannedStart.setHours(9, 0, 0, 0);
+  
+  // Set default planned end time (tomorrow at 10 AM)
+  const plannedEnd = new Date(tomorrow);
+  plannedEnd.setHours(10, 0, 0, 0);
+
+  // Populate form fields with defaults
+  const plannedStartField = document.getElementById('planned-start');
+  const plannedEndField = document.getElementById('planned-end');
+  
+  if (plannedStartField) {
+    plannedStartField.value = formatDateTime(plannedStart);
   }
   
-  if (agentSearch) {
-    agentSearch.addEventListener('input', debounce(searchAgents, 300));
+  if (plannedEndField) {
+    plannedEndField.value = formatDateTime(plannedEnd);
   }
 
-  // ... rest of the existing populateFormFields code ...
+  console.log('Form fields populated with default values');
 }
 
 /**
@@ -2945,18 +2679,13 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
   }
   
   try {
-    // Get configured asset type IDs
-    const assetTypeIds = await getConfiguredAssetTypeIds();
-    console.log(`🔍 Starting asset search for "${searchTerm}" in asset types: ${assetTypeIds.join(', ')}`);
+    console.log(`🔍 Starting asset search for "${searchTerm}" across all asset types`);
     
-    // Build query - since API name filtering is broken, just use asset type filter
-    const assetTypeFilter = assetTypeIds.length > 0 ? 
-      `(${assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    // Simplified approach: no asset type filters, just search by name across all assets
+    // Since API name filtering is broken, we'll get all assets and filter client-side
+    const query = ''; // No filters - get all assets
     
-    // Note: API search syntax for names appears to be broken, so we'll filter client-side
-    const query = assetTypeFilter;
-    
-    console.log('🔍 Asset search query:', query);
+    console.log('🔍 Asset search query: No filters (searching all assets)');
     console.log('⚠️ Note: Using client-side filtering for names due to API search limitations');
     
     // Get installation parameters for pagination settings
@@ -3333,81 +3062,62 @@ function getRiskLabel(category, value) {
  * Reset form after successful submission
  */
 function resetForm() {
-  // Reset change request data
-  Object.assign(changeRequestData, {
-    requester: null,
-    agent: null,
-    changeType: 'standard',
-    leadTime: '2 business days',
-    plannedStart: '',
-    plannedEnd: '',
-    implementationPlan: '',
-    backoutPlan: '',
-    validationPlan: '',
-    selectedServices: [],
-    selectedAssets: [],
-    riskAssessment: {
-      businessImpact: 0,
-      affectedUsers: 0,
-      complexity: 0,
-      testing: 0,
-      rollback: 0,
-      totalScore: 0,
-      riskLevel: ''
-    }
-  });
-
   // Clear form fields
-  document.getElementById('requester-search').value = '';
-  document.getElementById('agent-search').value = '';
+  document.getElementById('change-type').value = 'standard';
   document.getElementById('planned-start').value = '';
   document.getElementById('planned-end').value = '';
   document.getElementById('implementation-plan').value = '';
   document.getElementById('backout-plan').value = '';
   document.getElementById('validation-plan').value = '';
-
-  // Clear asset association dropdown and search fields
-  const serviceSelect = document.getElementById('service-select');
-  const assetSearch = document.getElementById('asset-search');
-  if (serviceSelect) serviceSelect.value = '';
-  if (assetSearch) assetSearch.value = '';
-
-  // Clear selected users displays
-  const selectedRequester = document.getElementById('selected-requester');
-  const selectedAgent = document.getElementById('selected-agent');
-  if (selectedRequester) selectedRequester.style.display = 'none';
-  if (selectedAgent) selectedAgent.style.display = 'none';
-
-  // Clear selected services and assets displays
-  updateSelectedServicesDisplay();
+  
+  // Clear selected data
+  changeRequestData.requester = null;
+  changeRequestData.agent = null;
+  changeRequestData.changeType = 'standard';
+  changeRequestData.leadTime = '2 business days';
+  changeRequestData.plannedStart = '';
+  changeRequestData.plannedEnd = '';
+  changeRequestData.implementationPlan = '';
+  changeRequestData.backoutPlan = '';
+  changeRequestData.validationPlan = '';
+  changeRequestData.selectedServices = [];
+  changeRequestData.selectedAssets = [];
+  changeRequestData.riskAssessment = {
+    businessImpact: 0,
+    affectedUsers: 0,
+    complexity: 0,
+    testing: 0,
+    rollback: 0,
+    totalScore: 0,
+    riskLevel: ''
+  };
+  
+  // Clear displays
+  clearRequester();
+  clearAgent();
   updateSelectedAssetsDisplay();
   updateAssociationCounts();
-
-  // Clear risk assessment
-  document.querySelectorAll('.risk-options input[type="radio"]').forEach(radio => {
-    radio.checked = false;
-  });
-
-  // Hide risk results
-  const riskResult = document.getElementById('risk-result');
-  if (riskResult) {
-    riskResult.classList.add('hidden');
-    riskResult.style.display = 'none';
+  
+  // Reset risk assessment
+  document.querySelectorAll('input[name="business-impact"]').forEach(input => input.checked = false);
+  document.querySelectorAll('input[name="affected-users"]').forEach(input => input.checked = false);
+  document.querySelectorAll('input[name="complexity"]').forEach(input => input.checked = false);
+  document.querySelectorAll('input[name="testing"]').forEach(input => input.checked = false);
+  document.querySelectorAll('input[name="rollback"]').forEach(input => input.checked = false);
+  
+  // Clear risk display
+  const riskDisplay = document.getElementById('risk-display');
+  if (riskDisplay) {
+    riskDisplay.innerHTML = '<span class="badge bg-secondary">Not Assessed</span>';
   }
-
-  // Reset change type to default
-  const changeTypeSelect = document.getElementById('change-type');
-  if (changeTypeSelect) {
-    changeTypeSelect.value = 'standard';
-  }
-
-  // Re-initialize defaults
-  initializeChangeTypeDefaults();
-
-  // Switch back to first tab
-  switchTab('change-details');
-
-  console.log('Form reset completed');
+  
+  // Clear any notifications
+  clearFieldHighlighting();
+  
+  // Switch to first tab
+  switchTab('associations-tab');
+  
+  console.log('Form reset to initial state');
 }
 
 /**
@@ -3663,16 +3373,22 @@ function updateAssociationCounts() {
  * Validate asset associations and proceed to next step
  */
 function validateAssetsAndNext() {
-  // Asset association is optional, so we don't enforce any requirements
-  // But we could add validation here if needed
+  // Check if at least one asset is selected
+  if (changeRequestData.selectedAssets.length === 0) {
+    showNotification('error', 'Please select at least one asset before proceeding.');
+    return;
+  }
+
+  // Services functionality removed - no longer needed
+  // getServices().then(services => {
+  //   displayAssetAssociationResults(services);
+  // });
   
-  console.log('Asset associations validated:', {
-    services: changeRequestData.selectedServices.length,
-    assets: changeRequestData.selectedAssets.length
-  });
+  // Directly display asset association results
+  displayAssetAssociationResults([]);
   
-  // Show submission summary
-  showSubmissionSummary();
+  // Switch to the next tab
+  switchTab('details-tab');
 }
 
 /**
@@ -5760,3 +5476,69 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
     console.error('❌ Error testing efficient asset search:', error);
   }
 };
+
+/**
+ * Handle change type selection
+ * @param {Event} event Change event
+ */
+function handleChangeTypeSelection(event) {
+  const changeType = event.target.value;
+  
+  // Update lead time display
+  const leadTimeElement = document.getElementById('lead-time');
+  if (leadTimeElement) {
+    leadTimeElement.textContent = leadTimeText[changeType] || '2 business days';
+  }
+  
+  // Update change type description/tooltip
+  const tooltipElement = document.getElementById('change-type-tooltip');
+  if (tooltipElement) {
+    tooltipElement.textContent = changeTypeTooltips[changeType] || '';
+  }
+  
+  // Update the stored change request data
+  changeRequestData.changeType = changeType;
+  changeRequestData.leadTime = leadTimeText[changeType] || '2 business days';
+  
+  console.log(`Change type updated to: ${changeType}, Lead time: ${changeRequestData.leadTime}`);
+}
+
+/**
+ * Initialize change type defaults on page load
+ */
+function initializeChangeTypeDefaults() {
+  const changeTypeSelect = document.getElementById('change-type');
+  if (!changeTypeSelect) return;
+  
+  // Get the currently selected change type (default is 'standard')
+  const currentChangeType = changeTypeSelect.value || 'standard';
+  
+  // Update lead time display
+  const leadTimeElement = document.getElementById('lead-time');
+  if (leadTimeElement) {
+    leadTimeElement.textContent = leadTimeText[currentChangeType] || '2 business days';
+  }
+  
+  // Update change type description/tooltip
+  const tooltipElement = document.getElementById('change-type-tooltip');
+  if (tooltipElement) {
+    tooltipElement.textContent = changeTypeTooltips[currentChangeType] || '';
+  }
+  
+  // Initialize the stored change request data
+  changeRequestData.changeType = currentChangeType;
+  changeRequestData.leadTime = leadTimeText[currentChangeType] || '2 business days';
+  
+  console.log(`Initialized change type: ${currentChangeType}, Lead time: ${changeRequestData.leadTime}`);
+}
+
+/**
+ * Update association counts in the summary
+ */
+function updateAssociationCounts() {
+  const assetsCount = document.getElementById('assets-count');
+  
+  if (assetsCount) {
+    assetsCount.textContent = changeRequestData.selectedAssets.length;
+  }
+}

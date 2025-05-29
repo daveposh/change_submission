@@ -243,36 +243,7 @@
           <!-- Asset Association Tab -->
           <div class="tab-pane fade" id="asset-association" role="tabpanel" aria-labelledby="assets-tab">
             <h3 class="mb-4">Asset Association</h3>
-            <p class="text-secondary">Select services and assets that will be impacted by this change.</p>
-
-            <!-- Services Section -->
-            <div class="card mb-4">
-              <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-server me-2"></i>Services</h5>
-              </div>
-              <div class="card-body">
-                <div class="row">
-                  <div class="col-md-6">
-                    <label for="service-select" class="form-label">Select Service:</label>
-                    <select id="service-select" class="form-select" disabled>
-                      <option value="">Loading services...</option>
-                    </select>
-                    <div class="mt-2">
-                      <small class="text-muted">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Only services with "Software Services" category are shown
-                      </small>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Selected Services:</label>
-                    <div id="selected-services-list" class="selected-items-list">
-                      <div class="text-muted">No services selected</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <p class="text-secondary">Select assets that will be impacted by this change.</p>
 
             <!-- Assets Section -->
             <div class="card mb-4">
@@ -306,13 +277,7 @@
               </div>
               <div class="card-body">
                 <div class="row">
-                  <div class="col-md-6">
-                    <div class="summary-item">
-                      <strong>Services Associated:</strong>
-                      <span id="services-count" class="badge bg-primary ms-2">0</span>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
+                  <div class="col-md-12">
                     <div class="summary-item">
                       <strong>Assets Associated:</strong>
                       <span id="assets-count" class="badge bg-success ms-2">0</span>
