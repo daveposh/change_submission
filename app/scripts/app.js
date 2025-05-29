@@ -1,4 +1,12 @@
 /**
+ * Freshservice Change Request App
+ * Version: 2024.01.15-EnterKeySearch
+ */
+
+console.log('🚀 Loading Freshservice Change Request App - Version 2024.01.15-EnterKeySearch');
+console.log('✅ This version uses Enter key + Search button for asset search (no auto-search on typing)');
+
+/**
  * Change Request App
  * Full page application for managing change requests in Freshservice
  */
@@ -2583,8 +2591,11 @@ let currentAssetSearchRequest = null;
  * Search for assets (handles both main asset search and asset association)
  */
 function searchAssets(e) {
+  console.log('🔧 NEW VERSION: searchAssets function called (Enter key + Search button only)');
+  
   // Only trigger search on Enter key press or explicit search button click
   if (e.type === 'keydown' && e.key !== 'Enter') {
+    console.log('⏸️ Ignoring keystroke (not Enter key) - NEW VERSION WORKING!');
     return; // Don't search on every keystroke
   }
   
