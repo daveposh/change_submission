@@ -22,9 +22,6 @@
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="risk-tab" data-bs-toggle="tab" data-bs-target="#risk-assessment" type="button" role="tab" aria-controls="risk-assessment" aria-selected="false">Risk Assessment</button>
           </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="assets-tab" data-bs-toggle="tab" data-bs-target="#asset-association" type="button" role="tab" aria-controls="asset-association" aria-selected="false">Asset Association</button>
-          </li>
         </ul>
 
         <div class="tab-content p-4" id="changeTabContent">
@@ -237,66 +234,6 @@
             <div class="form-actions text-end">
               <button id="calculate-risk" class="btn btn-secondary me-2">Calculate Risk</button>
               <button id="submit-change" class="btn btn-primary">Submit Change Request</button>
-            </div>
-          </div>
-
-          <!-- Asset Association Tab -->
-          <div class="tab-pane fade" id="asset-association" role="tabpanel" aria-labelledby="assets-tab">
-            <h3 class="mb-4">Asset Association</h3>
-            <p class="text-secondary">Select assets that will be impacted by this change.</p>
-
-            <!-- Assets Section -->
-            <div class="card mb-4">
-              <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-desktop me-2"></i>Assets</h5>
-              </div>
-              <div class="card-body">
-                <div class="row">
-                  <div class="col-md-6">
-                    <label for="asset-search" class="form-label">Search Assets:</label>
-                    <div class="input-group">
-                      <input type="text" id="asset-search" class="form-control" placeholder="Search by asset name (press Enter or click search)...">
-                      <button class="btn btn-outline-secondary" type="button" id="asset-search-btn" title="Search Assets">
-                        <i class="fas fa-search"></i>
-                      </button>
-                    </div>
-                    <div id="asset-search-results" class="search-results mt-2" style="display: none;"></div>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Selected Assets:</label>
-                    <div id="selected-assets-list" class="selected-items-list">
-                      <div class="text-muted">No assets selected</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Summary Section -->
-            <div class="card mb-4">
-              <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Association Summary</h5>
-              </div>
-              <div class="card-body">
-                <div class="row">
-                  <div class="col-md-12">
-                    <div class="summary-item">
-                      <strong>Assets Associated:</strong>
-                      <span id="assets-count" class="badge bg-success ms-2">0</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="mt-3">
-                  <small class="text-muted">
-                    <i class="fas fa-info-circle me-1"></i>
-                    These associations will help identify the scope and impact of your change request.
-                  </small>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-actions text-end">
-              <button id="assets-next" class="btn btn-primary">Next</button>
             </div>
           </div>
         </div>
