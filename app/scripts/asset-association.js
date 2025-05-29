@@ -174,26 +174,16 @@ const AssetAssociation = {
       const searchField = this.getSearchField(searchTerm);
       
       // Use field-specific search format: field:'searchterm'
-      // Supported fields: name, asset_tag, serial_number, mac_addresses, ip_addresses, uuid, item_id, imei_number
+      // Let the template engine handle encoding - pass clean values
       const fieldQuery = `${searchField}:'${searchTerm}'`;
       
-      // Encode the inner query and manually encode single quotes as %27
-      let encodedQuery = encodeURIComponent(fieldQuery);
-      encodedQuery = encodedQuery.replace(/'/g, '%27');
-      
-      // Get all assets matching search - no filtering
-      const searchQueryValue = `"${encodedQuery}"`;
-      const includeFieldsValue = "type_fields";
-      
       console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
-      console.log(`📡 Request URL: /api/v2/assets?search=${searchQueryValue}&include=${includeFieldsValue}`);
-      console.log(`📡 Encoded query: ${encodedQuery}`);
-      console.log(`📡 Search context: ${searchQueryValue}`);
+      console.log(`📡 Will construct URL: /api/v2/assets?search="${fieldQuery}"&include=type_fields`);
       
       const response = await window.client.request.invokeTemplate("getAssets", {
         context: {
-          search_query: searchQueryValue,
-          include_fields: includeFieldsValue
+          search_query: `"${fieldQuery}"`,
+          include_fields: "type_fields"
         }
       });
 
