@@ -501,6 +501,8 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- testLocationCaching() - Test location caching system');
       console.log('- testLocationsAPI() - Test locations API endpoint');
       console.log('- testAvailableAPIs() - Test all available API endpoints');
+      console.log('- testAssetTypePagination() - Test asset type pagination');
+      console.log('- testLocationPagination() - Test location pagination');
       console.log('🗑️ Asset search test functions removed - see blank slate comment');
     };
     
@@ -571,6 +573,146 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('💡 Type testAssetTypeResolution() to test the laptop asset type fix');
     
+    // Test pagination specifically for asset types
+    window.testAssetTypePagination = async function() {
+      console.log('🔧 === TESTING ASSET TYPE PAGINATION ===');
+      
+      // Clear cache first
+      await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {});
+      console.log('🧹 Cleared asset type cache');
+      
+      console.log('🔍 Testing pagination to find laptop asset type (ID: 37000374826)...');
+      
+      let foundLaptopType = null;
+      let totalTypes = 0;
+      let page = 1;
+      const maxPages = 15; // Test more pages
+      
+      while (page <= maxPages && !foundLaptopType) {
+        console.log(`📄 Testing page ${page}...`);
+        
+        try {
+          const response = await window.client.request.invokeTemplate("getAssetTypes", {
+            path_suffix: `?page=${page}&per_page=30`
+          });
+          
+          if (!response || !response.response) {
+            console.log(`⚠️ No response for page ${page}`);
+            break;
+          }
+          
+          const data = JSON.parse(response.response);
+          const assetTypes = data.asset_types || [];
+          
+          console.log(`   Retrieved ${assetTypes.length} asset types`);
+          totalTypes += assetTypes.length;
+          
+          if (assetTypes.length === 0) {
+            console.log(`   No more results, stopping at page ${page}`);
+            break;
+          }
+          
+          // Look for laptop asset type
+          foundLaptopType = assetTypes.find(type => type.id === 37000374826);
+          if (foundLaptopType) {
+            console.log(`🎉 FOUND! Laptop asset type on page ${page}: "${foundLaptopType.name}"`);
+            break;
+          }
+          
+          // Show IDs on this page
+          const idsOnPage = assetTypes.map(type => type.id).sort((a, b) => a - b);
+          console.log(`   Asset type IDs on page ${page}: ${idsOnPage.slice(0, 5).join(', ')}${idsOnPage.length > 5 ? '...' : ''}`);
+          
+          page++;
+          await new Promise(resolve => setTimeout(resolve, 200)); // Small delay
+          
+        } catch (error) {
+          console.log(`❌ Error on page ${page}:`, error);
+          break;
+        }
+      }
+      
+      console.log(`📊 Total asset types found: ${totalTypes} across ${page - 1} pages`);
+      if (foundLaptopType) {
+        console.log(`✅ Laptop asset type located: "${foundLaptopType.name}" (ID: ${foundLaptopType.id})`);
+      } else {
+        console.log(`❌ Laptop asset type (ID: 37000374826) not found in ${page - 1} pages`);
+        console.log(`💡 The asset type might be on a later page or have a different ID`);
+      }
+    };
+    
+    console.log('💡 Type testAssetTypePagination() to test pagination and find the laptop asset type');
+    
+    // Test pagination specifically for locations
+    window.testLocationPagination = async function() {
+      console.log('🔧 === TESTING LOCATION PAGINATION ===');
+      
+      // Clear cache first
+      await window.client.db.set(STORAGE_KEYS.LOCATION_CACHE, {});
+      console.log('🧹 Cleared location cache');
+      
+      console.log('🔍 Testing pagination to find target location (ID: 37000074320)...');
+      
+      let foundTargetLocation = null;
+      let totalLocations = 0;
+      let page = 1;
+      const maxPages = 15; // Test more pages
+      
+      while (page <= maxPages && !foundTargetLocation) {
+        console.log(`📄 Testing page ${page}...`);
+        
+        try {
+          const response = await window.client.request.invokeTemplate("getLocations", {
+            path_suffix: `?page=${page}&per_page=30`
+          });
+          
+          if (!response || !response.response) {
+            console.log(`⚠️ No response for page ${page}`);
+            break;
+          }
+          
+          const data = JSON.parse(response.response);
+          const locations = data.locations || [];
+          
+          console.log(`   Retrieved ${locations.length} locations`);
+          totalLocations += locations.length;
+          
+          if (locations.length === 0) {
+            console.log(`   No more results, stopping at page ${page}`);
+            break;
+          }
+          
+          // Look for target location
+          foundTargetLocation = locations.find(loc => loc.id === 37000074320);
+          if (foundTargetLocation) {
+            console.log(`🎉 FOUND! Target location on page ${page}: "${foundTargetLocation.name}"`);
+            break;
+          }
+          
+          // Show IDs on this page
+          const idsOnPage = locations.map(loc => loc.id).sort((a, b) => a - b);
+          console.log(`   Location IDs on page ${page}: ${idsOnPage.slice(0, 5).join(', ')}${idsOnPage.length > 5 ? '...' : ''}`);
+          
+          page++;
+          await new Promise(resolve => setTimeout(resolve, 200)); // Small delay
+          
+        } catch (error) {
+          console.log(`❌ Error on page ${page}:`, error);
+          break;
+        }
+      }
+      
+      console.log(`📊 Total locations found: ${totalLocations} across ${page - 1} pages`);
+      if (foundTargetLocation) {
+        console.log(`✅ Target location located: "${foundTargetLocation.name}" (ID: ${foundTargetLocation.id})`);
+      } else {
+        console.log(`❌ Target location (ID: 37000074320) not found in ${page - 1} pages`);
+        console.log(`💡 The location might be on a later page, have a different ID, or not exist`);
+      }
+    };
+    
+    console.log('💡 Type testLocationPagination() to test location pagination');
+    
     // Wait a moment for everything to settle
     setTimeout(() => {
       initializeApp().catch(error => {
@@ -620,18 +762,19 @@ async function fetchAllLocations() {
     const allLocations = {};
     let page = 1;
     let totalFetched = 0;
-    const maxPages = 50; // Increase to ensure we get all locations
+    const maxPages = 10; // Reduce to 10 pages to avoid potential infinite loops
     
     console.log(`📡 Starting location pagination fetch (max ${maxPages} pages)`);
+    console.log(`📋 Will fetch pages until: (1) 0 results returned, OR (2) max pages reached`);
     
     // Continue fetching pages until we get no more results
     while (page <= maxPages) {
       console.log(`📄 Fetching locations page ${page}...`);
       
       try {
-        // Use invokeTemplate to access locations API
+        // Use invokeTemplate to access locations API with proper pagination
         const response = await window.client.request.invokeTemplate("getLocations", {
-          path_suffix: `?page=${page}&per_page=100`
+          path_suffix: `?page=${page}&per_page=30`  // Use 30 per page (API default)
         });
         
         if (!response || !response.response) {
@@ -648,7 +791,7 @@ async function fetchAllLocations() {
         }
         
         const locations = parsedData.locations || [];
-        console.log(`✅ Retrieved ${locations.length} locations from page ${page}`);
+        console.log(`✅ Page ${page}: Retrieved ${locations.length} locations`);
         
         // If we got no results, we've reached the end
         if (locations.length === 0) {
@@ -673,10 +816,10 @@ async function fetchAllLocations() {
           }
         });
         
-        // If we got less than 100 results, this is likely the last page
-        if (locations.length < 100) {
-          console.log(`📄 Received ${locations.length} results (< 100), likely last page`);
-          break;
+        // Check if we found the target location on this page
+        const foundTargetLocation = locations.find(loc => loc.id === 37000074320);
+        if (foundTargetLocation) {
+          console.log(`🎉 SUCCESS: Found target location on page ${page}: "${foundTargetLocation.name}"`);
         }
         
         page++;
@@ -741,18 +884,19 @@ async function fetchAllAssetTypes() {
     const allAssetTypes = {};
     let page = 1;
     let totalFetched = 0;
-    const maxPages = 50; // Increase to ensure we get all asset types
+    const maxPages = 10; // Reduce to 10 pages to avoid potential infinite loops
     
     console.log(`📡 Starting asset type pagination fetch (max ${maxPages} pages)`);
+    console.log(`📋 Will fetch pages until: (1) 0 results returned, OR (2) max pages reached`);
     
     // Continue fetching pages until we get no more results
     while (page <= maxPages) {
       console.log(`📄 Fetching asset types page ${page}...`);
       
       try {
-        // Use invokeTemplate to access asset types API
+        // Use invokeTemplate to access asset types API with proper pagination
         const response = await window.client.request.invokeTemplate("getAssetTypes", {
-          path_suffix: `?page=${page}&per_page=100`
+          path_suffix: `?page=${page}&per_page=30`  // Use 30 per page (API default)
         });
         
         if (!response || !response.response) {
@@ -769,7 +913,7 @@ async function fetchAllAssetTypes() {
         }
         
         const assetTypes = parsedData.asset_types || [];
-        console.log(`✅ Retrieved ${assetTypes.length} asset types from page ${page}`);
+        console.log(`✅ Page ${page}: Retrieved ${assetTypes.length} asset types`);
         
         // If we got no results, we've reached the end
         if (assetTypes.length === 0) {
@@ -795,10 +939,10 @@ async function fetchAllAssetTypes() {
           }
         });
         
-        // If we got less than 100 results, this is likely the last page
-        if (assetTypes.length < 100) {
-          console.log(`📄 Received ${assetTypes.length} results (< 100), likely last page`);
-          break;
+        // Check if we found the laptop asset type on this page
+        const foundLaptopType = assetTypes.find(type => type.id === 37000374826);
+        if (foundLaptopType) {
+          console.log(`🎉 SUCCESS: Found laptop asset type on page ${page}: "${foundLaptopType.name}"`);
         }
         
         page++;
