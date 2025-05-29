@@ -188,7 +188,7 @@ const AssetAssociation = {
       const searchField = this.getSearchField(searchTerm);
       
       // Use field-specific search format as required by API: field:'searchterm'
-      const fieldQuery = `${searchField}:"${searchTerm}"`;
+      const fieldQuery = `${searchField}:'${searchTerm}'`;
       
       console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
       console.log(`📡 Will construct URL: /api/v2/assets?search=${fieldQuery}&include=type_fields`);
