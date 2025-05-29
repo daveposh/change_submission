@@ -177,11 +177,12 @@ const AssetAssociation = {
       // Supported fields: name, asset_tag, serial_number, mac_addresses, ip_addresses, uuid, item_id, imei_number
       const fieldQuery = `${searchField}:'${searchTerm}'`;
       
-      // Wrap the query in double quotes and encode properly
-      const quotedQuery = `"${fieldQuery}"`;
-      let encodedQuery = encodeURIComponent(quotedQuery);
+      // Encode the inner query and manually encode single quotes as %27
+      let encodedQuery = encodeURIComponent(fieldQuery);
       encodedQuery = encodedQuery.replace(/'/g, '%27');
-      const requestUrl = `?search=${encodedQuery}`;
+      
+      // Wrap in literal double quotes (not encoded)
+      const requestUrl = `?search="${encodedQuery}"`;
       
       console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
       console.log(`📡 Request URL: /api/v2/assets${requestUrl}`);
