@@ -554,7 +554,6 @@ const changeRequestData = {
   implementationPlan: '',
   backoutPlan: '',
   validationPlan: '',
-  selectedServices: [],
   selectedAssets: [],
   riskAssessment: {
     businessImpact: 0,
@@ -3080,7 +3079,6 @@ function resetForm() {
   changeRequestData.implementationPlan = '';
   changeRequestData.backoutPlan = '';
   changeRequestData.validationPlan = '';
-  changeRequestData.selectedServices = [];
   changeRequestData.selectedAssets = [];
   changeRequestData.riskAssessment = {
     businessImpact: 0,
@@ -3122,7 +3120,9 @@ function resetForm() {
 
 /**
  * Search for services for asset association
+ * COMMENTED OUT - Services functionality removed
  */
+/*
 function searchServices(e) {
   const searchTerm = e.target.value.trim();
   const resultsContainer = document.getElementById('service-search-results');
@@ -3153,10 +3153,13 @@ function searchServices(e) {
     resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">Error loading services</div>';
   });
 }
+*/
 
 /**
  * Display service search results
+ * COMMENTED OUT - Services functionality removed
  */
+/*
 function displayServiceResults(services) {
   const container = document.getElementById('service-search-results');
   if (!container) return;
@@ -3216,10 +3219,13 @@ function displayServiceResults(services) {
     });
   });
 }
+*/
 
 /**
  * Select a service for association
+ * COMMENTED OUT - Services functionality removed
  */
+/*
 function selectService(service) {
   // Check if already selected
   if (changeRequestData.selectedServices.some(s => s.id === service.id)) {
@@ -3235,13 +3241,17 @@ function selectService(service) {
   
   console.log('Service selected:', service);
 }
+*/
 
 /**
  * Update the selected services display
+ * COMMENTED OUT - Services functionality removed
  */
+/*
 function updateSelectedServicesDisplay() {
   const container = document.getElementById('selected-services-list');
   if (!container) return;
+  
   
   if (changeRequestData.selectedServices.length === 0) {
     container.innerHTML = '<div class="text-muted">No services selected</div>';
@@ -3357,12 +3367,7 @@ function removeAsset(assetId) {
  * Update association counts
  */
 function updateAssociationCounts() {
-  const servicesCount = document.getElementById('services-count');
   const assetsCount = document.getElementById('assets-count');
-  
-  if (servicesCount) {
-    servicesCount.textContent = changeRequestData.selectedServices.length;
-  }
   
   if (assetsCount) {
     assetsCount.textContent = changeRequestData.selectedAssets.length;
@@ -4028,19 +4033,6 @@ function showSubmissionSummary() {
   const getAssetAssociations = () => {
     let html = '';
     
-    if (changeRequestData.selectedServices.length > 0) {
-      html += `
-        <div class="mb-3">
-          <strong>Associated Services (${changeRequestData.selectedServices.length}):</strong>
-          <ul class="mt-2 mb-0">
-            ${changeRequestData.selectedServices.map(service => 
-              `<li>${service.display_name || service.name || 'Unknown'}</li>`
-            ).join('')}
-          </ul>
-        </div>
-      `;
-    }
-    
     if (changeRequestData.selectedAssets.length > 0) {
       html += `
         <div class="mb-3">
@@ -4054,8 +4046,8 @@ function showSubmissionSummary() {
       `;
     }
     
-    if (changeRequestData.selectedServices.length === 0 && changeRequestData.selectedAssets.length === 0) {
-      html = '<div class="text-muted">No services or assets have been associated with this change.</div>';
+    if (changeRequestData.selectedAssets.length === 0) {
+      html = '<div class="text-muted">No assets have been associated with this change.</div>';
     }
     
     return html;
@@ -5530,15 +5522,4 @@ function initializeChangeTypeDefaults() {
   changeRequestData.leadTime = leadTimeText[currentChangeType] || '2 business days';
   
   console.log(`Initialized change type: ${currentChangeType}, Lead time: ${changeRequestData.leadTime}`);
-}
-
-/**
- * Update association counts in the summary
- */
-function updateAssociationCounts() {
-  const assetsCount = document.getElementById('assets-count');
-  
-  if (assetsCount) {
-    assetsCount.textContent = changeRequestData.selectedAssets.length;
-  }
 }
