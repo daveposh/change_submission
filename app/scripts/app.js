@@ -2973,13 +2973,22 @@ function selectRequester(requester) {
         </button>
       </div>
     `;
+    // Ensure the element is visible
     selectedDiv.style.display = 'block';
+    selectedDiv.style.visibility = 'visible';
+    selectedDiv.classList.add('show');
   }
   
   // Clear the search input
   const searchInput = document.getElementById('requester-search');
   if (searchInput) {
     searchInput.value = '';
+  }
+  
+  // Hide search results
+  const resultsContainer = document.getElementById('requester-search-results');
+  if (resultsContainer) {
+    resultsContainer.style.display = 'none';
   }
   
   // Store the selected requester (clean up the agent markers for storage)
@@ -3013,13 +3022,22 @@ function selectAgent(agent) {
         </button>
       </div>
     `;
+    // Ensure the element is visible
     selectedDiv.style.display = 'block';
+    selectedDiv.style.visibility = 'visible';
+    selectedDiv.classList.add('show');
   }
   
   // Clear the search input
   const searchInput = document.getElementById('agent-search');
   if (searchInput) {
     searchInput.value = '';
+  }
+  
+  // Hide search results
+  const resultsContainer = document.getElementById('agent-search-results');
+  if (resultsContainer) {
+    resultsContainer.style.display = 'none';
   }
   
   // Store the selected agent
@@ -3030,22 +3048,80 @@ function selectAgent(agent) {
  * Clear selected requester
  */
 function clearRequester() {
+  // Clear the selected requester display
   const selectedDiv = document.getElementById('selected-requester');
   if (selectedDiv) {
     selectedDiv.style.display = 'none';
+    selectedDiv.style.visibility = 'hidden'; // Additional hiding method
+    selectedDiv.innerHTML = ''; // Clear the content as well
+    selectedDiv.classList.remove('show'); // Remove any show classes
   }
+  
+  // Clear the search input
+  const searchInput = document.getElementById('requester-search');
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.focus(); // Refocus on the search input
+  }
+  
+  // Hide search results if they're showing
+  const resultsContainer = document.getElementById('requester-search-results');
+  if (resultsContainer) {
+    resultsContainer.style.display = 'none';
+    resultsContainer.innerHTML = '';
+  }
+  
+  // Clear the data
   changeRequestData.requester = null;
+  
+  // Remove any field highlighting
+  const searchField = document.getElementById('requester-search');
+  if (searchField) {
+    searchField.classList.remove('is-invalid');
+    searchField.classList.remove('border-danger');
+  }
+  
+  console.log('✅ Requester cleared');
 }
 
 /**
  * Clear selected agent
  */
 function clearAgent() {
+  // Clear the selected agent display
   const selectedDiv = document.getElementById('selected-agent');
   if (selectedDiv) {
     selectedDiv.style.display = 'none';
+    selectedDiv.style.visibility = 'hidden'; // Additional hiding method
+    selectedDiv.innerHTML = ''; // Clear the content as well
+    selectedDiv.classList.remove('show'); // Remove any show classes
   }
+  
+  // Clear the search input
+  const searchInput = document.getElementById('agent-search');
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.focus(); // Refocus on the search input
+  }
+  
+  // Hide search results if they're showing
+  const resultsContainer = document.getElementById('agent-search-results');
+  if (resultsContainer) {
+    resultsContainer.style.display = 'none';
+    resultsContainer.innerHTML = '';
+  }
+  
+  // Clear the data
   changeRequestData.agent = null;
+  
+  // Remove any field highlighting
+  const searchField = document.getElementById('agent-search');
+  if (searchField) {
+    searchField.classList.remove('is-invalid');
+    searchField.classList.remove('border-danger');
+  }
+  
+  console.log('✅ Agent cleared');
 }
 
 /**
@@ -5722,3 +5798,90 @@ window.testAssetSearchWithTypeFields = async function(searchTerm = 'laptop', sea
 
 // Make getUserName available globally for cache manager
 window.getUserName = getUserName;
+
+// Make clear functions globally accessible
+window.clearRequester = clearRequester;
+window.clearAgent = clearAgent;
+
+// Debug/test functions for requester and agent clearing
+window.testClearFunctionality = function() {
+  console.log('🧪 Testing requester and agent clear functionality...');
+  
+  // Test requester clearing
+  console.log('📋 Testing requester clear:');
+  console.log(`   Before clear - requester data:`, changeRequestData.requester);
+  
+  const requesterDiv = document.getElementById('selected-requester');
+  const requesterSearch = document.getElementById('requester-search');
+  const requesterResults = document.getElementById('requester-search-results');
+  
+  console.log(`   Before clear - requester div visible:`, requesterDiv ? requesterDiv.style.display !== 'none' : 'not found');
+  console.log(`   Before clear - requester search value:`, requesterSearch ? requesterSearch.value : 'not found');
+  
+  // Clear requester
+  clearRequester();
+  
+  console.log(`   After clear - requester data:`, changeRequestData.requester);
+  console.log(`   After clear - requester div visible:`, requesterDiv ? requesterDiv.style.display !== 'none' : 'not found');
+  console.log(`   After clear - requester search value:`, requesterSearch ? requesterSearch.value : 'not found');
+  
+  // Test agent clearing
+  console.log('📋 Testing agent clear:');
+  console.log(`   Before clear - agent data:`, changeRequestData.agent);
+  
+  const agentDiv = document.getElementById('selected-agent');
+  const agentSearch = document.getElementById('agent-search');
+  const agentResults = document.getElementById('agent-search-results');
+  
+  console.log(`   Before clear - agent div visible:`, agentDiv ? agentDiv.style.display !== 'none' : 'not found');
+  console.log(`   Before clear - agent search value:`, agentSearch ? agentSearch.value : 'not found');
+  
+  // Clear agent
+  clearAgent();
+  
+  console.log(`   After clear - agent data:`, changeRequestData.agent);
+  console.log(`   After clear - agent div visible:`, agentDiv ? agentDiv.style.display !== 'none' : 'not found');
+  console.log(`   After clear - agent search value:`, agentSearch ? agentSearch.value : 'not found');
+  
+  console.log('✅ Clear functionality test complete');
+};
+
+window.testRequesterSelection = function(mockRequester = null) {
+  console.log('🧪 Testing requester selection and clearing...');
+  
+  const testRequester = mockRequester || {
+    id: 12345,
+    first_name: 'Test',
+    last_name: 'User',
+    email: 'test.user@company.com'
+  };
+  
+  console.log('📋 Selecting test requester...');
+  selectRequester(testRequester);
+  
+  console.log('📋 Testing clear after 2 seconds...');
+  setTimeout(() => {
+    clearRequester();
+    console.log('✅ Requester selection and clear test complete');
+  }, 2000);
+};
+
+window.testAgentSelection = function(mockAgent = null) {
+  console.log('🧪 Testing agent selection and clearing...');
+  
+  const testAgent = mockAgent || {
+    id: 67890,
+    first_name: 'Test',
+    last_name: 'Agent',
+    email: 'test.agent@company.com'
+  };
+  
+  console.log('📋 Selecting test agent...');
+  selectAgent(testAgent);
+  
+  console.log('📋 Testing clear after 2 seconds...');
+  setTimeout(() => {
+    clearAgent();
+    console.log('✅ Agent selection and clear test complete');
+  }, 2000);
+};
