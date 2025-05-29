@@ -182,15 +182,18 @@ const AssetAssociation = {
       encodedQuery = encodedQuery.replace(/'/g, '%27');
       
       // Get all assets matching search - no filtering
-      const requestUrl = `?search="${encodedQuery}"&include=type_fields`;
+      const searchQueryValue = `"${encodedQuery}"`;
+      const includeFieldsValue = "type_fields";
       
       console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
-      console.log(`📡 Request URL: /api/v2/assets${requestUrl}`);
+      console.log(`📡 Request URL: /api/v2/assets?search=${searchQueryValue}&include=${includeFieldsValue}`);
       console.log(`📡 Encoded query: ${encodedQuery}`);
+      console.log(`📡 Search context: ${searchQueryValue}`);
       
       const response = await window.client.request.invokeTemplate("getAssets", {
         context: {
-          query_params: requestUrl
+          search_query: searchQueryValue,
+          include_fields: includeFieldsValue
         }
       });
 

@@ -52,7 +52,11 @@
       "method": "GET",
       "protocol": "https",
       "host": "<%=iparam.freshservice_domain%>",
-      "path": "/api/v2/assets<%= context.query_params %>",
+      "path": "/api/v2/assets",
+      "query": {
+        "search": "<%= context.search_query %>",
+        "include": "<%= context.include_fields %>"
+      },
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
