@@ -1392,7 +1392,7 @@ window.debugAssetTypeFields = function(assetId) {
   }
 };
 
-// Test function to demonstrate enhanced asset display
+// Test function to demonstrate enhanced asset display styling
 window.testEnhancedAssetDisplay = function() {
   console.log('🎨 Testing Enhanced Asset Display with Badges and Icons...');
   
@@ -1401,110 +1401,28 @@ window.testEnhancedAssetDisplay = function() {
     return;
   }
   
-  // Create sample assets with different types and impacts for testing
-  const sampleAssets = [
-    {
-      id: 999001,
-      name: "ORLIT20-LT",
-      display_name: "ORLIT20-LT Laptop",
-      description: "High-performance laptop for development work with enhanced security features",
-      asset_type_id: 37000374826,
-      asset_tag: "LT-2024-001",
-      serial_number: "SN123456789",
-      impact: "high",
-      location_id: 37000001234,
-      agent_id: 37000300103,
-      type_fields: {
-        environment_37000374826: "PROD",
-        health_37000374826: "Operational",
-        vendor_37000374826: "Dell"
-      }
-    },
-    {
-      id: 999002,
-      name: "Active Directory",
-      description: "On premise active directory environment ceifx.local",
-      asset_type_id: 37000374726,
-      asset_tag: "ASSET-1081",
-      impact: "critical",
-      agent_id: 37000300103,
-      type_fields: {
-        environment_37000374726: "PROD",
-        hosting_model_37000374726: "Self-Hosted",
-        vendor_37000374726: "Microsoft"
-      }
-    },
-    {
-      id: 999003,
-      name: "Development Server",
-      description: "Primary development server for testing applications",
-      asset_type_id: 37000374727,
-      asset_tag: "SRV-DEV-001",
-      serial_number: "SRV987654321",
-      impact: "medium",
-      location_id: 37000001235,
-      user_id: 37000300002,
-      type_fields: {
-        environment_37000374727: "DEV",
-        health_37000374727: "Operational"
-      }
-    },
-    {
-      id: 999004,
-      name: "Office Printer",
-      description: "Multi-function printer for office use",
-      asset_type_id: 37000374728,
-      asset_tag: "PRT-001",
-      impact: "low",
-      location_id: 37000001236,
-      type_fields: {
-        environment_37000374728: "PROD"
-      }
-    },
-    {
-      id: 999005,
-      name: "Mobile App License",
-      description: "Enterprise mobile application license",
-      asset_type_id: 37000374729,
-      impact: "medium",
-      type_fields: {
-        environment_37000374729: "PROD"
-      }
-    }
-  ];
+  console.log('🏷️ Testing Badge Generation Functions:');
   
-  // Test badge generation
-  console.log('🏷️ Testing Badge Generation:');
-  sampleAssets.forEach(asset => {
-    console.log(`\n📦 Asset: ${asset.name}`);
-    console.log(`   Impact Badge: ${window.AssetAssociation.getImpactBadge(asset.impact)}`);
-    
-    const environment = window.AssetAssociation.getEnvironmentInfo(asset);
-    console.log(`   Environment Badge: ${window.AssetAssociation.getEnvironmentBadge(environment)}`);
-    
-    // Mock asset type name for icon testing
-    const mockAssetTypeNames = {
-      37000374826: "Laptop",
-      37000374726: "Software/Services", 
-      37000374727: "Server",
-      37000374728: "Printer",
-      37000374729: "Software License"
-    };
-    const assetTypeName = mockAssetTypeNames[asset.asset_type_id] || "Unknown";
-    console.log(`   Asset Type Icon: ${window.AssetAssociation.getAssetTypeIcon(assetTypeName)}`);
+  // Test impact badges
+  const impactLevels = ['high', 'medium', 'low', 'critical', 'unknown'];
+  impactLevels.forEach(impact => {
+    console.log(`   Impact "${impact}": ${window.AssetAssociation.getImpactBadge(impact)}`);
   });
   
-  // Simulate adding these assets to search results for visual testing
-  console.log('\n🎯 Adding sample assets to search results for visual testing...');
-  window.AssetAssociation.state.searchResults = sampleAssets;
+  // Test environment badges
+  const environments = ['PROD', 'DEV', 'TEST', 'STAGE', 'UAT'];
+  environments.forEach(env => {
+    console.log(`   Environment "${env}": ${window.AssetAssociation.getEnvironmentBadge(env)}`);
+  });
   
-  // Display the enhanced results
-  window.AssetAssociation.displaySearchResults(sampleAssets);
+  // Test asset type icons
+  const assetTypes = ['Laptop', 'Server', 'Printer', 'Software License', 'Database'];
+  assetTypes.forEach(type => {
+    console.log(`   Asset Type "${type}": ${window.AssetAssociation.getAssetTypeIcon(type)}`);
+  });
   
-  console.log('✅ Enhanced asset display test complete!');
-  console.log('💡 Check the Asset Association tab to see the enhanced display with badges and icons');
-  
-  return sampleAssets;
+  console.log('✅ Enhanced asset display styling test complete!');
+  console.log('💡 Use real asset search to see the enhanced display with badges and icons');
 };
 
 // Export for use in other modules

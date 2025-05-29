@@ -974,43 +974,25 @@ window.testAssetManagedByResolution = async function(testAsset) {
 
 // Test function with real Active Directory asset structure
 window.testActiveDirectoryAsset = async function() {
-  console.log(`🧪 Testing with real Active Directory asset structure...`);
+  console.log(`🧪 Testing with sample asset structure...`);
   
+  // Generic test asset structure (no real sensitive data)
   const testAsset = {
     "type_fields": {
-      "health_37000374722": "Operational",
-      "hosting_model_37000374722": "Self-Hosted", 
-      "vendor_37000374722": "Microsoft",
-      "environment_37000374722": "PROD",
-      "sla_37000374726": null,
-      "operational_status_37000374726": null,
-      "service_support_hours_37000374726": null
+      "health_12345": "Operational",
+      "hosting_model_12345": "Self-Hosted", 
+      "vendor_12345": "Microsoft",
+      "environment_12345": "PROD"
     },
-    "name": "Active Directory",
-    "asset_type_id": 37000374726,
-    "asset_tag": "ASSET-1081",
+    "name": "Sample Directory Service",
+    "asset_type_id": 12345,
+    "asset_tag": "ASSET-TEST",
     "impact": "high",
-    "description": "On premise active directory environment ceifx.local",
-    "end_of_life": null,
-    "discovery_enabled": true,
-    "usage_type": "permanent",
-    "created_by_source": "User",
-    "created_by_user": 37000300002,
-    "created_at": "2025-05-23T15:41:25Z",
-    "last_updated_by_source": "Workflow",
-    "last_updated_by_user": null,
-    "updated_at": "2025-05-23T15:41:25Z",
-    "sources": ["User", "Workflow"],
-    "location_id": null,
-    "department_id": null,
-    "agent_id": 37000300103, // This is the managed by field
+    "description": "Sample directory service for testing",
+    "agent_id": 12345, // Sample agent ID for testing
     "user_id": null,
-    "group_id": null,
-    "assigned_on": null,
-    "workspace_id": 2,
-    "author_type": "User",
-    "id": 37000143103,
-    "display_id": 333
+    "id": 12345,
+    "display_id": 123
   };
   
   if (!window.CacheManager) {
@@ -1046,7 +1028,7 @@ window.testActiveDirectoryAsset = async function() {
     const hostingField = window.CacheManager.getAssetTypeField(testAsset, 'hosting_model');
     console.log(`🖥️ Hosting Model: "${hostingField}"`);
     
-    console.log(`✅ Active Directory asset test complete`);
+    console.log(`✅ Sample asset test complete`);
     
     return {
       environment,
@@ -1057,7 +1039,7 @@ window.testActiveDirectoryAsset = async function() {
     };
     
   } catch (error) {
-    console.error(`❌ Error testing Active Directory asset:`, error);
+    console.error(`❌ Error testing sample asset:`, error);
     return null;
   }
 };
@@ -1071,37 +1053,37 @@ window.testManagedByResolution = async function() {
     return;
   }
   
-  // Test asset with agent_id (most common case)
+  // Test asset with agent_id (most common case) - using generic test data
   const assetWithAgent = {
     "name": "Test Server",
-    "asset_type_id": 37000374726,
-    "agent_id": 37000300103, // Agent managed asset
+    "asset_type_id": 12345,
+    "agent_id": 11111, // Generic test agent ID
     "user_id": null,
     "type_fields": {
-      "environment_37000374726": "PROD"
+      "environment_12345": "PROD"
     }
   };
   
-  // Test asset with user_id (requester managed asset)
+  // Test asset with user_id (requester managed asset) - using generic test data
   const assetWithUser = {
     "name": "Test Laptop", 
-    "asset_type_id": 37000374726,
+    "asset_type_id": 12345,
     "agent_id": null,
-    "user_id": 37000300002, // Requester managed asset
+    "user_id": 22222, // Generic test user ID
     "type_fields": {
-      "environment_37000374726": "DEV"
+      "environment_12345": "DEV"
     }
   };
   
-  // Test asset with managed_by in type_fields
+  // Test asset with managed_by in type_fields - using generic test data
   const assetWithTypeFieldsManaged = {
     "name": "Test Application",
-    "asset_type_id": 37000374726, 
+    "asset_type_id": 12345, 
     "agent_id": null,
     "user_id": null,
     "type_fields": {
-      "environment_37000374726": "TEST",
-      "managed_by_37000374726": "37000300105" // Could be either requester or agent
+      "environment_12345": "TEST",
+      "managed_by_12345": "33333" // Generic test managed by ID
     }
   };
   
@@ -1114,13 +1096,13 @@ window.testManagedByResolution = async function() {
     const userManagedBy = await window.CacheManager.getManagedByInfo(assetWithUser);
     console.log(`   Result: "${userManagedBy}"`);
     
-    console.log(`\n📋 Testing asset with type_fields managed_by (${assetWithTypeFieldsManaged.type_fields.managed_by_37000374726}):`);
+    console.log(`\n📋 Testing asset with type_fields managed_by (${assetWithTypeFieldsManaged.type_fields.managed_by_12345}):`);
     const typeFieldsManagedBy = await window.CacheManager.getManagedByInfo(assetWithTypeFieldsManaged);
     console.log(`   Result: "${typeFieldsManagedBy}"`);
     
-    // Test direct user resolution
+    // Test direct user resolution with generic test IDs
     console.log(`\n🔍 Testing direct user ID resolution:`);
-    const testUserIds = [37000300103, 37000300002, 37000300105];
+    const testUserIds = [11111, 22222, 33333]; // Generic test user IDs
     
     for (const userId of testUserIds) {
       console.log(`   Testing user ID ${userId}:`);
