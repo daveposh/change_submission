@@ -6,6 +6,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Custom styles -->
     <link rel="stylesheet" type="text/css" href="styles/style.css" />
+    <link rel="stylesheet" type="text/css" href="styles/asset-association.css" />
     <!-- jQuery and Bootstrap JS -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -18,6 +19,12 @@
         <ul class="nav nav-tabs" id="change-tabs" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active" id="details-tab" data-bs-toggle="tab" data-bs-target="#change-details" type="button" role="tab" aria-controls="change-details" aria-selected="true">Change Details</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="asset-association-tab" data-bs-toggle="tab" data-bs-target="#asset-association" type="button" role="tab" aria-controls="asset-association" aria-selected="false">
+              Asset Association
+              <span class="badge bg-success" style="display: none;">0</span>
+            </button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="risk-tab" data-bs-toggle="tab" data-bs-target="#risk-assessment" type="button" role="tab" aria-controls="risk-assessment" aria-selected="false">Risk Assessment</button>
@@ -74,21 +81,80 @@
 
               <div class="col-12 form-group mb-3">
                 <label for="implementation-plan" class="form-label">Implementation Plan:</label>
-                <textarea id="implementation-plan" class="form-control" rows="5"></textarea>
+                <textarea id="implementation-plan" class="form-control" rows="5" placeholder="Describe the step-by-step implementation process..."></textarea>
               </div>
 
               <div class="col-12 form-group mb-3">
                 <label for="backout-plan" class="form-label">Backout (Recovery) Plan:</label>
-                <textarea id="backout-plan" class="form-control" rows="5"></textarea>
+                <textarea id="backout-plan" class="form-control" rows="5" placeholder="Describe how to revert the change if issues occur..."></textarea>
               </div>
 
               <div class="col-12 form-group mb-3">
                 <label for="validation-plan" class="form-label">Validation Plan:</label>
-                <textarea id="validation-plan" class="form-control" rows="5"></textarea>
+                <textarea id="validation-plan" class="form-control" rows="5" placeholder="Describe how to verify the change was successful..."></textarea>
               </div>
 
               <div class="col-12 form-actions text-end">
-                <button id="details-next" class="btn btn-primary">Next</button>
+                <button id="details-next" class="btn btn-primary" onclick="validateDetailsAndNext()">Next: Asset Association</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Asset Association Tab -->
+          <div class="tab-pane fade" id="asset-association" role="tabpanel" aria-labelledby="asset-association-tab">
+            <div class="asset-association-container">
+              <h3 class="mb-4">Asset Association</h3>
+              <p class="text-secondary mb-4">Associate assets that will be affected by this change request. You can search for assets by name and add them to your change.</p>
+
+              <!-- Asset Search Section -->
+              <div class="asset-search-section">
+                <h5><i class="fas fa-search me-2"></i>Search Assets</h5>
+                <div class="asset-search-form">
+                  <input type="text" id="asset-search-input" class="form-control" placeholder="Enter asset name to search...">
+                  <button type="button" id="asset-search-btn" class="btn btn-primary">
+                    <i class="fas fa-search me-1"></i>Search
+                  </button>
+                </div>
+                <div class="search-help-text">
+                  <i class="fas fa-info-circle me-1"></i>
+                  Press Enter or click Search to find assets. Minimum 2 characters required.
+                </div>
+
+                <!-- Search Results -->
+                <div id="asset-search-results" class="asset-search-results" style="display: none;"></div>
+              </div>
+
+              <!-- Selected Assets Section -->
+              <div class="selected-assets-section">
+                <div class="selected-assets-header">
+                  <h5><i class="fas fa-link me-2"></i>Selected Assets</h5>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="asset-count-badge">
+                      <span id="selected-assets-count">0</span> selected
+                    </span>
+                    <button type="button" id="clear-all-assets-btn" class="btn btn-sm btn-outline-danger clear-all-assets-btn">
+                      <i class="fas fa-trash me-1"></i>Clear All
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Selected Assets List -->
+                <div id="selected-assets-list">
+                  <div class="no-assets-message">
+                    <i class="fas fa-info-circle text-muted"></i>
+                    <span class="text-muted">No assets selected. Use the search above to find and add assets.</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Navigation -->
+              <div class="form-actions d-flex justify-content-between mt-4">
+                <button type="button" class="btn btn-outline-secondary" onclick="switchTab('change-details')">
+                  <i class="fas fa-arrow-left me-1"></i>Back to Details
+                </button>
+                <button type="button" id="assets-next" class="btn btn-primary" onclick="validateAssetsAndNext()">
+                  Next: Risk Assessment<i class="fas fa-arrow-right ms-1"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -231,9 +297,14 @@
               <div class="risk-explanation mt-3" id="risk-explanation"></div>
             </div>
 
-            <div class="form-actions text-end">
-              <button id="calculate-risk" class="btn btn-secondary me-2">Calculate Risk</button>
-              <button id="submit-change" class="btn btn-primary">Submit Change Request</button>
+            <div class="form-actions d-flex justify-content-between">
+              <button type="button" class="btn btn-outline-secondary" onclick="switchTab('asset-association')">
+                <i class="fas fa-arrow-left me-1"></i>Back to Assets
+              </button>
+              <div>
+                <button id="calculate-risk" class="btn btn-secondary me-2" onclick="calculateRisk()">Calculate Risk</button>
+                <button id="submit-change" class="btn btn-primary" onclick="validateRiskAndNext()">Submit Change Request</button>
+              </div>
             </div>
           </div>
         </div>
@@ -259,5 +330,6 @@
       </div>
     </div>
   </body>
+  <script src="scripts/asset-association.js"></script>
   <script src="scripts/app.js"></script>
 </html>
