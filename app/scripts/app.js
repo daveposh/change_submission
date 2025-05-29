@@ -760,6 +760,8 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- testAssetSearchPagination("term") - Test asset search pagination');
       console.log('- testSearchStrategies("term") - Test different search strategies');
       console.log('- testAssetHeaders("term") - Test API response headers');
+      console.log('- testApiSearchSyntax("term") - Test different API search syntaxes');
+      console.log('- findAssetsContaining("term") - Find assets containing specific term');
       console.log('- testEfficientServicesLoading() - Test new efficient services loading');
       console.log('- compareLoadingStrategies() - Compare old vs new loading approaches');
       console.log('- debugAssetTypes() - Debug asset type configuration');
@@ -768,7 +770,6 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- checkAvailableAssetTypes() - Check available asset types');
       console.log('- findAssetByName("name") - Find specific asset by name');
       console.log('- testSingleQuery("query", "description") - Test single API query');
-      return 'Console access confirmed';
     };
     
     // Simple, reliable cache clearing function
@@ -5478,5 +5479,160 @@ window.compareLoadingStrategies = async function() {
     
   } catch (error) {
     console.error('❌ Error comparing loading strategies:', error);
+  }
+};
+
+/**
+ * Global debug function to test different API search syntaxes
+ */
+window.testApiSearchSyntax = async function(searchTerm = 'middleware') {
+  try {
+    console.log('🔧 === TESTING API SEARCH SYNTAX ===');
+    console.log(`Search term: "${searchTerm}"`);
+    
+    // Get configured asset type IDs
+    const assetTypeIds = await getConfiguredAssetTypeIds();
+    const assetTypeFilter = assetTypeIds.length > 0 ? 
+      `(${assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    
+    console.log(`🎯 Asset type filter: ${assetTypeFilter}`);
+    
+    // Test different search syntaxes
+    const searchSyntaxes = [
+      {
+        name: 'Current syntax (single quotes with wildcards)',
+        query: `${assetTypeFilter} AND name:'*${searchTerm}*'`
+      },
+      {
+        name: 'Double quotes with wildcards',
+        query: `${assetTypeFilter} AND name:"*${searchTerm}*"`
+      },
+      {
+        name: 'No quotes with wildcards',
+        query: `${assetTypeFilter} AND name:*${searchTerm}*`
+      },
+      {
+        name: 'Contains syntax',
+        query: `${assetTypeFilter} AND name:${searchTerm}`
+      },
+      {
+        name: 'Display name search',
+        query: `${assetTypeFilter} AND display_name:'*${searchTerm}*'`
+      },
+      {
+        name: 'Asset type filter only (no name filter)',
+        query: assetTypeFilter
+      }
+    ];
+    
+    for (const syntax of searchSyntaxes) {
+      console.log(`\n🔍 Testing: ${syntax.name}`);
+      console.log(`Query: "${syntax.query}"`);
+      
+      try {
+        const encodedQuery = encodeURIComponent(syntax.query);
+        const requestUrl = `?query=${encodedQuery}&per_page=10&page=1`;
+        
+        const response = await window.client.request.invokeTemplate("getAssets", {
+          path_suffix: requestUrl
+        });
+        
+        if (response && response.response) {
+          const data = JSON.parse(response.response);
+          const assets = data.assets || [];
+          
+          console.log(`✅ ${syntax.name}: ${assets.length} assets returned`);
+          
+          if (assets.length > 0) {
+            // Check how many actually match our search term
+            const nameMatches = assets.filter(asset => {
+              const assetName = (asset.display_name || asset.name || '').toLowerCase();
+              return assetName.includes(searchTerm.toLowerCase());
+            });
+            
+            console.log(`   📊 ${nameMatches.length} assets actually contain "${searchTerm}" in name`);
+            
+            // Show sample assets
+            console.log(`   📋 Sample assets:`);
+            assets.slice(0, 3).forEach((asset, index) => {
+              const assetName = asset.display_name || asset.name || 'Unknown';
+              const matches = assetName.toLowerCase().includes(searchTerm.toLowerCase());
+              console.log(`      ${index + 1}. "${assetName}" ${matches ? '✅' : '❌'}`);
+            });
+          }
+        } else {
+          console.log(`❌ ${syntax.name}: No response`);
+        }
+        
+        // Small delay between tests
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+      } catch (error) {
+        console.log(`❌ ${syntax.name}: Error - ${error.message}`);
+      }
+    }
+    
+    console.log('\n🔧 === SEARCH SYNTAX TEST COMPLETE ===');
+    
+  } catch (error) {
+    console.error('❌ Error testing API search syntax:', error);
+  }
+};
+
+/**
+ * Global debug function to find assets that contain specific terms
+ */
+window.findAssetsContaining = async function(searchTerm = 'middleware') {
+  try {
+    console.log('🔧 === FINDING ASSETS CONTAINING TERM ===');
+    console.log(`Search term: "${searchTerm}"`);
+    
+    // Get all assets without name filtering
+    const assetTypeIds = await getConfiguredAssetTypeIds();
+    const assetTypeFilter = assetTypeIds.length > 0 ? 
+      `(${assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    
+    const encodedQuery = encodeURIComponent(assetTypeFilter);
+    const requestUrl = `?query=${encodedQuery}&per_page=30&page=1`;
+    
+    console.log(`🔍 Getting all assets with query: ${assetTypeFilter}`);
+    
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    });
+    
+    if (response && response.response) {
+      const data = JSON.parse(response.response);
+      const assets = data.assets || [];
+      
+      console.log(`📄 Retrieved ${assets.length} total assets`);
+      
+      // Find assets that contain the search term
+      const matchingAssets = assets.filter(asset => {
+        const assetName = (asset.display_name || asset.name || '').toLowerCase();
+        return assetName.includes(searchTerm.toLowerCase());
+      });
+      
+      console.log(`🎯 Found ${matchingAssets.length} assets containing "${searchTerm}"`);
+      
+      if (matchingAssets.length > 0) {
+        console.log(`📋 Matching assets:`);
+        matchingAssets.forEach((asset, index) => {
+          const assetName = asset.display_name || asset.name || 'Unknown';
+          console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+        });
+      } else {
+        console.log(`📋 All assets (first 10):`);
+        assets.slice(0, 10).forEach((asset, index) => {
+          const assetName = asset.display_name || asset.name || 'Unknown';
+          console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+        });
+      }
+    } else {
+      console.log('❌ No response from API');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error finding assets:', error);
   }
 };
