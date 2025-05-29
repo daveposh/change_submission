@@ -57,6 +57,11 @@
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
+    },
+    "options": {
+      "path_suffix": {
+        "encoding": "uri"
+      }
     }
   },
   "getServices": {
