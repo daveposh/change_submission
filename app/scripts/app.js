@@ -2678,27 +2678,30 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
   }
   
   try {
-    console.log(`🔍 Starting asset search for "${searchTerm}" - searching ALL assets by name/displayname`);
+    console.log(`🔍 Starting asset search for "${searchTerm}" using direct API name query`);
     
-    // Search ALL assets by name only - no asset type filters
-    // Using empty query to get all assets, then filter client-side by name
-    const query = ''; // No filters - search all assets across all types
+    // Use API's name search capability directly
+    const query = `name:'*${searchTerm}*'`;
     
-    console.log('🔍 Asset search: No filters (searching all asset types by name)');
-    console.log('⚠️ Note: Using client-side name filtering due to API search limitations');
+    console.log(`🔍 Asset search query: ${query}`);
+    console.log('⚠️ Using direct API name search (no client-side filtering)');
     
     // Get installation parameters for pagination settings
     const params = await getInstallationParams();
     
-    // Start with first page to get total count from headers
+    // Start with first page
     let allAssets = [];
-    let totalCount = 0;
-    let totalPages = 0;
     let page = 1;
     const perPage = 30; // API limit is 30 objects per page
+    const maxPages = 10; // Reasonable limit for search results
     
-    // First request to get total count
-    try {
+    while (page <= maxPages) {
+      // Check if search was cancelled
+      if (searchRequest.cancelled) {
+        console.log(`🚫 Search for "${searchTerm}" was cancelled`);
+        return;
+      }
+      
       const requestUrl = `?query=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
       console.log(`🌐 Asset search API request (page ${page}): ${requestUrl}`);
       
@@ -2706,207 +2709,44 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
         path_suffix: requestUrl
       });
       
-      // Check if search was cancelled
-      if (searchRequest.cancelled) {
-        console.log(`🚫 Search for "${searchTerm}" was cancelled`);
-        return;
-      }
-      
       if (!response || !response.response) {
         throw new Error('Invalid response from assets API');
       }
-      
-      // Parse response headers to get total count
-      let responseHeaders = {};
-      if (response.headers) {
-        try {
-          responseHeaders = typeof response.headers === 'string' ? 
-            JSON.parse(response.headers) : response.headers;
-        } catch (e) {
-          console.warn('Could not parse response headers:', e);
-        }
-      }
-      
-      // Look for total count in headers (common header names)
-      totalCount = parseInt(responseHeaders['x-total-count'] || 
-                           responseHeaders['X-Total-Count'] || 
-                           responseHeaders['total-count'] || 
-                           responseHeaders['Total-Count'] || 
-                           0);
       
       const data = JSON.parse(response.response);
       const pageAssets = data.assets || [];
       
       console.log(`📄 Asset search page ${page}: Retrieved ${pageAssets.length} assets`);
       
-      if (totalCount > 0) {
-        totalPages = Math.ceil(totalCount / perPage);
-        console.log(`📊 Total assets matching query: ${totalCount} (${totalPages} pages)`);
-      } else {
-        console.log(`📊 No total count in headers, will paginate until no more results`);
-      }
-      
       if (pageAssets.length === 0) {
-        console.log(`📄 No assets found for search term "${searchTerm}"`);
-      } else {
-        // Process and filter results on this page
-        const filteredPageAssets = pageAssets.filter(asset => {
-          const assetName = (asset.display_name || asset.name || '').toLowerCase();
-          const searchTermLower = searchTerm.toLowerCase();
-          const matches = assetName.includes(searchTermLower);
-          
-          // Debug: show first few assets to understand what's being returned
-          if (page === 1 && pageAssets.indexOf(asset) < 3) {
-            console.log(`🔍 Sample asset ${pageAssets.indexOf(asset) + 1}: "${assetName}" - matches "${searchTermLower}"? ${matches}`);
-          }
-          
-          return matches;
-        });
-        
-        // If no matches found on first page, show sample of what was returned
-        if (page === 1 && filteredPageAssets.length === 0 && pageAssets.length > 0) {
-          console.log(`⚠️ No matches found for "${searchTerm}". Sample assets returned:`);
-          pageAssets.slice(0, 5).forEach((asset, index) => {
-            const assetName = asset.display_name || asset.name || 'Unknown';
-            console.log(`   ${index + 1}. "${assetName}" (Type: ${asset.asset_type_id})`);
-          });
-          
-          // Check if the API search is working at all
-          const hasAnyNameMatch = pageAssets.some(asset => {
-            const assetName = (asset.display_name || asset.name || '').toLowerCase();
-            return assetName.includes(searchTerm.toLowerCase());
-          });
-          
-          if (!hasAnyNameMatch) {
-            console.log(`🔍 API search for name:'*${searchTerm}*' may not be working. Trying broader search...`);
-            
-            // If no name matches, the API search syntax might not be working
-            // Let's stop pagination early to avoid unnecessary API calls
-            console.log(`🛑 Stopping pagination early - API search syntax appears ineffective`);
-            
-            // Show a helpful message to the user
-            if (!isRefresh) {
-              const resultsContainer = document.getElementById(searchInputId);
-              if (resultsContainer) {
-                resultsContainer.innerHTML = `
-                  <div class="text-center p-3 text-muted">
-                    <i class="fas fa-search mb-2"></i>
-                    <div>No assets found matching "${searchTerm}"</div>
-                    <small>Try a different search term or check the asset names</small>
-                  </div>
-                `;
-              }
-            }
-            
-            // Clear the current search request and return early
-            if (currentAssetSearchRequest === searchRequest) {
-              currentAssetSearchRequest = null;
-            }
-            
-            // Cache empty results
-            addToSearchCache('assets', searchTerm, []);
-            
-            console.log(`Asset search completed early: 0 results for "${searchTerm}"`);
-            return;
-          }
-        }
-        
-        console.log(`🔽 Page ${page}: ${filteredPageAssets.length} assets match search term after filtering`);
-        allAssets = allAssets.concat(filteredPageAssets);
-        
-        // Determine if we should continue pagination
-        let shouldContinue = false;
-        
-        if (totalPages > 1) {
-          // We know the total pages, so continue until we reach the end or find enough matches
-          const hasEnoughMatches = allAssets.length >= 10; // Stop if we have 10+ matches
-          shouldContinue = page < totalPages && page < 10 && !hasEnoughMatches;
-          console.log(`📊 Using header info: page ${page}/${totalPages}, matches found: ${allAssets.length}, shouldContinue=${shouldContinue}`);
-        } else {
-          // No header info, use traditional pagination logic but stop early if we have enough matches
-          const hasEnoughMatches = allAssets.length >= 10; // Stop if we have 10+ matches
-          const hasMoreData = pageAssets.length === perPage;
-          shouldContinue = hasMoreData && page < 10 && !hasEnoughMatches;
-          console.log(`📊 Using traditional pagination: got ${pageAssets.length} assets, matches found: ${allAssets.length}, shouldContinue=${shouldContinue}`);
-        }
-        
-        // Continue with remaining pages if needed
-        if (shouldContinue) {
-          page++;
-          
-          while (page <= Math.min(totalPages || 10, 10)) {
-            // Check if search was cancelled
-            if (searchRequest.cancelled) {
-              console.log(`🚫 Search for "${searchTerm}" was cancelled during pagination`);
-              return;
-            }
-            
-            const paginationDelay = params.paginationDelay || 300;
-            await new Promise(resolve => setTimeout(resolve, paginationDelay));
-            
-            // Update loading message for subsequent pages
-            if (!isRefresh) {
-              const resultsContainer = document.getElementById(searchInputId);
-              if (resultsContainer) {
-                const progressText = totalPages > 0 ? 
-                  `Loading page ${page} of ${totalPages}...` : 
-                  `Loading more results... (page ${page})`;
-                resultsContainer.innerHTML = `<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> ${progressText}</div>`;
-              }
-            }
-            
-            try {
-              const pageRequestUrl = `?query=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
-              console.log(`🌐 Asset search API request (page ${page}): ${pageRequestUrl}`);
-              
-              const pageResponse = await window.client.request.invokeTemplate("getAssets", {
-                path_suffix: pageRequestUrl
-              });
-              
-              if (!pageResponse || !pageResponse.response) {
-                console.warn(`No response for asset search page ${page}, stopping pagination`);
-                break;
-              }
-              
-              const pageData = JSON.parse(pageResponse.response);
-              const currentPageAssets = pageData.assets || [];
-              
-              console.log(`📄 Asset search page ${page}: Retrieved ${currentPageAssets.length} assets`);
-              
-              if (currentPageAssets.length === 0) {
-                console.log(`📄 Asset search page ${page} returned no assets, stopping pagination`);
-                break;
-              }
-              
-              // Process and filter results on this page
-              const filteredCurrentPageAssets = currentPageAssets.filter(asset => {
-                const assetName = (asset.display_name || asset.name || '').toLowerCase();
-                const searchTermLower = searchTerm.toLowerCase();
-                return assetName.includes(searchTermLower);
-              });
-              
-              console.log(`🔽 Page ${page}: ${filteredCurrentPageAssets.length} assets match search term after filtering`);
-              allAssets = allAssets.concat(filteredCurrentPageAssets);
-              
-              // If we didn't get a full page, we've reached the end
-              if (currentPageAssets.length < perPage) {
-                console.log(`📄 Reached end of results (${currentPageAssets.length} < ${perPage})`);
-                break;
-              }
-              
-              page++;
-              
-            } catch (error) {
-              console.error(`❌ Error fetching asset search page ${page}:`, error);
-              break;
-            }
-          }
-        }
+        console.log(`📄 No more assets found, stopping pagination`);
+        break;
       }
       
-    } catch (error) {
-      console.error('❌ Error in first asset search request:', error);
-      throw error;
+      // Add all results (no client-side filtering needed)
+      allAssets = allAssets.concat(pageAssets);
+      
+      console.log(`📊 Total assets found so far: ${allAssets.length}`);
+      
+      // Stop if we didn't get a full page (end of results)
+      if (pageAssets.length < perPage) {
+        console.log(`📄 Partial page received, stopping pagination`);
+        break;
+      }
+      
+      // Stop if we have enough results for UI performance
+      if (allAssets.length >= 100) {
+        console.log(`✅ Found ${allAssets.length} assets, stopping for performance`);
+        break;
+      }
+      
+      page++;
+      
+      // Small delay between requests to be API-friendly
+      if (page <= maxPages) {
+        const paginationDelay = params.paginationDelay || 300;
+        await new Promise(resolve => setTimeout(resolve, paginationDelay));
+      }
     }
     
     // Check if search was cancelled before completing
@@ -2916,7 +2756,7 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
     }
     
     const searchDuration = Date.now() - searchRequest.startTime;
-    console.log(`📥 Asset search completed: ${allAssets.length} total matching assets from ${page - 1} pages in ${searchDuration}ms`);
+    console.log(`📥 Asset search completed: ${allAssets.length} total assets from ${page - 1} pages in ${searchDuration}ms`);
     
     // Clear the current search request
     if (currentAssetSearchRequest === searchRequest) {
@@ -2946,6 +2786,19 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
     // Show error notification
     showNotification('error', `Failed to search assets: ${error.message}. Please try again.`);
     
+    // Show error in results container if available
+    if (!isRefresh) {
+      const resultsContainer = document.getElementById(searchInputId);
+      if (resultsContainer) {
+        resultsContainer.innerHTML = `
+          <div class="text-center p-3 text-danger">
+            <i class="fas fa-exclamation-triangle mb-2"></i>
+            <div>Error searching assets</div>
+            <small>${error.message}</small>
+          </div>
+        `;
+      }
+    }
   }
 }
 
@@ -5558,6 +5411,52 @@ window.findAssetsContaining = async function(searchTerm = 'server') {
           const assetName = asset.display_name || asset.name || 'Unknown';
           console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
         });
+      }
+    } else {
+      console.log('❌ No response from API');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error finding assets:', error);
+  }
+};
+
+/**
+ * Global debug function to find assets containing a specific term using direct API query
+ */
+window.findAssetsContaining = async function(searchTerm = 'middleware') {
+  try {
+    console.log('🔧 === TESTING DIRECT API NAME SEARCH ===');
+    console.log(`Search term: "${searchTerm}"`);
+    console.log('🎯 Using direct API name query (no client-side filtering)');
+    
+    // Use direct API name search
+    const query = `name:'*${searchTerm}*'`;
+    const encodedQuery = encodeURIComponent(query);
+    const requestUrl = `?query=${encodedQuery}&per_page=30&page=1`;
+    
+    console.log(`🔍 Query: ${query}`);
+    console.log(`🌐 Request URL: ${requestUrl}`);
+    
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    });
+    
+    if (response && response.response) {
+      const data = JSON.parse(response.response);
+      const assets = data.assets || [];
+      
+      console.log(`📄 Retrieved ${assets.length} assets directly from API`);
+      
+      if (assets.length > 0) {
+        console.log(`📋 Assets found (showing all results):`);
+        assets.forEach((asset, index) => {
+          const assetName = asset.display_name || asset.name || 'Unknown';
+          console.log(`   ${index + 1}. "${assetName}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+        });
+      } else {
+        console.log(`📋 No assets found matching "${searchTerm}"`);
+        console.log('💡 Try different search terms like: server, laptop, printer, etc.');
       }
     } else {
       console.log('❌ No response from API');
