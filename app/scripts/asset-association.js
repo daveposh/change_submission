@@ -120,6 +120,20 @@ const AssetAssociation = {
 
     } catch (error) {
       console.error('❌ Error searching assets:', error);
+      
+      // Log the full error response for debugging
+      if (error.response) {
+        try {
+          const errorData = JSON.parse(error.response);
+          console.error(`📄 Full API error response:`, errorData);
+          if (errorData.errors && errorData.errors.length > 0) {
+            console.error(`🔍 API error details:`, errorData.errors[0]);
+          }
+        } catch (parseError) {
+          console.error(`📄 Raw API error response:`, error.response);
+        }
+      }
+      
       this.showSearchMessage('Error searching for assets. Please try again.');
     } finally {
       this.state.isSearching = false;
@@ -174,7 +188,7 @@ const AssetAssociation = {
       const searchField = this.getSearchField(searchTerm);
       
       // Use field-specific search format as required by API: field:'searchterm'
-      const fieldQuery = `${searchField}:'${searchTerm}'`;
+      const fieldQuery = `${searchField}:"${searchTerm}"`;
       
       console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
       console.log(`📡 Will construct URL: /api/v2/assets?search=${fieldQuery}&include=type_fields`);
@@ -212,6 +226,20 @@ const AssetAssociation = {
 
     } catch (error) {
       console.error(`❌ Error searching assets:`, error);
+      
+      // Log the full error response for debugging
+      if (error.response) {
+        try {
+          const errorData = JSON.parse(error.response);
+          console.error(`📄 Full API error response:`, errorData);
+          if (errorData.errors && errorData.errors.length > 0) {
+            console.error(`🔍 API error details:`, errorData.errors[0]);
+          }
+        } catch (parseError) {
+          console.error(`📄 Raw API error response:`, error.response);
+        }
+      }
+      
       throw error;
     }
   },
