@@ -531,16 +531,13 @@ async function fetchAllLocations() {
             path_suffix: `?page=${pageNum}&per_page=100`
           });
         } catch (templateError) {
-          console.log(`⚠️ getLocations template failed: ${templateError.message}, trying direct API call`);
+          console.log(`⚠️ getLocations template failed: ${templateError.message}, trying without path_suffix`);
           
-          // Fallback to direct API call if template fails
+          // Fallback to template without path_suffix if template fails
           try {
-            response = await window.client.request.get('/api/v2/locations', {
-              page: pageNum,
-              per_page: 100
-            });
-          } catch (directError) {
-            console.log(`⚠️ Direct locations API call also failed: ${directError.message}`);
+            response = await window.client.request.invokeTemplate("getLocations");
+          } catch (fallbackError) {
+            console.log(`⚠️ getLocations template also failed without path_suffix: ${fallbackError.message}`);
             return { locations: [], more: false };
           }
         }
@@ -4942,13 +4939,15 @@ async function getLocationName(locationId) {
           }
         });
       } catch (templateError) {
-        console.log(`⚠️ getLocation template failed: ${templateError.message}, trying direct API call`);
+        console.log(`⚠️ getLocation template failed: ${templateError.message}, trying with path_suffix`);
         
-        // Fallback to direct API call if template fails
+        // Fallback to template with path_suffix if template fails
         try {
-          response = await window.client.request.get(`/api/v2/locations/${locationId}`);
-        } catch (directError) {
-          console.log(`⚠️ Direct location API call also failed: ${directError.message}`);
+          response = await window.client.request.invokeTemplate("getLocation", {
+            path_suffix: `/${locationId}`
+          });
+        } catch (fallbackError) {
+          console.log(`⚠️ getLocation template with path_suffix also failed: ${fallbackError.message}`);
           console.log(`ℹ️ Locations API may not be available in this Freshservice instance`);
           return `Location ID: ${locationId}`;
         }
@@ -5247,9 +5246,8 @@ window.testAvailableAPIs = async function() {
     // Test direct locations API
     console.log('🔄 Testing Locations API (direct)...');
     try {
-      const directResponse = await window.client.request.get('/api/v2/locations', {
-        page: 1,
-        per_page: 5
+      const directResponse = await window.client.request.invokeTemplate("getLocations", {
+        path_suffix: "?page=1&per_page=5"
       });
       if (directResponse && directResponse.response) {
         const data = JSON.parse(directResponse.response);
@@ -5294,7 +5292,9 @@ window.testAvailableAPIs = async function() {
     // Test individual location fetch direct
     console.log('🔄 Testing Individual Location API (direct)...');
     try {
-      const directLocationResponse = await window.client.request.get('/api/v2/locations/37000074320');
+      const directLocationResponse = await window.client.request.invokeTemplate("getLocation", {
+        path_suffix: "/37000074320"
+      });
       if (directLocationResponse && directLocationResponse.response) {
         const data = JSON.parse(directLocationResponse.response);
         console.log(`✅ Individual Location API (direct): Working`);
