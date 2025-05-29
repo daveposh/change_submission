@@ -8,6 +8,7 @@ console.log('🔧 This version includes app.initialized() fix for Freshworks app
 console.log('⚡ This version has user/agent search caching features enabled');
 console.log('🔍 User/Agent search caching: Enabled with configurable timeout');
 console.log('📧 Debug mode: Check console for detailed logs');
+console.log('🗑️ Asset search functionality removed - blank slate provided');
 
 /**
  * Change Request App
@@ -113,6 +114,25 @@ async function getConfiguredAssetTypeIds() {
 }
 
 /**
+ * Fetch and cache services based on configured asset types
+ * @returns {Array} Empty array - services functionality removed
+ */
+function fetchAndCacheServices() {
+  // Services functionality removed - blank slate provided
+  console.log('Services functionality removed');
+  return [];
+}
+
+/**
+ * Get services (filtered from assets by specific service asset type IDs)
+ */
+function getServices() {
+  // Services functionality removed - blank slate provided
+  console.log('Services functionality removed');
+  return [];
+}
+
+/**
  * Fetch assets by asset type ID
  */
 function fetchAssetsByType(assetTypeId) {
@@ -187,6 +207,31 @@ function fetchAllAssets() {
   });
 }
 
+/**
+ * Get cached services
+ */
+function getCachedServices() {
+  // Services functionality removed - blank slate provided
+  console.log('Services cache functionality removed');
+  return null;
+}
+
+/**
+ * Cache services data
+ */
+function cacheServices() {
+  // Services functionality removed - blank slate provided
+  console.log('Services cache functionality removed');
+}
+
+/**
+ * Clear services cache (useful when changing service logic)
+ */
+function clearServicesCache() {
+  // Services functionality removed - blank slate provided
+  console.log('Services cache functionality removed');
+}
+
 const changeRequestData = {
   requester: null,
   agent: null,
@@ -243,6 +288,10 @@ const assetTypeCache = {
 
 // Default safety margin for API rate limiting (70%)
 const DEFAULT_SAFETY_MARGIN = 70;
+
+// Default inventory software/services type IDs (can be multiple)
+// Based on your asset types: 37000374726 has software like Active Directory
+const DEFAULT_INVENTORY_TYPE_IDS = [37000374726, 37000374859]; // Include both software and server types
 
 // Default asset type timeout (24 hours)
 const ASSET_TYPE_CACHE_TIMEOUT = 24 * 60 * 60 * 1000;
@@ -358,6 +407,14 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Freshworks app initialized successfully');
     window.client = client;
     
+    // Expose global debug functions
+    console.log('🔧 Setting up global debug functions...');
+    
+    // Make sure functions are available in console
+    if (typeof window.clearAllCache === 'undefined') {
+      console.warn('clearAllCache not found, will be defined after initialization');
+    }
+    
     // Expose essential debug functions only
     console.log('🔧 Setting up essential debug functions...');
     
@@ -404,6 +461,26 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('❌ Error clearing cache:', error);
       }
     };
+    
+    // Test function to verify console access
+    window.testConsole = function() {
+      console.log('✅ Console access working! Available functions:');
+      console.log('- clearAllCache() - Clear all caches and refresh');
+      console.log('- refreshServices() - Refresh just services');
+      console.log('- debugServiceFilter() - Debug service filtering');
+      console.log('- refreshServicesWithDebug() - Refresh with detailed logs');
+      console.log('- forceClearServices() - Simple cache clear (always works)');
+      console.log('- showApiLimits() - Show API limits and constraints');
+      console.log('- testEfficientServicesLoading() - Test new efficient services loading');
+      console.log('- compareLoadingStrategies() - Compare old vs new loading approaches');
+      console.log('- debugAssetTypes() - Debug asset type configuration');
+      console.log('- showConfiguredAssetTypes() - Show configured asset types');
+      console.log('- findSoftwareServicesAssetTypeIds() - Find asset type IDs');
+      console.log('- checkAvailableAssetTypes() - Check available asset types');
+      console.log('🗑️ Asset search test functions removed - see blank slate comment');
+    };
+    
+    console.log('💡 Type testConsole() in the console to verify access');
     
     // Wait a moment for everything to settle
     setTimeout(() => {
@@ -733,6 +810,298 @@ async function getAssetTypeName(assetTypeId) {
 }
 
 /**
+ * Debug function to show configured asset type names and their resolved IDs
+ */
+async function showConfiguredAssetTypes() {
+  try {
+    console.log('🔧 Checking configured asset type names...');
+    
+    const params = await getInstallationParams();
+    const configuredNames = params.assetTypeNames;
+    
+    console.log(`📝 Configured asset type names: "${configuredNames}"`);
+    
+    if (!configuredNames || configuredNames.trim() === '') {
+      console.log('⚠️ No asset type names configured, will use keyword search');
+      return;
+    }
+    
+    // Parse the configured names
+    const targetNames = configuredNames.split(',').map(name => name.trim()).filter(name => name);
+    console.log(`🎯 Parsed target names: ${targetNames.join(', ')}`);
+    
+    // Get asset type IDs
+    const assetTypeIds = await findSoftwareServicesAssetTypeIds();
+    console.log(`🔢 Resolved asset type IDs: ${assetTypeIds.join(', ')}`);
+    
+    // Show which names matched which IDs
+    const cachedAssetTypes = await getCachedAssetTypes();
+    assetTypeIds.forEach(id => {
+      if (cachedAssetTypes[id]) {
+        console.log(`✅ ID ${id} = "${cachedAssetTypes[id].name}"`);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error checking configured asset types:', error);
+  }
+}
+
+/**
+ * Search for a specific asset by name across ALL asset types
+ * @param {string} assetName - Name to search for
+ */
+async function findAssetByName(assetName) {
+  try {
+    console.log(`🔍 Searching for asset named "${assetName}" across ALL asset types...`);
+    
+    // Get all assets without any type filtering
+    const data = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: `?page=1&per_page=100`
+    });
+    
+    if (!data || !data.response) {
+      console.log('❌ Could not fetch assets for name search');
+      return;
+    }
+    
+    const response = JSON.parse(data.response);
+    const assets = response && response.assets ? response.assets : [];
+    
+    console.log(`📋 Searching through ${assets.length} assets for "${assetName}"...`);
+    
+    // Search for assets containing the name (case-insensitive)
+    const matchingAssets = assets.filter(asset => {
+      const assetName_lower = (asset.name || asset.display_name || '').toLowerCase();
+      return assetName_lower.includes(assetName.toLowerCase());
+    });
+    
+    if (matchingAssets.length > 0) {
+      console.log(`✅ Found ${matchingAssets.length} asset(s) matching "${assetName}":`);
+      matchingAssets.forEach(asset => {
+        console.log(`   - "${asset.name || asset.display_name}" (ID: ${asset.id}, Type: ${asset.asset_type_id})`);
+      });
+      
+      // Show what asset types these belong to
+      const uniqueTypeIds = [...new Set(matchingAssets.map(a => a.asset_type_id))];
+      console.log(`🏷️ Asset type(s) for "${assetName}": ${uniqueTypeIds.join(', ')}`);
+      
+      // Check if any of these types are in your configuration
+      const configuredTypes = [37000374722, 37000374723, 37000374726, 37000374730];
+      const matchingTypes = uniqueTypeIds.filter(typeId => configuredTypes.includes(typeId));
+      const missingTypes = uniqueTypeIds.filter(typeId => !configuredTypes.includes(typeId));
+      
+      if (matchingTypes.length > 0) {
+        console.log(`✅ Asset types already in your config: ${matchingTypes.join(', ')}`);
+      }
+      if (missingTypes.length > 0) {
+        console.log(`❌ Asset types NOT in your config: ${missingTypes.join(', ')}`);
+        console.log(`💡 To include "${assetName}", add these asset type IDs to your configuration`);
+      }
+    } else {
+      console.log(`❌ No assets found matching "${assetName}"`);
+      console.log(`💡 Try searching for a partial name or check if the asset exists in Freshservice`);
+    }
+  } catch (error) {
+    console.error('❌ Error searching for asset by name:', error);
+  }
+}
+
+/**
+ * Debug function to check what asset types actually have assets
+ */
+async function checkAvailableAssetTypes() {
+  try {
+    console.log('🔍 Checking what asset types have assets...');
+    
+    // Get a sample of all assets without filtering
+    const data = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: `?page=1&per_page=50`
+    });
+    
+    if (!data || !data.response) {
+      console.log('❌ Could not fetch sample assets');
+      return;
+    }
+    
+    const response = JSON.parse(data.response);
+    const assets = response && response.assets ? response.assets : [];
+    
+    if (assets.length === 0) {
+      console.log('❌ No assets found in your Freshservice instance');
+      return;
+    }
+    
+    // Group assets by type (both asset_type_id and parent_asset_type_id)
+    const assetsByType = {};
+    assets.forEach(asset => {
+      // Check asset_type_id
+      const typeId = asset.asset_type_id;
+      if (typeId && !assetsByType[typeId]) {
+        assetsByType[typeId] = {
+          count: 0,
+          typeName: asset.asset_type_name || 'Unknown',
+          samples: [],
+          isParentType: false
+        };
+      }
+      if (typeId) {
+        assetsByType[typeId].count++;
+        if (assetsByType[typeId].samples.length < 3) {
+          assetsByType[typeId].samples.push(asset.name);
+        }
+      }
+      
+      // Check parent_asset_type_id
+      const parentTypeId = asset.parent_asset_type_id;
+      if (parentTypeId && !assetsByType[parentTypeId]) {
+        assetsByType[parentTypeId] = {
+          count: 0,
+          typeName: `Parent Type ${parentTypeId}`,
+          samples: [],
+          isParentType: true
+        };
+      }
+      if (parentTypeId) {
+        assetsByType[parentTypeId].count++;
+        if (assetsByType[parentTypeId].samples.length < 3) {
+          assetsByType[parentTypeId].samples.push(asset.name);
+        }
+      }
+    });
+    
+    console.log('📊 Available asset types with assets:');
+    Object.entries(assetsByType).forEach(([typeId, info]) => {
+      const typeLabel = info.isParentType ? '(Parent Type)' : '(Direct Type)';
+      console.log(`   Type ID: ${typeId} ${typeLabel} | Name: "${info.typeName}" | Count: ${info.count} | Examples: ${info.samples.join(', ')}`);
+    });
+    
+    console.log('💡 To use a different asset type, update the asset_type_names in your app configuration');
+    console.log('💡 Current configuration includes: "Software, IT Software, ISP"');
+    console.log('💡 To include servers or workstations, you could try names like: "Server, Infrastructure, Hardware, Workstation"');
+    
+  } catch (error) {
+    console.error('❌ Error checking available asset types:', error);
+  }
+}
+
+/**
+ * Global debug function that can be called from browser console
+ * Shows asset type configuration and suggests alternatives
+ */
+window.debugAssetTypes = async function() {
+  console.log('🔧 === ASSET TYPE DEBUG INFORMATION ===');
+  
+  // Show current configuration
+  try {
+    const params = await getInstallationParams();
+    console.log(`📝 Current configuration: "${params.assetTypeNames}"`);
+  } catch (error) {
+    console.log('❌ Could not get current configuration');
+  }
+  
+  // Show available asset types
+  await checkAvailableAssetTypes();
+  
+  // Show current results
+  const assetTypeIds = await findSoftwareServicesAssetTypeIds();
+  console.log(`🎯 Currently configured asset type IDs: ${assetTypeIds.join(', ')}`);
+  
+  console.log('');
+  console.log('🛠️ === HOW TO INCLUDE MORE ASSETS ===');
+  console.log('1. Go to Admin → Asset Management → Asset Types in Freshservice');
+  console.log('2. Note the names of asset types you want to include');
+  console.log('3. Update your app configuration with those names');
+  console.log('4. Examples:');
+  console.log('   - For servers: "Software, IT Software, Server, Infrastructure"');
+  console.log('   - For all assets: "Software, Hardware, Server, Infrastructure, Workstation"');
+  console.log('   - For specific types: "IT Software, Network Equipment, Database"');
+  console.log('');
+  console.log('💡 Call this function anytime by typing: debugAssetTypes()');
+};
+
+/**
+ * Global function to clear all asset-related caches and force refresh
+ * Call this after changing installation configuration
+ */
+window.clearAssetCache = async function() {
+  try {
+    console.log('🧹 Clearing asset caches and forcing refresh...');
+    
+    // Clear asset type cache
+    await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {});
+    console.log('✅ Cleared asset type cache');
+    
+    // Clear asset search cache (removed functionality)
+    console.log('ℹ️ Asset search cache clearing skipped - functionality removed');
+    
+    // Clear in-memory caches for users/agents only
+    delete searchCache.assets;
+    delete searchCache.assetsByType;
+    
+    console.log('✅ Cleared in-memory user/agent caches');
+    
+    // Force refresh asset types
+    console.log('🔄 Fetching fresh asset types...');
+    await fetchAllAssetTypes();
+    
+    // Force refresh asset listing with new configuration
+    console.log('🔄 Refreshing asset listing with new configuration...');
+    
+    // Clear the current results display
+    const resultsContainer = document.getElementById('asset-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '';
+      resultsContainer.style.display = 'none';
+    }
+    
+    // Trigger fresh asset search
+    performInitialAssetListing();
+    
+    console.log('✅ Cache cleared and refresh triggered!');
+    console.log('💡 You should now see assets based on your updated configuration');
+    
+  } catch (error) {
+    console.error('❌ Error clearing cache:', error);
+  }
+};
+
+/**
+ * Global function to show current configuration status
+ */
+window.showConfigStatus = async function() {
+  try {
+    console.log('📋 === CURRENT CONFIGURATION STATUS ===');
+    
+    // Show installation params
+    const params = await getInstallationParams();
+    console.log(`📝 Configured asset type names: "${params.assetTypeNames}"`);
+    
+    // Show resolved asset type IDs
+    const assetTypeIds = await findSoftwareServicesAssetTypeIds();
+    console.log(`🔢 Resolved asset type IDs: ${assetTypeIds.join(', ')}`);
+    
+    // Show cached asset types
+    const cachedAssetTypes = await getCachedAssetTypes();
+    console.log(`💾 Cached asset types: ${Object.keys(cachedAssetTypes).length} types`);
+    
+    assetTypeIds.forEach(id => {
+      if (cachedAssetTypes[id]) {
+        console.log(`   - ID ${id}: "${cachedAssetTypes[id].name}"`);
+      } else {
+        console.log(`   - ID ${id}: Not in cache`);
+      }
+    });
+    
+    // Show cache keys
+    console.log(`🔑 Current cache key: "${generateAssetTypeCacheKey(assetTypeIds)}"`);
+    
+  } catch (error) {
+    console.error('❌ Error showing config status:', error);
+  }
+};
+
+/**
  * Get software/services asset type IDs 
  * Uses known working asset type IDs with optional dynamic discovery as fallback
  * @returns {Promise<Array>} - Array of asset type IDs for software/services
@@ -1007,7 +1376,159 @@ async function fetchUsers() {
   }
 }
 
-// ... additional functions would continue here, but this shows the cleaned structure
+/**
+ * Get cached users from storage
+ * @returns {Promise<Object>} - Cached users
+ */
+async function getCachedUsers() {
+  try {
+    // Try to get cached users
+    const result = await window.client.db.get(STORAGE_KEYS.USER_CACHE);
+    return result || {};
+  } catch (error) {
+    // If error or not found, return empty cache
+    console.log('No user cache found or error:', error);
+    return {};
+  }
+}
+
+/**
+ * Save users to cache
+ * @param {Object} users - Users to cache
+ * @returns {Promise<boolean>} - Success status
+ */
+async function cacheUsers(users) {
+  try {
+    await window.client.db.set(STORAGE_KEYS.USER_CACHE, users);
+    console.log('User cache updated');
+    return true;
+  } catch (error) {
+    console.error('Failed to save user cache:', error);
+    return false;
+  }
+}
+
+/**
+ * Get user details by ID with caching
+ * @param {number} userId - User ID 
+ * @returns {Promise<Object>} - User data or null
+ */
+async function getUserDetails(userId) {
+  if (!userId) return null;
+  
+  // Check for client availability
+  if (!window.client || !window.client.db) {
+    console.error('Client not available for user lookup');
+    return null;
+  }
+
+  try {
+    // Check cache first
+    const cachedUsers = await getCachedUsers();
+    
+    // If user is in cache and not expired, use it
+    if (cachedUsers[userId] && 
+        cachedUsers[userId].timestamp > Date.now() - CACHE_TIMEOUT) {
+      console.log(`Using cached user data: ${cachedUsers[userId].name}`);
+      return cachedUsers[userId].data;
+    }
+    
+    // If not in cache or expired, fetch from API
+    console.log(`Fetching user ${userId} from API`);
+    
+    // First try to get the user as a requester
+    try {
+      const response = await window.client.request.invokeTemplate("getRequesterDetails", {
+        context: {
+          requester_id: userId
+        }
+      });
+      
+      if (response && response.response) {
+        const parsedData = JSON.parse(response.response || '{}');
+        if (parsedData && parsedData.requester) {
+          const user = parsedData.requester;
+          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          
+          // Update cache
+          cachedUsers[userId] = {
+            name: userName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'requester'
+          };
+          await cacheUsers(cachedUsers);
+          
+          console.log(`Found user ${userId} as requester: ${userName}`);
+          return user;
+        }
+      }
+    } catch (requesterErr) {
+      console.log(`User ${userId} not found as requester, trying as agent...`);
+    }
+    
+    // If not found as requester, try as an agent using direct API call instead of template
+    try {
+      // Use invokeTemplate to get individual agent
+      const response = await window.client.request.invokeTemplate("getAgents", {
+        path_suffix: `/${userId}`
+      });
+      
+      if (response && response.response) {
+        const parsedData = JSON.parse(response.response || '{}');
+        if (parsedData && parsedData.agent) {
+          const user = parsedData.agent;
+          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          
+          // Update cache
+          cachedUsers[userId] = {
+            name: userName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'agent'
+          };
+          await cacheUsers(cachedUsers);
+          
+          console.log(`Found user ${userId} as agent: ${userName}`);
+          return user;
+        }
+      }
+    } catch (agentErr) {
+      console.error(`User ${userId} not found as agent either:`, agentErr);
+    }
+    
+    console.error(`User ${userId} not found as either requester or agent`);
+    return null;
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
+  }
+}
+
+/**
+ * Get user or manager name by ID with caching
+ * @param {number} userId - User ID 
+ * @returns {Promise<string>} - User name
+ */
+async function getUserName(userId) {
+  if (!userId) return 'N/A';
+  
+  const user = await getUserDetails(userId);
+  if (user) {
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+  }
+  return 'Unknown';
+}
+
+/**
+ * Get reporting manager name by ID with caching
+ * @param {number} managerId - Manager ID 
+ * @returns {Promise<string>} - Manager name
+ */
+async function getManagerName(managerId) {
+  const manager = await getUserDetails(managerId);
+  return manager ? `${manager.first_name || ''} ${manager.last_name || ''}`.trim() : 'Unknown Manager';
+}
 
 /**
  * Initialize the Freshworks app
@@ -1055,9 +1576,6 @@ function displayInitError(message) {
   body.insertBefore(errorDiv, body.firstChild);
 }
 
-<<<<<<< HEAD
-// ... rest of the essential functions would continue here 
-=======
 function populateFormFields() {
   // Get current date for default values
   const now = new Date();
@@ -4235,4 +4753,3 @@ window.testEfficientAssetSearch = async function(searchTerm = 'active') {
     console.error('❌ Error testing basic asset search:', error);
   }
 };
->>>>>>> 2315f9861a71cf0a9462c3f2b7480f930c4ce7dc
