@@ -32,10 +32,10 @@ const AssetAssociation = {
   /**
    * Initialize the asset association module
    */
-  init() {
+  async init() {
     console.log('🔧 Initializing Asset Association Module...');
     this.setupEventListeners();
-    this.loadSelectedAssets();
+    await this.loadSelectedAssets();
     this.updateAssetCount();
     console.log('✅ Asset Association Module initialized');
   },
@@ -75,8 +75,8 @@ const AssetAssociation = {
     // Clear all assets button
     const clearAllBtn = document.getElementById('clear-all-assets-btn');
     if (clearAllBtn) {
-      clearAllBtn.addEventListener('click', () => {
-        this.clearAllAssets();
+      clearAllBtn.addEventListener('click', async () => {
+        await this.clearAllAssets();
       });
     }
 
@@ -103,7 +103,7 @@ const AssetAssociation = {
       const cachedResults = this.getFromCache(searchTerm);
       if (cachedResults) {
         console.log(`📦 Using cached results for "${searchTerm}"`);
-        this.displaySearchResults(cachedResults);
+        await this.displaySearchResults(cachedResults);
         return;
       }
 
@@ -114,7 +114,7 @@ const AssetAssociation = {
       this.addToCache(searchTerm, results);
       
       // Display results
-      this.displaySearchResults(results);
+      await this.displaySearchResults(results);
 
       console.log(`✅ Found ${results.length} assets for "${searchTerm}"`);
 
@@ -248,7 +248,7 @@ const AssetAssociation = {
    * Display search results
    * @param {Array} assets - Array of assets to display
    */
-  displaySearchResults(assets) {
+  async displaySearchResults(assets) {
     const resultsContainer = document.getElementById('asset-search-results');
     if (!resultsContainer) return;
 
@@ -262,10 +262,12 @@ const AssetAssociation = {
 
     let html = '<div class="asset-results-list">';
     
-    assets.forEach(asset => {
+    // Process assets with asset type name resolution
+    for (const asset of assets) {
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
-      const assetTypeId = asset.asset_type_id || 'N/A';
+      const assetTypeId = asset.asset_type_id;
+      const assetTypeName = assetTypeId ? await this.getAssetTypeName(assetTypeId) : 'N/A';
       const environment = asset.environment || 'N/A';
       const managedBy = asset.managed_by_name || (asset.managed_by ? `User ID: ${asset.managed_by}` : 'N/A');
       const location = asset.location_name || (asset.location_id ? `Location ID: ${asset.location_id}` : 'N/A');
@@ -277,11 +279,11 @@ const AssetAssociation = {
         <div class="asset-result-item ${isSelected ? 'selected' : ''}" data-asset-id="${asset.id}">
           <div class="asset-info">
             <div class="asset-name">${this.escapeHtml(name)}</div>
-            ${description ? `<div class="asset-description">${this.escapeHtml(description)}</div>` : ''}
+            ${this.createExpandableDescription(description, asset.id)}
             <div class="asset-details">
               <div class="asset-detail-row">
                 <span class="asset-detail-label">Asset Type:</span>
-                <span class="asset-detail-value">${this.escapeHtml(assetTypeId)}</span>
+                <span class="asset-detail-value">${this.escapeHtml(assetTypeName)}</span>
               </div>
               <div class="asset-detail-row">
                 <span class="asset-detail-label">Environment:</span>
@@ -320,7 +322,7 @@ const AssetAssociation = {
           </div>
         </div>
       `;
-    });
+    }
     
     html += '</div>';
     
@@ -334,6 +336,9 @@ const AssetAssociation = {
 
     // Add click handlers for add/remove buttons
     this.setupResultsEventListeners(assets);
+    
+    // Setup description toggle event listeners
+    this.setupDescriptionToggles(resultsContainer);
   },
 
   /**
@@ -346,20 +351,20 @@ const AssetAssociation = {
 
     // Add asset buttons
     resultsContainer.querySelectorAll('.add-asset-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         const assetId = parseInt(e.target.closest('.add-asset-btn').dataset.assetId);
         const asset = assets.find(a => a.id === assetId);
         if (asset) {
-          this.addAsset(asset);
+          await this.addAsset(asset);
         }
       });
     });
 
     // Remove asset buttons
     resultsContainer.querySelectorAll('.remove-asset-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         const assetId = parseInt(e.target.closest('.remove-asset-btn').dataset.assetId);
-        this.removeAsset(assetId);
+        await this.removeAsset(assetId);
       });
     });
   },
@@ -368,7 +373,7 @@ const AssetAssociation = {
    * Add an asset to the selected list
    * @param {Object} asset - Asset object to add
    */
-  addAsset(asset) {
+  async addAsset(asset) {
     // Check if already selected
     if (this.isAssetSelected(asset.id)) {
       return;
@@ -378,12 +383,12 @@ const AssetAssociation = {
     this.state.selectedAssets.push(asset);
     
     // Update displays
-    this.updateSelectedAssetsDisplay();
+    await this.updateSelectedAssetsDisplay();
     this.updateAssetCount();
     
     // Update the search results to show new state
     if (this.state.searchResults.length > 0) {
-      this.displaySearchResults(this.state.searchResults);
+      await this.displaySearchResults(this.state.searchResults);
     }
 
     // Update main app state if available
@@ -398,7 +403,7 @@ const AssetAssociation = {
    * Remove an asset from the selected list
    * @param {number} assetId - ID of asset to remove
    */
-  removeAsset(assetId) {
+  async removeAsset(assetId) {
     const assetIndex = this.state.selectedAssets.findIndex(a => a.id === assetId);
     
     if (assetIndex === -1) {
@@ -409,12 +414,12 @@ const AssetAssociation = {
     this.state.selectedAssets.splice(assetIndex, 1);
     
     // Update displays
-    this.updateSelectedAssetsDisplay();
+    await this.updateSelectedAssetsDisplay();
     this.updateAssetCount();
     
     // Update the search results to show new state
     if (this.state.searchResults.length > 0) {
-      this.displaySearchResults(this.state.searchResults);
+      await this.displaySearchResults(this.state.searchResults);
     }
 
     // Update main app state if available
@@ -437,7 +442,7 @@ const AssetAssociation = {
   /**
    * Update the selected assets display
    */
-  updateSelectedAssetsDisplay() {
+  async updateSelectedAssetsDisplay() {
     const container = document.getElementById('selected-assets-list');
     if (!container) return;
 
@@ -453,10 +458,12 @@ const AssetAssociation = {
 
     let html = '<div class="selected-assets-grid">';
     
-    this.state.selectedAssets.forEach(asset => {
+    // Process assets with asset type name resolution
+    for (const asset of this.state.selectedAssets) {
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
-      const assetTypeId = asset.asset_type_id || 'N/A';
+      const assetTypeId = asset.asset_type_id;
+      const assetTypeName = assetTypeId ? await this.getAssetTypeName(assetTypeId) : 'N/A';
       const environment = asset.environment || 'N/A';
       const managedBy = asset.managed_by_name || (asset.managed_by ? `User ID: ${asset.managed_by}` : 'N/A');
       const location = asset.location_name || (asset.location_id ? `Location ID: ${asset.location_id}` : 'N/A');
@@ -473,11 +480,11 @@ const AssetAssociation = {
             </button>
           </div>
           <div class="asset-card-body">
-            ${description ? `<p class="asset-card-description">${this.escapeHtml(description)}</p>` : ''}
+            ${this.createExpandableDescription(description, asset.id)}
             <div class="asset-card-details">
               <div class="asset-detail-row">
                 <span class="asset-detail-label">Type:</span>
-                <span class="asset-detail-value">${this.escapeHtml(assetTypeId)}</span>
+                <span class="asset-detail-value">${this.escapeHtml(assetTypeName)}</span>
               </div>
               <div class="asset-detail-row">
                 <span class="asset-detail-label">Environment:</span>
@@ -506,18 +513,21 @@ const AssetAssociation = {
           </div>
         </div>
       `;
-    });
+    }
     
     html += '</div>';
     container.innerHTML = html;
 
     // Add event listeners for remove buttons
     container.querySelectorAll('.remove-selected-asset-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         const assetId = parseInt(e.target.closest('.remove-selected-asset-btn').dataset.assetId);
-        this.removeAsset(assetId);
+        await this.removeAsset(assetId);
       });
     });
+
+    // Setup description toggle event listeners
+    this.setupDescriptionToggles(container);
   },
 
   /**
@@ -540,22 +550,22 @@ const AssetAssociation = {
   /**
    * Clear all selected assets
    */
-  clearAllAssets() {
+  async clearAllAssets() {
     if (this.state.selectedAssets.length === 0) {
       return;
     }
 
     // Create a custom confirmation modal instead of using browser confirm()
-    const confirmClear = () => {
+    const confirmClear = async () => {
       this.state.selectedAssets = [];
       
       // Update displays
-      this.updateSelectedAssetsDisplay();
+      await this.updateSelectedAssetsDisplay();
       this.updateAssetCount();
       
       // Update the search results to show new state
       if (this.state.searchResults.length > 0) {
-        this.displaySearchResults(this.state.searchResults);
+        await this.displaySearchResults(this.state.searchResults);
       }
 
       // Update main app state if available
@@ -593,11 +603,11 @@ const AssetAssociation = {
         clearBtn.classList.remove('confirm-required', 'btn-danger');
         clearBtn.classList.add('btn-outline-danger');
         clearBtn.innerHTML = '<i class="fas fa-trash me-1"></i>Clear All';
-        confirmClear();
+        await confirmClear();
       }
     } else {
       // Fallback - just clear without confirmation
-      confirmClear();
+      await confirmClear();
     }
   },
 
@@ -654,10 +664,10 @@ const AssetAssociation = {
   /**
    * Load selected assets from main app state
    */
-  loadSelectedAssets() {
+  async loadSelectedAssets() {
     if (window.changeRequestData && window.changeRequestData.selectedAssets) {
       this.state.selectedAssets = [...window.changeRequestData.selectedAssets];
-      this.updateSelectedAssetsDisplay();
+      await this.updateSelectedAssetsDisplay();
       console.log(`📦 Loaded ${this.state.selectedAssets.length} previously selected assets`);
     }
   },
@@ -751,6 +761,94 @@ const AssetAssociation = {
       isValid,
       message: isValid ? '' : 'Please select at least one asset to associate with this change request.'
     };
+  },
+
+  /**
+   * Get asset type name using the global function from main app
+   * @param {number} assetTypeId - Asset type ID
+   * @returns {Promise<string>} - Asset type name
+   */
+  async getAssetTypeName(assetTypeId) {
+    try {
+      // Use the global getAssetTypeName function from main app if available
+      if (typeof window.getAssetTypeName === 'function') {
+        return await window.getAssetTypeName(assetTypeId);
+      }
+      
+      // Fallback: try to call the function directly if it exists in global scope
+      if (typeof getAssetTypeName === 'function') {
+        return await getAssetTypeName(assetTypeId);
+      }
+      
+      // If no function available, return the ID with a label
+      console.warn('getAssetTypeName function not available, falling back to ID display');
+      return `Asset Type ${assetTypeId}`;
+    } catch (error) {
+      console.error('Error getting asset type name:', error);
+      return `Asset Type ${assetTypeId}`;
+    }
+  },
+
+  /**
+   * Create expandable description HTML
+   * @param {string} description - The description text
+   * @param {string} containerId - Unique ID for this description container
+   * @returns {string} - HTML with expandable description
+   */
+  createExpandableDescription(description, containerId) {
+    if (!description || description.trim().length === 0) {
+      return '';
+    }
+
+    // Check if description is long enough to need truncation (approximately 2 lines worth)
+    const needsTruncation = description.length > 120; // ~60 chars per line
+    
+    if (!needsTruncation) {
+      return `<div class="asset-description">${this.escapeHtml(description)}</div>`;
+    }
+
+    return `
+      <div class="asset-description truncated" id="desc-${containerId}">
+        ${this.escapeHtml(description)}
+      </div>
+      <button type="button" class="description-toggle" data-target="desc-${containerId}">
+        Show more
+      </button>
+    `;
+  },
+
+  /**
+   * Setup description toggle event listeners
+   * @param {Element} container - Container element with toggle buttons
+   */
+  setupDescriptionToggles(container) {
+    const toggleButtons = container.querySelectorAll('.description-toggle');
+    
+    toggleButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const targetId = button.dataset.target;
+        const descElement = document.getElementById(targetId);
+        
+        if (!descElement) return;
+        
+        const isExpanded = descElement.classList.contains('expanded');
+        
+        if (isExpanded) {
+          // Collapse
+          descElement.classList.remove('expanded');
+          descElement.classList.add('truncated');
+          button.textContent = 'Show more';
+        } else {
+          // Expand
+          descElement.classList.remove('truncated');
+          descElement.classList.add('expanded');
+          button.textContent = 'Show less';
+        }
+      });
+    });
   }
 };
 

@@ -809,6 +809,9 @@ async function getAssetTypeName(assetTypeId) {
   }
 }
 
+// Expose the getAssetTypeName function globally for use by other modules
+window.getAssetTypeName = getAssetTypeName;
+
 /**
  * Debug function to show configured asset type names and their resolved IDs
  */
@@ -1627,11 +1630,11 @@ function setupEventListeners() {
   // Tab event listeners
   const assetAssociationTab = document.getElementById('asset-association-tab');
   if (assetAssociationTab) {
-    assetAssociationTab.addEventListener('shown.bs.tab', function () {
+    assetAssociationTab.addEventListener('shown.bs.tab', async function () {
       // Initialize Asset Association Module when tab is first shown
       if (window.AssetAssociation && !window.AssetAssociation._initialized) {
         console.log('🔧 Initializing Asset Association Module...');
-        window.AssetAssociation.init();
+        await window.AssetAssociation.init();
         window.AssetAssociation._initialized = true;
         console.log('✅ Asset Association Module initialized');
       }
