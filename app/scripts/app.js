@@ -539,6 +539,38 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('✅ Debug functions setup complete');
     
+    // Test asset type resolution function
+    window.testAssetTypeResolution = async function() {
+      console.log('🔧 === TESTING ASSET TYPE RESOLUTION ===');
+      
+      // Clear cache first to force fresh fetch
+      await window.client.db.set(STORAGE_KEYS.ASSET_TYPE_CACHE, {});
+      console.log('🧹 Cleared asset type cache');
+      
+      // Test the specific problematic asset type
+      console.log('🔍 Testing asset type ID 37000374826 (ORLIT20-LT laptop)...');
+      const laptopTypeName = await getAssetTypeName(37000374826);
+      console.log(`🎯 Result: "${laptopTypeName}"`);
+      
+      // Show what's in cache now
+      const cache = await getCachedAssetTypes();
+      if (cache[37000374826]) {
+        console.log(`✅ Cache entry: "${cache[37000374826].name}"`);
+      } else {
+        console.log('❌ Asset type not found in cache');
+      }
+      
+      // Test a few other asset types for comparison
+      console.log('🔍 Testing other asset types for comparison...');
+      const testIds = [37000374722, 37000374723, 37000374726];
+      for (const id of testIds) {
+        const name = await getAssetTypeName(id);
+        console.log(`   ${id}: "${name}"`);
+      }
+    };
+    
+    console.log('💡 Type testAssetTypeResolution() to test the laptop asset type fix');
+    
     // Wait a moment for everything to settle
     setTimeout(() => {
       initializeApp().catch(error => {
@@ -920,7 +952,16 @@ async function getAssetTypeName(assetTypeId) {
         if (parsedData.asset_type) {
           assetTypeData = parsedData.asset_type;
         } else if (parsedData.asset_types && parsedData.asset_types.length > 0) {
-          assetTypeData = parsedData.asset_types[0];
+          // Find the specific asset type that matches our requested ID
+          assetTypeData = parsedData.asset_types.find(type => type.id === assetTypeId);
+          
+          // If we didn't find the exact ID match, log this as an issue
+          if (!assetTypeData) {
+            console.log(`⚠️ Requested asset type ID ${assetTypeId} not found in response array`);
+            console.log(`📋 Available asset types in response:`, parsedData.asset_types.map(t => `${t.id}: "${t.name}"`));
+            // Fall back to the first one, but this indicates a potential API issue
+            assetTypeData = parsedData.asset_types[0];
+          }
         } else if (parsedData.name) {
           assetTypeData = parsedData;
         }
