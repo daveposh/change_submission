@@ -244,18 +244,26 @@ async function getServices(forceRefresh = false) {
       return [];
     }
     
-    // New approach: Get all assets in one call and filter client-side
-    console.log('🔄 Fetching all assets and filtering client-side...');
+    // Use filtered API query instead of fetching all assets
+    console.log('🔄 Using filtered API query for efficiency...');
+    
+    // Build query to filter by asset type IDs
+    const assetTypeFilter = serviceAssetTypeIds.length > 0 ? 
+      `(${serviceAssetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    
+    console.log('🔍 Asset type filter query:', assetTypeFilter);
     
     let allAssets = [];
     let page = 1;
     let hasMorePages = true;
-    const maxPages = 50; // Increase safety limit to ensure we get all assets
+    const maxPages = 40; // Respect API limit: maximum 40 pages
     const perPage = 30; // Freshworks API limit is 30 objects per page
+    let totalCount = null;
     
     while (hasMorePages && page <= maxPages) {
       try {
-        const requestUrl = `?per_page=${perPage}&page=${page}`;
+        const encodedQuery = encodeURIComponent(assetTypeFilter);
+        const requestUrl = `?query=${encodedQuery}&per_page=${perPage}&page=${page}`;
         console.log(`🌐 API request URL (page ${page}):`, requestUrl);
         
         const response = await window.client.request.invokeTemplate("getAssets", {
@@ -265,6 +273,28 @@ async function getServices(forceRefresh = false) {
         if (!response || !response.response) {
           console.warn(`No response for page ${page}, stopping pagination`);
           break;
+        }
+        
+        // Parse response headers for total count (if available)
+        if (response.headers && totalCount === null) {
+          try {
+            const headers = typeof response.headers === 'string' ? 
+              JSON.parse(response.headers) : response.headers;
+            
+            // Look for common pagination headers
+            const totalCountHeader = headers['x-total-count'] || 
+                                   headers['X-Total-Count'] || 
+                                   headers['total-count'] ||
+                                   headers['Total-Count'];
+            
+            if (totalCountHeader) {
+              totalCount = parseInt(totalCountHeader);
+              const expectedPages = Math.ceil(totalCount / perPage);
+              console.log(`📊 Total count from headers: ${totalCount} (${expectedPages} pages expected)`);
+            }
+          } catch (headerError) {
+            console.log('📊 Could not parse headers for total count:', headerError.message);
+          }
         }
         
         const data = JSON.parse(response.response);
@@ -278,8 +308,22 @@ async function getServices(forceRefresh = false) {
         } else {
           allAssets = allAssets.concat(pageAssets);
           
-          // Check if we got a full page (30 items), indicating there might be more
-          hasMorePages = pageAssets.length === perPage;
+          // More intelligent pagination logic
+          const isFullPage = pageAssets.length === perPage;
+          const withinPageLimit = page < maxPages;
+          const belowTotalCount = totalCount === null || allAssets.length < totalCount;
+          
+          hasMorePages = isFullPage && withinPageLimit && belowTotalCount;
+          
+          console.log(`📊 Pagination decision for page ${page + 1}:`, {
+            isFullPage,
+            withinPageLimit,
+            belowTotalCount,
+            totalRetrieved: allAssets.length,
+            expectedTotal: totalCount,
+            willContinue: hasMorePages
+          });
+          
           page++;
           
           // Add a small delay between requests to be API-friendly
@@ -296,10 +340,13 @@ async function getServices(forceRefresh = false) {
     }
     
     console.log(`📥 Retrieved ${allAssets.length} total assets from ${page - 1} pages`);
+    if (totalCount !== null) {
+      console.log(`📊 Expected ${totalCount} assets, retrieved ${allAssets.length} (${((allAssets.length / totalCount) * 100).toFixed(1)}%)`);
+    }
     
     // Show all unique asset type IDs found for debugging
     const allAssetTypes = [...new Set(allAssets.map(a => a.asset_type_id))].sort((a, b) => a - b);
-    console.log(`🔍 All asset type IDs found in system: ${allAssetTypes.join(', ')}`);
+    console.log(`🔍 All asset type IDs found in results: ${allAssetTypes.join(', ')}`);
     
     // Show breakdown of all asset types for debugging
     const allTypeBreakdown = {};
@@ -311,58 +358,28 @@ async function getServices(forceRefresh = false) {
       allTypeBreakdown[typeId].push(asset.name);
     });
     
-    console.log('📊 All asset types with counts:');
+    console.log('📊 Asset types with counts:');
     Object.entries(allTypeBreakdown).forEach(([typeId, assets]) => {
       console.log(`   Type ${typeId}: ${assets.length} assets - ${assets.slice(0, 3).join(', ')}${assets.length > 3 ? '...' : ''}`);
     });
     
-    // Filter assets by our target asset type IDs
-    const targetServices = allAssets.filter(asset => 
-      serviceAssetTypeIds.includes(asset.asset_type_id)
-    );
+    // Since we're already filtering by asset type in the query, all results should be relevant
+    const targetServices = allAssets;
     
-    console.log(`🎯 Filtered to ${targetServices.length} assets matching target asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
-    
-    // Show breakdown by asset type
-    const targetTypeBreakdown = {};
-    targetServices.forEach(service => {
-      const typeId = service.asset_type_id;
-      if (!targetTypeBreakdown[typeId]) {
-        targetTypeBreakdown[typeId] = 0;
-      }
-      targetTypeBreakdown[typeId]++;
-    });
-    console.log('📊 Target services by asset type ID:', targetTypeBreakdown);
-    
-    // Show which target asset types have no assets
-    serviceAssetTypeIds.forEach(targetId => {
-      if (!targetTypeBreakdown[targetId]) {
-        console.log(`⚠️ No assets found for target asset type ID: ${targetId}`);
-      }
-    });
-    
-    // Show which asset types we found that aren't in our target list
-    const foundNonTargetTypes = [...new Set(allAssets.map(a => a.asset_type_id))].filter(id => 
-      !serviceAssetTypeIds.includes(id)
-    );
-    if (foundNonTargetTypes.length > 0) {
-      console.log(`📋 Other asset types found (not in target list): ${foundNonTargetTypes.slice(0, 10).join(', ')}${foundNonTargetTypes.length > 10 ? '...' : ''}`);
-    }
-    
-    const allServices = targetServices;
+    console.log(`🎯 Using ${targetServices.length} assets from filtered query`);
     
     // Remove duplicates based on asset ID
     const uniqueServices = [];
     const seenIds = new Set();
     
-    allServices.forEach(service => {
+    targetServices.forEach(service => {
       if (!seenIds.has(service.id)) {
         seenIds.add(service.id);
         uniqueServices.push(service);
       }
     });
     
-    console.log(`🔧 After deduplication: ${uniqueServices.length} unique services (removed ${allServices.length - uniqueServices.length} duplicates)`);
+    console.log(`🔧 After deduplication: ${uniqueServices.length} unique services (removed ${targetServices.length - uniqueServices.length} duplicates)`);
     
     // Show breakdown by asset type
     const typeBreakdown = {};
@@ -743,7 +760,14 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- testAssetSearchPagination("term") - Test asset search pagination');
       console.log('- testSearchStrategies("term") - Test different search strategies');
       console.log('- testAssetHeaders("term") - Test API response headers');
+      console.log('- testEfficientServicesLoading() - Test new efficient services loading');
+      console.log('- compareLoadingStrategies() - Compare old vs new loading approaches');
       console.log('- debugAssetTypes() - Debug asset type configuration');
+      console.log('- showConfiguredAssetTypes() - Show configured asset types');
+      console.log('- findSoftwareServicesAssetTypeIds() - Find asset type IDs');
+      console.log('- checkAvailableAssetTypes() - Check available asset types');
+      console.log('- findAssetByName("name") - Find specific asset by name');
+      console.log('- testSingleQuery("query", "description") - Test single API query');
       return 'Console access confirmed';
     };
     
@@ -5254,5 +5278,149 @@ window.testAssetHeaders = async function(searchTerm = 'test') {
     
   } catch (error) {
     console.error('❌ Error testing headers:', error);
+  }
+};
+
+/**
+ * Global debug function to test efficient services loading
+ */
+window.testEfficientServicesLoading = async function() {
+  try {
+    console.log('🔧 === TESTING EFFICIENT SERVICES LOADING ===');
+    
+    // Get configured asset type IDs
+    const params = await getInstallationParams();
+    const serviceAssetTypeIds = params.serviceAssetTypeIds || [
+      37000374722, 37000374723, 37000374726, 37000374730
+    ];
+    
+    console.log(`🎯 Service asset type IDs: ${serviceAssetTypeIds.join(', ')}`);
+    
+    // Build query to filter by asset type IDs
+    const assetTypeFilter = serviceAssetTypeIds.length > 0 ? 
+      `(${serviceAssetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    
+    console.log(`🔍 Filter query: "${assetTypeFilter}"`);
+    
+    // Test single page to see response structure
+    const encodedQuery = encodeURIComponent(assetTypeFilter);
+    const requestUrl = `?query=${encodedQuery}&per_page=30&page=1`;
+    
+    console.log(`🌐 Test API request: ${requestUrl}`);
+    
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    });
+    
+    if (response && response.response) {
+      const data = JSON.parse(response.response);
+      const assets = data.assets || [];
+      
+      console.log(`📄 Retrieved ${assets.length} assets on first page`);
+      
+      // Check headers
+      if (response.headers) {
+        console.log('📊 Response headers:', response.headers);
+        
+        try {
+          const headers = typeof response.headers === 'string' ? 
+            JSON.parse(response.headers) : response.headers;
+          
+          console.log('📊 Parsed headers:', Object.keys(headers));
+          
+          // Look for pagination info
+          Object.entries(headers).forEach(([key, value]) => {
+            if (key.toLowerCase().includes('total') || 
+                key.toLowerCase().includes('count') ||
+                key.toLowerCase().includes('page')) {
+              console.log(`📊 ${key}: ${value}`);
+            }
+          });
+        } catch (e) {
+          console.log('📊 Could not parse headers:', e.message);
+        }
+      }
+      
+      // Show asset type breakdown
+      const typeBreakdown = {};
+      assets.forEach(asset => {
+        const typeId = asset.asset_type_id;
+        typeBreakdown[typeId] = (typeBreakdown[typeId] || 0) + 1;
+      });
+      
+      console.log('📊 Asset types in results:', typeBreakdown);
+      
+      // Show sample assets
+      if (assets.length > 0) {
+        console.log('📋 Sample assets:');
+        assets.slice(0, 3).forEach((asset, index) => {
+          console.log(`   ${index + 1}. ${asset.name} (Type: ${asset.asset_type_id})`);
+        });
+      }
+    } else {
+      console.error('❌ No response from API');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error testing efficient services loading:', error);
+  }
+};
+
+/**
+ * Global debug function to compare loading strategies
+ */
+window.compareLoadingStrategies = async function() {
+  try {
+    console.log('🔧 === COMPARING LOADING STRATEGIES ===');
+    
+    const serviceAssetTypeIds = [37000374722, 37000374723, 37000374726, 37000374730];
+    
+    // Strategy 1: Filtered query (new approach)
+    console.log('🔍 Testing Strategy 1: Filtered Query');
+    const startTime1 = Date.now();
+    
+    const assetTypeFilter = `(${serviceAssetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})`;
+    const encodedQuery = encodeURIComponent(assetTypeFilter);
+    const filteredUrl = `?query=${encodedQuery}&per_page=30&page=1`;
+    
+    const filteredResponse = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: filteredUrl
+    });
+    
+    const filteredTime = Date.now() - startTime1;
+    const filteredData = JSON.parse(filteredResponse.response);
+    const filteredAssets = filteredData.assets || [];
+    
+    console.log(`✅ Strategy 1: ${filteredAssets.length} assets in ${filteredTime}ms`);
+    
+    // Strategy 2: Unfiltered query (old approach)
+    console.log('🔍 Testing Strategy 2: Unfiltered Query');
+    const startTime2 = Date.now();
+    
+    const unfilteredUrl = `?per_page=30&page=1`;
+    const unfilteredResponse = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: unfilteredUrl
+    });
+    
+    const unfilteredTime = Date.now() - startTime2;
+    const unfilteredData = JSON.parse(unfilteredResponse.response);
+    const unfilteredAssets = unfilteredData.assets || [];
+    
+    // Filter client-side
+    const clientFiltered = unfilteredAssets.filter(asset => 
+      serviceAssetTypeIds.includes(asset.asset_type_id)
+    );
+    
+    console.log(`✅ Strategy 2: ${unfilteredAssets.length} total assets, ${clientFiltered.length} relevant in ${unfilteredTime}ms`);
+    
+    // Compare efficiency
+    console.log('📊 Comparison:');
+    console.log(`   Filtered Query: ${filteredAssets.length} relevant assets in ${filteredTime}ms`);
+    console.log(`   Unfiltered + Client Filter: ${clientFiltered.length} relevant assets in ${unfilteredTime}ms`);
+    console.log(`   Efficiency gain: ${((unfilteredTime - filteredTime) / unfilteredTime * 100).toFixed(1)}% faster`);
+    console.log(`   Bandwidth savings: ${((unfilteredAssets.length - filteredAssets.length) / unfilteredAssets.length * 100).toFixed(1)}% less data`);
+    
+  } catch (error) {
+    console.error('❌ Error comparing loading strategies:', error);
   }
 };
