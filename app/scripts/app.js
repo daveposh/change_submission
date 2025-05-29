@@ -742,6 +742,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log('- showApiLimits() - Show API limits and constraints');
       console.log('- testAssetSearchPagination("term") - Test asset search pagination');
       console.log('- testSearchStrategies("term") - Test different search strategies');
+      console.log('- testAssetHeaders("term") - Test API response headers');
       console.log('- debugAssetTypes() - Debug asset type configuration');
       return 'Console access confirmed';
     };
@@ -2778,6 +2779,9 @@ function addToSearchCache(type, searchTerm, results) {
   console.log(`💾 Cached ${results.length} ${type} results for "${searchTerm}"`);
 }
 
+// Global variable to track current search requests and prevent duplicates
+let currentAssetSearchRequest = null;
+
 /**
  * Search for assets (handles both main asset search and asset association)
  */
@@ -2804,6 +2808,24 @@ function searchAssets(e) {
     if (resultsContainer) {
       resultsContainer.style.display = 'none';
     }
+    // Cancel any ongoing search
+    if (currentAssetSearchRequest) {
+      currentAssetSearchRequest.cancelled = true;
+      currentAssetSearchRequest = null;
+    }
+    return;
+  }
+
+  // Cancel any ongoing search for a different term
+  if (currentAssetSearchRequest && currentAssetSearchRequest.searchTerm !== searchTerm) {
+    console.log(`🚫 Cancelling previous search for "${currentAssetSearchRequest.searchTerm}" to search for "${searchTerm}"`);
+    currentAssetSearchRequest.cancelled = true;
+    currentAssetSearchRequest = null;
+  }
+
+  // If we already have a search running for this exact term, don't start another
+  if (currentAssetSearchRequest && currentAssetSearchRequest.searchTerm === searchTerm) {
+    console.log(`⏳ Search already in progress for "${searchTerm}", skipping duplicate request`);
     return;
   }
 
@@ -2867,6 +2889,14 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
     return;
   }
 
+  // Create a search request tracker
+  const searchRequest = {
+    searchTerm: searchTerm,
+    cancelled: false,
+    startTime: Date.now()
+  };
+  currentAssetSearchRequest = searchRequest;
+
   // Only show loading indicator for non-refresh operations
   if (!isRefresh) {
     const resultsContainer = document.getElementById(searchInputId);
@@ -2879,7 +2909,7 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
   try {
     // Get configured asset type IDs
     const assetTypeIds = await getConfiguredAssetTypeIds();
-    console.log(`Searching assets with term: "${searchTerm}" in asset types: ${assetTypeIds.join(', ')}`);
+    console.log(`🔍 Starting asset search for "${searchTerm}" in asset types: ${assetTypeIds.join(', ')}`);
     
     // Build search query according to API documentation
     const assetTypeFilter = assetTypeIds.length > 0 ? 
@@ -2894,53 +2924,98 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
     // Get installation parameters for pagination settings
     const params = await getInstallationParams();
     
-    // Implement pagination to handle the 30 objects per page limit
+    // Start with first page to get total count from headers
     let allAssets = [];
+    let totalCount = 0;
+    let totalPages = 0;
     let page = 1;
-    let hasMorePages = true;
-    const maxPages = 10; // Reasonable limit for search results (300 assets max)
     const perPage = 30; // API limit is 30 objects per page
     
-    while (hasMorePages && page <= maxPages) {
-      try {
-        // Build request URL with proper pagination
-        const requestUrl = `?query=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
-        console.log(`🌐 Asset search API request (page ${page}): ${requestUrl}`);
-        
-        const response = await window.client.request.invokeTemplate("getAssets", {
-          path_suffix: requestUrl
+    // First request to get total count
+    try {
+      const requestUrl = `?query=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
+      console.log(`🌐 Asset search API request (page ${page}): ${requestUrl}`);
+      
+      const response = await window.client.request.invokeTemplate("getAssets", {
+        path_suffix: requestUrl
+      });
+      
+      // Check if search was cancelled
+      if (searchRequest.cancelled) {
+        console.log(`🚫 Search for "${searchTerm}" was cancelled`);
+        return;
+      }
+      
+      if (!response || !response.response) {
+        throw new Error('Invalid response from assets API');
+      }
+      
+      // Parse response headers to get total count
+      let responseHeaders = {};
+      if (response.headers) {
+        try {
+          responseHeaders = typeof response.headers === 'string' ? 
+            JSON.parse(response.headers) : response.headers;
+        } catch (e) {
+          console.warn('Could not parse response headers:', e);
+        }
+      }
+      
+      // Look for total count in headers (common header names)
+      totalCount = parseInt(responseHeaders['x-total-count'] || 
+                           responseHeaders['X-Total-Count'] || 
+                           responseHeaders['total-count'] || 
+                           responseHeaders['Total-Count'] || 
+                           0);
+      
+      const data = JSON.parse(response.response);
+      const pageAssets = data.assets || [];
+      
+      console.log(`📄 Asset search page ${page}: Retrieved ${pageAssets.length} assets`);
+      
+      if (totalCount > 0) {
+        totalPages = Math.ceil(totalCount / perPage);
+        console.log(`📊 Total assets matching query: ${totalCount} (${totalPages} pages)`);
+      } else {
+        console.log(`📊 No total count in headers, will paginate until no more results`);
+      }
+      
+      if (pageAssets.length === 0) {
+        console.log(`📄 No assets found for search term "${searchTerm}"`);
+      } else {
+        // Process and filter results on this page
+        const filteredPageAssets = pageAssets.filter(asset => {
+          const assetName = (asset.display_name || asset.name || '').toLowerCase();
+          return assetName.includes(searchTerm.toLowerCase());
         });
         
-        if (!response || !response.response) {
-          console.warn(`No response for asset search page ${page}, stopping pagination`);
-          break;
+        console.log(`🔽 Page ${page}: ${filteredPageAssets.length} assets match search term after filtering`);
+        allAssets = allAssets.concat(filteredPageAssets);
+        
+        // Determine if we should continue pagination
+        let shouldContinue = false;
+        
+        if (totalPages > 1) {
+          // We know the total pages, so continue until we reach the end
+          shouldContinue = page < totalPages && page < 10; // Cap at 10 pages for performance
+          console.log(`📊 Using header info: page ${page}/${totalPages}, shouldContinue=${shouldContinue}`);
+        } else {
+          // No header info, use traditional pagination logic
+          shouldContinue = pageAssets.length === perPage && page < 10;
+          console.log(`📊 Using traditional pagination: got ${pageAssets.length} assets, shouldContinue=${shouldContinue}`);
         }
         
-        const data = JSON.parse(response.response);
-        const pageAssets = data.assets || [];
-        
-        console.log(`📄 Asset search page ${page}: Retrieved ${pageAssets.length} assets`);
-        
-        if (pageAssets.length === 0) {
-          console.log(`📄 Asset search page ${page} returned no assets, stopping pagination`);
-          hasMorePages = false;
-        } else {
-          // Process and filter results on this page
-          const filteredPageAssets = pageAssets.filter(asset => {
-            const assetName = (asset.display_name || asset.name || '').toLowerCase();
-            return assetName.includes(searchTerm.toLowerCase());
-          });
-          
-          console.log(`🔽 Page ${page}: ${filteredPageAssets.length} assets match search term after filtering`);
-          
-          allAssets = allAssets.concat(filteredPageAssets);
-          
-          // Check if we got a full page (30 items), indicating there might be more
-          hasMorePages = pageAssets.length === perPage;
+        // Continue with remaining pages if needed
+        if (shouldContinue) {
           page++;
           
-          // Add a small delay between requests to be API-friendly
-          if (hasMorePages) {
+          while (page <= Math.min(totalPages || 10, 10)) {
+            // Check if search was cancelled
+            if (searchRequest.cancelled) {
+              console.log(`🚫 Search for "${searchTerm}" was cancelled during pagination`);
+              return;
+            }
+            
             const paginationDelay = params.paginationDelay || 300;
             await new Promise(resolve => setTimeout(resolve, paginationDelay));
             
@@ -2948,19 +3023,79 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
             if (!isRefresh) {
               const resultsContainer = document.getElementById(searchInputId);
               if (resultsContainer) {
-                resultsContainer.innerHTML = `<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading more results... (page ${page})</div>`;
+                const progressText = totalPages > 0 ? 
+                  `Loading page ${page} of ${totalPages}...` : 
+                  `Loading more results... (page ${page})`;
+                resultsContainer.innerHTML = `<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> ${progressText}</div>`;
               }
+            }
+            
+            try {
+              const pageRequestUrl = `?query=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
+              console.log(`🌐 Asset search API request (page ${page}): ${pageRequestUrl}`);
+              
+              const pageResponse = await window.client.request.invokeTemplate("getAssets", {
+                path_suffix: pageRequestUrl
+              });
+              
+              if (!pageResponse || !pageResponse.response) {
+                console.warn(`No response for asset search page ${page}, stopping pagination`);
+                break;
+              }
+              
+              const pageData = JSON.parse(pageResponse.response);
+              const currentPageAssets = pageData.assets || [];
+              
+              console.log(`📄 Asset search page ${page}: Retrieved ${currentPageAssets.length} assets`);
+              
+              if (currentPageAssets.length === 0) {
+                console.log(`📄 Asset search page ${page} returned no assets, stopping pagination`);
+                break;
+              }
+              
+              // Process and filter results on this page
+              const filteredCurrentPageAssets = currentPageAssets.filter(asset => {
+                const assetName = (asset.display_name || asset.name || '').toLowerCase();
+                return assetName.includes(searchTerm.toLowerCase());
+              });
+              
+              console.log(`🔽 Page ${page}: ${filteredCurrentPageAssets.length} assets match search term after filtering`);
+              allAssets = allAssets.concat(filteredCurrentPageAssets);
+              
+              // If we didn't get a full page, we've reached the end
+              if (currentPageAssets.length < perPage) {
+                console.log(`📄 Reached end of results (${currentPageAssets.length} < ${perPage})`);
+                break;
+              }
+              
+              page++;
+              
+            } catch (error) {
+              console.error(`❌ Error fetching asset search page ${page}:`, error);
+              break;
             }
           }
         }
-        
-      } catch (error) {
-        console.error(`❌ Error fetching asset search page ${page}:`, error);
-        break;
       }
+      
+    } catch (error) {
+      console.error('❌ Error in first asset search request:', error);
+      throw error;
     }
     
-    console.log(`📥 Asset search completed: ${allAssets.length} total matching assets from ${page - 1} pages`);
+    // Check if search was cancelled before completing
+    if (searchRequest.cancelled) {
+      console.log(`🚫 Search for "${searchTerm}" was cancelled before completion`);
+      return;
+    }
+    
+    const searchDuration = Date.now() - searchRequest.startTime;
+    console.log(`📥 Asset search completed: ${allAssets.length} total matching assets from ${page - 1} pages in ${searchDuration}ms`);
+    
+    // Clear the current search request
+    if (currentAssetSearchRequest === searchRequest) {
+      currentAssetSearchRequest = null;
+    }
     
     // Cache the results
     addToSearchCache('assets', searchTerm, allAssets);
@@ -2977,12 +3112,14 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
   } catch (error) {
     console.error('Error performing asset search:', error);
     
+    // Clear the current search request
+    if (currentAssetSearchRequest === searchRequest) {
+      currentAssetSearchRequest = null;
+    }
+    
     // Show error notification
     showNotification('error', `Failed to search assets: ${error.message}. Please try again.`);
     
-  } finally {
-    // This section was incorrectly referencing confirmSubmitBtn which doesn't exist in this context
-    // Removed the undefined button references
   }
 }
 
@@ -4995,3 +5132,127 @@ async function testSingleQuery(query, description) {
     console.log(`   ❌ Error testing ${description}:`, error.message);
   }
 }
+
+/**
+ * Global debug function to test response headers and pagination info
+ */
+window.testAssetHeaders = async function(searchTerm = 'test') {
+  try {
+    console.log('🔧 === TESTING ASSET API HEADERS ===');
+    console.log(`Search term: "${searchTerm}"`);
+    
+    // Get configured asset type IDs
+    const assetTypeIds = await getConfiguredAssetTypeIds();
+    console.log(`🎯 Configured asset type IDs: ${assetTypeIds.join(', ')}`);
+    
+    // Build search query
+    const assetTypeFilter = assetTypeIds.length > 0 ? 
+      `(${assetTypeIds.map(id => `asset_type_id:${id}`).join(' OR ')})` : '';
+    const nameFilter = `name:'*${searchTerm}*'`;
+    const query = assetTypeFilter ? 
+      `${assetTypeFilter} AND ${nameFilter}` : 
+      nameFilter;
+    
+    console.log(`🔍 Query: "${query}"`);
+    
+    // Test first page to see headers
+    const requestUrl = `?query=${encodeURIComponent(query)}&per_page=30&page=1`;
+    console.log(`🌐 API request: ${requestUrl}`);
+    
+    const response = await window.client.request.invokeTemplate("getAssets", {
+      path_suffix: requestUrl
+    });
+    
+    if (!response) {
+      console.log('❌ No response received');
+      return;
+    }
+    
+    console.log('📦 Raw response object:', {
+      hasResponse: !!response.response,
+      hasHeaders: !!response.headers,
+      responseType: typeof response.response,
+      headersType: typeof response.headers
+    });
+    
+    // Parse and display headers
+    if (response.headers) {
+      console.log('📋 Raw headers:', response.headers);
+      
+      let parsedHeaders = {};
+      try {
+        parsedHeaders = typeof response.headers === 'string' ? 
+          JSON.parse(response.headers) : response.headers;
+        console.log('📋 Parsed headers:', parsedHeaders);
+        
+        // Look for pagination-related headers
+        const paginationHeaders = {};
+        Object.keys(parsedHeaders).forEach(key => {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey.includes('total') || 
+              lowerKey.includes('count') || 
+              lowerKey.includes('page') || 
+              lowerKey.includes('link') ||
+              lowerKey.includes('x-')) {
+            paginationHeaders[key] = parsedHeaders[key];
+          }
+        });
+        
+        console.log('🔢 Pagination-related headers:', paginationHeaders);
+        
+      } catch (e) {
+        console.log('❌ Could not parse headers as JSON:', e.message);
+      }
+    } else {
+      console.log('⚠️ No headers in response');
+    }
+    
+    // Parse and display response data
+    if (response.response) {
+      try {
+        const data = JSON.parse(response.response);
+        const assets = data.assets || [];
+        
+        console.log('📊 Response data summary:');
+        console.log(`   • Assets returned: ${assets.length}`);
+        console.log(`   • Response keys: ${Object.keys(data).join(', ')}`);
+        
+        // Look for pagination info in response body
+        const paginationInfo = {};
+        Object.keys(data).forEach(key => {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey.includes('total') || 
+              lowerKey.includes('count') || 
+              lowerKey.includes('page') ||
+              lowerKey.includes('meta')) {
+            paginationInfo[key] = data[key];
+          }
+        });
+        
+        if (Object.keys(paginationInfo).length > 0) {
+          console.log('🔢 Pagination info in response body:', paginationInfo);
+        } else {
+          console.log('⚠️ No pagination info found in response body');
+        }
+        
+        if (assets.length > 0) {
+          console.log('📋 Sample asset:', {
+            id: assets[0].id,
+            name: assets[0].name || assets[0].display_name,
+            asset_type_id: assets[0].asset_type_id
+          });
+        }
+        
+      } catch (e) {
+        console.log('❌ Could not parse response body:', e.message);
+      }
+    } else {
+      console.log('⚠️ No response body');
+    }
+    
+    console.log('\n💡 This helps determine what pagination info is available from the API');
+    
+  } catch (error) {
+    console.error('❌ Error testing headers:', error);
+  }
+};
