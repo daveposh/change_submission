@@ -3010,8 +3010,64 @@ async function performAssetSearch(searchTerm, isRefresh = false, searchInputId) 
         // Process and filter results on this page
         const filteredPageAssets = pageAssets.filter(asset => {
           const assetName = (asset.display_name || asset.name || '').toLowerCase();
-          return assetName.includes(searchTerm.toLowerCase());
+          const searchTermLower = searchTerm.toLowerCase();
+          const matches = assetName.includes(searchTermLower);
+          
+          // Debug: show first few assets to understand what's being returned
+          if (page === 1 && pageAssets.indexOf(asset) < 3) {
+            console.log(`🔍 Sample asset ${pageAssets.indexOf(asset) + 1}: "${assetName}" - matches "${searchTermLower}"? ${matches}`);
+          }
+          
+          return matches;
         });
+        
+        // If no matches found on first page, show sample of what was returned
+        if (page === 1 && filteredPageAssets.length === 0 && pageAssets.length > 0) {
+          console.log(`⚠️ No matches found for "${searchTerm}". Sample assets returned:`);
+          pageAssets.slice(0, 5).forEach((asset, index) => {
+            const assetName = asset.display_name || asset.name || 'Unknown';
+            console.log(`   ${index + 1}. "${assetName}" (Type: ${asset.asset_type_id})`);
+          });
+          
+          // Check if the API search is working at all
+          const hasAnyNameMatch = pageAssets.some(asset => {
+            const assetName = (asset.display_name || asset.name || '').toLowerCase();
+            return assetName.includes(searchTerm.toLowerCase());
+          });
+          
+          if (!hasAnyNameMatch) {
+            console.log(`🔍 API search for name:'*${searchTerm}*' may not be working. Trying broader search...`);
+            
+            // If no name matches, the API search syntax might not be working
+            // Let's stop pagination early to avoid unnecessary API calls
+            console.log(`🛑 Stopping pagination early - API search syntax appears ineffective`);
+            
+            // Show a helpful message to the user
+            if (!isRefresh) {
+              const resultsContainer = document.getElementById(searchInputId);
+              if (resultsContainer) {
+                resultsContainer.innerHTML = `
+                  <div class="text-center p-3 text-muted">
+                    <i class="fas fa-search mb-2"></i>
+                    <div>No assets found matching "${searchTerm}"</div>
+                    <small>Try a different search term or check the asset names</small>
+                  </div>
+                `;
+              }
+            }
+            
+            // Clear the current search request and return early
+            if (currentAssetSearchRequest === searchRequest) {
+              currentAssetSearchRequest = null;
+            }
+            
+            // Cache empty results
+            addToSearchCache('assets', searchTerm, []);
+            
+            console.log(`Asset search completed early: 0 results for "${searchTerm}"`);
+            return;
+          }
+        }
         
         console.log(`🔽 Page ${page}: ${filteredPageAssets.length} assets match search term after filtering`);
         allAssets = allAssets.concat(filteredPageAssets);
