@@ -181,8 +181,7 @@ const AssetAssociation = {
       let encodedQuery = encodeURIComponent(fieldQuery);
       encodedQuery = encodedQuery.replace(/'/g, '%27');
       
-      // Add basic filters to get relevant assets only
-      // Try to exclude archived/deleted assets if possible
+      // Get all assets matching search - no filtering
       const requestUrl = `?search="${encodedQuery}"&include=type_fields`;
       
       console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
@@ -199,37 +198,9 @@ const AssetAssociation = {
       }
 
       const data = JSON.parse(response.response);
-      let assets = data.assets || [];
+      const assets = data.assets || [];
 
-      console.log(`✅ Asset search returned ${assets.length} results (before filtering)`);
-
-      // Client-side filtering to remove unwanted assets
-      assets = assets.filter(asset => {
-        // Filter out assets with certain states or conditions
-        const assetState = asset.asset_state_id;
-        const assetName = asset.display_name || asset.name || '';
-        
-        // Skip assets that are clearly disposed, retired, or deleted
-        // You can adjust these conditions based on your specific needs
-        if (!assetName || assetName.trim() === '') {
-          return false;
-        }
-        
-        // Skip assets with certain state names if available
-        if (asset.asset_state && typeof asset.asset_state === 'string') {
-          const stateLower = asset.asset_state.toLowerCase();
-          if (stateLower.includes('disposed') || 
-              stateLower.includes('retired') || 
-              stateLower.includes('deleted') ||
-              stateLower.includes('archived')) {
-            return false;
-          }
-        }
-        
-        return true;
-      });
-
-      console.log(`✅ Asset search returned ${assets.length} results (after filtering)`);
+      console.log(`✅ Asset search returned ${assets.length} results`);
 
       // Sort results by name for better UX
       assets.sort((a, b) => {
