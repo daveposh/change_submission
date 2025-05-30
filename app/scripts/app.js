@@ -5385,7 +5385,7 @@ async function initializeAppWithProgress() {
         return {}; // Return empty cache on failure
       });
       
-      updateInitializationProgress(60, 'Loading locations...');
+      updateInitializationProgress(50, 'Loading locations...');
       
       const locationsCache = await fetchAllLocations().catch(error => {
         console.error('⚠️ Locations cache initialization failed:', error);
@@ -5409,6 +5409,12 @@ async function initializeAppWithProgress() {
         console.warn(`⚠️ Some caches failed to initialize: ${cacheResults.errors.join(', ')}`);
       }
     }
+    
+    updateInitializationProgress(60, 'Preloading user cache...');
+    
+    // Preload user cache to improve manager name resolution
+    const userCount = await preloadUserCache();
+    console.log(`👥 User cache preloaded with ${userCount} users`);
     
     updateInitializationProgress(80, 'Setting up form components...');
     
@@ -5438,4 +5444,35 @@ async function initializeAppWithProgress() {
 
 /**
  * Initialize app (legacy function for compatibility)
+ */
+
+/**
+ * Preload user cache to improve manager name resolution
+ * @returns {Promise<number>} - Number of users cached
+ */
+async function preloadUserCache() {
+  try {
+    console.log('👥 Preloading user cache...');
+    
+    // Use existing fetchUsers function which gets both requesters and agents
+    const userCache = await fetchUsers();
+    
+    if (userCache && typeof userCache === 'object') {
+      const userCount = Object.keys(userCache).length;
+      console.log(`✅ Preloaded ${userCount} users into cache`);
+      return userCount;
+    }
+    
+    console.log('⚠️ No users cached during preload');
+    return 0;
+  } catch (error) {
+    console.error('❌ Error preloading user cache:', error);
+    return 0;
+  }
+}
+
+/**
+ * Update initialization progress
+ * @param {number} progress - Progress percentage (0-100)
+ * @param {string} message - Progress message
  */

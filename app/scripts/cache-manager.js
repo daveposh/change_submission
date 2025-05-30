@@ -1076,6 +1076,49 @@ const CacheManager = {
   },
 
   /**
+   * Get serial number from asset (helper method)
+   * @param {Object} asset - The asset object
+   * @returns {string} - The serial number
+   */
+  getSerialNumber(asset) {
+    try {
+      // First check direct property
+      if (asset.serial_number && asset.serial_number !== '') {
+        return asset.serial_number;
+      }
+      
+      // Check in type_fields with various field name patterns
+      const serialField = this.getAssetTypeField(asset, 'serial_number');
+      if (serialField && serialField !== 'N/A') {
+        return serialField;
+      }
+
+      // Try alternative field variations in type_fields
+      const alternativeFields = ['serial', 'serial_no', 'sn', 'device_serial', 'asset_serial'];
+      for (const fieldName of alternativeFields) {
+        const value = this.getAssetTypeField(asset, fieldName);
+        if (value && value !== 'N/A') {
+          return value;
+        }
+      }
+
+      // Try direct property alternatives
+      if (asset.serial && asset.serial !== '') {
+        return asset.serial;
+      }
+      
+      if (asset.sn && asset.sn !== '') {
+        return asset.sn;
+      }
+      
+      return 'N/A';
+    } catch (error) {
+      console.warn('Error getting serial number:', error);
+      return 'N/A';
+    }
+  },
+
+  /**
    * Search for assets and display their managed by information with resolved names
    * @param {string} searchTerm - The search term (optional, defaults to empty for all assets)
    * @param {string} searchField - The field to search (optional, defaults to 'name')
@@ -1126,7 +1169,7 @@ const CacheManager = {
             asset_tag: asset.asset_tag || 'N/A',
             asset_type_id: asset.asset_type_id,
             location_id: asset.location_id,
-            serial_number: asset.serial_number || 'N/A',
+            serial_number: this.getSerialNumber(asset),
             impact: asset.impact || 'unknown',
             environment: this.getEnvironmentInfo(asset),
             // Raw managed by fields for debugging

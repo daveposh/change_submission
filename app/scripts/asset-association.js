@@ -606,7 +606,7 @@ const AssetAssociation = {
       const locationId = asset.location_id;
       const location = await this.getLocationName(locationId);
       const assetTag = asset.asset_tag || 'N/A';
-      const serialNumber = asset.serial_number || 'N/A';
+      const serialNumber = this.getSerialNumber(asset);
       const impact = asset.impact || 'unknown';
       const isSelected = this.isAssetSelected(asset.id);
       
@@ -630,7 +630,7 @@ const AssetAssociation = {
               <div class="asset-status">
                 ${isSelected ? 
                   '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Selected</span>' :
-                  '<span class="badge bg-outline-primary"><i class="fas fa-plus-circle me-1"></i>Available</span>'
+                  '<span class="badge bg-primary text-white"><i class="fas fa-plus-circle me-1"></i>Available</span>'
                 }
               </div>
             </div>
@@ -836,7 +836,7 @@ const AssetAssociation = {
       const locationId = asset.location_id;
       const location = await this.getLocationName(locationId);
       const assetTag = asset.asset_tag || 'N/A';
-      const serialNumber = asset.serial_number || 'N/A';
+      const serialNumber = this.getSerialNumber(asset);
       const impact = asset.impact || 'unknown';
       
       // Get badge styling
@@ -1500,6 +1500,49 @@ const AssetAssociation = {
     this.setLiveSearchFormState(false);
     
     console.log('✅ Asset Association Module cleanup complete');
+  },
+
+  /**
+   * Get serial number from asset
+   * @param {Object} asset - The asset object
+   * @returns {string} - The serial number
+   */
+  getSerialNumber(asset) {
+    try {
+      // First check direct property
+      if (asset.serial_number && asset.serial_number !== '') {
+        return asset.serial_number;
+      }
+      
+      // Check in type_fields with various field name patterns
+      const serialField = this.getAssetTypeField(asset, 'serial_number');
+      if (serialField && serialField !== 'N/A') {
+        return serialField;
+      }
+
+      // Try alternative field variations in type_fields
+      const alternativeFields = ['serial', 'serial_no', 'sn', 'device_serial', 'asset_serial'];
+      for (const fieldName of alternativeFields) {
+        const value = this.getAssetTypeField(asset, fieldName);
+        if (value && value !== 'N/A') {
+          return value;
+        }
+      }
+
+      // Try direct property alternatives
+      if (asset.serial && asset.serial !== '') {
+        return asset.serial;
+      }
+      
+      if (asset.sn && asset.sn !== '') {
+        return asset.sn;
+      }
+      
+      return 'N/A';
+    } catch (error) {
+      console.warn('Error getting serial number:', error);
+      return 'N/A';
+    }
   }
 };
 
