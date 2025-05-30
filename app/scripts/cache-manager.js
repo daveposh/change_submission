@@ -769,130 +769,114 @@ const CacheManager = {
   },
 
   /**
-   * Resolve asset ID to get the managing user from that asset
-   * @param {number} assetId - Asset ID to resolve
-   * @returns {Promise<string>} - Managing user name or 'Unknown'
+   * Resolve agent ID to agent name using agent-specific lookups
+   * @param {number} agentId - Agent ID to resolve
+   * @returns {Promise<string>} - Agent name or 'Unknown'
    */
-  async resolveAssetToManager(assetId) {
+  async resolveAgentName(agentId) {
     try {
-      if (!assetId || isNaN(assetId)) {
+      if (!agentId || isNaN(agentId)) {
         return 'Unknown';
       }
 
-      console.log(`🔍 Resolving asset ID ${assetId} to find its managing user...`);
+      console.log(`🔍 Resolving agent ID ${agentId} (agent-specific lookup)...`);
 
-      // Check for client availability
-      if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
-        console.log('⚠️ Client or invokeTemplate not available for asset lookup');
-        return `Asset ID: ${assetId}`;
+      // First try direct cache access for agents
+      if (window.client && window.client.db) {
+        console.log(`🔄 Checking agent cache for ID ${agentId}...`);
+        
+        try {
+          // Check user cache for agents specifically
+          const userCache = await window.client.db.get('user_cache') || {};
+          
+          if (userCache[agentId]) {
+            const cachedUser = userCache[agentId];
+            if (cachedUser.name && cachedUser.name !== 'Unknown') {
+              // Prefer agents over requesters for managed by
+              if (cachedUser.type === 'agent' || cachedUser.type === 'both') {
+                console.log(`✅ Found agent ID ${agentId} in cache: "${cachedUser.name}" (${cachedUser.type})`);
+                return cachedUser.name;
+              }
+            }
+          }
+          
+          console.log(`⚠️ Agent ID ${agentId} not found in cache`);
+        } catch (cacheError) {
+          console.warn(`⚠️ Error accessing agent cache for ID ${agentId}:`, cacheError);
+        }
       }
 
-      try {
-        // Get the asset details by ID
-        const response = await window.client.request.invokeTemplate("getAssets", {
-          path_suffix: `/${assetId}?include=type_fields`
-        });
-
-        if (!response || !response.response) {
-          console.log(`⚠️ No response for asset ID ${assetId}`);
-          return `Asset ID: ${assetId}`;
-        }
-
-        const data = JSON.parse(response.response);
-        const managingAsset = data.asset || data;
-
-        if (!managingAsset) {
-          console.log(`⚠️ Asset ${assetId} not found`);
-          return `Asset ID: ${assetId}`;
-        }
-
-        console.log(`✅ Found managing asset: "${managingAsset.name || managingAsset.display_name}" (ID: ${managingAsset.id})`);
-
-        // Now get the managing user from this asset
-        // Check agent_id first (most common)
-        if (managingAsset.agent_id) {
-          const numericUserId = parseInt(managingAsset.agent_id);
-          if (!isNaN(numericUserId) && numericUserId > 0) {
-            console.log(`🔍 Managing asset has agent_id: ${numericUserId}`);
-            const userName = await this.resolveUserName(numericUserId);
-            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-              console.log(`✅ Resolved managing asset ${assetId} -> agent ${numericUserId} -> "${userName}"`);
-              return userName;
+      // Try direct API lookup as agent
+      if (window.client && window.client.request && window.client.request.invokeTemplate) {
+        console.log(`📡 Trying direct agent API lookup for ID ${agentId}...`);
+        
+        try {
+          const response = await window.client.request.invokeTemplate("getAgents", {
+            path_suffix: `/${agentId}`
+          });
+          
+          if (response && response.response) {
+            const data = JSON.parse(response.response);
+            if (data && data.agent) {
+              const agent = data.agent;
+              const agentName = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || 'Unknown';
+              console.log(`✅ Found agent via API: "${agentName}"`);
+              
+              // Cache this agent for future use
+              const userCache = await window.client.db.get('user_cache') || {};
+              userCache[agentId] = {
+                name: agentName,
+                data: agent,
+                timestamp: Date.now(),
+                type: 'agent'
+              };
+              await window.client.db.set('user_cache', userCache);
+              
+              return agentName;
             }
           }
+        } catch (apiError) {
+          console.log(`⚠️ Error in direct agent API lookup: ${apiError.message}`);
         }
-
-        // Check user_id as fallback
-        if (managingAsset.user_id) {
-          const numericUserId = parseInt(managingAsset.user_id);
-          if (!isNaN(numericUserId) && numericUserId > 0) {
-            console.log(`🔍 Managing asset has user_id: ${numericUserId}`);
-            const userName = await this.resolveUserName(numericUserId);
-            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-              console.log(`✅ Resolved managing asset ${assetId} -> user ${numericUserId} -> "${userName}"`);
-              return userName;
-            }
-          }
-        }
-
-        // Check managed_by field in type_fields
-        const managedByField = this.getAssetTypeField(managingAsset, 'managed_by');
-        if (managedByField && managedByField !== 'N/A') {
-          const numericId = parseInt(managedByField);
-          if (!isNaN(numericId) && numericId > 0) {
-            console.log(`🔍 Managing asset has managed_by in type_fields: ${numericId}`);
-            const userName = await this.resolveUserName(numericId);
-            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-              console.log(`✅ Resolved managing asset ${assetId} -> managed_by ${numericId} -> "${userName}"`);
-              return userName;
-            }
-          }
-        }
-
-        console.log(`⚠️ Managing asset ${assetId} ("${managingAsset.name}") has no resolvable managing user`);
-        return `Asset: ${managingAsset.name || managingAsset.display_name || assetId}`;
-
-      } catch (apiError) {
-        console.log(`⚠️ Error fetching asset ${assetId}:`, apiError);
-        return `Asset ID: ${assetId}`;
       }
 
+      // Fallback to general user resolution
+      console.log(`🔄 Falling back to general user resolution for ${agentId}...`);
+      const userName = await this.resolveUserName(agentId);
+      if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+        return userName;
+      }
+
+      // If all resolution failed, return with ID
+      console.log(`⚠️ Could not resolve agent ID ${agentId}`);
+      return `Agent ID: ${agentId}`;
+      
     } catch (error) {
-      console.warn(`Error resolving asset ID ${assetId} to manager:`, error);
-      return `Asset ID: ${assetId}`;
+      console.warn(`Error resolving agent ID ${agentId}:`, error);
+      return `Agent ID: ${agentId}`;
     }
   },
 
   /**
    * Get managed by information from asset (helper method)
-   * Handles asset IDs that need to be resolved to their managing users
+   * Handles agent IDs for managed by resolution (managed by is always an agent_id)
    * @param {Object} asset - The asset object
-   * @returns {Promise<string>} - The managed by information (resolved to actual name)
+   * @returns {Promise<string>} - The managed by information (resolved to actual agent name)
    */
   async getManagedByInfo(asset) {
     try {
-      // First check agent_id - this could be either a user ID or an asset ID
+      // First check agent_id - this should be an agent ID
       if (asset.agent_id) {
         const numericId = parseInt(asset.agent_id);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving agent_id (managed by): ${numericId} (could be user ID or asset ID)`);
-          
-          // First try as user ID
-          const userName = await this.resolveUserName(numericId);
-          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-            console.log(`✅ agent_id ${numericId} resolved as user: "${userName}"`);
-            return userName;
-          }
-          
-          // If user resolution failed, try as asset ID
-          console.log(`🔄 agent_id ${numericId} not found as user, trying as asset ID...`);
-          const assetManager = await this.resolveAssetToManager(numericId);
-          if (assetManager && assetManager !== 'Unknown' && !assetManager.startsWith('Asset ID:')) {
-            console.log(`✅ agent_id ${numericId} resolved as managing asset: "${assetManager}"`);
-            return assetManager;
+          console.log(`🔍 Resolving agent_id (managed by): ${numericId} (agent lookup)`);
+          const agentName = await this.resolveAgentName(numericId);
+          if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+            console.log(`✅ agent_id ${numericId} resolved to agent: "${agentName}"`);
+            return agentName;
           }
         }
-        // If both resolutions failed, return with ID label
+        // If resolution failed, return with ID label
         return `Agent ID: ${asset.agent_id}`;
       }
       
@@ -901,21 +885,11 @@ const CacheManager = {
       if (managedByField && managedByField !== 'N/A') {
         const numericId = parseInt(managedByField);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving managed_by from type_fields: ${numericId} (could be user ID or asset ID)`);
-          
-          // First try as user ID
-          const userName = await this.resolveUserName(numericId);
-          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-            console.log(`✅ managed_by ${numericId} resolved as user: "${userName}"`);
-            return userName;
-          }
-          
-          // If user resolution failed, try as asset ID
-          console.log(`🔄 managed_by ${numericId} not found as user, trying as asset ID...`);
-          const assetManager = await this.resolveAssetToManager(numericId);
-          if (assetManager && assetManager !== 'Unknown' && !assetManager.startsWith('Asset ID:')) {
-            console.log(`✅ managed_by ${numericId} resolved as managing asset: "${assetManager}"`);
-            return assetManager;
+          console.log(`🔍 Resolving managed_by from type_fields: ${numericId} (agent lookup)`);
+          const agentName = await this.resolveAgentName(numericId);
+          if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+            console.log(`✅ managed_by ${numericId} resolved to agent: "${agentName}"`);
+            return agentName;
           }
         }
         // If not a numeric ID or resolution failed, return the field value as-is
@@ -930,35 +904,25 @@ const CacheManager = {
       if (asset.managed_by) {
         const numericId = parseInt(asset.managed_by);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving direct managed_by: ${numericId} (could be user ID or asset ID)`);
-          
-          // First try as user ID
-          const userName = await this.resolveUserName(numericId);
-          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-            console.log(`✅ direct managed_by ${numericId} resolved as user: "${userName}"`);
-            return userName;
-          }
-          
-          // If user resolution failed, try as asset ID
-          console.log(`🔄 direct managed_by ${numericId} not found as user, trying as asset ID...`);
-          const assetManager = await this.resolveAssetToManager(numericId);
-          if (assetManager && assetManager !== 'Unknown' && !assetManager.startsWith('Asset ID:')) {
-            console.log(`✅ direct managed_by ${numericId} resolved as managing asset: "${assetManager}"`);
-            return assetManager;
+          console.log(`🔍 Resolving direct managed_by: ${numericId} (agent lookup)`);
+          const agentName = await this.resolveAgentName(numericId);
+          if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+            console.log(`✅ direct managed_by ${numericId} resolved to agent: "${agentName}"`);
+            return agentName;
           }
         }
         // If not a numeric ID or resolution failed, return with ID label
         return `Managed By: ${asset.managed_by}`;
       }
       
-      // Check user_id field as another possibility (typically requester)
+      // Check user_id field as another possibility (but still treat as agent)
       if (asset.user_id) {
         const numericId = parseInt(asset.user_id);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving user_id (alternative managed by): ${numericId} (typically requester)`);
-          const userName = await this.resolveUserName(numericId);
-          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-            return userName;
+          console.log(`🔍 Resolving user_id (alternative managed by): ${numericId} (agent lookup)`);
+          const agentName = await this.resolveAgentName(numericId);
+          if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+            return agentName;
           }
         }
         return `User ID: ${asset.user_id}`;
@@ -971,21 +935,11 @@ const CacheManager = {
         if (value && value !== 'N/A') {
           const numericId = parseInt(value);
           if (!isNaN(numericId) && numericId > 0) {
-            console.log(`🔍 Resolving ${fieldName}: ${numericId} (could be user ID or asset ID)`);
-            
-            // First try as user ID
-            const userName = await this.resolveUserName(numericId);
-            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-              console.log(`✅ ${fieldName} ${numericId} resolved as user: "${userName}"`);
-              return userName;
-            }
-            
-            // If user resolution failed, try as asset ID
-            console.log(`🔄 ${fieldName} ${numericId} not found as user, trying as asset ID...`);
-            const assetManager = await this.resolveAssetToManager(numericId);
-            if (assetManager && assetManager !== 'Unknown' && !assetManager.startsWith('Asset ID:')) {
-              console.log(`✅ ${fieldName} ${numericId} resolved as managing asset: "${assetManager}"`);
-              return assetManager;
+            console.log(`🔍 Resolving ${fieldName}: ${numericId} (agent lookup)`);
+            const agentName = await this.resolveAgentName(numericId);
+            if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+              console.log(`✅ ${fieldName} ${numericId} resolved to agent: "${agentName}"`);
+              return agentName;
             }
           }
           // If not a numeric ID or resolution failed, return the value as-is
@@ -1694,102 +1648,151 @@ window.ensureUserCache = async function() {
   }
 };
 
-// Test function for asset ID to manager resolution
-window.testAssetIdResolution = async function(assetId) {
-  console.log(`🧪 === TESTING ASSET ID TO MANAGER RESOLUTION ===`);
-  console.log(`🎯 Testing resolution of asset ID ${assetId} to its managing user`);
+// Debug function to investigate specific user ID resolution issues
+window.debugUserResolution = async function(userId) {
+  console.log(`🔍 === DEBUGGING AGENT ID RESOLUTION ===`);
+  console.log(`🎯 Investigating agent ID: ${userId} (managed by is always an agent_id)`);
   
-  if (!window.CacheManager) {
-    console.error('❌ CacheManager not available');
-    return;
-  }
-  
-  if (!assetId) {
-    console.log(`⚠️ Please provide an asset ID to test`);
-    console.log(`💡 Usage: testAssetIdResolution(12345)`);
+  if (!userId) {
+    console.log(`⚠️ Please provide an agent ID to debug`);
+    console.log(`💡 Usage: debugUserResolution(37000300093)`);
     return;
   }
   
   try {
-    console.log(`🔍 Step 1: Resolving asset ID ${assetId} to find its managing user...`);
-    const managerName = await window.CacheManager.resolveAssetToManager(assetId);
+    // Check user cache first, focusing on agents
+    console.log(`\n📦 Step 1: Checking agent cache...`);
+    const userCache = await window.client.db.get('user_cache') || {};
+    const userCount = Object.keys(userCache).length;
+    console.log(`   Total users in cache: ${userCount}`);
     
-    console.log(`\n📊 === RESOLUTION RESULT ===`);
-    console.log(`Asset ID: ${assetId}`);
-    console.log(`Resolved Manager: "${managerName}"`);
-    
-    if (managerName && !managerName.startsWith('Asset ID:') && managerName !== 'Unknown') {
-      console.log(`✅ Successfully resolved asset ID to manager name!`);
+    if (userCache[userId]) {
+      const cachedUser = userCache[userId];
+      console.log(`   ✅ Agent ${userId} found in cache:`);
+      console.log(`      Name: "${cachedUser.name}"`);
+      console.log(`      Type: ${cachedUser.type || 'unknown'}`);
+      console.log(`      Timestamp: ${new Date(cachedUser.timestamp).toLocaleString()}`);
+      
+      if (cachedUser.type === 'agent' || cachedUser.type === 'both') {
+        console.log(`   🎯 This is an agent - perfect for managed by resolution!`);
+      } else if (cachedUser.type === 'requester') {
+        console.log(`   ⚠️ This is marked as requester, but managed by should be an agent`);
+      }
+      
+      return cachedUser;
     } else {
-      console.log(`⚠️ Could not resolve asset ID to a manager name`);
-      console.log(`💡 This could mean:`);
-      console.log(`   - Asset doesn't exist`);
-      console.log(`   - Asset has no managing user assigned`);
-      console.log(`   - Managing user is not in the user cache`);
+      console.log(`   ❌ Agent ${userId} NOT found in cache`);
     }
     
-    return managerName;
+    // Try direct API lookup as agent (primary method)
+    console.log(`\n📡 Step 2: Trying direct agent API lookup...`);
+    try {
+      const agentResponse = await window.client.request.invokeTemplate("getAgents", {
+        path_suffix: `/${userId}`
+      });
+      
+      if (agentResponse && agentResponse.response) {
+        const data = JSON.parse(agentResponse.response);
+        if (data && data.agent) {
+          const user = data.agent;
+          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          console.log(`   ✅ Found as agent: "${userName}"`);
+          console.log(`      Email: ${user.email || user.primary_email || 'N/A'}`);
+          console.log(`      Active: ${user.active !== false ? 'Yes' : 'No'}`);
+          console.log(`      Role: ${user.role_names ? user.role_names.join(', ') : 'N/A'}`);
+          console.log(`   🎯 This agent should be cached for future managed by lookups`);
+          
+          // Cache this agent
+          userCache[userId] = {
+            name: userName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'agent'
+          };
+          await window.client.db.set('user_cache', userCache);
+          console.log(`   📦 Agent cached for future use`);
+          
+          return user;
+        }
+      }
+      console.log(`   ❌ Not found as agent`);
+    } catch (agentError) {
+      console.log(`   ❌ Error checking as agent: ${agentError.message}`);
+    }
+    
+    // Try as requester (fallback, but note this shouldn't be the case for managed by)
+    console.log(`\n📡 Step 3: Trying as requester (fallback)...`);
+    try {
+      const requesterResponse = await window.client.request.invokeTemplate("getRequesterDetails", {
+        context: { requester_id: userId }
+      });
+      
+      if (requesterResponse && requesterResponse.response) {
+        const data = JSON.parse(requesterResponse.response);
+        if (data && data.requester) {
+          const user = data.requester;
+          const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+          console.log(`   ✅ Found as requester: "${userName}"`);
+          console.log(`      Email: ${user.email || user.primary_email || 'N/A'}`);
+          console.log(`      Active: ${user.active !== false ? 'Yes' : 'No'}`);
+          console.log(`      Department: ${user.department_names ? user.department_names[0] : 'N/A'}`);
+          console.log(`   ⚠️ NOTE: This is a requester, but managed by should be an agent`);
+          console.log(`   💡 This might indicate a data issue or the user has both roles`);
+          return user;
+        }
+      }
+      console.log(`   ❌ Not found as requester`);
+    } catch (requesterError) {
+      console.log(`   ❌ Error checking as requester: ${requesterError.message}`);
+    }
+    
+    // Check if we need to fetch more agents
+    console.log(`\n💡 Step 4: Recommendations...`);
+    
+    // Count agents in cache
+    const agentCount = Object.values(userCache).filter(user => 
+      user.type === 'agent' || user.type === 'both'
+    ).length;
+    
+    console.log(`   📊 Current agent cache: ${agentCount} agents out of ${userCount} total users`);
+    
+    if (agentCount < 20) {
+      console.log(`   ⚠️ Agent cache seems sparse (${agentCount} agents)`);
+      console.log(`   💡 Try running: await ensureUserCache()`);
+      console.log(`   💡 Or try: await fetchUsers() to get more agents`);
+    } else {
+      console.log(`   ℹ️ Agent cache seems well populated (${agentCount} agents)`);
+      console.log(`   💡 Agent ${userId} might not exist, be deactivated, or not be an agent`);
+      console.log(`   💡 Check if this is a valid agent ID in your Freshservice instance`);
+    }
+    
+    // Show some sample agent IDs from cache for comparison
+    const sampleAgentIds = Object.entries(userCache)
+      .filter(([id, user]) => user.type === 'agent' || user.type === 'both')
+      .slice(0, 5);
+      
+    if (sampleAgentIds.length > 0) {
+      console.log(`\n📋 Sample agent IDs in cache for comparison:`);
+      sampleAgentIds.forEach(([id, user]) => {
+        console.log(`   ${id}: "${user.name}" (${user.type})`);
+      });
+    }
+    
+    return null;
     
   } catch (error) {
-    console.error(`❌ Error testing asset ID resolution:`, error);
+    console.error(`❌ Error debugging agent resolution:`, error);
     return null;
   }
 };
 
-// Test function for managed by resolution with asset IDs
-window.testManagedByWithAssetIds = async function() {
-  console.log(`🧪 === TESTING MANAGED BY RESOLUTION WITH ASSET IDS ===`);
-  console.log(`🎯 Testing assets that have asset IDs in their managed by fields`);
+// Convenience function to debug the specific agent from your logs
+window.debugMiddlewareUser = async function() {
+  console.log(`🔍 === DEBUGGING MIDDLEWARE ASSET AGENT ===`);
+  console.log(`🎯 This will debug agent ID 37000300093 from the Middleware asset`);
+  console.log(`💡 Since managed by is always an agent_id, this should be an agent`);
   
-  if (!window.CacheManager) {
-    console.error('❌ CacheManager not available');
-    return;
-  }
-  
-  // Test asset with agent_id that could be an asset ID
-  const assetWithAssetIdManager = {
-    "name": "Test Server Managed by Asset",
-    "asset_type_id": 12345,
-    "agent_id": 98765, // This could be an asset ID instead of user ID
-    "user_id": null,
-    "type_fields": {
-      "environment_12345": "PROD"
-    }
-  };
-  
-  // Test asset with managed_by in type_fields that could be an asset ID
-  const assetWithTypeFieldsAssetId = {
-    "name": "Test Application Managed by Asset",
-    "asset_type_id": 12345, 
-    "agent_id": null,
-    "user_id": null,
-    "type_fields": {
-      "environment_12345": "TEST",
-      "managed_by_12345": "54321" // This could be an asset ID
-    }
-  };
-  
-  try {
-    console.log(`\n📋 Testing asset with agent_id that could be asset ID (${assetWithAssetIdManager.agent_id}):`);
-    const agentManagedBy = await window.CacheManager.getManagedByInfo(assetWithAssetIdManager);
-    console.log(`   Result: "${agentManagedBy}"`);
-    
-    console.log(`\n📋 Testing asset with type_fields managed_by that could be asset ID (${assetWithTypeFieldsAssetId.type_fields.managed_by_12345}):`);
-    const typeFieldsManagedBy = await window.CacheManager.getManagedByInfo(assetWithTypeFieldsAssetId);
-    console.log(`   Result: "${typeFieldsManagedBy}"`);
-    
-    console.log(`\n✅ Asset ID managed by resolution test complete`);
-    console.log(`💡 The system now tries both user ID and asset ID resolution for managed by fields`);
-    
-    return {
-      assetIdManaged: agentManagedBy,
-      typeFieldsAssetIdManaged: typeFieldsManagedBy
-    };
-    
-  } catch (error) {
-    console.error(`❌ Error testing managed by with asset IDs:`, error);
-    return null;
-  }
+  return await window.debugUserResolution(37000300093);
 };
 
 // Make CacheManager available globally
