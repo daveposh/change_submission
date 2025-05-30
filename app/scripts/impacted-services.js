@@ -239,8 +239,16 @@ const ImpactedServices = {
                 }
                 
                 // Don't include the direct asset itself or other direct assets
-                if (relatedAssetId == directAsset.id || 
-                    this.state.directAssets.some(da => da.id == relatedAssetId || da.display_id == relatedAssetId)) {
+                // Check both id and display_id since relationships might use either
+                const isDirectAsset = this.state.directAssets.some(da => 
+                  da.id == relatedAssetId || 
+                  da.display_id == relatedAssetId ||
+                  relatedAssetId == directAsset.id ||
+                  relatedAssetId == directAsset.display_id
+                );
+                
+                if (isDirectAsset) {
+                  console.log(`🔄 Skipping related asset ${relatedAssetId} as it's already a direct asset`);
                   continue;
                 }
                 
@@ -251,7 +259,14 @@ const ImpactedServices = {
                 
                 // Add the related asset if we have details
                 if (relatedAssetDetails) {
+                  // Track both id and display_id to avoid duplicates
                   processedAssetIds.add(relatedAssetId);
+                  if (relatedAssetDetails.display_id && relatedAssetDetails.display_id !== relatedAssetId) {
+                    processedAssetIds.add(relatedAssetDetails.display_id);
+                  }
+                  if (relatedAssetDetails.id && relatedAssetDetails.id !== relatedAssetId) {
+                    processedAssetIds.add(relatedAssetDetails.id);
+                  }
                   
                   // Get relationship type name if available
                   let relationshipTypeName = 'Related';
@@ -376,12 +391,17 @@ const ImpactedServices = {
             const searchResults = await window.CacheManager.searchAssets(baseName, 'name');
             const filtered = searchResults.filter(asset => 
               asset.id !== directAsset.id && 
-              !this.state.directAssets.some(da => da.id === asset.id) &&
-              !processedAssetIds.has(asset.id)
+              asset.display_id !== directAsset.display_id &&
+              !this.state.directAssets.some(da => da.id === asset.id || da.display_id === asset.display_id) &&
+              !processedAssetIds.has(asset.id) &&
+              !processedAssetIds.has(asset.display_id)
             );
             
             filtered.forEach(asset => {
               processedAssetIds.add(asset.id);
+              if (asset.display_id && asset.display_id !== asset.id) {
+                processedAssetIds.add(asset.display_id);
+              }
               relatedAssets.push({
                 ...asset,
                 relationship_type: 'Similar Name',
@@ -405,13 +425,18 @@ const ImpactedServices = {
             const typeResults = await window.CacheManager.searchAssets(assetTypeIdString, 'asset_type_id');
             const typeFiltered = typeResults.filter(asset => 
               asset.id !== directAsset.id && 
-              !this.state.directAssets.some(da => da.id === asset.id) &&
+              asset.display_id !== directAsset.display_id &&
+              !this.state.directAssets.some(da => da.id === asset.id || da.display_id === asset.display_id) &&
               !processedAssetIds.has(asset.id) &&
+              !processedAssetIds.has(asset.display_id) &&
               asset.name && asset.name.toLowerCase().includes(directAsset.name.toLowerCase().split(' ')[0])
             ).slice(0, 3); // Limit to 3 to avoid too many results
             
             typeFiltered.forEach(asset => {
               processedAssetIds.add(asset.id);
+              if (asset.display_id && asset.display_id !== asset.id) {
+                processedAssetIds.add(asset.display_id);
+              }
               relatedAssets.push({
                 ...asset,
                 relationship_type: 'Same Type',
@@ -440,12 +465,17 @@ const ImpactedServices = {
               const envResults = await window.CacheManager.searchAssets(environment, 'type_fields');
               const envFiltered = envResults.filter(asset => 
                 asset.id !== directAsset.id && 
-                !this.state.directAssets.some(da => da.id === asset.id) &&
-                !processedAssetIds.has(asset.id)
+                asset.display_id !== directAsset.display_id &&
+                !this.state.directAssets.some(da => da.id === asset.id || da.display_id === asset.display_id) &&
+                !processedAssetIds.has(asset.id) &&
+                !processedAssetIds.has(asset.display_id)
               ).slice(0, 2); // Limit to 2 to avoid too many results
               
               envFiltered.forEach(asset => {
                 processedAssetIds.add(asset.id);
+                if (asset.display_id && asset.display_id !== asset.id) {
+                  processedAssetIds.add(asset.display_id);
+                }
                 relatedAssets.push({
                   ...asset,
                   relationship_type: 'Same Environment',
