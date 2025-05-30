@@ -5037,17 +5037,14 @@ function displaySearchResults(containerId, results, selectCallback) {
     return;
   }
   
-  // Store the callback function globally for access
-  const callbackName = `selectCallback_${containerId.replace('-', '_')}`;
-  window[callbackName] = selectCallback;
+  // Store the callback function and results globally for access
+  const storageKey = containerId.replace(/[^a-zA-Z0-9]/g, '_');
+  window[`selectCallback_${storageKey}`] = selectCallback;
+  window[`searchResults_${storageKey}`] = results;
   
   const resultItems = results.map((item, index) => {
-    const itemId = `${containerId}_item_${index}`;
-    // Store the item data globally for access
-    window[itemId] = item;
-    
     return `
-      <div class="list-group-item list-group-item-action" onclick="window.${callbackName}(window.${itemId})">
+      <div class="list-group-item list-group-item-action" onclick="window.selectCallback_${storageKey}(window.searchResults_${storageKey}[${index}])">
         <div class="d-flex justify-content-between align-items-center">
           <div>
             <strong>${item.first_name} ${item.last_name}</strong>
