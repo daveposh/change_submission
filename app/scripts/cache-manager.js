@@ -87,7 +87,9 @@ const CacheManager = {
             context: {
               page: page,
               per_page: 30
-            }
+            },
+            cache: true,
+            ttl: 900000 // 15 minutes cache for asset types (they change infrequently)
           });
           
           if (!response || !response.response) {
@@ -196,7 +198,9 @@ const CacheManager = {
         context: {
           page: 1,
           per_page: 1
-        }
+        },
+        cache: true,
+        ttl: 300000 // 5 minutes cache for location test
       });
       
       if (!testResponse || !testResponse.response) {
@@ -230,7 +234,9 @@ const CacheManager = {
             context: {
               page: page,
               per_page: 30
-            }
+            },
+            cache: true,
+            ttl: 600000 // 10 minutes cache for location pagination
           });
           
           if (!response || !response.response) {
@@ -430,7 +436,9 @@ const CacheManager = {
       try {
         if (window.client.request && window.client.request.invokeTemplate) {
           const response = await window.client.request.invokeTemplate('getLocation', {
-            location_id: locationId
+            location_id: locationId,
+            cache: true,
+            ttl: 600000 // 10 minutes cache for locations (they change less frequently)
           });
           
           if (response && response.response) {
@@ -519,7 +527,9 @@ const CacheManager = {
       };
       
       const response = await window.client.request.invokeTemplate('getAssets', {
-        context: templateContext
+        context: templateContext,
+        cache: true,
+        ttl: 180000 // 3 minutes cache for asset searches
       });
 
       if (!response || !response.response) {
@@ -766,6 +776,39 @@ const CacheManager = {
         }
       }
 
+      // Try as requester (fallback)
+      console.log(`🔄 Falling back to general user resolution for ${userId}...`);
+      try {
+        const requesterResponse = await window.client.request.invokeTemplate('getRequesterDetails', {
+          context: { requester_id: userId },
+          cache: true,
+          ttl: 300000 // 5 minutes cache
+        });
+        
+        if (requesterResponse && requesterResponse.response) {
+          const data = JSON.parse(requesterResponse.response);
+          if (data && data.requester) {
+            const user = data.requester;
+            const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
+            console.log(`✅ Found user via requester API: '${userName}'`);
+            
+            // Cache this user for future use
+            const userCache = await window.client.db.get('user_cache') || {};
+            userCache[userId] = {
+              name: userName,
+              data: user,
+              timestamp: Date.now(),
+              type: 'requester'
+            };
+            await window.client.db.set('user_cache', userCache);
+            
+            return userName;
+          }
+        }
+      } catch (requesterError) {
+        console.log(`⚠️ Error in requester API lookup: ${requesterError.message}`);
+      }
+
       // If user resolution functions are not available, return with ID
       console.log(`⚠️ Could not resolve user ID ${userId} - user functions not available`);
       return `User ID: ${userId}`;
@@ -814,13 +857,15 @@ const CacheManager = {
         }
       }
 
-      // Try direct API lookup as agent
+      // Try direct API lookup as agent (primary method)
       if (window.client && window.client.request && window.client.request.invokeTemplate) {
         console.log(`📡 Trying direct agent API lookup for ID ${agentId}...`);
         
         try {
           const response = await window.client.request.invokeTemplate('getAgents', {
-            path_suffix: `/${agentId}`
+            path_suffix: `/${agentId}`,
+            cache: true,
+            ttl: 300000 // 5 minutes cache
           });
           
           if (response && response.response) {
@@ -1180,7 +1225,9 @@ const CacheManager = {
               page: page,
               per_page: 30,
               include_fields: "type_fields"
-            }
+            },
+            cache: true,
+            ttl: 180000 // 3 minutes cache for asset pagination
           });
           
           if (!response || !response.response) {
@@ -1658,7 +1705,9 @@ window.debugUserResolution = async function(userId) {
     console.log('\n📡 Step 2: Trying direct agent API lookup...');
     try {
       const agentResponse = await window.client.request.invokeTemplate('getAgents', {
-        path_suffix: `/${userId}`
+        path_suffix: `/${userId}`,
+        cache: true,
+        ttl: 300000 // 5 minutes cache
       });
       
       if (agentResponse && agentResponse.response) {
@@ -1694,7 +1743,9 @@ window.debugUserResolution = async function(userId) {
     console.log('\n📡 Step 3: Trying as requester (fallback)...');
     try {
       const requesterResponse = await window.client.request.invokeTemplate('getRequesterDetails', {
-        context: { requester_id: userId }
+        context: { requester_id: userId },
+        cache: true,
+        ttl: 300000 // 5 minutes cache
       });
       
       if (requesterResponse && requesterResponse.response) {
@@ -1702,13 +1753,19 @@ window.debugUserResolution = async function(userId) {
         if (data && data.requester) {
           const user = data.requester;
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-          console.log(`   ✅ Found as requester: '${userName}'`);
-          console.log(`      Email: ${user.email || user.primary_email || 'N/A'}`);
-          console.log(`      Active: ${user.active !== false ? 'Yes' : 'No'}`);
-          console.log(`      Department: ${user.department_names ? user.department_names[0] : 'N/A'}`);
-          console.log('   ⚠️ NOTE: This is a requester, but managed by should be an agent');
-          console.log('   💡 This might indicate a data issue or the user has both roles');
-          return user;
+          console.log(`✅ Found user via requester API: '${userName}'`);
+          
+          // Cache this user for future use
+          const userCache = await window.client.db.get('user_cache') || {};
+          userCache[userId] = {
+            name: userName,
+            data: user,
+            timestamp: Date.now(),
+            type: 'requester'
+          };
+          await window.client.db.set('user_cache', userCache);
+          
+          return userName;
         }
       }
       console.log('   ❌ Not found as requester');
