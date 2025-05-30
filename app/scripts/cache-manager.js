@@ -746,10 +746,18 @@ const CacheManager = {
           
           if (userCache[userId]) {
             const cachedUser = userCache[userId];
-            if (cachedUser.name && cachedUser.name !== 'Unknown') {
-              console.log(`✅ Found user ID ${userId} in cache: '${cachedUser.name}' (${cachedUser.type || 'unknown type'})`);
-              return cachedUser.name;
+            console.log(`   ✅ Agent ${userId} found in cache:`);
+            console.log(`      Name: '${cachedUser.name}'`);
+            console.log(`      Type: ${cachedUser.type || 'unknown'}`);
+            console.log(`      Timestamp: ${new Date(cachedUser.timestamp).toLocaleString()}`);
+            
+            if (cachedUser.type === 'agent' || cachedUser.type === 'both') {
+              console.log('   🎯 This is an agent - perfect for managed by resolution!');
+            } else if (cachedUser.type === 'requester') {
+              console.log('   ⚠️ This is marked as requester, but managed by should be an agent');
             }
+            
+            return cachedUser;
           }
           
           console.log(`⚠️ User ID ${userId} not found in cache`);
@@ -1630,7 +1638,7 @@ window.debugUserResolution = async function(userId) {
     
     if (userCache[userId]) {
       const cachedUser = userCache[userId];
-      console.log('   ✅ Agent ${userId} found in cache:');
+      console.log(`   ✅ Agent ${userId} found in cache:`);
       console.log(`      Name: '${cachedUser.name}'`);
       console.log(`      Type: ${cachedUser.type || 'unknown'}`);
       console.log(`      Timestamp: ${new Date(cachedUser.timestamp).toLocaleString()}`);
@@ -1730,13 +1738,13 @@ window.debugUserResolution = async function(userId) {
     
     // Show some sample agent IDs from cache for comparison
     const sampleAgentIds = Object.entries(userCache)
-      .filter(([id, user]) => user.type === 'agent' || user.type === 'both')
+      .filter(([, user]) => user.type === 'agent' || user.type === 'both')
       .slice(0, 5);
       
     if (sampleAgentIds.length > 0) {
       console.log('\n📋 Sample agent IDs in cache for comparison:');
-      sampleAgentIds.forEach(([id, user]) => {
-        console.log(`   ${id}: '${user.name}' (${user.type})`);
+      sampleAgentIds.forEach(([agentId, user]) => {
+        console.log(`   ${agentId}: '${user.name}' (${user.type})`);
       });
     }
     
