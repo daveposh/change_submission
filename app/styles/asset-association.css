@@ -522,4 +522,50 @@
     margin-top: 1rem;
     align-self: flex-end;
   }
+}
+
+/* Live Search Indicator Styles */
+.search-loading.live-search {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+  border: 1px solid #2196f3;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.search-loading.live-search .spinner-border {
+  animation: live-search-pulse 1.5s ease-in-out infinite;
+}
+
+.search-loading.live-search span {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* Live search pulse animation */
+@keyframes live-search-pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Enhanced search input styling for live search */
+#asset-search-input:focus {
+  border-color: #2196f3;
+  box-shadow: 0 0 0 0.2rem rgba(33, 150, 243, 0.25);
+  transition: all 0.3s ease;
+}
+
+/* Live search active state */
+.asset-search-form.live-search-active .form-control {
+  border-color: #2196f3;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
 } 

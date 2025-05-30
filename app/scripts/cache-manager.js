@@ -1294,9 +1294,9 @@ const CacheManager = {
     
     if (assets.length === 0) {
       console.log('⚠️ No assets to display');
-      return;
-    }
-
+    return;
+  }
+  
     // Group assets by managed by status
     const managedAssets = assets.filter(asset => 
       asset.managed_by_resolved && 
@@ -1420,9 +1420,9 @@ const CacheManager = {
         });
       }
       
-    } catch (error) {
+  } catch (error) {
       console.warn('⚠️ Error displaying user cache stats:', error);
-    }
+  }
   },
 };
 

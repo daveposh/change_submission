@@ -13,6 +13,8 @@ const AssetAssociation = {
     isSearching: false,
     currentSearchTerm: '',
     searchCache: {},
+    liveSearchTimer: null, // Timer for debouncing live search
+    isLiveSearchActive: false, // Track if live search is active
     pagination: {
       currentPage: 1,
       totalPages: 1,
@@ -24,9 +26,12 @@ const AssetAssociation = {
   // Configuration
   config: {
     searchCacheTimeout: 5 * 60 * 1000, // 5 minutes
-    searchMinLength: 2,
+    searchMinLength: 3, // Changed to 3 characters for live search
+    liveSearchMinLength: 3, // Minimum characters for live search
     maxResults: 100,
-    paginationDelay: 300
+    paginationDelay: 300,
+    liveSearchDelay: 500, // Debounce delay for live search (500ms)
+    enableLiveSearch: true // Enable live search functionality
   },
 
   /**
@@ -47,18 +52,53 @@ const AssetAssociation = {
     // Asset search input
     const assetSearchInput = document.getElementById('asset-search-input');
     if (assetSearchInput) {
-      // Use Enter key to trigger search (not on every keystroke)
-      assetSearchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          this.performAssetSearch(e.target.value.trim());
+      // Live search with debouncing - activates after 3 characters
+      assetSearchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.trim();
+        
+        // Clear any existing timer
+        if (this.state.liveSearchTimer) {
+          clearTimeout(this.state.liveSearchTimer);
+          this.state.liveSearchTimer = null;
+        }
+        
+        // Clear results if input is empty
+        if (searchTerm.length === 0) {
+          this.clearSearchResults();
+          this.state.isLiveSearchActive = false;
+          return;
+        }
+        
+        // Only start live search if we have enough characters and live search is enabled
+        if (this.config.enableLiveSearch && searchTerm.length >= this.config.liveSearchMinLength) {
+          // Show live search indicator
+          this.showLiveSearchIndicator();
+          this.state.isLiveSearchActive = true;
+          
+          // Set debounced search timer
+          this.state.liveSearchTimer = setTimeout(() => {
+            console.log(`🔍 Live search triggered for: "${searchTerm}"`);
+            this.performAssetSearch(searchTerm, true); // true indicates live search
+          }, this.config.liveSearchDelay);
+        } else if (searchTerm.length > 0 && searchTerm.length < this.config.liveSearchMinLength) {
+          // Show hint for minimum characters
+          this.showSearchMessage(`Type ${this.config.liveSearchMinLength - searchTerm.length} more character(s) to start live search...`);
         }
       });
 
-      // Clear results when input is cleared
-      assetSearchInput.addEventListener('input', (e) => {
-        if (e.target.value.trim().length === 0) {
-          this.clearSearchResults();
+      // Keep Enter key functionality for immediate search
+      assetSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const searchTerm = e.target.value.trim();
+          
+          // Clear live search timer if active
+          if (this.state.liveSearchTimer) {
+            clearTimeout(this.state.liveSearchTimer);
+            this.state.liveSearchTimer = null;
+          }
+          
+          this.performAssetSearch(searchTerm, false); // false indicates manual search
         }
       });
     }
@@ -68,7 +108,14 @@ const AssetAssociation = {
     if (assetSearchBtn) {
       assetSearchBtn.addEventListener('click', () => {
         const searchTerm = assetSearchInput ? assetSearchInput.value.trim() : '';
-        this.performAssetSearch(searchTerm);
+        
+        // Clear live search timer if active
+        if (this.state.liveSearchTimer) {
+          clearTimeout(this.state.liveSearchTimer);
+          this.state.liveSearchTimer = null;
+        }
+        
+        this.performAssetSearch(searchTerm, false); // false indicates manual search
       });
     }
 
@@ -86,17 +133,24 @@ const AssetAssociation = {
   /**
    * Perform asset search
    * @param {string} searchTerm - The search term
+   * @param {boolean} isLiveSearch - Whether this is a live search or manual search
    */
-  async performAssetSearch(searchTerm) {
+  async performAssetSearch(searchTerm, isLiveSearch = false) {
     if (!searchTerm || searchTerm.length < this.config.searchMinLength) {
-      this.showSearchMessage('Please enter at least 2 characters to search for assets');
+      this.showSearchMessage('Please enter at least 3 characters to search for assets');
       return;
     }
 
-    console.log(`🔍 Searching for assets: "${searchTerm}"`);
+    console.log(`🔍 ${isLiveSearch ? 'Live' : 'Manual'} search for assets: "${searchTerm}"`);
     this.state.currentSearchTerm = searchTerm;
     this.state.isSearching = true;
-    this.showLoadingIndicator();
+    
+    // Show appropriate loading indicator
+    if (isLiveSearch) {
+      this.showLiveSearchIndicator();
+    } else {
+      this.showLoadingIndicator();
+    }
 
     try {
       // Check cache first
@@ -137,6 +191,10 @@ const AssetAssociation = {
       this.showSearchMessage('Error searching for assets. Please try again.');
     } finally {
       this.state.isSearching = false;
+      this.state.isLiveSearchActive = false;
+      
+      // Remove live search form styling when search completes
+      this.setLiveSearchFormState(false);
     }
   },
 
@@ -957,8 +1015,21 @@ const AssetAssociation = {
       resultsContainer.style.display = 'none';
       resultsContainer.innerHTML = '';
     }
+    
+    // Clear live search timer if active
+    if (this.state.liveSearchTimer) {
+      clearTimeout(this.state.liveSearchTimer);
+      this.state.liveSearchTimer = null;
+    }
+    
+    // Reset state
     this.state.searchResults = [];
     this.state.currentSearchTerm = '';
+    this.state.isLiveSearchActive = false;
+    this.state.isSearching = false;
+    
+    // Remove live search form styling
+    this.setLiveSearchFormState(false);
   },
 
   /**
@@ -976,6 +1047,42 @@ const AssetAssociation = {
         </div>
       `;
       resultsContainer.style.display = 'block';
+    }
+  },
+
+  /**
+   * Show live search indicator
+   */
+  showLiveSearchIndicator() {
+    const resultsContainer = document.getElementById('asset-search-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = `
+        <div class="search-loading live-search">
+          <div class="d-flex align-items-center justify-content-center p-3">
+            <div class="spinner-border spinner-border-sm me-2 text-primary" role="status" style="width: 1rem; height: 1rem;"></div>
+            <span class="text-primary"><i class="fas fa-bolt me-1"></i>Live searching...</span>
+          </div>
+        </div>
+      `;
+      resultsContainer.style.display = 'block';
+    }
+    
+    // Add live search styling to form
+    this.setLiveSearchFormState(true);
+  },
+
+  /**
+   * Set live search form visual state
+   * @param {boolean} isActive - Whether live search is active
+   */
+  setLiveSearchFormState(isActive) {
+    const searchForm = document.querySelector('.asset-search-form');
+    if (searchForm) {
+      if (isActive) {
+        searchForm.classList.add('live-search-active');
+      } else {
+        searchForm.classList.remove('live-search-active');
+      }
     }
   },
 
@@ -1369,6 +1476,30 @@ const AssetAssociation = {
     
     // Default icon
     return '<i class="fas fa-cube text-muted me-2"></i>';
+  },
+
+  /**
+   * Cleanup method - call when module is destroyed
+   */
+  cleanup() {
+    console.log('🧹 Cleaning up Asset Association Module...');
+    
+    // Clear any active live search timer
+    if (this.state.liveSearchTimer) {
+      clearTimeout(this.state.liveSearchTimer);
+      this.state.liveSearchTimer = null;
+    }
+    
+    // Reset state
+    this.state.isLiveSearchActive = false;
+    this.state.isSearching = false;
+    this.state.currentSearchTerm = '';
+    this.state.searchResults = [];
+    
+    // Remove live search form styling
+    this.setLiveSearchFormState(false);
+    
+    console.log('✅ Asset Association Module cleanup complete');
   }
 };
 
