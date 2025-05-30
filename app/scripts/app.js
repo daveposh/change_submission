@@ -5043,14 +5043,49 @@ function displaySearchResults(containerId, results, selectCallback) {
   window[`searchResults_${storageKey}`] = results;
   
   const resultItems = results.map((item, index) => {
+    // Build badges for additional user information
+    const badges = [];
+    
+    // Agent badge
+    if (item._isAgent) {
+      badges.push('<span class="badge bg-info me-1">Agent</span>');
+    }
+    
+    // Department badge
+    if (item.department_names && item.department_names.length > 0) {
+      const departments = item.department_names.join(', ');
+      badges.push(`<span class="badge bg-secondary me-1" title="Department"><i class="fas fa-building me-1"></i>${departments}</span>`);
+    }
+    
+    // Location badge
+    if (item.location_name) {
+      badges.push(`<span class="badge bg-success me-1" title="Location"><i class="fas fa-map-marker-alt me-1"></i>${item.location_name}</span>`);
+    }
+    
+    // Job title badge (if available)
+    if (item.job_title) {
+      badges.push(`<span class="badge bg-warning text-dark me-1" title="Job Title"><i class="fas fa-briefcase me-1"></i>${item.job_title}</span>`);
+    }
+    
+    // Manager badge (will be resolved asynchronously)
+    if (item.reporting_manager_id) {
+      badges.push(`<span class="badge bg-primary me-1" title="Reporting Manager" id="manager-badge-${storageKey}-${index}"><i class="fas fa-user-tie me-1"></i>Loading...</span>`);
+      // Resolve manager name asynchronously
+      resolveManagerName(item.reporting_manager_id, `manager-badge-${storageKey}-${index}`);
+    }
+    
     return `
       <div class="list-group-item list-group-item-action" onclick="window.selectCallback_${storageKey}(window.searchResults_${storageKey}[${index}])">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <strong>${item.first_name} ${item.last_name}</strong>
-            <br><small class="text-muted">${item.email}</small>
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <strong>${item.first_name} ${item.last_name}</strong>
+            </div>
+            <small class="text-muted d-block mb-2">${item.email}</small>
+            <div class="d-flex flex-wrap gap-1">
+              ${badges.join('')}
+            </div>
           </div>
-          ${item._isAgent ? '<span class="badge bg-info">Agent</span>' : ''}
         </div>
       </div>
     `;
@@ -5058,6 +5093,29 @@ function displaySearchResults(containerId, results, selectCallback) {
   
   container.innerHTML = resultItems;
   container.style.display = 'block';
+}
+
+/**
+ * Resolve manager name asynchronously and update badge
+ * @param {number} managerId - Manager ID to resolve
+ * @param {string} badgeId - Badge element ID to update
+ */
+async function resolveManagerName(managerId, badgeId) {
+  try {
+    const managerName = await getManagerName(managerId);
+    const badgeElement = document.getElementById(badgeId);
+    if (badgeElement) {
+      badgeElement.innerHTML = `<i class="fas fa-user-tie me-1"></i>${managerName}`;
+    }
+  } catch (error) {
+    console.error('Error resolving manager name:', error);
+    const badgeElement = document.getElementById(badgeId);
+    if (badgeElement) {
+      badgeElement.innerHTML = `<i class="fas fa-user-tie me-1"></i>Unknown Manager`;
+      badgeElement.classList.remove('bg-primary');
+      badgeElement.classList.add('bg-secondary');
+    }
+  }
 }
 
 /**
