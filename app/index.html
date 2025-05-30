@@ -14,7 +14,19 @@
   </head>
 
   <body>
-    <div class="fw-widget-wrapper container-fluid py-4">
+    <!-- Initialization Overlay -->
+    <div id="initialization-overlay" class="initialization-overlay">
+      <div class="initialization-content">
+        <div class="initialization-spinner"></div>
+        <div class="initialization-title">Initializing Change Request App</div>
+        <div class="initialization-message" id="initialization-message">Setting up application...</div>
+        <div class="initialization-progress">
+          <div class="initialization-progress-bar" id="initialization-progress-bar"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fw-widget-wrapper container-fluid py-4 app-initializing" id="app-content">
       <div class="tabs-wrapper card">
         <ul class="nav nav-tabs" id="change-tabs" role="tablist">
           <li class="nav-item" role="presentation">
@@ -68,7 +80,6 @@
                   <option value="">Select Change Type</option>
                   <option value="emergency">Emergency Change</option>
                   <option value="normal">Normal Change</option>
-                  <option value="non-standard">Non-standard Change</option>
                 </select>
                 <div id="change-type-tooltip" class="mt-2 p-2 border rounded bg-light change-type-info"></div>
               </div>

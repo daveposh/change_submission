@@ -385,14 +385,12 @@ const DEFAULT_RATE_LIMITS = {
 
 const changeTypeTooltips = {
   'normal': 'Normal Change: All Changes to systems that are managed by CXI IT in the production environment and go through peer and approval process',
-  'emergency': 'Emergency Changes: Changes arise from an unexpected error/issue and need to be addressed immediately to restore service for customers or employees, or to secure a system against a threat',
-  'non-standard': 'Non-standard change: any change that requires an exception to the policy'
+  'emergency': 'Emergency Changes: Changes arise from an unexpected error/issue and need to be addressed immediately to restore service for customers or employees, or to secure a system against a threat'
 };
 
 const leadTimeText = {
   'normal': '2 business days',
-  'emergency': 'No lead time required',
-  'non-standard': '2 business days'
+  'emergency': 'No lead time required'
 };
 
 // Load FontAwesome if not already loaded
@@ -438,13 +436,13 @@ function loadFontAwesome() {
 document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM ready, initializing Freshworks app...');
   
-    // Load FontAwesome first
-    loadFontAwesome();
-  
   // Use Freshworks standard initialization
   app.initialized().then(function(client) {
     console.log('Freshworks app initialized successfully');
     window.client = client;
+    
+    // Start the app initialization with progress tracking
+    initializeAppWithProgress();
     
     // Expose global debug functions
     console.log('🔧 Setting up global debug functions...');
@@ -772,13 +770,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('💡 Type testLocationPagination() to test location pagination');
     
-    // Wait a moment for everything to settle
-    setTimeout(() => {
-      initializeApp().catch(error => {
-        console.error('Failed to initialize app:', error);
-        displayInitError('Failed to initialize the application. Please refresh the page and try again.');
-      });
-    }, 500);
+    // Initialization is now handled by initializeAppWithProgress() called earlier
+    
   }).catch(function(error) {
     console.error('Freshworks app initialization failed:', error);
     displayInitError('Failed to initialize Freshworks client. Please refresh the page and try again.');
@@ -1767,7 +1760,17 @@ async function getUserDetails(userId) {
   }
 
   try {
-    // Check cache first
+    // Check the search cache first (window.userCache)
+    if (window.userCache && window.userCache[userId]) {
+      const cachedUser = window.userCache[userId];
+      // Check if cache is still valid (5 minutes)
+      if (cachedUser.timestamp > Date.now() - CACHE_TIMEOUT) {
+        console.log(`Using search cache user data: ${cachedUser.first_name} ${cachedUser.last_name}`);
+        return cachedUser;
+      }
+    }
+    
+    // Check the persistent cache
     const cachedUsers = await getCachedUsers();
     
     // If user is in cache and not expired, use it
@@ -1794,7 +1797,7 @@ async function getUserDetails(userId) {
           const user = parsedData.requester;
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
           
-          // Update cache
+          // Update persistent cache
           cachedUsers[userId] = {
             name: userName,
             data: user,
@@ -1802,6 +1805,14 @@ async function getUserDetails(userId) {
             type: 'requester'
           };
           await cacheUsers(cachedUsers);
+          
+          // Also update search cache
+          if (!window.userCache) window.userCache = {};
+          window.userCache[userId] = {
+            ...user,
+            type: 'requester',
+            timestamp: Date.now()
+          };
           
           console.log(`Found user ${userId} as requester: ${userName}`);
           return user;
@@ -1824,7 +1835,7 @@ async function getUserDetails(userId) {
           const user = parsedData.agent;
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
           
-          // Update cache
+          // Update persistent cache
           cachedUsers[userId] = {
             name: userName,
             data: user,
@@ -1832,6 +1843,14 @@ async function getUserDetails(userId) {
             type: 'agent'
           };
           await cacheUsers(cachedUsers);
+          
+          // Also update search cache
+          if (!window.userCache) window.userCache = {};
+          window.userCache[userId] = {
+            ...user,
+            type: 'agent',
+            timestamp: Date.now()
+          };
           
           console.log(`Found user ${userId} as agent: ${userName}`);
           return user;
@@ -5298,3 +5317,125 @@ function generateUserBadges(user, containerId = '') {
   
   return badges.length > 0 ? `<div class="mt-2">${badges.join('')}</div>` : '';
 }
+
+/**
+ * Update initialization progress
+ * @param {number} progress - Progress percentage (0-100)
+ * @param {string} message - Progress message
+ */
+function updateInitializationProgress(progress, message) {
+  const progressBar = document.getElementById('initialization-progress-bar');
+  const messageEl = document.getElementById('initialization-message');
+  
+  if (progressBar) {
+    progressBar.style.width = `${progress}%`;
+  }
+  
+  if (messageEl) {
+    messageEl.textContent = message;
+  }
+}
+
+/**
+ * Hide initialization overlay and show app content
+ */
+function hideInitializationOverlay() {
+  const overlay = document.getElementById('initialization-overlay');
+  const appContent = document.getElementById('app-content');
+  
+  if (overlay) {
+    overlay.classList.add('fade-out');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+    }, 500);
+  }
+  
+  if (appContent) {
+    appContent.classList.remove('app-initializing');
+    appContent.classList.add('app-ready');
+  }
+}
+
+/**
+ * Initialize app with progress tracking
+ */
+async function initializeAppWithProgress() {
+  try {
+    console.log('🚀 Starting app initialization...');
+    updateInitializationProgress(10, 'Loading FontAwesome...');
+    
+    // Load FontAwesome first
+    loadFontAwesome();
+    await new Promise(resolve => setTimeout(resolve, 300)); // Small delay for visual feedback
+    
+    updateInitializationProgress(20, 'Initializing cache manager...');
+    
+    // Initialize all caches using the centralized cache manager
+    console.log('📦 Initializing cache manager...');
+    
+    // Check if CacheManager is available
+    if (!window.CacheManager) {
+      console.error('❌ CacheManager not available - falling back to individual cache initialization');
+      
+      updateInitializationProgress(30, 'Loading asset types...');
+      
+      // Fallback to original cache initialization
+      const assetTypesCache = await fetchAllAssetTypes().catch(error => {
+        console.error('⚠️ Asset types cache initialization failed:', error);
+        return {}; // Return empty cache on failure
+      });
+      
+      updateInitializationProgress(60, 'Loading locations...');
+      
+      const locationsCache = await fetchAllLocations().catch(error => {
+        console.error('⚠️ Locations cache initialization failed:', error);
+        return {}; // Return empty cache on failure
+      });
+      
+      console.log(`✅ Fallback cache initialization complete:`);
+      console.log(`   📋 Asset types: ${Object.keys(assetTypesCache).length} cached`);
+      console.log(`   📍 Locations: ${Object.keys(locationsCache).length} cached`);
+    } else {
+      updateInitializationProgress(30, 'Initializing caches...');
+      
+      // Use the centralized cache manager
+      const cacheResults = await window.CacheManager.initializeAllCaches();
+      
+      console.log(`✅ Cache manager initialization complete:`);
+      console.log(`   📋 Asset types: ${cacheResults.assetTypes} cached`);
+      console.log(`   📍 Locations: ${cacheResults.locations} cached`);
+      
+      if (cacheResults.errors.length > 0) {
+        console.warn(`⚠️ Some caches failed to initialize: ${cacheResults.errors.join(', ')}`);
+      }
+    }
+    
+    updateInitializationProgress(80, 'Setting up form components...');
+    
+    // Initialize form components
+    populateFormFields();
+    setupEventListeners();
+    
+    updateInitializationProgress(90, 'Finalizing setup...');
+    
+    // Initialize change type defaults
+    initializeChangeTypeDefaults();
+    
+    updateInitializationProgress(100, 'Ready to use!');
+    
+    // Small delay before hiding overlay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    console.log('✅ App initialization completed successfully');
+    hideInitializationOverlay();
+    
+  } catch (error) {
+    console.error('❌ Error in app initialization:', error);
+    updateInitializationProgress(0, 'Initialization failed. Please refresh the page.');
+    displayInitError('Failed to initialize application: ' + error.message);
+  }
+}
+
+/**
+ * Initialize app (legacy function for compatibility)
+ */
