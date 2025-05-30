@@ -39,6 +39,12 @@
             </button>
           </li>
           <li class="nav-item" role="presentation">
+            <button class="nav-link" id="impacted-services-tab" data-bs-toggle="tab" data-bs-target="#impacted-services" type="button" role="tab" aria-controls="impacted-services" aria-selected="false">
+              Impacted Services
+              <span class="badge bg-info" style="display: none;">0</span>
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
             <button class="nav-link" id="risk-tab" data-bs-toggle="tab" data-bs-target="#risk-assessment" type="button" role="tab" aria-controls="risk-assessment" aria-selected="false">Risk Assessment</button>
           </li>
         </ul>
@@ -178,6 +184,104 @@
                   <i class="fas fa-arrow-left me-1"></i>Back to Details
                 </button>
                 <button type="button" id="assets-next" class="btn btn-primary" onclick="validateAssetsAndNext()">
+                  Next: Impacted Services<i class="fas fa-arrow-right ms-1"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Impacted Services Tab -->
+          <div class="tab-pane fade" id="impacted-services" role="tabpanel" aria-labelledby="impacted-services-tab">
+            <div class="impacted-services-container">
+              <h3 class="mb-4">Impacted Services</h3>
+              <p class="text-secondary mb-4">Analyze approvers and stakeholders from asset relationships.</p>
+
+              <!-- Impacted Services Section -->
+              <div class="impacted-services-section">
+                <div class="impacted-services-header">
+                  <h5><i class="fas fa-users me-2"></i>Impacted Services</h5>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="service-count-badge">
+                      <span id="impacted-services-count">0</span> impacted services
+                    </span>
+                    <button type="button" id="analyze-services-btn" class="btn btn-sm btn-primary">
+                      <i class="fas fa-search me-1"></i>Analyze Services
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Analysis Status -->
+                <div id="analysis-status" class="analysis-status" style="display: none;">
+                  <div class="d-flex align-items-center p-3 bg-light rounded">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    <span>Analyzing asset relationships and building impact assessment...</span>
+                  </div>
+                </div>
+
+                <!-- Approvers Section -->
+                <div class="approvers-section mt-4">
+                  <h6><i class="fas fa-user-check me-2 text-success"></i>Direct Asset Approvers</h6>
+                  <p class="small text-muted">Approvers derived from directly associated assets</p>
+                  <div id="approvers-list" class="users-list">
+                    <div class="no-data-message">
+                      <i class="fas fa-info-circle text-muted"></i>
+                      <span class="text-muted">No approvers identified. Click "Analyze Services" to scan associated assets.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Stakeholders Section -->
+                <div class="stakeholders-section mt-4">
+                  <h6><i class="fas fa-users me-2 text-primary"></i>Stakeholders from Related Assets</h6>
+                  <p class="small text-muted">Stakeholders from assets that have relationships with directly associated assets</p>
+                  <div id="stakeholders-list" class="users-list">
+                    <div class="no-data-message">
+                      <i class="fas fa-info-circle text-muted"></i>
+                      <span class="text-muted">No stakeholders identified. Click "Analyze Services" to scan related assets.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Summary Section -->
+                <div class="impact-summary mt-4" id="impact-summary" style="display: none;">
+                  <div class="card">
+                    <div class="card-header">
+                      <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Impact Summary</h6>
+                    </div>
+                    <div class="card-body">
+                      <div class="row">
+                        <div class="col-md-6">
+                          <div class="summary-item">
+                            <span class="summary-label">Direct Assets:</span>
+                            <span class="summary-value" id="direct-assets-count">0</span>
+                          </div>
+                          <div class="summary-item">
+                            <span class="summary-label">Related Assets:</span>
+                            <span class="summary-value" id="related-assets-count">0</span>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <div class="summary-item">
+                            <span class="summary-label">Total Approvers:</span>
+                            <span class="summary-value" id="total-approvers-count">0</span>
+                          </div>
+                          <div class="summary-item">
+                            <span class="summary-label">Total Stakeholders:</span>
+                            <span class="summary-value" id="total-stakeholders-count">0</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Navigation -->
+              <div class="form-actions d-flex justify-content-between mt-4">
+                <button type="button" class="btn btn-outline-secondary" onclick="switchTab('asset-association')">
+                  <i class="fas fa-arrow-left me-1"></i>Back to Assets
+                </button>
+                <button type="button" id="services-next" class="btn btn-primary" onclick="validateServicesAndNext()">
                   Next: Risk Assessment<i class="fas fa-arrow-right ms-1"></i>
                 </button>
               </div>
@@ -323,8 +427,8 @@
             </div>
 
             <div class="form-actions d-flex justify-content-between">
-              <button type="button" class="btn btn-outline-secondary" onclick="switchTab('asset-association')">
-                <i class="fas fa-arrow-left me-1"></i>Back to Assets
+              <button type="button" class="btn btn-outline-secondary" onclick="switchTab('impacted-services')">
+                <i class="fas fa-arrow-left me-1"></i>Back to Impacted Services
               </button>
               <div>
                 <button id="calculate-risk" class="btn btn-secondary me-2" onclick="calculateRisk()">Calculate Risk</button>

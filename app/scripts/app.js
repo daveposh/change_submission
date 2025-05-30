@@ -287,6 +287,26 @@ const changeRequestData = {
     rollback: 0,
     totalScore: 0,
     riskLevel: ''
+  },
+  // Asset association data
+  assetAssociations: [],
+  
+  // Impacted services data
+  impactedServices: {
+    directAssets: [],
+    relatedAssets: [],
+    approvers: [],
+    stakeholders: [],
+    analysisComplete: false
+  },
+  
+  // Risk assessment data
+  riskAssessment: {
+    businessImpact: '',
+    likelihood: '',
+    riskMitigation: '',
+    totalScore: 0,
+    riskLevel: 'Low'
   }
 };
 
@@ -4668,13 +4688,11 @@ function validateDetailsAndNext() {
 function validateAssetsAndNext() {
   console.log('🔍 Validating asset associations...');
   
-  // Assets are optional, so just proceed to risk assessment
+  // For now, assets are optional, so this always passes
+  // In the future, you might want to add validation logic here
+  
   console.log('✅ Asset validation passed (assets are optional)');
-  
-  // Switch to risk assessment tab
-  switchTab('risk-assessment');
-  
-  return true;
+  switchTab('impacted-services');
 }
 
 /**
@@ -5430,13 +5448,20 @@ async function initializeAppWithProgress() {
     
     updateInitializationProgress(80, 'Setting up form components...');
     
-    // Initialize form components
+    // Initialize Asset Association module
+    if (window.AssetAssociation) {
+      await window.AssetAssociation.init();
+    }
+    
+    // Initialize Impacted Services module
+    window.ImpactedServices = ImpactedServices;
+    if (window.ImpactedServices) {
+      await window.ImpactedServices.init();
+    }
+    
+    // Setup form components
     populateFormFields();
     setupEventListeners();
-    
-    updateInitializationProgress(90, 'Finalizing setup...');
-    
-    // Initialize change type defaults
     initializeChangeTypeDefaults();
     
     updateInitializationProgress(100, 'Ready to use!');
@@ -5487,4 +5512,439 @@ async function preloadUserCache() {
  * Update initialization progress
  * @param {number} progress - Progress percentage (0-100)
  * @param {string} message - Progress message
+ */
+
+/**
+ * Impacted Services Module
+ * Analyzes asset relationships to identify approvers and stakeholders
+ */
+const ImpactedServices = {
+  // Module state
+  state: {
+    directAssets: [],
+    relatedAssets: [],
+    approvers: [],
+    stakeholders: [],
+    isAnalyzing: false,
+    analysisComplete: false
+  },
+
+  /**
+   * Initialize the impacted services module
+   */
+  async init() {
+    console.log('🔧 Initializing Impacted Services Module...');
+    this.setupEventListeners();
+    await this.loadDirectAssets();
+    console.log('✅ Impacted Services Module initialized');
+  },
+
+  /**
+   * Setup event listeners for impacted services functionality
+   */
+  setupEventListeners() {
+    // Analyze services button
+    const analyzeBtn = document.getElementById('analyze-services-btn');
+    if (analyzeBtn) {
+      analyzeBtn.addEventListener('click', () => {
+        this.analyzeServices();
+      });
+    }
+
+    console.log('✅ Impacted services event listeners setup complete');
+  },
+
+  /**
+   * Load direct assets from the Asset Association module
+   */
+  async loadDirectAssets() {
+    if (window.AssetAssociation && window.AssetAssociation.getSelectedAssets) {
+      this.state.directAssets = window.AssetAssociation.getSelectedAssets();
+      console.log(`📦 Loaded ${this.state.directAssets.length} direct assets`);
+      this.updateServiceCount();
+    }
+  },
+
+  /**
+   * Analyze services to build approver and stakeholder lists
+   */
+  async analyzeServices() {
+    if (this.state.isAnalyzing) {
+      console.log('⚠️ Analysis already in progress');
+      return;
+    }
+
+    console.log('🔍 Starting impacted services analysis...');
+    this.state.isAnalyzing = true;
+    this.showAnalysisStatus(true);
+
+    try {
+      // Step 1: Load fresh direct assets
+      await this.loadDirectAssets();
+
+      if (this.state.directAssets.length === 0) {
+        console.log('⚠️ No direct assets to analyze');
+        this.showNotification('warning', 'No assets selected. Please go back to Asset Association and select assets first.');
+        return;
+      }
+
+      // Step 2: Extract approvers from direct assets
+      console.log('👥 Extracting approvers from direct assets...');
+      await this.extractApproversFromDirectAssets();
+
+      // Step 3: Find related assets through asset relationships
+      console.log('🔗 Finding related assets through relationships...');
+      await this.findRelatedAssets();
+
+      // Step 4: Extract stakeholders from related assets
+      console.log('🤝 Extracting stakeholders from related assets...');
+      await this.extractStakeholdersFromRelatedAssets();
+
+      // Step 5: Display results
+      await this.displayResults();
+
+      this.state.analysisComplete = true;
+      console.log('✅ Impacted services analysis complete');
+
+    } catch (error) {
+      console.error('❌ Error during services analysis:', error);
+      this.showNotification('danger', 'Error analyzing services: ' + error.message);
+    } finally {
+      this.state.isAnalyzing = false;
+      this.showAnalysisStatus(false);
+    }
+  },
+
+  /**
+   * Extract approvers from direct assets (managed_by field)
+   */
+  async extractApproversFromDirectAssets() {
+    const approvers = new Map(); // Use Map to avoid duplicates
+
+    for (const asset of this.state.directAssets) {
+      try {
+        // Get managed by information using existing helper methods
+        let managedByInfo = 'N/A';
+        let managedById = null;
+
+        // Try to get managed by ID from various fields
+        if (asset.agent_id) {
+          managedById = asset.agent_id;
+        } else if (asset.user_id) {
+          managedById = asset.user_id;
+        } else if (asset.managed_by) {
+          managedById = asset.managed_by;
+        }
+
+        // If we have an ID, resolve it to user details
+        if (managedById && !isNaN(managedById)) {
+          console.log(`🔍 Resolving approver ID ${managedById} for asset ${asset.name}`);
+          
+          const userDetails = await getUserDetails(managedById);
+          if (userDetails) {
+            const approverKey = userDetails.id || managedById;
+            if (!approvers.has(approverKey)) {
+              approvers.set(approverKey, {
+                id: userDetails.id || managedById,
+                name: `${userDetails.first_name || ''} ${userDetails.last_name || ''}`.trim() || 'Unknown',
+                email: userDetails.email || userDetails.primary_email || 'N/A',
+                department: userDetails.department_names ? userDetails.department_names.join(', ') : 'N/A',
+                role: 'Approver',
+                source: `Direct asset: ${asset.name}`,
+                sourceAsset: asset,
+                userDetails: userDetails
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error extracting approver from asset ${asset.name}:`, error);
+      }
+    }
+
+    this.state.approvers = Array.from(approvers.values());
+    console.log(`✅ Extracted ${this.state.approvers.length} unique approvers`);
+  },
+
+  /**
+   * Find related assets through asset relationships
+   * This would typically use asset dependency APIs, but we'll simulate it for now
+   */
+  async findRelatedAssets() {
+    // For now, we'll search for assets that might be related
+    // In a real implementation, this would use asset relationship APIs
+    
+    const relatedAssets = [];
+    
+    // Search for assets that might be related based on naming patterns, locations, etc.
+    for (const directAsset of this.state.directAssets) {
+      try {
+        // Example: Look for assets with similar names or in same location
+        if (window.CacheManager && window.CacheManager.searchAssets) {
+          // Search for assets with similar base names
+          const baseName = directAsset.name.split(' ')[0]; // Get first word
+          if (baseName.length >= 3) {
+            const searchResults = await window.CacheManager.searchAssets(baseName, 'name');
+            
+            // Filter out direct assets and add related ones
+            const filtered = searchResults.filter(asset => 
+              asset.id !== directAsset.id && 
+              !this.state.directAssets.some(da => da.id === asset.id)
+            );
+            
+            relatedAssets.push(...filtered);
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error finding related assets for ${directAsset.name}:`, error);
+      }
+    }
+
+    // Remove duplicates
+    const uniqueRelated = relatedAssets.filter((asset, index, self) => 
+      index === self.findIndex(a => a.id === asset.id)
+    );
+
+    this.state.relatedAssets = uniqueRelated.slice(0, 20); // Limit to 20 for performance
+    console.log(`✅ Found ${this.state.relatedAssets.length} related assets`);
+  },
+
+  /**
+   * Extract stakeholders from related assets (managed_by field)
+   */
+  async extractStakeholdersFromRelatedAssets() {
+    const stakeholders = new Map(); // Use Map to avoid duplicates
+
+    for (const asset of this.state.relatedAssets) {
+      try {
+        // Get managed by information using existing helper methods
+        let managedById = null;
+
+        // Try to get managed by ID from various fields
+        if (asset.agent_id) {
+          managedById = asset.agent_id;
+        } else if (asset.user_id) {
+          managedById = asset.user_id;
+        } else if (asset.managed_by) {
+          managedById = asset.managed_by;
+        }
+
+        // If we have an ID, resolve it to user details
+        if (managedById && !isNaN(managedById)) {
+          console.log(`🔍 Resolving stakeholder ID ${managedById} for asset ${asset.name}`);
+          
+          const userDetails = await getUserDetails(managedById);
+          if (userDetails) {
+            const stakeholderKey = userDetails.id || managedById;
+            
+            // Don't add if they're already an approver
+            if (!this.state.approvers.some(a => a.id === stakeholderKey)) {
+              if (!stakeholders.has(stakeholderKey)) {
+                stakeholders.set(stakeholderKey, {
+                  id: userDetails.id || managedById,
+                  name: `${userDetails.first_name || ''} ${userDetails.last_name || ''}`.trim() || 'Unknown',
+                  email: userDetails.email || userDetails.primary_email || 'N/A',
+                  department: userDetails.department_names ? userDetails.department_names.join(', ') : 'N/A',
+                  role: 'Stakeholder',
+                  source: `Related asset: ${asset.name}`,
+                  sourceAsset: asset,
+                  userDetails: userDetails
+                });
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error extracting stakeholder from asset ${asset.name}:`, error);
+      }
+    }
+
+    this.state.stakeholders = Array.from(stakeholders.values());
+    console.log(`✅ Extracted ${this.state.stakeholders.length} unique stakeholders`);
+  },
+
+  /**
+   * Display analysis results
+   */
+  async displayResults() {
+    // Display approvers
+    this.displayUserList('approvers-list', this.state.approvers, 'approver');
+    
+    // Display stakeholders
+    this.displayUserList('stakeholders-list', this.state.stakeholders, 'stakeholder');
+    
+    // Update summary
+    this.updateSummary();
+    
+    // Show summary section
+    const summarySection = document.getElementById('impact-summary');
+    if (summarySection) {
+      summarySection.style.display = 'block';
+    }
+  },
+
+  /**
+   * Display a list of users (approvers or stakeholders)
+   */
+  displayUserList(containerId, users, userType) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (users.length === 0) {
+      container.innerHTML = `
+        <div class="no-data-message">
+          <i class="fas fa-info-circle text-muted"></i>
+          <span class="text-muted">No ${userType}s identified from the analysis.</span>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    users.forEach((user, index) => {
+      const badgeClass = userType === 'approver' ? 'bg-success' : 'bg-primary';
+      html += `
+        <div class="user-item" data-user-id="${user.id}">
+          <div class="user-info">
+            <div class="user-name">${this.escapeHtml(user.name)}</div>
+            <div class="user-details">
+              <i class="fas fa-envelope me-1"></i>${this.escapeHtml(user.email)}
+              ${user.department !== 'N/A' ? `<br><i class="fas fa-building me-1"></i>${this.escapeHtml(user.department)}` : ''}
+            </div>
+            <div class="user-badges">
+              <span class="badge ${badgeClass} user-role-badge">${this.escapeHtml(user.role)}</span>
+              <span class="badge bg-secondary user-role-badge" title="Source">${this.escapeHtml(user.source)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  },
+
+  /**
+   * Update the summary section with counts
+   */
+  updateSummary() {
+    const summaryElements = {
+      'direct-assets-count': this.state.directAssets.length,
+      'related-assets-count': this.state.relatedAssets.length,
+      'total-approvers-count': this.state.approvers.length,
+      'total-stakeholders-count': this.state.stakeholders.length
+    };
+
+    Object.entries(summaryElements).forEach(([elementId, count]) => {
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.textContent = count;
+      }
+    });
+  },
+
+  /**
+   * Update service count in header
+   */
+  updateServiceCount() {
+    const countElement = document.getElementById('impacted-services-count');
+    if (countElement) {
+      const totalImpacted = this.state.approvers.length + this.state.stakeholders.length;
+      countElement.textContent = totalImpacted;
+    }
+
+    // Update tab badge
+    const tabBadge = document.querySelector('[data-bs-target="#impacted-services"] .badge');
+    if (tabBadge) {
+      const totalImpacted = this.state.approvers.length + this.state.stakeholders.length;
+      tabBadge.textContent = totalImpacted;
+      tabBadge.style.display = totalImpacted > 0 ? 'inline' : 'none';
+    }
+  },
+
+  /**
+   * Show/hide analysis status
+   */
+  showAnalysisStatus(show) {
+    const statusElement = document.getElementById('analysis-status');
+    if (statusElement) {
+      statusElement.style.display = show ? 'block' : 'none';
+    }
+  },
+
+  /**
+   * Show notification message
+   */
+  showNotification(type, message) {
+    if (window.showNotification) {
+      window.showNotification(type, message);
+    } else {
+      alert(message);
+    }
+  },
+
+  /**
+   * Escape HTML to prevent XSS
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  },
+
+  /**
+   * Get impacted services data for external access
+   */
+  getImpactedServicesData() {
+    return {
+      directAssets: this.state.directAssets,
+      relatedAssets: this.state.relatedAssets,
+      approvers: this.state.approvers,
+      stakeholders: this.state.stakeholders,
+      analysisComplete: this.state.analysisComplete
+    };
+  },
+
+  /**
+   * Validate that analysis has been completed
+   */
+  validateAnalysis() {
+    const isValid = this.state.analysisComplete && 
+                   (this.state.approvers.length > 0 || this.state.stakeholders.length > 0);
+    return {
+      isValid,
+      message: isValid ? '' : 'Please run the services analysis to identify approvers and stakeholders.'
+    };
+  }
+};
+
+/**
+ * Validate impacted services and proceed to next tab
+ */
+function validateServicesAndNext() {
+  console.log('🔍 Validating impacted services...');
+  
+  // Clear any previous validation highlighting
+  clearFieldHighlighting();
+  
+  // Check if ImpactedServices module is available
+  if (!window.ImpactedServices) {
+    showNotification('danger', 'Impacted Services module not available. Please refresh the page.');
+    return;
+  }
+  
+  // Validate the analysis
+  const validation = window.ImpactedServices.validateAnalysis();
+  
+  if (!validation.isValid) {
+    showNotification('danger', validation.message);
+    return;
+  }
+  
+  // If validation passes, switch to risk assessment tab
+  console.log('✅ Impacted services validation passed');
+  switchTab('risk-assessment');
+}
+
+/**
+ * Preload user cache to improve manager name resolution
  */
