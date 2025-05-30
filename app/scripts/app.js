@@ -271,6 +271,7 @@ const changeRequestData = {
   requester: null,
   agent: null,
   changeType: 'normal',
+  reasonForChange: '',
   leadTime: '2 business days',
   plannedStart: '',
   plannedEnd: '',
@@ -2139,6 +2140,50 @@ function setupEventListeners() {
     input.addEventListener('change', updateRiskSelection);
   });
   console.log(`✅ Risk assessment listeners added (${riskInputs.length} inputs)`);
+
+  // Form field event listeners to capture values
+  const reasonForChangeField = document.getElementById('reason-for-change');
+  if (reasonForChangeField) {
+    reasonForChangeField.addEventListener('input', (e) => {
+      changeRequestData.reasonForChange = e.target.value.trim();
+    });
+    console.log('✅ Reason for change field listener added');
+  }
+  
+  const implementationPlanField = document.getElementById('implementation-plan');
+  if (implementationPlanField) {
+    implementationPlanField.addEventListener('input', (e) => {
+      changeRequestData.implementationPlan = e.target.value.trim();
+    });
+  }
+  
+  const backoutPlanField = document.getElementById('backout-plan');
+  if (backoutPlanField) {
+    backoutPlanField.addEventListener('input', (e) => {
+      changeRequestData.backoutPlan = e.target.value.trim();
+    });
+  }
+  
+  const validationPlanField = document.getElementById('validation-plan');
+  if (validationPlanField) {
+    validationPlanField.addEventListener('input', (e) => {
+      changeRequestData.validationPlan = e.target.value.trim();
+    });
+  }
+  
+  const plannedStartField = document.getElementById('planned-start');
+  if (plannedStartField) {
+    plannedStartField.addEventListener('change', (e) => {
+      changeRequestData.plannedStart = e.target.value;
+    });
+  }
+  
+  const plannedEndField = document.getElementById('planned-end');
+  if (plannedEndField) {
+    plannedEndField.addEventListener('change', (e) => {
+      changeRequestData.plannedEnd = e.target.value;
+    });
+  }
 
   console.log('✅ All event listeners setup complete');
 }
@@ -4503,6 +4548,7 @@ function validateDetailsAndNext() {
   // Check required fields
   const plannedStart = document.getElementById('planned-start');
   const plannedEnd = document.getElementById('planned-end');
+  const reasonForChange = document.getElementById('reason-for-change');
   const implementationPlan = document.getElementById('implementation-plan');
   const backoutPlan = document.getElementById('backout-plan');
   const validationPlan = document.getElementById('validation-plan');
@@ -4560,6 +4606,13 @@ function validateDetailsAndNext() {
     highlightInvalidField('validation-plan', 'Validation plan is required');
     isValid = false;
     if (!firstErrorField) firstErrorField = 'validation-plan';
+  }
+  
+  // Validate reason for change
+  if (!reasonForChange.value.trim()) {
+    highlightInvalidField('reason-for-change', 'Reason for change is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'reason-for-change';
   }
   
   if (!isValid) {
