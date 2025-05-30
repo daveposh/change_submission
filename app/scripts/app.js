@@ -270,7 +270,7 @@ function clearServicesCache() {
 const changeRequestData = {
   requester: null,
   agent: null,
-  changeType: 'standard',
+  changeType: 'normal',
   leadTime: '2 business days',
   plannedStart: '',
   plannedEnd: '',
@@ -383,13 +383,13 @@ const DEFAULT_RATE_LIMITS = {
 };
 
 const changeTypeTooltips = {
-  'standard': 'Standard Changes: All changes to critical assets > automate predefined/repeatable changes as much as possible',
+  'normal': 'Normal Change: All Changes to systems that are managed by CXI IT in the production environment and go through peer and approval process',
   'emergency': 'Emergency Changes: Changes arise from an unexpected error/issue and need to be addressed immediately to restore service for customers or employees, or to secure a system against a threat',
   'non-standard': 'Non-standard change: any change that requires an exception to the policy'
 };
 
 const leadTimeText = {
-  'standard': '2 business days',
+  'normal': '2 business days',
   'emergency': 'No lead time required',
   'non-standard': '2 business days'
 };
@@ -3501,8 +3501,8 @@ function initializeChangeTypeDefaults() {
   const changeTypeSelect = document.getElementById('change-type');
   if (!changeTypeSelect) return;
   
-  // Get the currently selected change type (default is 'standard')
-  const currentChangeType = changeTypeSelect.value || 'standard';
+  // Get the currently selected change type (default is 'normal')
+  const currentChangeType = changeTypeSelect.value || 'normal';
   
   // Update lead time display
   const leadTimeElement = document.getElementById('lead-time');
