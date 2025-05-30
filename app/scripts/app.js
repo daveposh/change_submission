@@ -4353,3 +4353,345 @@ function clearAgentResults() {
 /**
  * Search for requesters using Freshservice API
  */
+
+/**
+ * Update risk selection and automatically calculate risk
+ * @param {Event} e - The change event
+ */
+function updateRiskSelection(e) {
+  console.log(`Risk selection updated: ${e.target.name} = ${e.target.value}`);
+  
+  // Automatically calculate risk when any selection changes
+  calculateRisk();
+}
+
+/**
+ * Calculate the overall risk score based on selected answers
+ */
+function calculateRisk() {
+  console.log('🎯 Calculating risk assessment...');
+  
+  // Get all risk input values
+  const businessImpact = document.querySelector('input[name="business-impact"]:checked');
+  const affectedUsers = document.querySelector('input[name="affected-users"]:checked');
+  const complexity = document.querySelector('input[name="complexity"]:checked');
+  const testing = document.querySelector('input[name="testing"]:checked');
+  const rollback = document.querySelector('input[name="rollback"]:checked');
+  
+  // Check if all questions are answered
+  if (!businessImpact || !affectedUsers || !complexity || !testing || !rollback) {
+    console.log('⚠️ Not all risk questions answered yet');
+    hideRiskResult();
+    return;
+  }
+  
+  // Calculate total risk score (sum of all values)
+  const totalScore = parseInt(businessImpact.value) + 
+                    parseInt(affectedUsers.value) + 
+                    parseInt(complexity.value) + 
+                    parseInt(testing.value) + 
+                    parseInt(rollback.value);
+  
+  console.log(`📊 Risk scores: Business Impact: ${businessImpact.value}, Users: ${affectedUsers.value}, Complexity: ${complexity.value}, Testing: ${testing.value}, Rollback: ${rollback.value}`);
+  console.log(`📊 Total Risk Score: ${totalScore}/15`);
+  
+  // Determine risk level based on total score
+  let riskLevel, riskClass, riskExplanation;
+  
+  if (totalScore <= 7) {
+    riskLevel = 'Low';
+    riskClass = 'bg-success';
+    riskExplanation = 'This change has a low risk profile. Standard approval processes apply.';
+  } else if (totalScore <= 11) {
+    riskLevel = 'Medium';
+    riskClass = 'bg-warning';
+    riskExplanation = 'This change has a medium risk profile. Additional review and approval may be required.';
+  } else {
+    riskLevel = 'High';
+    riskClass = 'bg-danger';
+    riskExplanation = 'This change has a high risk profile. Extensive review, testing, and senior approval are required.';
+  }
+  
+  // Update the global form data
+  if (window.formData && window.formData.riskAssessment) {
+    window.formData.riskAssessment = {
+      businessImpact: parseInt(businessImpact.value),
+      affectedUsers: parseInt(affectedUsers.value),
+      complexity: parseInt(complexity.value),
+      testing: parseInt(testing.value),
+      rollback: parseInt(rollback.value),
+      totalScore: totalScore,
+      riskLevel: riskLevel
+    };
+  }
+  
+  // Display the risk result
+  showRiskResult(totalScore, riskLevel, riskClass, riskExplanation);
+  
+  console.log(`✅ Risk assessment complete: ${riskLevel} (${totalScore}/15)`);
+}
+
+/**
+ * Show the risk assessment result
+ * @param {number} score - Total risk score
+ * @param {string} level - Risk level (Low/Medium/High)
+ * @param {string} cssClass - CSS class for styling
+ * @param {string} explanation - Risk explanation text
+ */
+function showRiskResult(score, level, cssClass, explanation) {
+  const riskResult = document.getElementById('risk-result');
+  const riskScoreValue = document.getElementById('risk-score-value');
+  const riskLevelValue = document.getElementById('risk-level-value');
+  const riskExplanation = document.getElementById('risk-explanation');
+  
+  if (riskResult && riskScoreValue && riskLevelValue && riskExplanation) {
+    riskScoreValue.textContent = `${score}/15`;
+    riskLevelValue.textContent = level;
+    riskLevelValue.className = `badge ${cssClass}`;
+    riskExplanation.textContent = explanation;
+    
+    riskResult.classList.remove('hidden');
+    riskResult.style.display = 'block';
+    
+    // Scroll to result
+    riskResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+/**
+ * Hide the risk assessment result
+ */
+function hideRiskResult() {
+  const riskResult = document.getElementById('risk-result');
+  if (riskResult) {
+    riskResult.classList.add('hidden');
+    riskResult.style.display = 'none';
+  }
+}
+
+/**
+ * Validate risk assessment and proceed to next step
+ */
+function validateRiskAndNext() {
+  console.log('🔍 Validating risk assessment...');
+  
+  // Check if risk has been calculated
+  if (!window.formData || !window.formData.riskAssessment || !window.formData.riskAssessment.riskLevel) {
+    showNotification('error', 'Please complete the risk assessment by answering all questions.');
+    return false;
+  }
+  
+  console.log('✅ Risk assessment validation passed');
+  
+  // Show submission summary
+  showSubmissionSummary();
+  
+  return true;
+}
+
+/**
+ * Validate details and proceed to next step
+ */
+function validateDetailsAndNext() {
+  console.log('🔍 Validating change details...');
+  
+  // Check required fields
+  const plannedStart = document.getElementById('planned-start');
+  const plannedEnd = document.getElementById('planned-end');
+  const implementationPlan = document.getElementById('implementation-plan');
+  const backoutPlan = document.getElementById('backout-plan');
+  const validationPlan = document.getElementById('validation-plan');
+  
+  let isValid = true;
+  let firstErrorField = null;
+  
+  // Clear previous highlighting
+  clearFieldHighlighting();
+  
+  // Validate requester
+  if (!window.formData || !window.formData.requester || !window.formData.requester.id) {
+    highlightInvalidField('requester-search', 'Requester is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'requester-search';
+  }
+  
+  // Validate agent
+  if (!window.formData || !window.formData.agent || !window.formData.agent.id) {
+    highlightInvalidField('agent-search', 'Agent is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'agent-search';
+  }
+  
+  // Validate planned start
+  if (!plannedStart.value) {
+    highlightInvalidField('planned-start', 'Planned start date is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'planned-start';
+  }
+  
+  // Validate planned end
+  if (!plannedEnd.value) {
+    highlightInvalidField('planned-end', 'Planned end date is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'planned-end';
+  }
+  
+  // Validate implementation plan
+  if (!implementationPlan.value.trim()) {
+    highlightInvalidField('implementation-plan', 'Implementation plan is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'implementation-plan';
+  }
+  
+  // Validate backout plan
+  if (!backoutPlan.value.trim()) {
+    highlightInvalidField('backout-plan', 'Backout plan is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'backout-plan';
+  }
+  
+  // Validate validation plan
+  if (!validationPlan.value.trim()) {
+    highlightInvalidField('validation-plan', 'Validation plan is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'validation-plan';
+  }
+  
+  if (!isValid) {
+    showNotification('error', 'Please fill in all required fields before proceeding.');
+    if (firstErrorField) {
+      document.getElementById(firstErrorField).focus();
+    }
+    return false;
+  }
+  
+  console.log('✅ Details validation passed');
+  
+  // Switch to asset association tab
+  switchTab('asset-association');
+  
+  return true;
+}
+
+/**
+ * Validate assets and proceed to next step
+ */
+function validateAssetsAndNext() {
+  console.log('🔍 Validating asset associations...');
+  
+  // Assets are optional, so just proceed to risk assessment
+  console.log('✅ Asset validation passed (assets are optional)');
+  
+  // Switch to risk assessment tab
+  switchTab('risk-assessment');
+  
+  return true;
+}
+
+/**
+ * Switch between tabs
+ * @param {string} tabId - The ID of the tab to switch to
+ */
+function switchTab(tabId) {
+  console.log(`🔄 Switching to tab: ${tabId}`);
+  
+  // Find the tab button and trigger click
+  const tabButton = document.querySelector(`[data-bs-target="#${tabId}"]`);
+  if (tabButton) {
+    tabButton.click();
+  } else {
+    console.error(`Tab button not found for: ${tabId}`);
+  }
+}
+
+/**
+ * Show notification to user
+ * @param {string} type - Type of notification (success, error, warning, info)
+ * @param {string} message - Message to display
+ * @param {boolean} scrollToTop - Whether to scroll to top
+ */
+function showNotification(type, message, scrollToTop = true) {
+  console.log(`📢 ${type.toUpperCase()}: ${message}`);
+  
+  // Remove any existing notifications
+  const existingNotifications = document.querySelectorAll('.alert');
+  existingNotifications.forEach(notification => notification.remove());
+  
+  // Create notification element
+  const alertClass = type === 'error' ? 'alert-danger' : 
+                    type === 'success' ? 'alert-success' : 
+                    type === 'warning' ? 'alert-warning' : 'alert-info';
+  
+  const notification = document.createElement('div');
+  notification.className = `alert ${alertClass} alert-dismissible fade show`;
+  notification.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  `;
+  
+  // Insert at the top of the active tab content
+  const activeTab = document.querySelector('.tab-pane.active');
+  if (activeTab) {
+    activeTab.insertBefore(notification, activeTab.firstChild);
+    
+    if (scrollToTop) {
+      activeTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+  
+  // Auto-dismiss after 5 seconds
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.remove();
+    }
+  }, 5000);
+}
+
+/**
+ * Highlight invalid field
+ * @param {string} fieldId - ID of the field to highlight
+ * @param {string} message - Error message to display
+ */
+function highlightInvalidField(fieldId, message = '') {
+  const field = document.getElementById(fieldId);
+  if (field) {
+    field.classList.add('is-invalid');
+    
+    // Add error message if provided
+    if (message) {
+      let feedback = field.parentNode.querySelector('.invalid-feedback');
+      if (!feedback) {
+        feedback = document.createElement('div');
+        feedback.className = 'invalid-feedback';
+        field.parentNode.appendChild(feedback);
+      }
+      feedback.textContent = message;
+    }
+  }
+}
+
+/**
+ * Clear field highlighting
+ */
+function clearFieldHighlighting() {
+  const invalidFields = document.querySelectorAll('.is-invalid');
+  invalidFields.forEach(field => {
+    field.classList.remove('is-invalid');
+  });
+  
+  const feedbacks = document.querySelectorAll('.invalid-feedback');
+  feedbacks.forEach(feedback => feedback.remove());
+}
+
+/**
+ * Show submission summary
+ */
+function showSubmissionSummary() {
+  console.log('📋 Showing submission summary...');
+  
+  // This would typically show a modal with the summary
+  // For now, just show a success message
+  showNotification('success', 'Change request is ready for submission!');
+  
+  // You could implement a modal here to show the full summary
+}
