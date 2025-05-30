@@ -1798,17 +1798,90 @@ async function getCachedUsers() {
 }
 
 /**
- * Save users to cache
+ * Save users to cache with size optimization
  * @param {Object} users - Users to cache
  * @returns {Promise<boolean>} - Success status
  */
 async function cacheUsers(users) {
   try {
-    await window.client.db.set(STORAGE_KEYS.USER_CACHE, users);
-    console.log('User cache updated');
+    // Optimize cache by storing only essential fields
+    const optimizedCache = {};
+    
+    for (const [userId, userData] of Object.entries(users)) {
+      if (userData && userData.data) {
+        // Store only essential fields to reduce cache size
+        optimizedCache[userId] = {
+          name: userData.name,
+          timestamp: userData.timestamp,
+          type: userData.type,
+          data: {
+            id: userData.data.id,
+            first_name: userData.data.first_name,
+            last_name: userData.data.last_name,
+            email: userData.data.email,
+            job_title: userData.data.job_title,
+            department_names: userData.data.department_names,
+            location_name: userData.data.location_name,
+            reporting_manager_id: userData.data.reporting_manager_id
+          }
+        };
+      } else {
+        // Handle legacy format
+        optimizedCache[userId] = userData;
+      }
+    }
+    
+    // Check cache size before saving
+    const cacheSize = JSON.stringify(optimizedCache).length;
+    console.log(`💾 User cache size: ${(cacheSize / 1024).toFixed(2)}KB`);
+    
+    if (cacheSize > 35000) { // Leave some buffer below 40KB limit
+      console.warn('⚠️ User cache approaching size limit, trimming oldest entries...');
+      
+      // Sort by timestamp and keep only the most recent entries
+      const sortedEntries = Object.entries(optimizedCache)
+        .sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0))
+        .slice(0, 30); // Keep only 30 most recent users
+      
+      const trimmedCache = Object.fromEntries(sortedEntries);
+      const trimmedSize = JSON.stringify(trimmedCache).length;
+      console.log(`✂️ Trimmed cache to ${sortedEntries.length} users, size: ${(trimmedSize / 1024).toFixed(2)}KB`);
+      
+      await window.client.db.set(STORAGE_KEYS.USER_CACHE, trimmedCache);
+    } else {
+      await window.client.db.set(STORAGE_KEYS.USER_CACHE, optimizedCache);
+    }
+    
+    console.log('✅ User cache updated successfully');
     return true;
   } catch (error) {
-    console.error('Failed to save user cache:', error);
+    console.error('❌ Failed to save user cache:', error);
+    
+    // If still failing, try with even smaller cache
+    if (error.message && error.message.includes('40KB')) {
+      console.log('🔄 Attempting emergency cache reduction...');
+      try {
+        // Keep only names and IDs for emergency fallback
+        const emergencyCache = {};
+        const entries = Object.entries(users).slice(0, 20); // Only 20 users
+        
+        for (const [userId, userData] of entries) {
+          emergencyCache[userId] = {
+            name: userData.name || 'Unknown',
+            timestamp: Date.now(),
+            type: userData.type || 'unknown'
+          };
+        }
+        
+        await window.client.db.set(STORAGE_KEYS.USER_CACHE, emergencyCache);
+        console.log('✅ Emergency cache saved with minimal data');
+        return true;
+      } catch (emergencyError) {
+        console.error('❌ Emergency cache save also failed:', emergencyError);
+        return false;
+      }
+    }
+    
     return false;
   }
 }
@@ -5439,7 +5512,7 @@ function updateInitializationProgress(progress, message) {
  */
 function hideInitializationOverlay() {
   const overlay = document.getElementById('initialization-overlay');
-  const appContent = document.querySelector('.app-content');
+  const appContent = document.getElementById('app-content');
   
   if (overlay) {
     // Add fade-out class for smooth transition
@@ -5453,7 +5526,8 @@ function hideInitializationOverlay() {
   
   if (appContent) {
     // Remove blur effect from main content
-    appContent.classList.remove('blurred');
+    appContent.classList.remove('app-initializing');
+    appContent.classList.add('app-ready');
   }
   
   console.log('✅ Initialization overlay hidden, app ready for interaction');
