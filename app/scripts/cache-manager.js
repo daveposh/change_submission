@@ -495,11 +495,14 @@ const CacheManager = {
    * @returns {Promise<Array>} - Array of matching assets with type_fields
    */
   async searchAssets(searchTerm, searchField = 'name') {
-    if (!searchTerm || searchTerm.trim().length < 2) {
+    // Convert searchTerm to string to handle numbers and other types
+    const searchString = String(searchTerm || '');
+    
+    if (!searchString || searchString.trim().length < 2) {
       return [];
     }
 
-    console.log(`🔍 CacheManager: Searching assets for '${searchTerm}' in field '${searchField}'`);
+    console.log(`🔍 CacheManager: Searching assets for '${searchString}' in field '${searchField}'`);
 
     // Check for client availability
     if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
@@ -508,16 +511,16 @@ const CacheManager = {
     }
 
     // Check cache first
-    const cacheKey = `${searchField}:${searchTerm.toLowerCase()}`;
+    const cacheKey = `${searchField}:${searchString.toLowerCase()}`;
     const cachedResults = await this.getCachedAssetSearch(cacheKey);
     if (cachedResults) {
-      console.log(`📦 Using cached asset search results for '${searchTerm}'`);
+      console.log(`📦 Using cached asset search results for '${searchString}'`);
       return cachedResults;
     }
 
     try {
       // Use field-specific search format as required by API: field:'searchterm'
-      const fieldQuery = `${searchField}:'${searchTerm}'`;
+      const fieldQuery = `${searchField}:'${searchString}'`;
       
       console.log(`📡 CacheManager: API call with query '${fieldQuery}' and include=type_fields`);
       
