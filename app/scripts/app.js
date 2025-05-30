@@ -4695,3 +4695,433 @@ function showSubmissionSummary() {
   
   // You could implement a modal here to show the full summary
 }
+
+/**
+ * Finalize requester search with results
+ * @param {string} searchTerm - Original search term
+ * @param {Array} results - Search results
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+// eslint-disable-next-line no-unused-vars
+function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = false) {
+  // Ensure client is available
+  if (!window.client || !window.client.request) {
+    console.error('Client or request object not available for requester search');
+    const resultsContainer = document.getElementById('requester-results');
+    if (resultsContainer) {
+      resultsContainer.innerHTML = '<div class="text-center p-3 text-danger">API client not initialized. Please refresh the page.</div>';
+    }
+    return;
+  }
+
+  // Use field-specific format for both requesters and agents API (since agents can be requesters too)
+  const userQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  
+  console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} requester search with query:`, userQuery);
+  
+  // Show appropriate loading indicator
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('requester-results');
+    if (resultsContainer) {
+      if (isLiveSearch) {
+        showLiveSearchIndicator('requester-results', 'requesters');
+      } else {
+        resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+        resultsContainer.style.display = 'block';
+      }
+    }
+  }
+  
+  // Function to load requester results from a specific page
+  function loadRequestersPage(page = 1, allResults = []) {
+    // Use invokeTemplate with path suffix to add query parameter
+    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
+    console.log('Requester API URL:', requestUrl);
+    
+    window.client.request.invokeTemplate("getRequesters", {
+      path_suffix: requestUrl,
+      cache: true,
+      ttl: 300000 // 5 minutes cache
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from requester search');
+          // Continue to load agents since requesters search failed
+          loadAgentsAsRequesters(page, allResults);
+          return;
+        }
+        
+        console.log('Requester search raw response:', data.response);
+        const response = JSON.parse(data.response || '{"requesters":[]}');
+        const requesters = response && response.requesters ? response.requesters : [];
+        console.log(`Requester search returned ${requesters.length} results`);
+        
+        // Manual filtering if the API filtering isn't working
+        const filteredRequesters = requesters.filter(requester => {
+          const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
+          const email = (requester.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredRequesters.length} requester results`);
+        
+        // Combine with previous results
+        const combinedResults = [...allResults, ...filteredRequesters];
+        
+        // Now also search agents since they can be requesters too
+        loadAgentsAsRequesters(page, combinedResults);
+        
+      } catch (error) {
+        console.error('Error parsing requester response:', error);
+        // Still try to load agents
+        loadAgentsAsRequesters(page, allResults);
+      }
+    })
+    .catch(function(error) {
+      console.error('Requester API request failed:', error);
+      // Still try to load agents
+      loadAgentsAsRequesters(page, allResults);
+    });
+  }
+  
+  // Function to also search agents as potential requesters
+  function loadAgentsAsRequesters(page = 1, existingResults = []) {
+    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
+    console.log('Agent-as-requester API URL:', requestUrl);
+    
+    window.client.request.invokeTemplate("getAgents", {
+      path_suffix: requestUrl,
+      cache: true,
+      ttl: 300000 // 5 minutes cache
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from agent search for requesters');
+          finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+          return;
+        }
+        
+        console.log('Agent search (for requesters) raw response:', data.response);
+        const response = JSON.parse(data.response || '{"agents":[]}');
+        const agents = response && response.agents ? response.agents : [];
+        console.log(`Agent search returned ${agents.length} results for requesters`);
+        
+        // Manual filtering for agents
+        const filteredAgents = agents.filter(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
+          const term = searchTerm.toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredAgents.length} agent results for requesters`);
+        
+        // Mark agents as potential requesters and avoid duplicates
+        const agentsAsRequesters = filteredAgents.map(agent => ({
+          ...agent,
+          _isAgent: true, // Mark as agent so we can show this in UI
+          _canBeRequester: true
+        }));
+        
+        // Remove duplicates based on email
+        const existingEmails = new Set(existingResults.map(r => r.email));
+        const uniqueAgents = agentsAsRequesters.filter(agent => !existingEmails.has(agent.email));
+        
+        // Combine all results
+        const allResults = [...existingResults, ...uniqueAgents];
+        
+        // Check if we should load more pages (limit to 2 pages for performance)
+        if ((filteredAgents.length === 30 || existingResults.length < 30) && page < 2) {
+          // Load next page
+          (async function() {
+              const params = await getInstallationParams();
+              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              
+              updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
+              setTimeout(() => {
+                loadRequestersPage(page + 1, allResults);
+              }, paginationDelay);
+          })().catch(err => {
+              console.error('Error getting pagination delay:', err);
+              // Default delay if error
+              setTimeout(() => {
+                loadRequestersPage(page + 1, allResults);
+              }, DEFAULT_PAGINATION_DELAY);
+          });
+        } else {
+          // Complete the search with all results
+          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+        }
+      } catch (error) {
+        console.error('Error parsing agent response for requesters:', error);
+        // Complete with existing results
+        finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+      }
+    })
+    .catch(function(error) {
+      console.error('Agent API request failed for requesters:', error);
+      // Complete with existing results
+      finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+    });
+  }
+  
+  // Start loading from page 1
+  loadRequestersPage(1, []);
+}
+
+/**
+ * Finalize agent search with results
+ * @param {string} searchTerm - Original search term
+ * @param {Array} results - Search results
+ * @param {boolean} isRefresh - Whether this is a cache refresh operation
+ */
+// eslint-disable-next-line no-unused-vars
+function finalizeAgentSearch(searchTerm, results, isRefresh) {
+  // Cache the results
+  addToSearchCache('agents', searchTerm, results);
+  
+  // Display all results with refresh status for logging
+  console.log(`Displaying ${results.length} agent results (refresh: ${isRefresh})`);
+  displaySearchResults('agent-results', results, selectAgent);
+  
+  // Add individual users to the user cache for later use
+  if (results.length > 0) {
+    cacheIndividualUsers(results, 'agent');
+  }
+}
+
+/**
+ * Select a requester from search results
+ * @param {Object} requester - The selected requester object
+ */
+function selectRequester(requester) {
+  console.log('📋 Selecting requester:', requester);
+  
+  // Store in global form data
+  if (!window.formData) {
+    window.formData = {};
+  }
+  window.formData.requester = requester;
+  
+  // Update the UI
+  const selectedContainer = document.getElementById('selected-requester');
+  const searchInput = document.getElementById('requester-search');
+  const resultsContainer = document.getElementById('requester-results');
+  
+  if (selectedContainer && searchInput) {
+    selectedContainer.innerHTML = `
+      <div class="selected-user d-flex justify-content-between align-items-center">
+        <div>
+          <strong>${requester.first_name} ${requester.last_name}</strong>
+          <br><small class="text-muted">${requester.email}</small>
+          ${requester._isAgent ? '<span class="badge bg-info ms-2">Agent</span>' : ''}
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearRequester()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    
+    // Clear search input and hide results
+    searchInput.value = '';
+    if (resultsContainer) {
+      resultsContainer.style.display = 'none';
+    }
+    
+    // Clear any validation errors
+    searchInput.classList.remove('is-invalid');
+    const feedback = searchInput.parentNode.querySelector('.invalid-feedback');
+    if (feedback) feedback.remove();
+  }
+}
+
+/**
+ * Select an agent from search results
+ * @param {Object} agent - The selected agent object
+ */
+function selectAgent(agent) {
+  console.log('📋 Selecting agent:', agent);
+  
+  // Store in global form data
+  if (!window.formData) {
+    window.formData = {};
+  }
+  window.formData.agent = agent;
+  
+  // Update the UI
+  const selectedContainer = document.getElementById('selected-agent');
+  const searchInput = document.getElementById('agent-search');
+  const resultsContainer = document.getElementById('agent-results');
+  
+  if (selectedContainer && searchInput) {
+    selectedContainer.innerHTML = `
+      <div class="selected-user d-flex justify-content-between align-items-center">
+        <div>
+          <strong>${agent.first_name} ${agent.last_name}</strong>
+          <br><small class="text-muted">${agent.email}</small>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearAgent()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    `;
+    
+    // Clear search input and hide results
+    searchInput.value = '';
+    if (resultsContainer) {
+      resultsContainer.style.display = 'none';
+    }
+    
+    // Clear any validation errors
+    searchInput.classList.remove('is-invalid');
+    const feedback = searchInput.parentNode.querySelector('.invalid-feedback');
+    if (feedback) feedback.remove();
+  }
+}
+
+/**
+ * Clear selected requester
+ */
+function clearRequester() {
+  console.log('🗑️ Clearing selected requester');
+  
+  // Clear from global form data
+  if (window.formData && window.formData.requester) {
+    delete window.formData.requester;
+  }
+  
+  // Clear UI
+  const selectedContainer = document.getElementById('selected-requester');
+  if (selectedContainer) {
+    selectedContainer.innerHTML = '';
+  }
+}
+
+/**
+ * Clear selected agent
+ */
+function clearAgent() {
+  console.log('🗑️ Clearing selected agent');
+  
+  // Clear from global form data
+  if (window.formData && window.formData.agent) {
+    delete window.formData.agent;
+  }
+  
+  // Clear UI
+  const selectedContainer = document.getElementById('selected-agent');
+  if (selectedContainer) {
+    selectedContainer.innerHTML = '';
+  }
+}
+
+/**
+ * Display search results in a container
+ * @param {string} containerId - ID of the container to display results
+ * @param {Array} results - Array of search results
+ * @param {Function} selectCallback - Callback function when item is selected
+ */
+function displaySearchResults(containerId, results, selectCallback) {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.error(`Container ${containerId} not found`);
+    return;
+  }
+  
+  if (!results || results.length === 0) {
+    container.innerHTML = '<div class="text-center p-3 text-muted">No results found</div>';
+    container.style.display = 'block';
+    return;
+  }
+  
+  const resultItems = results.map(item => `
+    <div class="list-group-item list-group-item-action" onclick="(${selectCallback.toString()})(${JSON.stringify(item).replace(/"/g, '&quot;')})">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <strong>${item.first_name} ${item.last_name}</strong>
+          <br><small class="text-muted">${item.email}</small>
+        </div>
+        ${item._isAgent ? '<span class="badge bg-info">Agent</span>' : ''}
+      </div>
+    </div>
+  `).join('');
+  
+  container.innerHTML = resultItems;
+  container.style.display = 'block';
+}
+
+/**
+ * Add results to search cache
+ * @param {string} type - Type of search (requesters/agents)
+ * @param {string} searchTerm - The search term
+ * @param {Array} results - The search results
+ */
+function addToSearchCache(type, searchTerm, results) {
+  if (!window.searchCache) {
+    window.searchCache = {};
+  }
+  
+  const cacheKey = `${type}_${searchTerm.toLowerCase()}`;
+  window.searchCache[cacheKey] = {
+    results: results,
+    timestamp: Date.now()
+  };
+  
+  console.log(`📦 Cached ${results.length} ${type} results for "${searchTerm}"`);
+}
+
+/**
+ * Cache individual users for later use
+ * @param {Array} users - Array of user objects
+ * @param {string} type - Type of users (requester/agent)
+ */
+function cacheIndividualUsers(users, type) {
+  if (!window.userCache) {
+    window.userCache = {};
+  }
+  
+  users.forEach(user => {
+    if (user.id) {
+      window.userCache[user.id] = {
+        ...user,
+        type: type,
+        timestamp: Date.now()
+      };
+    }
+  });
+  
+  console.log(`👥 Cached ${users.length} individual ${type} users`);
+}
+
+/**
+ * Update loading message in a container
+ * @param {string} containerId - ID of the container
+ * @param {string} message - Loading message to display
+ */
+function updateLoadingMessage(containerId, message) {
+  const container = document.getElementById(containerId);
+  if (container) {
+    container.innerHTML = `
+      <div class="text-center p-3">
+        <div class="spinner-border spinner-border-sm" role="status"></div>
+        ${message}
+      </div>
+    `;
+  }
+}
+
+/**
+ * Get installation parameters
+ * @returns {Promise<Object>} Installation parameters
+ */
+function getInstallationParams() {
+  // Return default parameters for now
+  // In a real implementation, this would fetch from the app's configuration
+  return Promise.resolve({
+    searchCacheTimeout: 300000, // 5 minutes
+    paginationDelay: 500 // 500ms
+  });
+}
