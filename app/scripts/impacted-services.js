@@ -221,20 +221,39 @@ const ImpactedServices = {
             
             for (const relationship of relationshipData.relationships) {
               try {
+                console.log(`🔗 Processing relationship:`, {
+                  id: relationship.id,
+                  relationship_type_id: relationship.relationship_type_id,
+                  primary_id: relationship.primary_id,
+                  primary_type: relationship.primary_type,
+                  secondary_id: relationship.secondary_id,
+                  secondary_type: relationship.secondary_type,
+                  created_at: relationship.created_at,
+                  updated_at: relationship.updated_at
+                });
+                
                 // Extract related asset ID based on the actual API response format
                 let relatedAssetId = null;
                 
-                // If this asset is the primary, get the secondary asset
+                // If this asset is the primary, get the secondary asset (if it's an asset)
                 if (relationship.primary_id == assetId && relationship.secondary_type === 'asset') {
                   relatedAssetId = relationship.secondary_id;
+                  console.log(`   → Asset ${assetId} is primary, related asset: ${relatedAssetId}`);
                 }
-                // If this asset is the secondary, get the primary asset
+                // If this asset is the secondary, get the primary asset (if it's an asset)
                 else if (relationship.secondary_id == assetId && relationship.primary_type === 'asset') {
                   relatedAssetId = relationship.primary_id;
+                  console.log(`   → Asset ${assetId} is secondary, related asset: ${relatedAssetId}`);
                 }
                 
                 // Skip if no related asset ID found or already processed
-                if (!relatedAssetId || processedAssetIds.has(relatedAssetId)) {
+                if (!relatedAssetId) {
+                  console.log(`   ⚠️ No related asset found in relationship ${relationship.id}`);
+                  continue;
+                }
+                
+                if (processedAssetIds.has(relatedAssetId)) {
+                  console.log(`   🔄 Related asset ${relatedAssetId} already processed, skipping`);
                   continue;
                 }
                 
@@ -248,11 +267,11 @@ const ImpactedServices = {
                 );
                 
                 if (isDirectAsset) {
-                  console.log(`🔄 Skipping related asset ${relatedAssetId} as it's already a direct asset`);
+                  console.log(`   🔄 Skipping related asset ${relatedAssetId} as it's already a direct asset`);
                   continue;
                 }
                 
-                console.log(`🔗 Found related asset ID: ${relatedAssetId} for ${directAsset.name}`);
+                console.log(`   ✅ Found valid related asset ID: ${relatedAssetId} for ${directAsset.name}`);
                 
                 // Fetch the full asset details for the related asset
                 const relatedAssetDetails = await this.fetchAssetDetails(relatedAssetId);
@@ -274,7 +293,8 @@ const ImpactedServices = {
                     relationshipTypeName = await window.CacheManager.getRelationshipTypeName(relationship.relationship_type_id) || 'Related';
                   }
                   
-                  relatedAssets.push({
+                  // Create the related asset object with all relationship metadata
+                  const relatedAssetObj = {
                     id: relatedAssetDetails.id,
                     display_id: relatedAssetDetails.display_id || relatedAssetDetails.id,
                     name: relatedAssetDetails.name || `Asset ${relatedAssetDetails.id}`,
@@ -282,16 +302,25 @@ const ImpactedServices = {
                     managed_by: relatedAssetDetails.managed_by || relatedAssetDetails.agent_id || relatedAssetDetails.user_id,
                     relationship_type: relationshipTypeName,
                     relationship_type_id: relationship.relationship_type_id,
+                    relationship_id: relationship.id,
+                    relationship_created_at: relationship.created_at,
+                    relationship_updated_at: relationship.updated_at,
                     source_asset: directAsset.name,
                     source_asset_id: assetId,
+                    is_primary: relationship.primary_id == assetId,
+                    is_secondary: relationship.secondary_id == assetId,
                     ...relatedAssetDetails // Include all other asset properties
-                  });
+                  };
                   
-                  console.log(`✅ Added related asset: ${relatedAssetDetails.name} (${relationshipTypeName})`);
+                  relatedAssets.push(relatedAssetObj);
+                  
+                  console.log(`   ✅ Added related asset: ${relatedAssetDetails.name} (${relationshipTypeName}) - Relationship ID: ${relationship.id}`);
+                } else {
+                  console.warn(`   ⚠️ Could not fetch details for related asset ${relatedAssetId}`);
                 }
                 
               } catch (relationshipError) {
-                console.warn(`⚠️ Error processing relationship for asset ${directAsset.name}:`, relationshipError);
+                console.warn(`⚠️ Error processing relationship ${relationship.id || 'unknown'} for asset ${directAsset.name}:`, relationshipError);
               }
             }
           } else {
@@ -333,13 +362,35 @@ const ImpactedServices = {
     
     // Log summary of relationship types
     const relationshipTypes = {};
+    const relationshipDetails = [];
     relatedAssets.forEach(asset => {
       const type = asset.relationship_type || 'Unknown';
       relationshipTypes[type] = (relationshipTypes[type] || 0) + 1;
+      
+      // Collect detailed relationship info for debugging
+      relationshipDetails.push({
+        asset_name: asset.name,
+        asset_id: asset.display_id || asset.id,
+        relationship_type: type,
+        relationship_id: asset.relationship_id,
+        source_asset: asset.source_asset,
+        is_primary: asset.is_primary,
+        is_secondary: asset.is_secondary,
+        created_at: asset.relationship_created_at
+      });
     });
     
     if (Object.keys(relationshipTypes).length > 0) {
       console.log(`📊 Relationship types found:`, relationshipTypes);
+      console.log(`📋 Detailed relationship information:`);
+      relationshipDetails.forEach((detail, index) => {
+        console.log(`   ${index + 1}. ${detail.asset_name} (ID: ${detail.asset_id})`);
+        console.log(`      → Type: ${detail.relationship_type}`);
+        console.log(`      → Relationship ID: ${detail.relationship_id}`);
+        console.log(`      → Source: ${detail.source_asset}`);
+        console.log(`      → Role: ${detail.is_primary ? 'Primary' : 'Secondary'} in relationship`);
+        console.log(`      → Created: ${detail.created_at}`);
+      });
     }
   },
 
