@@ -5527,6 +5527,12 @@ async function preloadUserCache() {
     if (userCache && typeof userCache === 'object') {
       const userCount = Object.keys(userCache).length;
       console.log(`✅ Preloaded ${userCount} users into cache`);
+      
+      // Log breakdown by type
+      const requesters = Object.values(userCache).filter(u => u.type === 'requester').length;
+      const agents = Object.values(userCache).filter(u => u.type === 'agent').length;
+      console.log(`   📊 Breakdown: ${requesters} requesters, ${agents} agents`);
+      
       return userCount;
     }
     
@@ -5618,19 +5624,29 @@ const ImpactedServices = {
         return;
       }
 
-      // Step 2: Extract approvers from direct assets
+      // Step 2: Preload users referenced in direct assets
+      console.log('👥 Preloading users referenced in direct assets...');
+      await preloadAssetUsers(this.state.directAssets);
+
+      // Step 3: Extract approvers from direct assets
       console.log('👥 Extracting approvers from direct assets...');
       await this.extractApproversFromDirectAssets();
 
-      // Step 3: Find related assets through asset relationships
+      // Step 4: Find related assets through asset relationships
       console.log('🔗 Finding related assets through relationships...');
       await this.findRelatedAssets();
 
-      // Step 4: Extract stakeholders from related assets
+      // Step 5: Preload users referenced in related assets
+      if (this.state.relatedAssets.length > 0) {
+        console.log('👥 Preloading users referenced in related assets...');
+        await preloadAssetUsers(this.state.relatedAssets);
+      }
+
+      // Step 6: Extract stakeholders from related assets
       console.log('🤝 Extracting stakeholders from related assets...');
       await this.extractStakeholdersFromRelatedAssets();
 
-      // Step 5: Display results
+      // Step 7: Display results
       this.displayResults();
 
       this.state.analysisComplete = true;
@@ -5943,6 +5959,46 @@ const ImpactedServices = {
       isValid,
       message: isValid ? '' : 'Please run the services analysis to identify approvers and stakeholders.'
     };
+  },
+
+  /**
+   * Debug method to analyze user cache status for current assets
+   */
+  async debugUserCache() {
+    console.log('🔍 === IMPACTED SERVICES USER CACHE DEBUG ===');
+    
+    // Get all assets (direct + related)
+    const allAssets = [...this.state.directAssets, ...this.state.relatedAssets];
+    
+    if (allAssets.length === 0) {
+      console.log('⚠️ No assets loaded. Load assets first by running analysis.');
+      return;
+    }
+    
+    console.log(`📦 Analyzing user cache for ${this.state.directAssets.length} direct assets and ${this.state.relatedAssets.length} related assets`);
+    
+    // Use the global debug function
+    await debugUserCacheStatus(allAssets);
+    
+    // Show current analysis state
+    console.log(`\n📊 === CURRENT ANALYSIS STATE ===`);
+    console.log(`✅ Analysis complete: ${this.state.analysisComplete}`);
+    console.log(`👥 Approvers found: ${this.state.approvers.length}`);
+    console.log(`🤝 Stakeholders found: ${this.state.stakeholders.length}`);
+    
+    if (this.state.approvers.length > 0) {
+      console.log(`\n👥 === APPROVERS ===`);
+      this.state.approvers.forEach((approver, index) => {
+        console.log(`${index + 1}. ${approver.name} (${approver.email}) - ${approver.source}`);
+      });
+    }
+    
+    if (this.state.stakeholders.length > 0) {
+      console.log(`\n🤝 === STAKEHOLDERS ===`);
+      this.state.stakeholders.forEach((stakeholder, index) => {
+        console.log(`${index + 1}. ${stakeholder.name} (${stakeholder.email}) - ${stakeholder.source}`);
+      });
+    }
   }
 };
 
@@ -5976,4 +6032,223 @@ function validateServicesAndNext() {
 
 /**
  * Preload user cache to improve manager name resolution
+ */
+
+/**
+ * Preload specific users referenced in assets to ensure managed_by resolution works
+ * @param {Array} assets - Array of assets to analyze for user references
+ * @returns {Promise<number>} - Number of users successfully cached
+ */
+async function preloadAssetUsers(assets) {
+  if (!assets || assets.length === 0) {
+    console.log('📦 No assets provided for user preloading');
+    return 0;
+  }
+
+  console.log(`👥 Preloading users referenced in ${assets.length} assets...`);
+  
+  // Collect all unique user IDs referenced in assets
+  const userIds = new Set();
+  
+  assets.forEach(asset => {
+    // Check various fields that might contain user IDs
+    if (asset.agent_id && !isNaN(asset.agent_id)) {
+      userIds.add(parseInt(asset.agent_id));
+    }
+    if (asset.user_id && !isNaN(asset.user_id)) {
+      userIds.add(parseInt(asset.user_id));
+    }
+    if (asset.managed_by && !isNaN(asset.managed_by)) {
+      userIds.add(parseInt(asset.managed_by));
+    }
+    
+    // Check type_fields for managed_by references
+    if (asset.type_fields) {
+      Object.entries(asset.type_fields).forEach(([key, value]) => {
+        if (key.includes('managed_by') && value && !isNaN(value)) {
+          userIds.add(parseInt(value));
+        }
+      });
+    }
+  });
+
+  console.log(`🔍 Found ${userIds.size} unique user IDs to preload: [${Array.from(userIds).join(', ')}]`);
+
+  if (userIds.size === 0) {
+    console.log('⚠️ No user IDs found in assets');
+    return 0;
+  }
+
+  // Get current user cache
+  const cachedUsers = await getCachedUsers();
+  let newUsersLoaded = 0;
+
+  // Check each user ID and load if not in cache or expired
+  for (const userId of userIds) {
+    try {
+      // Check if user is already in cache and not expired
+      if (cachedUsers[userId] && 
+          cachedUsers[userId].timestamp > Date.now() - CACHE_TIMEOUT) {
+        console.log(`✅ User ${userId} already in cache: ${cachedUsers[userId].name}`);
+        continue;
+      }
+
+      // Load user details from API
+      console.log(`📡 Loading user ${userId} from API...`);
+      const userDetails = await getUserDetails(userId);
+      
+      if (userDetails) {
+        newUsersLoaded++;
+        console.log(`✅ Loaded user ${userId}: ${userDetails.first_name} ${userDetails.last_name}`);
+      } else {
+        console.log(`⚠️ Could not load user ${userId} - user may not exist`);
+      }
+    } catch (error) {
+      console.warn(`❌ Error loading user ${userId}:`, error);
+    }
+  }
+
+  console.log(`✅ Preloaded ${newUsersLoaded} new users for asset analysis`);
+  return newUsersLoaded;
+}
+
+/**
+ * Preload user cache to improve manager name resolution
+ */
+
+/**
+ * Debug function to check user cache status and asset user references
+ * @param {Array} assets - Optional array of assets to analyze
+ */
+async function debugUserCacheStatus(assets = null) {
+  console.log('🔍 === USER CACHE DEBUG STATUS ===');
+  
+  try {
+    // Check user cache status
+    const cachedUsers = await getCachedUsers();
+    const userCount = Object.keys(cachedUsers).length;
+    console.log(`📦 Total users in cache: ${userCount}`);
+    
+    if (userCount > 0) {
+      const requesters = Object.values(cachedUsers).filter(u => u.type === 'requester').length;
+      const agents = Object.values(cachedUsers).filter(u => u.type === 'agent').length;
+      const others = userCount - requesters - agents;
+      
+      console.log(`   📊 Breakdown:`);
+      console.log(`      👤 Requesters: ${requesters}`);
+      console.log(`      🛠️ Agents: ${agents}`);
+      console.log(`      ❓ Others: ${others}`);
+      
+      // Show sample user IDs
+      const sampleUsers = Object.entries(cachedUsers).slice(0, 5);
+      console.log(`   📋 Sample cached users:`);
+      sampleUsers.forEach(([userId, user]) => {
+        console.log(`      ${userId}: "${user.name}" (${user.type})`);
+      });
+    }
+    
+    // Check search cache
+    if (window.userCache) {
+      const searchCacheCount = Object.keys(window.userCache).length;
+      console.log(`🔍 Search cache users: ${searchCacheCount}`);
+    } else {
+      console.log(`🔍 Search cache: Not initialized`);
+    }
+    
+    // Analyze assets if provided
+    if (assets && assets.length > 0) {
+      console.log(`\n📦 === ASSET USER REFERENCE ANALYSIS ===`);
+      console.log(`Analyzing ${assets.length} assets for user references...`);
+      
+      const userIds = new Set();
+      const assetUserRefs = [];
+      
+      assets.forEach((asset, index) => {
+        const refs = {
+          assetName: asset.name || asset.display_name || `Asset ${index + 1}`,
+          assetId: asset.id,
+          agent_id: asset.agent_id,
+          user_id: asset.user_id,
+          managed_by: asset.managed_by,
+          type_fields_managed: []
+        };
+        
+        // Collect user IDs
+        if (asset.agent_id && !isNaN(asset.agent_id)) {
+          userIds.add(parseInt(asset.agent_id));
+        }
+        if (asset.user_id && !isNaN(asset.user_id)) {
+          userIds.add(parseInt(asset.user_id));
+        }
+        if (asset.managed_by && !isNaN(asset.managed_by)) {
+          userIds.add(parseInt(asset.managed_by));
+        }
+        
+        // Check type_fields
+        if (asset.type_fields) {
+          Object.entries(asset.type_fields).forEach(([key, value]) => {
+            if (key.includes('managed_by') && value && !isNaN(value)) {
+              userIds.add(parseInt(value));
+              refs.type_fields_managed.push(`${key}: ${value}`);
+            }
+          });
+        }
+        
+        assetUserRefs.push(refs);
+      });
+      
+      console.log(`🔍 Found ${userIds.size} unique user IDs referenced in assets`);
+      console.log(`📋 User IDs: [${Array.from(userIds).join(', ')}]`);
+      
+      // Check which user IDs are in cache vs missing
+      const cachedIds = [];
+      const missingIds = [];
+      
+      for (const userId of userIds) {
+        if (cachedUsers[userId]) {
+          cachedIds.push(userId);
+        } else {
+          missingIds.push(userId);
+        }
+      }
+      
+      console.log(`✅ User IDs in cache: ${cachedIds.length} [${cachedIds.join(', ')}]`);
+      console.log(`❌ User IDs missing from cache: ${missingIds.length} [${missingIds.join(', ')}]`);
+      
+      // Show detailed asset analysis
+      console.log(`\n📋 === DETAILED ASSET USER REFERENCES ===`);
+      assetUserRefs.forEach((refs, index) => {
+        console.log(`${index + 1}. "${refs.assetName}" (ID: ${refs.assetId})`);
+        if (refs.agent_id) console.log(`   🛠️ agent_id: ${refs.agent_id} ${cachedUsers[refs.agent_id] ? '✅' : '❌'}`);
+        if (refs.user_id) console.log(`   👤 user_id: ${refs.user_id} ${cachedUsers[refs.user_id] ? '✅' : '❌'}`);
+        if (refs.managed_by) console.log(`   👥 managed_by: ${refs.managed_by} ${cachedUsers[refs.managed_by] ? '✅' : '❌'}`);
+        if (refs.type_fields_managed.length > 0) {
+          refs.type_fields_managed.forEach(field => {
+            const userId = field.split(': ')[1];
+            console.log(`   🏷️ ${field} ${cachedUsers[userId] ? '✅' : '❌'}`);
+          });
+        }
+      });
+      
+      if (missingIds.length > 0) {
+        console.log(`\n💡 === RECOMMENDATIONS ===`);
+        console.log(`❌ ${missingIds.length} user IDs are missing from cache`);
+        console.log(`💡 Run: await preloadAssetUsers(assets) to load missing users`);
+        console.log(`💡 Or run: await fetchUsers() to refresh the entire user cache`);
+      } else {
+        console.log(`\n✅ === ALL GOOD ===`);
+        console.log(`✅ All user IDs referenced in assets are available in cache!`);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Error debugging user cache:', error);
+  }
+}
+
+// Make debug function available globally
+window.debugUserCacheStatus = debugUserCacheStatus;
+
+/**
+ * Update initialization progress
  */
