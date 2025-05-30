@@ -1702,6 +1702,18 @@ async function fetchUsers() {
     if (Object.keys(allUsers).length > 0) {
       console.log(`Caching ${Object.keys(allUsers).length} users (${requesterPage-1} requester pages, ${agentPage-1} agent pages)`);
       await cacheUsers(allUsers);
+      
+      // Also populate the search cache for consistency
+      if (!window.userCache) window.userCache = {};
+      Object.entries(allUsers).forEach(([userId, userInfo]) => {
+        window.userCache[userId] = {
+          ...userInfo.data,
+          type: userInfo.type,
+          timestamp: userInfo.timestamp
+        };
+      });
+      
+      console.log(`✅ Users cached to both primary cache and search cache`);
     } else {
       console.warn('No users found to cache');
     }
@@ -1806,7 +1818,7 @@ async function getUserDetails(userId) {
           };
           await cacheUsers(cachedUsers);
           
-          // Also update search cache
+          // Also update search cache for consistency
           if (!window.userCache) window.userCache = {};
           window.userCache[userId] = {
             ...user,
