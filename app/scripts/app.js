@@ -5472,7 +5472,7 @@ async function initializeAppWithProgress() {
     updateInitializationProgress(20, 'Initializing cache manager...');
     // Initialize cache manager if available
     if (window.CacheManager) {
-      await window.CacheManager.init();
+      await window.CacheManager.initializeAllCaches();
     }
     
     updateInitializationProgress(30, 'Loading asset types...');
