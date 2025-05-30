@@ -1595,7 +1595,7 @@ async function fetchUsers() {
 
   try {
     // Get safe API limits based on plan settings
-    const apiLimits = await getSafeApiLimits();
+    const apiLimits = getSafeApiLimits();
     const requesterPageLimit = apiLimits.listRequestersPageLimit || 10;
     const agentPageLimit = apiLimits.listAgentsPageLimit || 10;
     const delayBetweenRequests = apiLimits.delayBetweenRequests || 100;
@@ -5752,42 +5752,134 @@ const ImpactedServices = {
    * This would typically use asset dependency APIs, but we'll simulate it for now
    */
   async findRelatedAssets() {
-    // For now, we'll search for assets that might be related
-    // In a real implementation, this would use asset relationship APIs
-    
     const relatedAssets = [];
+    const processedAssetIds = new Set(); // Track processed assets to avoid duplicates
     
-    // Search for assets that might be related based on naming patterns, locations, etc.
+    console.log(`🔍 Finding related assets for ${this.state.directAssets.length} direct assets...`);
+    
+    // Check for client availability
+    if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
+      console.log('⚠️ Client or invokeTemplate not available for asset relationships fetch');
+      return;
+    }
+    
     for (const directAsset of this.state.directAssets) {
       try {
-        // Example: Look for assets with similar names or in same location
-        if (window.CacheManager && window.CacheManager.searchAssets) {
-          // Search for assets with similar base names
-          const baseName = directAsset.name.split(' ')[0]; // Get first word
-          if (baseName.length >= 3) {
-            const searchResults = await window.CacheManager.searchAssets(baseName, 'name');
-            
-            // Filter out direct assets and add related ones
-            const filtered = searchResults.filter(asset => 
-              asset.id !== directAsset.id && 
-              !this.state.directAssets.some(da => da.id === asset.id)
-            );
-            
-            relatedAssets.push(...filtered);
+        // Use the display_id for the API call
+        const assetId = directAsset.display_id || directAsset.id;
+        console.log(`📡 Fetching relationships for asset ${directAsset.name} (ID: ${assetId})`);
+        
+        // Make API call using FDK invokeTemplate
+        const response = await window.client.request.invokeTemplate("getAssetRelationships", {
+          context: {
+            asset_id: assetId
           }
+        });
+        
+        if (!response || !response.response) {
+          console.warn(`⚠️ Failed to fetch relationships for asset ${directAsset.name}: No response data`);
+          continue;
         }
+        
+        // Parse the response
+        let relationshipData;
+        try {
+          relationshipData = JSON.parse(response.response);
+        } catch (parseError) {
+          console.warn(`⚠️ Failed to parse relationship data for asset ${directAsset.name}:`, parseError);
+          continue;
+        }
+        
+        console.log(`📊 Relationship data for ${directAsset.name}:`, relationshipData);
+        
+        // Process the relationship data
+        if (relationshipData && Array.isArray(relationshipData.relationships)) {
+          for (const relationship of relationshipData.relationships) {
+            // Extract related asset information
+            let relatedAsset = null;
+            
+            // Check if this relationship has a related asset
+            if (relationship.child && relationship.child.id) {
+              relatedAsset = relationship.child;
+            } else if (relationship.parent && relationship.parent.id) {
+              relatedAsset = relationship.parent;
+            } else if (relationship.asset && relationship.asset.id) {
+              relatedAsset = relationship.asset;
+            }
+            
+            // Add the related asset if it's valid and not already processed
+            if (relatedAsset && relatedAsset.id && !processedAssetIds.has(relatedAsset.id)) {
+              // Don't include the direct asset itself or other direct assets
+              if (relatedAsset.id !== directAsset.id && 
+                  !this.state.directAssets.some(da => da.id === relatedAsset.id)) {
+                
+                processedAssetIds.add(relatedAsset.id);
+                relatedAssets.push({
+                  id: relatedAsset.id,
+                  display_id: relatedAsset.display_id || relatedAsset.id,
+                  name: relatedAsset.name || `Asset ${relatedAsset.id}`,
+                  asset_type_id: relatedAsset.asset_type_id,
+                  managed_by: relatedAsset.managed_by || relatedAsset.agent_id || relatedAsset.user_id,
+                  relationship_type: relationship.relationship_type || 'Related',
+                  source_asset: directAsset.name,
+                  ...relatedAsset // Include all other asset properties
+                });
+                
+                console.log(`✅ Added related asset: ${relatedAsset.name} (${relationship.relationship_type || 'Related'})`);
+              }
+            }
+          }
+        } else {
+          console.log(`ℹ️ No relationships found for asset ${directAsset.name}`);
+        }
+        
       } catch (error) {
-        console.warn(`⚠️ Error finding related assets for ${directAsset.name}:`, error);
+        console.error(`❌ Error fetching relationships for asset ${directAsset.name}:`, error);
+        
+        // If the API call fails, we could fall back to the search method as a backup
+        console.log(`🔄 Attempting fallback search for ${directAsset.name}...`);
+        try {
+          if (window.CacheManager && window.CacheManager.searchAssets) {
+            const baseName = directAsset.name.split(' ')[0];
+            if (baseName.length >= 3) {
+              const searchResults = await window.CacheManager.searchAssets(baseName, 'name');
+              const filtered = searchResults.filter(asset => 
+                asset.id !== directAsset.id && 
+                !this.state.directAssets.some(da => da.id === asset.id) &&
+                !processedAssetIds.has(asset.id)
+              );
+              
+              filtered.forEach(asset => {
+                processedAssetIds.add(asset.id);
+                relatedAssets.push({
+                  ...asset,
+                  relationship_type: 'Similar Name',
+                  source_asset: directAsset.name
+                });
+              });
+              
+              console.log(`🔄 Fallback search found ${filtered.length} potential related assets`);
+            }
+          }
+        } catch (fallbackError) {
+          console.warn(`⚠️ Fallback search also failed for ${directAsset.name}:`, fallbackError);
+        }
       }
     }
 
-    // Remove duplicates
-    const uniqueRelated = relatedAssets.filter((asset, index, self) => 
-      index === self.findIndex(a => a.id === asset.id)
-    );
-
-    this.state.relatedAssets = uniqueRelated.slice(0, 20); // Limit to 20 for performance
-    console.log(`✅ Found ${this.state.relatedAssets.length} related assets`);
+    this.state.relatedAssets = relatedAssets;
+    console.log(`✅ Found ${this.state.relatedAssets.length} total related assets`);
+    
+    // Log summary of relationship types
+    const relationshipTypes = {};
+    relatedAssets.forEach(asset => {
+      const type = asset.relationship_type || 'Unknown';
+      relationshipTypes[type] = (relationshipTypes[type] || 0) + 1;
+    });
+    
+    if (Object.keys(relationshipTypes).length > 0) {
+      console.log(`📊 Relationship types found:`, relationshipTypes);
+    }
   },
 
   /**
@@ -6291,9 +6383,9 @@ window.debugUserCacheStatus = debugUserCacheStatus;
 
 /**
  * Get safe API limits for pagination to avoid rate limiting
- * @returns {Promise<Object>} - API limits configuration
+ * @returns {Object} - API limits configuration
  */
-async function getSafeApiLimits() {
+function getSafeApiLimits() {
   // Return more aggressive limits for better user coverage
   // These limits are designed to get comprehensive user data while respecting API constraints
   return {
@@ -6303,3 +6395,65 @@ async function getSafeApiLimits() {
     delayBetweenRequests: 100     // 100ms delay between requests to avoid rate limiting
   };
 }
+
+/**
+ * Force refresh user cache with enhanced pagination
+ * This will clear the existing cache and fetch fresh user data
+ * @returns {Promise<Object>} - Refreshed user cache
+ */
+async function refreshUserCache() {
+  console.log('🔄 === FORCE REFRESHING USER CACHE ===');
+  console.log('🗑️ Clearing existing user cache...');
+  
+  try {
+    // Clear existing caches
+    await window.client.db.set(STORAGE_KEYS.USER_CACHE, {});
+    window.userCache = {};
+    
+    console.log('✅ Existing cache cleared');
+    
+    // Fetch fresh user data with enhanced pagination
+    console.log('📡 Fetching fresh user data with enhanced pagination...');
+    const freshUsers = await fetchUsers();
+    
+    console.log('✅ User cache refresh complete!');
+    return freshUsers;
+    
+  } catch (error) {
+    console.error('❌ Error refreshing user cache:', error);
+    return {};
+  }
+}
+
+// Make refresh function available globally
+window.refreshUserCache = refreshUserCache;
+
+// Make additional helper functions available globally for troubleshooting
+window.preloadAssetUsers = preloadAssetUsers;
+window.getSafeApiLimits = getSafeApiLimits;
+window.fetchUsers = fetchUsers;
+
+// Add convenience function to test enhanced pagination
+window.testEnhancedUserCache = async function() {
+  console.log('🧪 === TESTING ENHANCED USER CACHE ===');
+  console.log('🎯 This will test the enhanced pagination and user coverage');
+  
+  try {
+    // Show current API limits
+    const limits = getSafeApiLimits();
+    console.log('📊 Current API limits:', limits);
+    
+    // Check current cache status
+    console.log('\n📦 Current cache status:');
+    await debugUserCacheStatus();
+    
+    // Offer to refresh cache
+    console.log('\n💡 To refresh user cache with enhanced pagination, run:');
+    console.log('   await refreshUserCache()');
+    
+    return limits;
+  } catch (error) {
+    console.error('❌ Error testing enhanced user cache:', error);
+    return null;
+  }
+};

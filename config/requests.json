@@ -79,6 +79,18 @@
       }
     }
   },
+  "getAssetRelationships": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/assets/{asset_id}/relationships",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    }
+  },
   "getServices": {
     "schema": {
       "method": "GET",
