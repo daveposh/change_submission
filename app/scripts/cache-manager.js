@@ -932,7 +932,355 @@ const CacheManager = {
       console.warn('Error getting impact info:', error);
       return 'unknown';
     }
-  }
+  },
+
+  /**
+   * Search for assets and display their managed by information with resolved names
+   * @param {string} searchTerm - The search term (optional, defaults to empty for all assets)
+   * @param {string} searchField - The field to search (optional, defaults to 'name')
+   * @param {number} maxResults - Maximum number of results to display (optional, defaults to 50)
+   * @returns {Promise<Array>} - Array of assets with resolved managed by information
+   */
+  async searchAssetsWithManagedBy(searchTerm = '', searchField = 'name', maxResults = 50) {
+    console.log(`🔍 === SEARCHING ASSETS WITH MANAGED BY RESOLUTION ===`);
+    console.log(`Search term: "${searchTerm}" | Field: "${searchField}" | Max results: ${maxResults}`);
+
+    // Check for client availability
+    if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
+      console.log('⚠️ Client or invokeTemplate not available for asset search');
+      return [];
+    }
+
+    try {
+      let assets = [];
+      
+      if (searchTerm && searchTerm.trim().length >= 2) {
+        // Use specific search if search term provided
+        console.log(`🔍 Performing specific search for "${searchTerm}"`);
+        assets = await this.searchAssets(searchTerm, searchField);
+      } else {
+        // Get all assets if no search term or search term too short
+        console.log(`📋 Retrieving all assets (no specific search term)`);
+        assets = await this.getAllAssets(maxResults);
+      }
+
+      if (assets.length === 0) {
+        console.log(`⚠️ No assets found`);
+        return [];
+      }
+
+      console.log(`📦 Processing ${assets.length} assets for managed by resolution...`);
+
+      // Process each asset to resolve managed by information
+      const assetsWithManagedBy = [];
+      
+      for (let i = 0; i < Math.min(assets.length, maxResults); i++) {
+        const asset = assets[i];
+        
+        try {
+          // Get basic asset info
+          const assetInfo = {
+            id: asset.id,
+            name: asset.display_name || asset.name || 'Unknown Asset',
+            asset_tag: asset.asset_tag || 'N/A',
+            asset_type_id: asset.asset_type_id,
+            location_id: asset.location_id,
+            serial_number: asset.serial_number || 'N/A',
+            impact: asset.impact || 'unknown',
+            environment: this.getEnvironmentInfo(asset),
+            // Raw managed by fields for debugging
+            raw_agent_id: asset.agent_id,
+            raw_user_id: asset.user_id,
+            raw_managed_by: asset.managed_by,
+            raw_managed_by_name: asset.managed_by_name
+          };
+
+          // Resolve managed by information
+          console.log(`🔍 Processing asset "${assetInfo.name}" (ID: ${assetInfo.id})`);
+          
+          // Get managed by info with full resolution
+          const managedByInfo = await this.getManagedByInfo(asset);
+          assetInfo.managed_by_resolved = managedByInfo;
+
+          // Get asset type name
+          if (assetInfo.asset_type_id) {
+            assetInfo.asset_type_name = await this.getAssetTypeName(assetInfo.asset_type_id);
+          }
+
+          // Get location name
+          if (assetInfo.location_id) {
+            assetInfo.location_name = await this.getLocationName(assetInfo.location_id);
+          }
+
+          // Determine the source of managed by information for debugging
+          let managedBySource = 'N/A';
+          if (asset.agent_id) {
+            managedBySource = `agent_id: ${asset.agent_id}`;
+          } else if (asset.user_id) {
+            managedBySource = `user_id: ${asset.user_id}`;
+          } else if (asset.managed_by) {
+            managedBySource = `managed_by: ${asset.managed_by}`;
+          } else if (asset.managed_by_name) {
+            managedBySource = `managed_by_name: ${asset.managed_by_name}`;
+          } else {
+            const managedByField = this.getAssetTypeField(asset, 'managed_by');
+            if (managedByField && managedByField !== 'N/A') {
+              managedBySource = `type_fields.managed_by: ${managedByField}`;
+            }
+          }
+          
+          assetInfo.managed_by_source = managedBySource;
+
+          assetsWithManagedBy.push(assetInfo);
+
+          // Log progress every 10 assets
+          if ((i + 1) % 10 === 0) {
+            console.log(`📊 Processed ${i + 1}/${Math.min(assets.length, maxResults)} assets...`);
+          }
+
+        } catch (assetError) {
+          console.warn(`⚠️ Error processing asset ${asset.id}:`, assetError);
+          // Still add the asset with basic info
+          assetsWithManagedBy.push({
+            id: asset.id,
+            name: asset.display_name || asset.name || 'Unknown Asset',
+            managed_by_resolved: 'Error resolving',
+            managed_by_source: 'Error',
+            error: assetError.message
+          });
+        }
+      }
+
+      // Display results in a formatted table
+      this.displayManagedByResults(assetsWithManagedBy);
+
+      return assetsWithManagedBy;
+
+    } catch (error) {
+      console.error('❌ Error searching assets with managed by:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Get all assets (paginated) for managed by analysis
+   * @param {number} maxResults - Maximum number of results to retrieve
+   * @returns {Promise<Array>} - Array of assets
+   */
+  async getAllAssets(maxResults = 50) {
+    console.log(`📋 Retrieving up to ${maxResults} assets from all pages...`);
+
+    try {
+      const allAssets = [];
+      let page = 1;
+      const maxPages = Math.ceil(maxResults / 30); // 30 per page
+      
+      while (page <= maxPages && allAssets.length < maxResults) {
+        console.log(`📄 Fetching assets page ${page}...`);
+        
+        try {
+          const response = await window.client.request.invokeTemplate("getAssets", {
+            context: {
+              page: page,
+              per_page: 30,
+              include_fields: "type_fields"
+            }
+          });
+          
+          if (!response || !response.response) {
+            console.log(`⚠️ No response for assets page ${page}, stopping`);
+            break;
+          }
+          
+          const data = JSON.parse(response.response);
+          const pageAssets = data.assets || [];
+          
+          console.log(`✅ Page ${page}: Retrieved ${pageAssets.length} assets`);
+          
+          if (pageAssets.length === 0) {
+            console.log(`📄 No more assets found, stopping at page ${page}`);
+            break;
+          }
+          
+          // Add assets to collection (up to maxResults)
+          const remainingSlots = maxResults - allAssets.length;
+          const assetsToAdd = pageAssets.slice(0, remainingSlots);
+          allAssets.push(...assetsToAdd);
+          
+          console.log(`📦 Total assets collected: ${allAssets.length}/${maxResults}`);
+          
+          // Stop if we have enough assets
+          if (allAssets.length >= maxResults) {
+            console.log(`✅ Reached maximum results (${maxResults}), stopping`);
+            break;
+          }
+          
+          // Stop if we didn't get a full page
+          if (pageAssets.length < 30) {
+            console.log(`📄 Partial page received, stopping`);
+            break;
+          }
+          
+          page++;
+          
+          // Add a small delay between pages to be API-friendly
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (pageError) {
+          console.log(`⚠️ Error fetching assets page ${page}:`, pageError);
+          break;
+        }
+      }
+      
+      console.log(`✅ Retrieved ${allAssets.length} total assets from ${page - 1} pages`);
+      return allAssets;
+      
+    } catch (error) {
+      console.error('❌ Error getting all assets:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Display managed by results in a formatted table
+   * @param {Array} assets - Array of assets with managed by information
+   */
+  displayManagedByResults(assets) {
+    console.log(`\n📊 === MANAGED BY ANALYSIS RESULTS ===`);
+    console.log(`Total assets analyzed: ${assets.length}`);
+    
+    if (assets.length === 0) {
+      console.log(`⚠️ No assets to display`);
+      return;
+    }
+
+    // Group assets by managed by status
+    const managedAssets = assets.filter(asset => 
+      asset.managed_by_resolved && 
+      asset.managed_by_resolved !== 'N/A' && 
+      asset.managed_by_resolved !== 'Unknown' &&
+      !asset.managed_by_resolved.startsWith('Agent ID:') &&
+      !asset.managed_by_resolved.startsWith('User ID:')
+    );
+    
+    const unmanagedAssets = assets.filter(asset => 
+      !asset.managed_by_resolved || 
+      asset.managed_by_resolved === 'N/A' || 
+      asset.managed_by_resolved === 'Unknown'
+    );
+    
+    const unresolvedAssets = assets.filter(asset => 
+      asset.managed_by_resolved && (
+        asset.managed_by_resolved.startsWith('Agent ID:') ||
+        asset.managed_by_resolved.startsWith('User ID:')
+      )
+    );
+
+    console.log(`\n📈 Summary:`);
+    console.log(`   ✅ Managed (resolved): ${managedAssets.length}`);
+    console.log(`   ⚠️ Unresolved IDs: ${unresolvedAssets.length}`);
+    console.log(`   ❌ Unmanaged: ${unmanagedAssets.length}`);
+
+    // Display managed assets with resolved names
+    if (managedAssets.length > 0) {
+      console.log(`\n✅ === ASSETS WITH RESOLVED MANAGED BY ===`);
+      console.log(`Found ${managedAssets.length} assets with resolved manager names:`);
+      
+      managedAssets.forEach((asset, index) => {
+        console.log(`\n${index + 1}. "${asset.name}" (ID: ${asset.id})`);
+        console.log(`   👤 Managed By: ${asset.managed_by_resolved}`);
+        console.log(`   📋 Source: ${asset.managed_by_source}`);
+        console.log(`   🏷️ Asset Type: ${asset.asset_type_name || asset.asset_type_id || 'Unknown'}`);
+        console.log(`   📍 Location: ${asset.location_name || asset.location_id || 'Unknown'}`);
+        console.log(`   🏷️ Asset Tag: ${asset.asset_tag}`);
+        console.log(`   🌍 Environment: ${asset.environment}`);
+        console.log(`   ⚡ Impact: ${asset.impact}`);
+      });
+    }
+
+    // Display assets with unresolved IDs
+    if (unresolvedAssets.length > 0) {
+      console.log(`\n⚠️ === ASSETS WITH UNRESOLVED MANAGER IDS ===`);
+      console.log(`Found ${unresolvedAssets.length} assets with manager IDs that couldn't be resolved:`);
+      
+      unresolvedAssets.forEach((asset, index) => {
+        console.log(`\n${index + 1}. "${asset.name}" (ID: ${asset.id})`);
+        console.log(`   🔍 Unresolved: ${asset.managed_by_resolved}`);
+        console.log(`   📋 Source: ${asset.managed_by_source}`);
+        console.log(`   🏷️ Asset Type: ${asset.asset_type_name || asset.asset_type_id || 'Unknown'}`);
+        console.log(`   📍 Location: ${asset.location_name || asset.location_id || 'Unknown'}`);
+        console.log(`   🏷️ Asset Tag: ${asset.asset_tag}`);
+        
+        // Show raw values for debugging
+        if (asset.raw_agent_id) console.log(`   🔧 Raw agent_id: ${asset.raw_agent_id}`);
+        if (asset.raw_user_id) console.log(`   🔧 Raw user_id: ${asset.raw_user_id}`);
+        if (asset.raw_managed_by) console.log(`   🔧 Raw managed_by: ${asset.raw_managed_by}`);
+      });
+      
+      console.log(`\n💡 Tip: These IDs might need to be added to the user cache, or the users might not exist in the system.`);
+    }
+
+    // Display unmanaged assets
+    if (unmanagedAssets.length > 0) {
+      console.log(`\n❌ === UNMANAGED ASSETS ===`);
+      console.log(`Found ${unmanagedAssets.length} assets with no managed by information:`);
+      
+      unmanagedAssets.slice(0, 10).forEach((asset, index) => {
+        console.log(`${index + 1}. "${asset.name}" (ID: ${asset.id}) - ${asset.asset_type_name || asset.asset_type_id || 'Unknown Type'}`);
+      });
+      
+      if (unmanagedAssets.length > 10) {
+        console.log(`   ... and ${unmanagedAssets.length - 10} more unmanaged assets`);
+      }
+    }
+
+    // Show user cache statistics
+    this.displayUserCacheStats();
+  },
+
+  /**
+   * Display user cache statistics for debugging
+   */
+  async displayUserCacheStats() {
+    try {
+      console.log(`\n📊 === USER CACHE STATISTICS ===`);
+      
+      const userCache = await window.client.db.get('user_cache') || {};
+      const userCount = Object.keys(userCache).length;
+      
+      if (userCount === 0) {
+        console.log(`⚠️ User cache is empty - this may explain unresolved IDs`);
+        console.log(`💡 Try running: await fetchUsers() to populate the user cache`);
+        return;
+      }
+      
+      console.log(`👥 Total cached users: ${userCount}`);
+      
+      // Count by type
+      const typeStats = {};
+      Object.values(userCache).forEach(user => {
+        const type = user.type || 'unknown';
+        typeStats[type] = (typeStats[type] || 0) + 1;
+      });
+      
+      console.log(`📋 User types in cache:`);
+      Object.entries(typeStats).forEach(([type, count]) => {
+        console.log(`   ${type}: ${count} users`);
+      });
+      
+      // Show sample users
+      const sampleUsers = Object.entries(userCache).slice(0, 5);
+      if (sampleUsers.length > 0) {
+        console.log(`\n📋 Sample cached users:`);
+        sampleUsers.forEach(([id, user]) => {
+          console.log(`   ID ${id}: "${user.name}" (${user.type || 'unknown type'})`);
+        });
+      }
+      
+    } catch (error) {
+      console.warn(`⚠️ Error displaying user cache stats:`, error);
+    }
+  },
 };
 
 // Debug functions for testing
@@ -1121,6 +1469,94 @@ window.testManagedByResolution = async function() {
   } catch (error) {
     console.error(`❌ Error testing managed by resolution:`, error);
     return null;
+  }
+};
+
+// Global convenience function to search assets with managed by information
+window.searchAssetsWithManagedBy = async function(searchTerm = '', searchField = 'name', maxResults = 50) {
+  console.log(`🔍 === ASSET MANAGED BY SEARCH ===`);
+  console.log(`🎯 This function will search for assets and resolve their managed by information`);
+  console.log(`📋 Parameters: searchTerm="${searchTerm}", searchField="${searchField}", maxResults=${maxResults}`);
+  
+  if (!window.CacheManager) {
+    console.error('❌ CacheManager not available');
+    return [];
+  }
+  
+  try {
+    // First ensure user cache is populated
+    console.log(`👥 Checking user cache status...`);
+    await window.CacheManager.displayUserCacheStats();
+    
+    // Perform the search
+    const results = await window.CacheManager.searchAssetsWithManagedBy(searchTerm, searchField, maxResults);
+    
+    console.log(`\n✅ Search complete! Found ${results.length} assets.`);
+    console.log(`💡 Results are displayed above with full managed by resolution.`);
+    
+    return results;
+    
+  } catch (error) {
+    console.error(`❌ Error in asset managed by search:`, error);
+    return [];
+  }
+};
+
+// Global convenience function to search for specific assets by name with managed by info
+window.findAssetManagedBy = async function(assetName) {
+  console.log(`🔍 === FIND SPECIFIC ASSET MANAGED BY ===`);
+  console.log(`🎯 Searching for assets containing "${assetName}" and resolving managed by information`);
+  
+  if (!assetName || assetName.trim().length < 2) {
+    console.log(`⚠️ Please provide an asset name with at least 2 characters`);
+    return [];
+  }
+  
+  return await window.searchAssetsWithManagedBy(assetName, 'name', 20);
+};
+
+// Global convenience function to get all assets with managed by info (limited results)
+window.getAllAssetsManagedBy = async function(maxResults = 30) {
+  console.log(`🔍 === GET ALL ASSETS WITH MANAGED BY INFO ===`);
+  console.log(`🎯 Retrieving up to ${maxResults} assets and resolving their managed by information`);
+  
+  return await window.searchAssetsWithManagedBy('', 'name', maxResults);
+};
+
+// Global convenience function to populate user cache if needed
+window.ensureUserCache = async function() {
+  console.log(`👥 === ENSURING USER CACHE IS POPULATED ===`);
+  
+  try {
+    // Check current cache status
+    const userCache = await window.client.db.get('user_cache') || {};
+    const userCount = Object.keys(userCache).length;
+    
+    console.log(`📊 Current user cache: ${userCount} users`);
+    
+    if (userCount < 10) {
+      console.log(`⚠️ User cache appears to be empty or sparse. Fetching users...`);
+      
+      // Check if fetchUsers function is available
+      if (typeof window.fetchUsers === 'function') {
+        await window.fetchUsers();
+        console.log(`✅ User cache populated via fetchUsers()`);
+      } else if (typeof fetchUsers === 'function') {
+        await fetchUsers();
+        console.log(`✅ User cache populated via global fetchUsers()`);
+      } else {
+        console.log(`⚠️ fetchUsers() function not available. User resolution may be limited.`);
+        console.log(`💡 Try running the app initialization to populate user cache.`);
+      }
+    } else {
+      console.log(`✅ User cache appears to be populated with ${userCount} users`);
+    }
+    
+    // Display final cache stats
+    await window.CacheManager.displayUserCacheStats();
+    
+  } catch (error) {
+    console.error(`❌ Error ensuring user cache:`, error);
   }
 };
 
