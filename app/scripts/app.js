@@ -2064,6 +2064,36 @@ function setupEventListeners() {
     console.log('✅ Asset Association tab listener added');
   }
   
+  // Impacted Services tab
+  const impactedServicesTab = document.getElementById('impacted-services-tab');
+  if (impactedServicesTab) {
+    impactedServicesTab.addEventListener('shown.bs.tab', async function () {
+      // Initialize Impacted Services Module when tab is first shown
+      if (window.ImpactedServices && !window.ImpactedServices._initialized) {
+        console.log('🔧 Initializing Impacted Services Module...');
+        await window.ImpactedServices.init();
+        window.ImpactedServices._initialized = true;
+        console.log('✅ Impacted Services Module initialized');
+      }
+      
+      // Refresh direct assets from Asset Association
+      if (window.ImpactedServices && window.ImpactedServices.loadDirectAssets) {
+        await window.ImpactedServices.loadDirectAssets();
+      }
+    });
+    
+    impactedServicesTab.addEventListener('hidden.bs.tab', function () {
+      // Capture impacted services data when leaving the tab
+      if (window.ImpactedServices && typeof window.ImpactedServices.getImpactedServicesData === 'function') {
+        const impactedServicesData = window.ImpactedServices.getImpactedServicesData();
+        window.changeRequestData.impactedServices = impactedServicesData;
+        console.log('💾 Captured impacted services data');
+      }
+    });
+    
+    console.log('✅ Impacted Services tab listeners added');
+  }
+  
   // Change type selection
   const changeTypeSelect = document.getElementById('change-type');
   if (changeTypeSelect) {
