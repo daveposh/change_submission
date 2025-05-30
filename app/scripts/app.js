@@ -1581,12 +1581,11 @@ function findAssetTypesByKeywords(cachedAssetTypes, customNames = null) {
 
 /**
  * Fetch all users from the API and store them in the cache
- * This may not fetch ALL users as there could be thousands
- * but will pre-fetch a reasonable number to reduce API calls
+ * This will fetch multiple pages to get comprehensive user coverage
  * @returns {Promise<Object>} - Cached users
  */
 async function fetchUsers() {
-  console.log('Fetching users from API');
+  console.log('🔄 Fetching users from API with enhanced pagination...');
   
   // Check for client availability
   if (!window.client || !window.client.request) {
@@ -1597,16 +1596,23 @@ async function fetchUsers() {
   try {
     // Get safe API limits based on plan settings
     const apiLimits = await getSafeApiLimits();
-    const requesterPageLimit = apiLimits.listRequestersPageLimit || 1;
-    const agentPageLimit = apiLimits.listAgentsPageLimit || 1;
+    const requesterPageLimit = apiLimits.listRequestersPageLimit || 10;
+    const agentPageLimit = apiLimits.listAgentsPageLimit || 10;
+    const delayBetweenRequests = apiLimits.delayBetweenRequests || 100;
     
-    console.log(`Using rate limits: ${requesterPageLimit} requester pages, ${agentPageLimit} agent pages`);
+    console.log(`📊 Using enhanced pagination limits: ${requesterPageLimit} requester pages, ${agentPageLimit} agent pages`);
+    console.log(`⏱️ Delay between requests: ${delayBetweenRequests}ms`);
     
     const allUsers = {};
+    let totalRequesters = 0;
+    let totalAgents = 0;
+    
+    // Function to add delay between requests
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     
     // Function to load requesters from a specific page
     async function loadRequestersPage(pageNum) {
-      console.log(`Loading requesters page ${pageNum}`);
+      console.log(`📥 Loading requesters page ${pageNum}...`);
       
       try {
         // Use invokeTemplate which is more reliable in Freshservice
@@ -1622,6 +1628,8 @@ async function fetchUsers() {
         try {
           const parsedData = JSON.parse(response.response || '{"requesters":[]}');
           const users = parsedData.requesters || [];
+          
+          console.log(`✅ Loaded ${users.length} requesters from page ${pageNum}`);
           
           // Check if we might have more pages (received full page of results)
           const hasMore = users.length === 100;
@@ -1639,7 +1647,7 @@ async function fetchUsers() {
     
     // Function to load agents from a specific page
     async function loadAgentsPage(pageNum) {
-      console.log(`Loading agents page ${pageNum}`);
+      console.log(`📥 Loading agents page ${pageNum}...`);
       
       try {
         // Use invokeTemplate to access agents API
@@ -1656,6 +1664,8 @@ async function fetchUsers() {
           const parsedData = JSON.parse(response.response || '{"agents":[]}');
           const users = parsedData.agents || [];
           
+          console.log(`✅ Loaded ${users.length} agents from page ${pageNum}`);
+          
           // Check if we might have more pages (received full page of results)
           const hasMore = users.length === 100;
           
@@ -1670,7 +1680,8 @@ async function fetchUsers() {
       }
     }
     
-    // Fetch requesters
+    // Fetch requesters with enhanced pagination
+    console.log('👤 === FETCHING REQUESTERS ===');
     let requesterPage = 1;
     let hasMoreRequesters = true;
     
@@ -1687,14 +1698,26 @@ async function fetchUsers() {
             timestamp: Date.now(),
             type: 'requester'
           };
+          totalRequesters++;
         }
       });
       
       hasMoreRequesters = more;
       requesterPage++;
+      
+      // Add delay between requests to avoid rate limiting
+      if (hasMoreRequesters && requesterPage <= requesterPageLimit) {
+        await delay(delayBetweenRequests);
+      }
     }
     
-    // Fetch agents
+    console.log(`✅ Completed requester fetch: ${totalRequesters} requesters from ${requesterPage - 1} pages`);
+    
+    // Add delay before switching to agents
+    await delay(delayBetweenRequests);
+    
+    // Fetch agents with enhanced pagination
+    console.log('🛠️ === FETCHING AGENTS ===');
     let agentPage = 1;
     let hasMoreAgents = true;
     
@@ -1711,16 +1734,25 @@ async function fetchUsers() {
             timestamp: Date.now(),
             type: 'agent'
           };
+          totalAgents++;
         }
       });
       
       hasMoreAgents = more;
       agentPage++;
+      
+      // Add delay between requests to avoid rate limiting
+      if (hasMoreAgents && agentPage <= agentPageLimit) {
+        await delay(delayBetweenRequests);
+      }
     }
+    
+    console.log(`✅ Completed agent fetch: ${totalAgents} agents from ${agentPage - 1} pages`);
     
     // Save all users to cache
     if (Object.keys(allUsers).length > 0) {
-      console.log(`Caching ${Object.keys(allUsers).length} users (${requesterPage-1} requester pages, ${agentPage-1} agent pages)`);
+      const totalUsers = Object.keys(allUsers).length;
+      console.log(`💾 Caching ${totalUsers} users (${totalRequesters} requesters + ${totalAgents} agents)`);
       await cacheUsers(allUsers);
       
       // Also populate the search cache for consistency
@@ -1734,13 +1766,17 @@ async function fetchUsers() {
       });
       
       console.log(`✅ Users cached to both primary cache and search cache`);
+      console.log(`📊 Final user cache statistics:`);
+      console.log(`   👤 Requesters: ${totalRequesters}`);
+      console.log(`   🛠️ Agents: ${totalAgents}`);
+      console.log(`   📦 Total: ${totalUsers}`);
     } else {
-      console.warn('No users found to cache');
+      console.warn('⚠️ No users found to cache');
     }
     
     return allUsers;
   } catch (error) {
-    console.error('Error in fetchUsers:', error);
+    console.error('❌ Error in fetchUsers:', error);
     return {};
   }
 }
@@ -6252,3 +6288,18 @@ window.debugUserCacheStatus = debugUserCacheStatus;
 /**
  * Update initialization progress
  */
+
+/**
+ * Get safe API limits for pagination to avoid rate limiting
+ * @returns {Promise<Object>} - API limits configuration
+ */
+async function getSafeApiLimits() {
+  // Return more aggressive limits for better user coverage
+  // These limits are designed to get comprehensive user data while respecting API constraints
+  return {
+    listRequestersPageLimit: 10,  // Increased from 1 to 10 (up to 1000 requesters)
+    listAgentsPageLimit: 10,      // Increased from 1 to 10 (up to 1000 agents)
+    searchPageLimit: 5,           // For search operations
+    delayBetweenRequests: 100     // 100ms delay between requests to avoid rate limiting
+  };
+}
