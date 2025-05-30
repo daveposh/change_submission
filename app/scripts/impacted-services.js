@@ -190,12 +190,10 @@ const ImpactedServices = {
           console.log(`📡 Fetching relationships for asset ${directAsset.name} (Display ID: ${assetId})`);
           console.log(`🔍 Asset details:`, { id: directAsset.id, display_id: directAsset.display_id, name: directAsset.name });
           
-          // Make API call using FDK invokeTemplate with correct parameter format
+          // Make API call using FDK invokeTemplate with path_suffix approach
           // The API endpoint is: /api/v2/assets/{asset_id}/relationships
           const response = await window.client.request.invokeTemplate("getAssetRelationships", {
-            context: {
-              asset_id: assetId
-            }
+            path_suffix: `/${assetId}/relationships`
           });
           
           if (!response || !response.response) {
@@ -341,9 +339,7 @@ const ImpactedServices = {
     // If not in cache, fetch from API
     try {
       const assetResponse = await window.client.request.invokeTemplate("getAssetDetails", {
-        context: {
-          asset_id: assetId
-        }
+        path_suffix: `/${assetId}`
       });
       
       if (assetResponse && assetResponse.response) {

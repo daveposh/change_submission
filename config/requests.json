@@ -84,7 +84,7 @@
       "method": "GET",
       "protocol": "https",
       "host": "<%=iparam.freshservice_domain%>",
-      "path": "/api/v2/assets/{asset_id}",
+      "path": "/api/v2/assets",
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
@@ -96,7 +96,7 @@
       "method": "GET",
       "protocol": "https",
       "host": "<%=iparam.freshservice_domain%>",
-      "path": "/api/v2/assets/{asset_id}/relationships",
+      "path": "/api/v2/assets",
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
