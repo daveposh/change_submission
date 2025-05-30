@@ -162,7 +162,7 @@ const ImpactedServices = {
   },
 
   /**
-   * Find assets related to direct assets using the relationships API
+   * Find related assets using the relationships API
    */
   async findRelatedAssets() {
     const relatedAssets = [];
@@ -207,41 +207,95 @@ const ImpactedServices = {
         
         console.log(`📊 Relationship data for ${directAsset.name}:`, relationshipData);
         
-        // Process the relationship data
+        // Process the relationship data based on actual API format
         if (relationshipData && Array.isArray(relationshipData.relationships)) {
+          console.log(`📋 Found ${relationshipData.relationships.length} relationships for ${directAsset.name}`);
+          
           for (const relationship of relationshipData.relationships) {
-            // Extract related asset information
-            let relatedAsset = null;
-            
-            // Check if this relationship has a related asset
-            if (relationship.child && relationship.child.id) {
-              relatedAsset = relationship.child;
-            } else if (relationship.parent && relationship.parent.id) {
-              relatedAsset = relationship.parent;
-            } else if (relationship.asset && relationship.asset.id) {
-              relatedAsset = relationship.asset;
-            }
-            
-            // Add the related asset if it's valid and not already processed
-            if (relatedAsset && relatedAsset.id && !processedAssetIds.has(relatedAsset.id)) {
+            try {
+              // Extract related asset ID based on the actual API response format
+              let relatedAssetId = null;
+              
+              // If this asset is the primary, get the secondary asset
+              if (relationship.primary_id === assetId && relationship.secondary_type === 'asset') {
+                relatedAssetId = relationship.secondary_id;
+              }
+              // If this asset is the secondary, get the primary asset
+              else if (relationship.secondary_id === assetId && relationship.primary_type === 'asset') {
+                relatedAssetId = relationship.primary_id;
+              }
+              
+              // Skip if no related asset ID found or already processed
+              if (!relatedAssetId || processedAssetIds.has(relatedAssetId)) {
+                continue;
+              }
+              
               // Don't include the direct asset itself or other direct assets
-              if (relatedAsset.id !== directAsset.id && 
-                  !this.state.directAssets.some(da => da.id === relatedAsset.id)) {
+              if (relatedAssetId === directAsset.id || 
+                  this.state.directAssets.some(da => da.id === relatedAssetId || da.display_id === relatedAssetId)) {
+                continue;
+              }
+              
+              console.log(`🔗 Found related asset ID: ${relatedAssetId} for ${directAsset.name}`);
+              
+              // Fetch the full asset details for the related asset
+              let relatedAssetDetails = null;
+              
+              // Try to get asset details from cache first
+              if (window.CacheManager && window.CacheManager.getAssetById) {
+                relatedAssetDetails = await window.CacheManager.getAssetById(relatedAssetId);
+              }
+              
+              // If not in cache, fetch from API
+              if (!relatedAssetDetails) {
+                try {
+                  const assetResponse = await window.client.request.invokeTemplate("getAssetDetails", {
+                    context: {},
+                    body: JSON.stringify({}),
+                    headers: {},
+                    asset_id: relatedAssetId
+                  });
+                  
+                  if (assetResponse && assetResponse.response) {
+                    const assetData = JSON.parse(assetResponse.response);
+                    if (assetData && assetData.asset) {
+                      relatedAssetDetails = assetData.asset;
+                    }
+                  }
+                } catch (fetchError) {
+                  console.warn(`⚠️ Failed to fetch details for related asset ${relatedAssetId}:`, fetchError);
+                  continue;
+                }
+              }
+              
+              // Add the related asset if we have details
+              if (relatedAssetDetails) {
+                processedAssetIds.add(relatedAssetId);
                 
-                processedAssetIds.add(relatedAsset.id);
+                // Get relationship type name if available
+                let relationshipTypeName = 'Related';
+                if (relationship.relationship_type_id && window.CacheManager && window.CacheManager.getRelationshipTypeName) {
+                  relationshipTypeName = await window.CacheManager.getRelationshipTypeName(relationship.relationship_type_id) || 'Related';
+                }
+                
                 relatedAssets.push({
-                  id: relatedAsset.id,
-                  display_id: relatedAsset.display_id || relatedAsset.id,
-                  name: relatedAsset.name || `Asset ${relatedAsset.id}`,
-                  asset_type_id: relatedAsset.asset_type_id,
-                  managed_by: relatedAsset.managed_by || relatedAsset.agent_id || relatedAsset.user_id,
-                  relationship_type: relationship.relationship_type || 'Related',
+                  id: relatedAssetDetails.id,
+                  display_id: relatedAssetDetails.display_id || relatedAssetDetails.id,
+                  name: relatedAssetDetails.name || `Asset ${relatedAssetDetails.id}`,
+                  asset_type_id: relatedAssetDetails.asset_type_id,
+                  managed_by: relatedAssetDetails.managed_by || relatedAssetDetails.agent_id || relatedAssetDetails.user_id,
+                  relationship_type: relationshipTypeName,
+                  relationship_type_id: relationship.relationship_type_id,
                   source_asset: directAsset.name,
-                  ...relatedAsset // Include all other asset properties
+                  source_asset_id: assetId,
+                  ...relatedAssetDetails // Include all other asset properties
                 });
                 
-                console.log(`✅ Added related asset: ${relatedAsset.name} (${relationship.relationship_type || 'Related'})`);
+                console.log(`✅ Added related asset: ${relatedAssetDetails.name} (${relationshipTypeName})`);
               }
+              
+            } catch (relationshipError) {
+              console.warn(`⚠️ Error processing relationship for asset ${directAsset.name}:`, relationshipError);
             }
           }
         } else {
