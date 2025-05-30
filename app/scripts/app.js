@@ -5037,17 +5037,27 @@ function displaySearchResults(containerId, results, selectCallback) {
     return;
   }
   
-  const resultItems = results.map(item => `
-    <div class="list-group-item list-group-item-action" onclick="(${selectCallback.toString()})(${JSON.stringify(item).replace(/"/g, '&quot;')})">
-      <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <strong>${item.first_name} ${item.last_name}</strong>
-          <br><small class="text-muted">${item.email}</small>
+  // Store the callback function globally for access
+  const callbackName = `selectCallback_${containerId.replace('-', '_')}`;
+  window[callbackName] = selectCallback;
+  
+  const resultItems = results.map((item, index) => {
+    const itemId = `${containerId}_item_${index}`;
+    // Store the item data globally for access
+    window[itemId] = item;
+    
+    return `
+      <div class="list-group-item list-group-item-action" onclick="window.${callbackName}(window.${itemId})">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <strong>${item.first_name} ${item.last_name}</strong>
+            <br><small class="text-muted">${item.email}</small>
+          </div>
+          ${item._isAgent ? '<span class="badge bg-info">Agent</span>' : ''}
         </div>
-        ${item._isAgent ? '<span class="badge bg-info">Agent</span>' : ''}
       </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
   
   container.innerHTML = resultItems;
   container.style.display = 'block';
