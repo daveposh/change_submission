@@ -746,3 +746,161 @@ html {
     margin-top: 0.75rem;
   }
 }
+
+/* Dark Mode Theme Support */
+[data-bs-theme="dark"] {
+  --bs-body-bg: #212529;
+  --bs-body-color: #dee2e6;
+}
+
+/* Theme Selector Styling */
+.theme-selector-container {
+  background: transparent;
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+}
+
+[data-bs-theme="dark"] .theme-selector-container {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Dark mode adjustments for custom components */
+[data-bs-theme="dark"] .search-results {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .search-results .list-group-item {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .search-results .list-group-item:hover {
+  background-color: var(--bs-secondary);
+}
+
+[data-bs-theme="dark"] .selected-result {
+  background-color: var(--bs-dark) !important;
+  border-color: var(--bs-border-color) !important;
+  color: var(--bs-body-color) !important;
+}
+
+[data-bs-theme="dark"] .change-type-info,
+[data-bs-theme="dark"] .lead-time-info {
+  background-color: var(--bs-dark) !important;
+  border-color: var(--bs-border-color) !important;
+  color: var(--bs-body-color) !important;
+}
+
+/* Risk assessment dark mode */
+[data-bs-theme="dark"] .risk-question {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .risk-result {
+  background-color: var(--bs-dark) !important;
+  border-color: var(--bs-border-color) !important;
+}
+
+/* Asset association dark mode */
+[data-bs-theme="dark"] .asset-search-results {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .asset-item {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .asset-item:hover {
+  background-color: var(--bs-secondary);
+}
+
+[data-bs-theme="dark"] .no-assets-message,
+[data-bs-theme="dark"] .no-data-message {
+  color: var(--bs-secondary-color);
+}
+
+/* Impacted services dark mode */
+[data-bs-theme="dark"] .user-item {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
+}
+
+[data-bs-theme="dark"] .user-item:hover {
+  background-color: var(--bs-secondary);
+}
+
+[data-bs-theme="dark"] .impacted-services-section {
+  background-color: var(--bs-dark);
+}
+
+/* Initialization overlay dark mode */
+[data-bs-theme="dark"] .initialization-overlay {
+  background-color: rgba(33, 37, 41, 0.95);
+}
+
+[data-bs-theme="dark"] .initialization-content {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+
+[data-bs-theme="dark"] .initialization-spinner {
+  border-color: var(--bs-primary) transparent var(--bs-primary) transparent;
+}
+
+[data-bs-theme="dark"] .initialization-progress-bar {
+  background-color: var(--bs-primary);
+}
+
+/* Form controls dark mode enhancements */
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus {
+  border-color: var(--bs-primary);
+  box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
+/* Badge adjustments for dark mode */
+[data-bs-theme="dark"] .badge.bg-light {
+  background-color: var(--bs-secondary) !important;
+  color: var(--bs-body-color) !important;
+}
+
+/* Search help text dark mode */
+[data-bs-theme="dark"] .search-help-text {
+  color: var(--bs-secondary-color);
+}
+
+/* Tab content dark mode */
+[data-bs-theme="dark"] .tab-content {
+  background-color: var(--bs-body-bg);
+}
+
+/* Modal dark mode */
+[data-bs-theme="dark"] .modal-content {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
+}
+
+/* Smooth theme transitions */
+html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-group-item {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Theme selector specific styling */
+#theme-selector {
+  min-width: 140px;
+}
+
+.theme-selector-container label {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+[data-bs-theme="dark"] .theme-selector-container label {
+  color: var(--bs-body-color);
+}

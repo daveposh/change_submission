@@ -178,15 +178,17 @@ const ImpactedServices = {
     
     for (const directAsset of this.state.directAssets) {
       try {
-        // Use the display_id for the API call
+        // Use the display_id for the API call - this is the key identifier for the relationships endpoint
         const assetId = directAsset.display_id || directAsset.id;
-        console.log(`📡 Fetching relationships for asset ${directAsset.name} (ID: ${assetId})`);
+        console.log(`📡 Fetching relationships for asset ${directAsset.name} (Display ID: ${assetId})`);
         
-        // Make API call using FDK invokeTemplate
+        // Make API call using FDK invokeTemplate with correct parameter format
+        // The API endpoint is: /api/v2/assets/{asset_id}/relationships
         const response = await window.client.request.invokeTemplate("getAssetRelationships", {
-          context: {
-            asset_id: assetId
-          }
+          context: {},
+          body: JSON.stringify({}),
+          headers: {},
+          asset_id: assetId  // Pass asset_id directly as a path parameter
         });
         
         if (!response || !response.response) {

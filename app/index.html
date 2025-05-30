@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html data-bs-theme="light">
   <head>
     <script src="{{{appclient}}}"></script>
-    <!-- Bootstrap CSS -->
+    <!-- Bootstrap CSS with dark mode support -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Custom styles -->
     <link rel="stylesheet" type="text/css" href="styles/style.css" />
@@ -11,6 +11,69 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Theme Selector Script -->
+    <script>
+      // Theme management functionality
+      const ThemeManager = {
+        init() {
+          this.loadSavedTheme();
+          this.setupThemeSelector();
+          this.watchSystemTheme();
+        },
+        
+        loadSavedTheme() {
+          const savedTheme = localStorage.getItem('app-theme') || 'light';
+          this.applyTheme(savedTheme);
+          
+          // Set the selector value when it becomes available
+          document.addEventListener('DOMContentLoaded', () => {
+            const selector = document.getElementById('theme-selector');
+            if (selector) {
+              selector.value = savedTheme;
+            }
+          });
+        },
+        
+        setupThemeSelector() {
+          document.addEventListener('DOMContentLoaded', () => {
+            const selector = document.getElementById('theme-selector');
+            if (selector) {
+              selector.addEventListener('change', (e) => {
+                const theme = e.target.value;
+                this.applyTheme(theme);
+                localStorage.setItem('app-theme', theme);
+              });
+            }
+          });
+        },
+        
+        applyTheme(theme) {
+          const html = document.documentElement;
+          
+          if (theme === 'auto') {
+            // Use system preference
+            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            html.setAttribute('data-bs-theme', systemTheme);
+          } else {
+            html.setAttribute('data-bs-theme', theme);
+          }
+        },
+        
+        watchSystemTheme() {
+          // Listen for system theme changes
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            const currentTheme = localStorage.getItem('app-theme') || 'light';
+            if (currentTheme === 'auto') {
+              this.applyTheme('auto');
+            }
+          });
+        }
+      };
+      
+      // Initialize theme management
+      ThemeManager.init();
+    </script>
   </head>
 
   <body>
@@ -27,6 +90,20 @@
     </div>
 
     <div class="fw-widget-wrapper container-fluid py-4 app-initializing" id="app-content">
+      <!-- Theme Selector -->
+      <div class="theme-selector-container mb-3">
+        <div class="d-flex justify-content-end align-items-center">
+          <label for="theme-selector" class="form-label me-2 mb-0">
+            <i class="fas fa-palette me-1"></i>Theme:
+          </label>
+          <select id="theme-selector" class="form-select form-select-sm" style="width: auto;">
+            <option value="light">Light Mode</option>
+            <option value="dark">Dark Mode</option>
+            <option value="auto">Auto (System)</option>
+          </select>
+        </div>
+      </div>
+
       <div class="tabs-wrapper card">
         <ul class="nav nav-tabs" id="change-tabs" role="tablist">
           <li class="nav-item" role="presentation">
