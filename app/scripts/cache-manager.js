@@ -75,7 +75,7 @@ const CacheManager = {
       const maxPages = 20; // Support up to 20 pages for large instances
       
       console.log(`📡 Starting asset type pagination fetch (max ${maxPages} pages)`);
-      console.log(`🎯 Looking for all asset types with proper pagination`);
+      console.log('🎯 Looking for all asset types with proper pagination');
       
       // Continue fetching pages until we get no more results
       while (page <= maxPages) {
@@ -83,7 +83,7 @@ const CacheManager = {
         
         try {
           // Use invokeTemplate to access asset types API with proper pagination
-          const response = await window.client.request.invokeTemplate("getAssetTypes", {
+          const response = await window.client.request.invokeTemplate('getAssetTypes', {
             context: {
               page: page,
               per_page: 30
@@ -134,7 +134,7 @@ const CacheManager = {
               if (assetType.name.toLowerCase().includes('laptop') || 
                   assetType.name.toLowerCase().includes('computer') ||
                   assetType.name.toLowerCase().includes('desktop')) {
-                console.log(`🎯 Found important asset type: "${assetType.name}" (ID: ${assetType.id})`);
+                console.log(`🎯 Found important asset type: '${assetType.name}' (ID: ${assetType.id})`);
               }
             }
           });
@@ -163,7 +163,7 @@ const CacheManager = {
         const sampleTypes = Object.entries(allAssetTypes).slice(0, 5);
         console.log('📋 Sample cached asset types:');
         sampleTypes.forEach(([id, type]) => {
-          console.log(`   ${id}: "${type.name}"`);
+          console.log(`   ${id}: '${type.name}'`);
         });
       } else {
         console.log('⚠️ No asset types were fetched');
@@ -192,7 +192,7 @@ const CacheManager = {
     // Test if locations API is available first
     try {
       console.log('🔬 Testing if locations API is available...');
-      const testResponse = await window.client.request.invokeTemplate("getLocations", {
+      const testResponse = await window.client.request.invokeTemplate('getLocations', {
         context: {
           page: 1,
           per_page: 1
@@ -218,7 +218,7 @@ const CacheManager = {
       const maxPages = 10; // Use same limit as asset types initially
       
       console.log(`📡 Starting location pagination fetch (max ${maxPages} pages)`);
-      console.log(`📋 Will fetch pages until: (1) 0 results returned, OR (2) max pages reached`);
+      console.log('📋 Will fetch pages until: (1) 0 results returned, OR (2) max pages reached');
       
       // Continue fetching pages until we get no more results
       while (page <= maxPages) {
@@ -226,7 +226,7 @@ const CacheManager = {
         
         try {
           // Use invokeTemplate to access locations API with proper pagination
-          const response = await window.client.request.invokeTemplate("getLocations", {
+          const response = await window.client.request.invokeTemplate('getLocations', {
             context: {
               page: page,
               per_page: 30
@@ -291,7 +291,7 @@ const CacheManager = {
         const sampleLocations = Object.entries(allLocations).slice(0, 5);
         console.log('📋 Sample cached locations:');
         sampleLocations.forEach(([id, location]) => {
-          console.log(`   ${id}: "${location.name}"`);
+          console.log(`   ${id}: '${location.name}'`);
         });
       } else {
         console.log('⚠️ No locations found to cache - locations API may not be available');
@@ -381,7 +381,7 @@ const CacheManager = {
       // If asset type is in cache and not expired, use it
       if (cachedAssetTypes[assetTypeId] && 
           cachedAssetTypes[assetTypeId].timestamp > Date.now() - this.CACHE_TIMEOUT) {
-        console.log(`✅ Using cached asset type: "${cachedAssetTypes[assetTypeId].name}" for ID ${assetTypeId}`);
+        console.log(`✅ Using cached asset type: '${cachedAssetTypes[assetTypeId].name}' for ID ${assetTypeId}`);
         return cachedAssetTypes[assetTypeId].name;
       }
       
@@ -390,7 +390,7 @@ const CacheManager = {
       // Refresh cache and try again
       const freshAssetTypes = await this.loadAssetTypesCache();
       if (freshAssetTypes[assetTypeId]) {
-        console.log(`✅ Found asset type after refresh: "${freshAssetTypes[assetTypeId].name}"`);
+        console.log(`✅ Found asset type after refresh: '${freshAssetTypes[assetTypeId].name}'`);
         return freshAssetTypes[assetTypeId].name;
       }
       
@@ -420,7 +420,7 @@ const CacheManager = {
       // If location is in cache and not expired, use it
       if (cachedLocations[locationId] && 
           cachedLocations[locationId].timestamp > Date.now() - this.CACHE_TIMEOUT) {
-        console.log(`✅ Using cached location: "${cachedLocations[locationId].name}" for ID ${locationId}`);
+        console.log(`✅ Using cached location: '${cachedLocations[locationId].name}' for ID ${locationId}`);
         return cachedLocations[locationId].name;
       }
       
@@ -429,14 +429,14 @@ const CacheManager = {
       // Try individual location lookup first
       try {
         if (window.client.request && window.client.request.invokeTemplate) {
-          const response = await window.client.request.invokeTemplate("getLocation", {
+          const response = await window.client.request.invokeTemplate('getLocation', {
             location_id: locationId
           });
           
           if (response && response.response) {
             const data = JSON.parse(response.response);
             if (data.location && data.location.name) {
-              console.log(`✅ Found location via individual lookup: "${data.location.name}"`);
+              console.log(`✅ Found location via individual lookup: '${data.location.name}'`);
               
               // Cache this individual result
               cachedLocations[locationId] = {
@@ -491,7 +491,7 @@ const CacheManager = {
       return [];
     }
 
-    console.log(`🔍 CacheManager: Searching assets for "${searchTerm}" in field "${searchField}"`);
+    console.log(`🔍 CacheManager: Searching assets for '${searchTerm}' in field '${searchField}'`);
 
     // Check for client availability
     if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
@@ -503,7 +503,7 @@ const CacheManager = {
     const cacheKey = `${searchField}:${searchTerm.toLowerCase()}`;
     const cachedResults = await this.getCachedAssetSearch(cacheKey);
     if (cachedResults) {
-      console.log(`📦 Using cached asset search results for "${searchTerm}"`);
+      console.log(`📦 Using cached asset search results for '${searchTerm}'`);
       return cachedResults;
     }
 
@@ -511,19 +511,19 @@ const CacheManager = {
       // Use field-specific search format as required by API: field:'searchterm'
       const fieldQuery = `${searchField}:'${searchTerm}'`;
       
-      console.log(`📡 CacheManager: API call with query "${fieldQuery}" and include=type_fields`);
+      console.log(`📡 CacheManager: API call with query '${fieldQuery}' and include=type_fields`);
       
       const templateContext = {
         search_query: fieldQuery,
-        include_fields: "type_fields"
+        include_fields: 'type_fields'
       };
       
-      const response = await window.client.request.invokeTemplate("getAssets", {
+      const response = await window.client.request.invokeTemplate('getAssets', {
         context: templateContext
       });
 
       if (!response || !response.response) {
-        console.log(`⚠️ No response from asset search`);
+        console.log('⚠️ No response from asset search');
         return [];
       }
 
@@ -534,7 +534,7 @@ const CacheManager = {
 
       // Log sample of type_fields structure for debugging
       if (assets.length > 0 && assets[0].type_fields) {
-        console.log(`📋 Sample type_fields structure:`, assets[0].type_fields);
+        console.log('📋 Sample type_fields structure:', assets[0].type_fields);
       }
 
       // Sort results by name for better UX
@@ -550,7 +550,7 @@ const CacheManager = {
       return assets;
 
     } catch (error) {
-      console.error(`❌ CacheManager: Error searching assets:`, error);
+      console.error('❌ CacheManager: Error searching assets:', error);
       return [];
     }
   },
@@ -722,7 +722,7 @@ const CacheManager = {
       if (typeof window.getUserName === 'function') {
         const userName = await window.getUserName(userId);
         if (userName && userName !== 'N/A' && userName !== 'Unknown') {
-          console.log(`✅ Resolved user ID ${userId} to: "${userName}"`);
+          console.log(`✅ Resolved user ID ${userId} to: '${userName}'`);
           return userName;
         }
       }
@@ -731,7 +731,7 @@ const CacheManager = {
       if (typeof getUserName === 'function') {
         const userName = await getUserName(userId);
         if (userName && userName !== 'N/A' && userName !== 'Unknown') {
-          console.log(`✅ Resolved user ID ${userId} to: "${userName}" (fallback)`);
+          console.log(`✅ Resolved user ID ${userId} to: '${userName}' (fallback)`);
           return userName;
         }
       }
@@ -747,7 +747,7 @@ const CacheManager = {
           if (userCache[userId]) {
             const cachedUser = userCache[userId];
             if (cachedUser.name && cachedUser.name !== 'Unknown') {
-              console.log(`✅ Found user ID ${userId} in cache: "${cachedUser.name}" (${cachedUser.type || 'unknown type'})`);
+              console.log(`✅ Found user ID ${userId} in cache: '${cachedUser.name}' (${cachedUser.type || 'unknown type'})`);
               return cachedUser.name;
             }
           }
@@ -794,7 +794,7 @@ const CacheManager = {
             if (cachedUser.name && cachedUser.name !== 'Unknown') {
               // Prefer agents over requesters for managed by
               if (cachedUser.type === 'agent' || cachedUser.type === 'both') {
-                console.log(`✅ Found agent ID ${agentId} in cache: "${cachedUser.name}" (${cachedUser.type})`);
+                console.log(`✅ Found agent ID ${agentId} in cache: '${cachedUser.name}' (${cachedUser.type})`);
                 return cachedUser.name;
               }
             }
@@ -811,7 +811,7 @@ const CacheManager = {
         console.log(`📡 Trying direct agent API lookup for ID ${agentId}...`);
         
         try {
-          const response = await window.client.request.invokeTemplate("getAgents", {
+          const response = await window.client.request.invokeTemplate('getAgents', {
             path_suffix: `/${agentId}`
           });
           
@@ -820,7 +820,7 @@ const CacheManager = {
             if (data && data.agent) {
               const agent = data.agent;
               const agentName = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || 'Unknown';
-              console.log(`✅ Found agent via API: "${agentName}"`);
+              console.log(`✅ Found agent via API: '${agentName}'`);
               
               // Cache this agent for future use
               const userCache = await window.client.db.get('user_cache') || {};
@@ -872,7 +872,7 @@ const CacheManager = {
           console.log(`🔍 Resolving agent_id (managed by): ${numericId} (agent lookup)`);
           const agentName = await this.resolveAgentName(numericId);
           if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
-            console.log(`✅ agent_id ${numericId} resolved to agent: "${agentName}"`);
+            console.log(`✅ agent_id ${numericId} resolved to agent: '${agentName}'`);
             return agentName;
           }
         }
@@ -888,7 +888,7 @@ const CacheManager = {
           console.log(`🔍 Resolving managed_by from type_fields: ${numericId} (agent lookup)`);
           const agentName = await this.resolveAgentName(numericId);
           if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
-            console.log(`✅ managed_by ${numericId} resolved to agent: "${agentName}"`);
+            console.log(`✅ managed_by ${numericId} resolved to agent: '${agentName}'`);
             return agentName;
           }
         }
@@ -907,7 +907,7 @@ const CacheManager = {
           console.log(`🔍 Resolving direct managed_by: ${numericId} (agent lookup)`);
           const agentName = await this.resolveAgentName(numericId);
           if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
-            console.log(`✅ direct managed_by ${numericId} resolved to agent: "${agentName}"`);
+            console.log(`✅ direct managed_by ${numericId} resolved to agent: '${agentName}'`);
             return agentName;
           }
         }
@@ -938,7 +938,7 @@ const CacheManager = {
             console.log(`🔍 Resolving ${fieldName}: ${numericId} (agent lookup)`);
             const agentName = await this.resolveAgentName(numericId);
             if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
-              console.log(`✅ ${fieldName} ${numericId} resolved to agent: "${agentName}"`);
+              console.log(`✅ ${fieldName} ${numericId} resolved to agent: '${agentName}'`);
               return agentName;
             }
           }
@@ -1030,8 +1030,8 @@ const CacheManager = {
    * @returns {Promise<Array>} - Array of assets with resolved managed by information
    */
   async searchAssetsWithManagedBy(searchTerm = '', searchField = 'name', maxResults = 50) {
-    console.log(`🔍 === SEARCHING ASSETS WITH MANAGED BY RESOLUTION ===`);
-    console.log(`Search term: "${searchTerm}" | Field: "${searchField}" | Max results: ${maxResults}`);
+    console.log('🔍 === SEARCHING ASSETS WITH MANAGED BY RESOLUTION ===');
+    console.log(`Search term: '${searchTerm}' | Field: '${searchField}' | Max results: ${maxResults}`);
 
     // Check for client availability
     if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
@@ -1044,16 +1044,16 @@ const CacheManager = {
       
       if (searchTerm && searchTerm.trim().length >= 2) {
         // Use specific search if search term provided
-        console.log(`🔍 Performing specific search for "${searchTerm}"`);
+        console.log(`🔍 Performing specific search for '${searchTerm}'`);
         assets = await this.searchAssets(searchTerm, searchField);
       } else {
         // Get all assets if no search term or search term too short
-        console.log(`📋 Retrieving all assets (no specific search term)`);
+        console.log('📋 Retrieving all assets (no specific search term)');
         assets = await this.getAllAssets(maxResults);
       }
 
       if (assets.length === 0) {
-        console.log(`⚠️ No assets found`);
+        console.log('⚠️ No assets found');
         return [];
       }
 
@@ -1084,7 +1084,7 @@ const CacheManager = {
           };
 
           // Resolve managed by information
-          console.log(`🔍 Processing asset "${assetInfo.name}" (ID: ${assetInfo.id})`);
+          console.log(`🔍 Processing asset '${assetInfo.name}' (ID: ${assetInfo.id})`);
           
           // Get managed by info with full resolution
           const managedByInfo = await this.getManagedByInfo(asset);
@@ -1234,11 +1234,11 @@ const CacheManager = {
    * @param {Array} assets - Array of assets with managed by information
    */
   displayManagedByResults(assets) {
-    console.log(`\n📊 === MANAGED BY ANALYSIS RESULTS ===`);
+    console.log('\n📊 === MANAGED BY ANALYSIS RESULTS ===');
     console.log(`Total assets analyzed: ${assets.length}`);
     
     if (assets.length === 0) {
-      console.log(`⚠️ No assets to display`);
+      console.log('⚠️ No assets to display');
       return;
     }
 
@@ -1264,18 +1264,18 @@ const CacheManager = {
       )
     );
 
-    console.log(`\n📈 Summary:`);
+    console.log('\n📈 Summary:');
     console.log(`   ✅ Managed (resolved): ${managedAssets.length}`);
     console.log(`   ⚠️ Unresolved IDs: ${unresolvedAssets.length}`);
     console.log(`   ❌ Unmanaged: ${unmanagedAssets.length}`);
 
     // Display managed assets with resolved names
     if (managedAssets.length > 0) {
-      console.log(`\n✅ === ASSETS WITH RESOLVED MANAGED BY ===`);
+      console.log('\n✅ === ASSETS WITH RESOLVED MANAGED BY ===');
       console.log(`Found ${managedAssets.length} assets with resolved manager names:`);
       
       managedAssets.forEach((asset, index) => {
-        console.log(`\n${index + 1}. "${asset.name}" (ID: ${asset.id})`);
+        console.log(`\n${index + 1}. '${asset.name}' (ID: ${asset.id})`);
         console.log(`   👤 Managed By: ${asset.managed_by_resolved}`);
         console.log(`   📋 Source: ${asset.managed_by_source}`);
         console.log(`   🏷️ Asset Type: ${asset.asset_type_name || asset.asset_type_id || 'Unknown'}`);
@@ -1288,11 +1288,11 @@ const CacheManager = {
 
     // Display assets with unresolved IDs
     if (unresolvedAssets.length > 0) {
-      console.log(`\n⚠️ === ASSETS WITH UNRESOLVED MANAGER IDS ===`);
-      console.log(`Found ${unresolvedAssets.length} assets with manager IDs that couldn't be resolved:`);
+      console.log('\n⚠️ === ASSETS WITH UNRESOLVED MANAGER IDS ===');
+      console.log(`Found ${unresolvedAssets.length} assets with manager IDs that could not be resolved:`);
       
       unresolvedAssets.forEach((asset, index) => {
-        console.log(`\n${index + 1}. "${asset.name}" (ID: ${asset.id})`);
+        console.log(`\n${index + 1}. '${asset.name}' (ID: ${asset.id})`);
         console.log(`   🔍 Unresolved: ${asset.managed_by_resolved}`);
         console.log(`   📋 Source: ${asset.managed_by_source}`);
         console.log(`   🏷️ Asset Type: ${asset.asset_type_name || asset.asset_type_id || 'Unknown'}`);
@@ -1305,16 +1305,16 @@ const CacheManager = {
         if (asset.raw_managed_by) console.log(`   🔧 Raw managed_by: ${asset.raw_managed_by}`);
       });
       
-      console.log(`\n💡 Tip: These IDs might need to be added to the user cache, or the users might not exist in the system.`);
+      console.log('\n💡 Tip: These IDs might need to be added to the user cache, or the users might not exist in the system.');
     }
 
     // Display unmanaged assets
     if (unmanagedAssets.length > 0) {
-      console.log(`\n❌ === UNMANAGED ASSETS ===`);
+      console.log('\n❌ === UNMANAGED ASSETS ===');
       console.log(`Found ${unmanagedAssets.length} assets with no managed by information:`);
       
       unmanagedAssets.slice(0, 10).forEach((asset, index) => {
-        console.log(`${index + 1}. "${asset.name}" (ID: ${asset.id}) - ${asset.asset_type_name || asset.asset_type_id || 'Unknown Type'}`);
+        console.log(`${index + 1}. '${asset.name}' (ID: ${asset.id}) - ${asset.asset_type_name || asset.asset_type_id || 'Unknown Type'}`);
       });
       
       if (unmanagedAssets.length > 10) {
@@ -1331,14 +1331,14 @@ const CacheManager = {
    */
   async displayUserCacheStats() {
     try {
-      console.log(`\n📊 === USER CACHE STATISTICS ===`);
+      console.log('\n📊 === USER CACHE STATISTICS ===');
       
       const userCache = await window.client.db.get('user_cache') || {};
       const userCount = Object.keys(userCache).length;
       
       if (userCount === 0) {
-        console.log(`⚠️ User cache is empty - this may explain unresolved IDs`);
-        console.log(`💡 Try running: await fetchUsers() to populate the user cache`);
+        console.log('⚠️ User cache is empty - this may explain unresolved IDs');
+        console.log('💡 Try running: await fetchUsers() to populate the user cache');
         return;
       }
       
@@ -1359,14 +1359,14 @@ const CacheManager = {
       // Show sample users
       const sampleUsers = Object.entries(userCache).slice(0, 5);
       if (sampleUsers.length > 0) {
-        console.log(`\n📋 Sample cached users:`);
+        console.log('\n📋 Sample cached users:');
         sampleUsers.forEach(([id, user]) => {
-          console.log(`   ID ${id}: "${user.name}" (${user.type || 'unknown type'})`);
+          console.log(`   ID ${id}: '${user.name}' (${user.type || 'unknown type'})`);
         });
       }
       
     } catch (error) {
-      console.warn(`⚠️ Error displaying user cache stats:`, error);
+      console.warn('⚠️ Error displaying user cache stats:', error);
     }
   },
 };
@@ -1382,7 +1382,7 @@ window.testUserIdResolution = async function(userId) {
   
   try {
     const userName = await window.CacheManager.resolveUserName(userId);
-    console.log(`✅ User ID ${userId} resolved to: "${userName}"`);
+    console.log(`✅ User ID ${userId} resolved to: '${userName}'`);
     return userName;
   } catch (error) {
     console.error(`❌ Error resolving user ID ${userId}:`, error);
@@ -1391,45 +1391,7 @@ window.testUserIdResolution = async function(userId) {
 };
 
 window.testAssetManagedByResolution = async function(testAsset) {
-  console.log(`🧪 Testing managed by resolution for asset:`, testAsset);
-  
-  if (!window.CacheManager) {
-    console.error('❌ CacheManager not available');
-    return;
-  }
-  
-  try {
-    const managedBy = await window.CacheManager.getManagedByInfo(testAsset);
-    console.log(`✅ Managed by resolved to: "${managedBy}"`);
-    return managedBy;
-  } catch (error) {
-    console.error(`❌ Error resolving managed by:`, error);
-    return null;
-  }
-};
-
-// Test function with real Active Directory asset structure
-window.testActiveDirectoryAsset = async function() {
-  console.log(`🧪 Testing with sample asset structure...`);
-  
-  // Generic test asset structure (no real sensitive data)
-  const testAsset = {
-    "type_fields": {
-      "health_12345": "Operational",
-      "hosting_model_12345": "Self-Hosted", 
-      "vendor_12345": "Microsoft",
-      "environment_12345": "PROD"
-    },
-    "name": "Sample Directory Service",
-    "asset_type_id": 12345,
-    "asset_tag": "ASSET-TEST",
-    "impact": "high",
-    "description": "Sample directory service for testing",
-    "agent_id": 12345, // Sample agent ID for testing
-    "user_id": null,
-    "id": 12345,
-    "display_id": 123
-  };
+  console.log('🧪 Testing managed by resolution for asset:', testAsset);
   
   if (!window.CacheManager) {
     console.error('❌ CacheManager not available');
@@ -1650,33 +1612,33 @@ window.ensureUserCache = async function() {
 
 // Debug function to investigate specific user ID resolution issues
 window.debugUserResolution = async function(userId) {
-  console.log(`🔍 === DEBUGGING AGENT ID RESOLUTION ===`);
+  console.log('🔍 === DEBUGGING AGENT ID RESOLUTION ===');
   console.log(`🎯 Investigating agent ID: ${userId} (managed by is always an agent_id)`);
   
   if (!userId) {
-    console.log(`⚠️ Please provide an agent ID to debug`);
-    console.log(`💡 Usage: debugUserResolution(37000300093)`);
+    console.log('⚠️ Please provide an agent ID to debug');
+    console.log('💡 Usage: debugUserResolution(37000300093)');
     return;
   }
   
   try {
     // Check user cache first, focusing on agents
-    console.log(`\n📦 Step 1: Checking agent cache...`);
+    console.log('\n📦 Step 1: Checking agent cache...');
     const userCache = await window.client.db.get('user_cache') || {};
     const userCount = Object.keys(userCache).length;
     console.log(`   Total users in cache: ${userCount}`);
     
     if (userCache[userId]) {
       const cachedUser = userCache[userId];
-      console.log(`   ✅ Agent ${userId} found in cache:`);
-      console.log(`      Name: "${cachedUser.name}"`);
+      console.log('   ✅ Agent ${userId} found in cache:');
+      console.log(`      Name: '${cachedUser.name}'`);
       console.log(`      Type: ${cachedUser.type || 'unknown'}`);
       console.log(`      Timestamp: ${new Date(cachedUser.timestamp).toLocaleString()}`);
       
       if (cachedUser.type === 'agent' || cachedUser.type === 'both') {
-        console.log(`   🎯 This is an agent - perfect for managed by resolution!`);
+        console.log('   🎯 This is an agent - perfect for managed by resolution!');
       } else if (cachedUser.type === 'requester') {
-        console.log(`   ⚠️ This is marked as requester, but managed by should be an agent`);
+        console.log('   ⚠️ This is marked as requester, but managed by should be an agent');
       }
       
       return cachedUser;
@@ -1685,9 +1647,9 @@ window.debugUserResolution = async function(userId) {
     }
     
     // Try direct API lookup as agent (primary method)
-    console.log(`\n📡 Step 2: Trying direct agent API lookup...`);
+    console.log('\n📡 Step 2: Trying direct agent API lookup...');
     try {
-      const agentResponse = await window.client.request.invokeTemplate("getAgents", {
+      const agentResponse = await window.client.request.invokeTemplate('getAgents', {
         path_suffix: `/${userId}`
       });
       
@@ -1696,11 +1658,11 @@ window.debugUserResolution = async function(userId) {
         if (data && data.agent) {
           const user = data.agent;
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-          console.log(`   ✅ Found as agent: "${userName}"`);
+          console.log(`   ✅ Found as agent: '${userName}'`);
           console.log(`      Email: ${user.email || user.primary_email || 'N/A'}`);
           console.log(`      Active: ${user.active !== false ? 'Yes' : 'No'}`);
           console.log(`      Role: ${user.role_names ? user.role_names.join(', ') : 'N/A'}`);
-          console.log(`   🎯 This agent should be cached for future managed by lookups`);
+          console.log('   🎯 This agent should be cached for future managed by lookups');
           
           // Cache this agent
           userCache[userId] = {
@@ -1710,20 +1672,20 @@ window.debugUserResolution = async function(userId) {
             type: 'agent'
           };
           await window.client.db.set('user_cache', userCache);
-          console.log(`   📦 Agent cached for future use`);
+          console.log('   📦 Agent cached for future use');
           
           return user;
         }
       }
-      console.log(`   ❌ Not found as agent`);
+      console.log('   ❌ Not found as agent');
     } catch (agentError) {
       console.log(`   ❌ Error checking as agent: ${agentError.message}`);
     }
     
     // Try as requester (fallback, but note this shouldn't be the case for managed by)
-    console.log(`\n📡 Step 3: Trying as requester (fallback)...`);
+    console.log('\n📡 Step 3: Trying as requester (fallback)...');
     try {
-      const requesterResponse = await window.client.request.invokeTemplate("getRequesterDetails", {
+      const requesterResponse = await window.client.request.invokeTemplate('getRequesterDetails', {
         context: { requester_id: userId }
       });
       
@@ -1732,22 +1694,22 @@ window.debugUserResolution = async function(userId) {
         if (data && data.requester) {
           const user = data.requester;
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-          console.log(`   ✅ Found as requester: "${userName}"`);
+          console.log(`   ✅ Found as requester: '${userName}'`);
           console.log(`      Email: ${user.email || user.primary_email || 'N/A'}`);
           console.log(`      Active: ${user.active !== false ? 'Yes' : 'No'}`);
           console.log(`      Department: ${user.department_names ? user.department_names[0] : 'N/A'}`);
-          console.log(`   ⚠️ NOTE: This is a requester, but managed by should be an agent`);
-          console.log(`   💡 This might indicate a data issue or the user has both roles`);
+          console.log('   ⚠️ NOTE: This is a requester, but managed by should be an agent');
+          console.log('   💡 This might indicate a data issue or the user has both roles');
           return user;
         }
       }
-      console.log(`   ❌ Not found as requester`);
+      console.log('   ❌ Not found as requester');
     } catch (requesterError) {
       console.log(`   ❌ Error checking as requester: ${requesterError.message}`);
     }
     
     // Check if we need to fetch more agents
-    console.log(`\n💡 Step 4: Recommendations...`);
+    console.log('\n💡 Step 4: Recommendations...');
     
     // Count agents in cache
     const agentCount = Object.values(userCache).filter(user => 
@@ -1758,12 +1720,12 @@ window.debugUserResolution = async function(userId) {
     
     if (agentCount < 20) {
       console.log(`   ⚠️ Agent cache seems sparse (${agentCount} agents)`);
-      console.log(`   💡 Try running: await ensureUserCache()`);
-      console.log(`   💡 Or try: await fetchUsers() to get more agents`);
+      console.log('   💡 Try running: await ensureUserCache()');
+      console.log('   💡 Or try: await fetchUsers() to get more agents');
     } else {
       console.log(`   ℹ️ Agent cache seems well populated (${agentCount} agents)`);
       console.log(`   💡 Agent ${userId} might not exist, be deactivated, or not be an agent`);
-      console.log(`   💡 Check if this is a valid agent ID in your Freshservice instance`);
+      console.log('   💡 Check if this is a valid agent ID in your Freshservice instance');
     }
     
     // Show some sample agent IDs from cache for comparison
@@ -1772,25 +1734,25 @@ window.debugUserResolution = async function(userId) {
       .slice(0, 5);
       
     if (sampleAgentIds.length > 0) {
-      console.log(`\n📋 Sample agent IDs in cache for comparison:`);
+      console.log('\n📋 Sample agent IDs in cache for comparison:');
       sampleAgentIds.forEach(([id, user]) => {
-        console.log(`   ${id}: "${user.name}" (${user.type})`);
+        console.log(`   ${id}: '${user.name}' (${user.type})`);
       });
     }
     
     return null;
     
   } catch (error) {
-    console.error(`❌ Error debugging agent resolution:`, error);
+    console.error('❌ Error debugging agent resolution:', error);
     return null;
   }
 };
 
 // Convenience function to debug the specific agent from your logs
 window.debugMiddlewareUser = async function() {
-  console.log(`🔍 === DEBUGGING MIDDLEWARE ASSET AGENT ===`);
-  console.log(`🎯 This will debug agent ID 37000300093 from the Middleware asset`);
-  console.log(`💡 Since managed by is always an agent_id, this should be an agent`);
+  console.log('🔍 === DEBUGGING MIDDLEWARE ASSET AGENT ===');
+  console.log('🎯 This will debug agent ID 37000300093 from the Middleware asset');
+  console.log('💡 Since managed by is always an agent_id, this should be an agent');
   
   return await window.debugUserResolution(37000300093);
 };
