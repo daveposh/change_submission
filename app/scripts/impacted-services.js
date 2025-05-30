@@ -162,7 +162,7 @@ const ImpactedServices = {
   },
 
   /**
-   * Find related assets using the relationships API
+   * Find related assets using the relationships API with robust fallbacks
    */
   async findRelatedAssets() {
     const relatedAssets = [];
@@ -173,166 +173,141 @@ const ImpactedServices = {
     // Check for client availability
     if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
       console.log('⚠️ Client or invokeTemplate not available for asset relationships fetch');
+      await this.findRelatedAssetsFallback(relatedAssets, processedAssetIds);
       return;
     }
     
+    let relationshipsApiAvailable = true;
+    
     for (const directAsset of this.state.directAssets) {
-      try {
-        // Use the display_id for the API call - this is the key identifier for the relationships endpoint
-        const assetId = directAsset.display_id || directAsset.id;
-        console.log(`📡 Fetching relationships for asset ${directAsset.name} (Display ID: ${assetId})`);
-        
-        // Make API call using FDK invokeTemplate with correct parameter format
-        // The API endpoint is: /api/v2/assets/{asset_id}/relationships
-        const response = await window.client.request.invokeTemplate("getAssetRelationships", {
-          context: {},
-          body: JSON.stringify({}),
-          headers: {},
-          asset_id: assetId  // Pass asset_id directly as a path parameter
-        });
-        
-        if (!response || !response.response) {
-          console.warn(`⚠️ Failed to fetch relationships for asset ${directAsset.name}: No response data`);
-          continue;
-        }
-        
-        // Parse the response
-        let relationshipData;
+      let foundRelationships = false;
+      
+      // Only try relationships API if it's still considered available
+      if (relationshipsApiAvailable) {
         try {
-          relationshipData = JSON.parse(response.response);
-        } catch (parseError) {
-          console.warn(`⚠️ Failed to parse relationship data for asset ${directAsset.name}:`, parseError);
-          continue;
-        }
-        
-        console.log(`📊 Relationship data for ${directAsset.name}:`, relationshipData);
-        
-        // Process the relationship data based on actual API format
-        if (relationshipData && Array.isArray(relationshipData.relationships)) {
-          console.log(`📋 Found ${relationshipData.relationships.length} relationships for ${directAsset.name}`);
+          // Use the display_id for the API call - this is the key identifier for the relationships endpoint
+          const assetId = directAsset.display_id || directAsset.id;
+          console.log(`📡 Fetching relationships for asset ${directAsset.name} (Display ID: ${assetId})`);
+          console.log(`🔍 Asset details:`, { id: directAsset.id, display_id: directAsset.display_id, name: directAsset.name });
           
-          for (const relationship of relationshipData.relationships) {
-            try {
-              // Extract related asset ID based on the actual API response format
-              let relatedAssetId = null;
-              
-              // If this asset is the primary, get the secondary asset
-              if (relationship.primary_id === assetId && relationship.secondary_type === 'asset') {
-                relatedAssetId = relationship.secondary_id;
-              }
-              // If this asset is the secondary, get the primary asset
-              else if (relationship.secondary_id === assetId && relationship.primary_type === 'asset') {
-                relatedAssetId = relationship.primary_id;
-              }
-              
-              // Skip if no related asset ID found or already processed
-              if (!relatedAssetId || processedAssetIds.has(relatedAssetId)) {
-                continue;
-              }
-              
-              // Don't include the direct asset itself or other direct assets
-              if (relatedAssetId === directAsset.id || 
-                  this.state.directAssets.some(da => da.id === relatedAssetId || da.display_id === relatedAssetId)) {
-                continue;
-              }
-              
-              console.log(`🔗 Found related asset ID: ${relatedAssetId} for ${directAsset.name}`);
-              
-              // Fetch the full asset details for the related asset
-              let relatedAssetDetails = null;
-              
-              // Try to get asset details from cache first
-              if (window.CacheManager && window.CacheManager.getAssetById) {
-                relatedAssetDetails = await window.CacheManager.getAssetById(relatedAssetId);
-              }
-              
-              // If not in cache, fetch from API
-              if (!relatedAssetDetails) {
-                try {
-                  const assetResponse = await window.client.request.invokeTemplate("getAssetDetails", {
-                    context: {},
-                    body: JSON.stringify({}),
-                    headers: {},
-                    asset_id: relatedAssetId
-                  });
-                  
-                  if (assetResponse && assetResponse.response) {
-                    const assetData = JSON.parse(assetResponse.response);
-                    if (assetData && assetData.asset) {
-                      relatedAssetDetails = assetData.asset;
-                    }
-                  }
-                } catch (fetchError) {
-                  console.warn(`⚠️ Failed to fetch details for related asset ${relatedAssetId}:`, fetchError);
+          // Make API call using FDK invokeTemplate with correct parameter format
+          // The API endpoint is: /api/v2/assets/{asset_id}/relationships
+          const response = await window.client.request.invokeTemplate("getAssetRelationships", {
+            context: {},
+            body: JSON.stringify({}),
+            headers: {},
+            asset_id: assetId  // Pass asset_id directly as a path parameter
+          });
+          
+          if (!response || !response.response) {
+            console.warn(`⚠️ Failed to fetch relationships for asset ${directAsset.name}: No response data`);
+            console.warn(`📊 Response details:`, response);
+            continue;
+          }
+          
+          // Parse the response
+          let relationshipData;
+          try {
+            relationshipData = JSON.parse(response.response);
+          } catch (parseError) {
+            console.warn(`⚠️ Failed to parse relationship data for asset ${directAsset.name}:`, parseError);
+            console.warn(`📊 Raw response:`, response.response);
+            continue;
+          }
+          
+          console.log(`📊 Relationship data for ${directAsset.name}:`, relationshipData);
+          
+          // Process the relationship data based on actual API format
+          if (relationshipData && Array.isArray(relationshipData.relationships)) {
+            console.log(`📋 Found ${relationshipData.relationships.length} relationships for ${directAsset.name}`);
+            foundRelationships = true;
+            
+            for (const relationship of relationshipData.relationships) {
+              try {
+                // Extract related asset ID based on the actual API response format
+                let relatedAssetId = null;
+                
+                // If this asset is the primary, get the secondary asset
+                if (relationship.primary_id == assetId && relationship.secondary_type === 'asset') {
+                  relatedAssetId = relationship.secondary_id;
+                }
+                // If this asset is the secondary, get the primary asset
+                else if (relationship.secondary_id == assetId && relationship.primary_type === 'asset') {
+                  relatedAssetId = relationship.primary_id;
+                }
+                
+                // Skip if no related asset ID found or already processed
+                if (!relatedAssetId || processedAssetIds.has(relatedAssetId)) {
                   continue;
                 }
-              }
-              
-              // Add the related asset if we have details
-              if (relatedAssetDetails) {
-                processedAssetIds.add(relatedAssetId);
                 
-                // Get relationship type name if available
-                let relationshipTypeName = 'Related';
-                if (relationship.relationship_type_id && window.CacheManager && window.CacheManager.getRelationshipTypeName) {
-                  relationshipTypeName = await window.CacheManager.getRelationshipTypeName(relationship.relationship_type_id) || 'Related';
+                // Don't include the direct asset itself or other direct assets
+                if (relatedAssetId == directAsset.id || 
+                    this.state.directAssets.some(da => da.id == relatedAssetId || da.display_id == relatedAssetId)) {
+                  continue;
                 }
                 
-                relatedAssets.push({
-                  id: relatedAssetDetails.id,
-                  display_id: relatedAssetDetails.display_id || relatedAssetDetails.id,
-                  name: relatedAssetDetails.name || `Asset ${relatedAssetDetails.id}`,
-                  asset_type_id: relatedAssetDetails.asset_type_id,
-                  managed_by: relatedAssetDetails.managed_by || relatedAssetDetails.agent_id || relatedAssetDetails.user_id,
-                  relationship_type: relationshipTypeName,
-                  relationship_type_id: relationship.relationship_type_id,
-                  source_asset: directAsset.name,
-                  source_asset_id: assetId,
-                  ...relatedAssetDetails // Include all other asset properties
-                });
+                console.log(`🔗 Found related asset ID: ${relatedAssetId} for ${directAsset.name}`);
                 
-                console.log(`✅ Added related asset: ${relatedAssetDetails.name} (${relationshipTypeName})`);
+                // Fetch the full asset details for the related asset
+                const relatedAssetDetails = await this.fetchAssetDetails(relatedAssetId);
+                
+                // Add the related asset if we have details
+                if (relatedAssetDetails) {
+                  processedAssetIds.add(relatedAssetId);
+                  
+                  // Get relationship type name if available
+                  let relationshipTypeName = 'Related';
+                  if (relationship.relationship_type_id && window.CacheManager && window.CacheManager.getRelationshipTypeName) {
+                    relationshipTypeName = await window.CacheManager.getRelationshipTypeName(relationship.relationship_type_id) || 'Related';
+                  }
+                  
+                  relatedAssets.push({
+                    id: relatedAssetDetails.id,
+                    display_id: relatedAssetDetails.display_id || relatedAssetDetails.id,
+                    name: relatedAssetDetails.name || `Asset ${relatedAssetDetails.id}`,
+                    asset_type_id: relatedAssetDetails.asset_type_id,
+                    managed_by: relatedAssetDetails.managed_by || relatedAssetDetails.agent_id || relatedAssetDetails.user_id,
+                    relationship_type: relationshipTypeName,
+                    relationship_type_id: relationship.relationship_type_id,
+                    source_asset: directAsset.name,
+                    source_asset_id: assetId,
+                    ...relatedAssetDetails // Include all other asset properties
+                  });
+                  
+                  console.log(`✅ Added related asset: ${relatedAssetDetails.name} (${relationshipTypeName})`);
+                }
+                
+              } catch (relationshipError) {
+                console.warn(`⚠️ Error processing relationship for asset ${directAsset.name}:`, relationshipError);
               }
-              
-            } catch (relationshipError) {
-              console.warn(`⚠️ Error processing relationship for asset ${directAsset.name}:`, relationshipError);
             }
+          } else {
+            console.log(`ℹ️ No relationships found for asset ${directAsset.name}`);
           }
-        } else {
-          console.log(`ℹ️ No relationships found for asset ${directAsset.name}`);
-        }
-        
-      } catch (error) {
-        console.error(`❌ Error fetching relationships for asset ${directAsset.name}:`, error);
-        
-        // If the API call fails, we could fall back to the search method as a backup
-        console.log(`🔄 Attempting fallback search for ${directAsset.name}...`);
-        try {
-          if (window.CacheManager && window.CacheManager.searchAssets) {
-            const baseName = directAsset.name.split(' ')[0];
-            if (baseName.length >= 3) {
-              const searchResults = await window.CacheManager.searchAssets(baseName, 'name');
-              const filtered = searchResults.filter(asset => 
-                asset.id !== directAsset.id && 
-                !this.state.directAssets.some(da => da.id === asset.id) &&
-                !processedAssetIds.has(asset.id)
-              );
-              
-              filtered.forEach(asset => {
-                processedAssetIds.add(asset.id);
-                relatedAssets.push({
-                  ...asset,
-                  relationship_type: 'Similar Name',
-                  source_asset: directAsset.name
-                });
-              });
-              
-              console.log(`🔄 Fallback search found ${filtered.length} potential related assets`);
-            }
+          
+        } catch (error) {
+          console.error(`❌ Error fetching relationships for asset ${directAsset.name}:`, error);
+          console.error(`📊 Error details:`, { 
+            status: error.status, 
+            message: error.message, 
+            response: error.response,
+            assetId: directAsset.display_id || directAsset.id,
+            assetName: directAsset.name
+          });
+          
+          // Check if this is a 404 error (relationships endpoint not available)
+          if (error.status === 404) {
+            console.log(`ℹ️ Asset relationships endpoint not available (404 error)`);
+            console.log(`ℹ️ This could mean: 1) Relationships feature not enabled, 2) Asset has no relationships, or 3) Endpoint not supported`);
+            relationshipsApiAvailable = false; // Don't try for other assets
           }
-        } catch (fallbackError) {
-          console.warn(`⚠️ Fallback search also failed for ${directAsset.name}:`, fallbackError);
         }
+      }
+      
+      // If relationships API failed or not available, try fallback methods
+      if (!foundRelationships) {
+        await this.findRelatedAssetsFallbackForAsset(directAsset, relatedAssets, processedAssetIds);
       }
     }
 
@@ -348,6 +323,114 @@ const ImpactedServices = {
     
     if (Object.keys(relationshipTypes).length > 0) {
       console.log(`📊 Relationship types found:`, relationshipTypes);
+    }
+  },
+
+  /**
+   * Fetch asset details by ID with fallback methods
+   */
+  async fetchAssetDetails(assetId) {
+    // Try to get asset details from cache first
+    if (window.CacheManager && window.CacheManager.getAssetById) {
+      const cachedAsset = await window.CacheManager.getAssetById(assetId);
+      if (cachedAsset) {
+        console.log(`📦 Found asset ${assetId} in cache`);
+        return cachedAsset;
+      }
+    }
+    
+    // If not in cache, fetch from API
+    try {
+      const assetResponse = await window.client.request.invokeTemplate("getAssetDetails", {
+        context: {},
+        body: JSON.stringify({}),
+        headers: {},
+        asset_id: assetId
+      });
+      
+      if (assetResponse && assetResponse.response) {
+        const assetData = JSON.parse(assetResponse.response);
+        if (assetData && assetData.asset) {
+          console.log(`📡 Fetched asset ${assetId} from API`);
+          return assetData.asset;
+        }
+      }
+    } catch (fetchError) {
+      console.warn(`⚠️ Failed to fetch details for asset ${assetId}:`, fetchError);
+    }
+    
+    return null;
+  },
+
+  /**
+   * Fallback method to find related assets using search and naming patterns
+   */
+  async findRelatedAssetsFallbackForAsset(directAsset, relatedAssets, processedAssetIds) {
+    console.log(`🔄 Using fallback methods to find related assets for ${directAsset.name}...`);
+    
+    try {
+      if (window.CacheManager && window.CacheManager.searchAssets) {
+        // Method 1: Search by base name (first word)
+        const baseName = directAsset.name.split(' ')[0];
+        if (baseName.length >= 3) {
+          const searchResults = await window.CacheManager.searchAssets(baseName, 'name');
+          const filtered = searchResults.filter(asset => 
+            asset.id !== directAsset.id && 
+            !this.state.directAssets.some(da => da.id === asset.id) &&
+            !processedAssetIds.has(asset.id)
+          );
+          
+          filtered.forEach(asset => {
+            processedAssetIds.add(asset.id);
+            relatedAssets.push({
+              ...asset,
+              relationship_type: 'Similar Name',
+              source_asset: directAsset.name
+            });
+          });
+          
+          console.log(`🔄 Fallback search by name found ${filtered.length} potential related assets`);
+        }
+        
+        // Method 2: Search by asset type (if same type, might be related)
+        if (directAsset.asset_type_id) {
+          try {
+            const typeResults = await window.CacheManager.searchAssets(directAsset.asset_type_id, 'asset_type_id');
+            const typeFiltered = typeResults.filter(asset => 
+              asset.id !== directAsset.id && 
+              !this.state.directAssets.some(da => da.id === asset.id) &&
+              !processedAssetIds.has(asset.id) &&
+              asset.name && asset.name.toLowerCase().includes(directAsset.name.toLowerCase().split(' ')[0])
+            ).slice(0, 3); // Limit to 3 to avoid too many results
+            
+            typeFiltered.forEach(asset => {
+              processedAssetIds.add(asset.id);
+              relatedAssets.push({
+                ...asset,
+                relationship_type: 'Same Type',
+                source_asset: directAsset.name
+              });
+            });
+            
+            console.log(`🔄 Fallback search by type found ${typeFiltered.length} potential related assets`);
+          } catch (typeError) {
+            console.warn(`⚠️ Type-based search failed:`, typeError);
+          }
+        }
+      }
+    } catch (fallbackError) {
+      console.warn(`⚠️ Fallback search failed for ${directAsset.name}:`, fallbackError);
+    }
+  },
+
+  /**
+   * Complete fallback method when relationships API is not available
+   */
+  async findRelatedAssetsFallback(relatedAssets, processedAssetIds) {
+    console.log(`🔄 Using complete fallback approach for asset relationships...`);
+    
+    for (const directAsset of this.state.directAssets) {
+      await this.findRelatedAssetsFallbackForAsset(directAsset, relatedAssets, processedAssetIds);
     }
   },
 
