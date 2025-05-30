@@ -416,7 +416,9 @@ const ImpactedServices = {
       const assetResponse = await window.client.request.invokeTemplate("getAssetDetails", {
         context: {
           asset_id: assetId
-        }
+        },
+        cache: true,
+        ttl: 180000 // 3 minutes cache for asset details
       });
       
       if (assetResponse && assetResponse.response) {
