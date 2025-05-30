@@ -4413,17 +4413,22 @@ function calculateRisk() {
   }
   
   // Update the global form data
-  if (window.formData && window.formData.riskAssessment) {
-    window.formData.riskAssessment = {
-      businessImpact: parseInt(businessImpact.value),
-      affectedUsers: parseInt(affectedUsers.value),
-      complexity: parseInt(complexity.value),
-      testing: parseInt(testing.value),
-      rollback: parseInt(rollback.value),
-      totalScore: totalScore,
-      riskLevel: riskLevel
-    };
+  if (!window.formData) {
+    window.formData = {};
   }
+  if (!window.formData.riskAssessment) {
+    window.formData.riskAssessment = {};
+  }
+  
+  window.formData.riskAssessment = {
+    businessImpact: parseInt(businessImpact.value),
+    affectedUsers: parseInt(affectedUsers.value),
+    complexity: parseInt(complexity.value),
+    testing: parseInt(testing.value),
+    rollback: parseInt(rollback.value),
+    totalScore: totalScore,
+    riskLevel: riskLevel
+  };
   
   // Display the risk result
   showRiskResult(totalScore, riskLevel, riskClass, riskExplanation);
