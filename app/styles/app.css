@@ -326,4 +326,34 @@
 .list-group-item-action:hover .badge {
   transform: scale(1.05);
   transition: transform 0.15s ease-in-out;
+}
+
+/* Selected User Display */
+.selected-user {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+
+.selected-user .badge {
+  font-size: 0.75em;
+  padding: 0.35em 0.65em;
+  border-radius: 0.375rem;
+  font-weight: 500;
+}
+
+.selected-user .badge i {
+  font-size: 0.9em;
+}
+
+.selected-user strong {
+  color: #2c3e50;
+  font-size: 1.1em;
+}
+
+.selected-user .text-muted {
+  color: #6c757d !important;
+  font-size: 0.9em;
 } 

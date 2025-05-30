@@ -4912,14 +4912,18 @@ function selectRequester(requester) {
   const resultsContainer = document.getElementById('requester-results');
   
   if (selectedContainer && searchInput) {
+    const badgeHtml = generateUserBadges(requester, 'requester');
+    
     selectedContainer.innerHTML = `
-      <div class="selected-user d-flex justify-content-between align-items-center">
-        <div>
-          <strong>${requester.first_name} ${requester.last_name}</strong>
-          <br><small class="text-muted">${requester.email}</small>
-          ${requester._isAgent ? '<span class="badge bg-info ms-2">Agent</span>' : ''}
+      <div class="selected-user d-flex justify-content-between align-items-start">
+        <div class="flex-grow-1">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <strong>${requester.first_name} ${requester.last_name}</strong>
+          </div>
+          <small class="text-muted d-block">${requester.email}</small>
+          ${badgeHtml}
         </div>
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearRequester()">
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="clearRequester()">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -4957,13 +4961,18 @@ function selectAgent(agent) {
   const resultsContainer = document.getElementById('agent-results');
   
   if (selectedContainer && searchInput) {
+    const badgeHtml = generateUserBadges(agent, 'agent');
+    
     selectedContainer.innerHTML = `
-      <div class="selected-user d-flex justify-content-between align-items-center">
-        <div>
-          <strong>${agent.first_name} ${agent.last_name}</strong>
-          <br><small class="text-muted">${agent.email}</small>
+      <div class="selected-user d-flex justify-content-between align-items-start">
+        <div class="flex-grow-1">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <strong>${agent.first_name} ${agent.last_name}</strong>
+          </div>
+          <small class="text-muted d-block">${agent.email}</small>
+          ${badgeHtml}
         </div>
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearAgent()">
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="clearAgent()">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -5189,4 +5198,45 @@ function getInstallationParams() {
     searchCacheTimeout: 300000, // 5 minutes
     paginationDelay: 500 // 500ms
   });
+}
+
+/**
+ * Generate badge HTML for a user
+ * @param {Object} user - User object with badge information
+ * @param {string} containerId - Container ID for unique badge IDs
+ * @returns {string} - HTML string with badges
+ */
+function generateUserBadges(user, containerId = '') {
+  const badges = [];
+  
+  // Agent badge
+  if (user._isAgent) {
+    badges.push('<span class="badge bg-info me-1">Agent</span>');
+  }
+  
+  // Department badge
+  if (user.department_names && user.department_names.length > 0) {
+    const departments = user.department_names.join(', ');
+    badges.push(`<span class="badge bg-secondary me-1" title="Department"><i class="fas fa-building me-1"></i>${departments}</span>`);
+  }
+  
+  // Location badge
+  if (user.location_name) {
+    badges.push(`<span class="badge bg-success me-1" title="Location"><i class="fas fa-map-marker-alt me-1"></i>${user.location_name}</span>`);
+  }
+  
+  // Job title badge (if available)
+  if (user.job_title) {
+    badges.push(`<span class="badge bg-warning text-dark me-1" title="Job Title"><i class="fas fa-briefcase me-1"></i>${user.job_title}</span>`);
+  }
+  
+  // Manager badge (will be resolved asynchronously if manager ID exists)
+  if (user.reporting_manager_id) {
+    const badgeId = containerId ? `selected-manager-badge-${containerId}` : `selected-manager-badge-${Date.now()}`;
+    badges.push(`<span class="badge bg-primary me-1" title="Reporting Manager" id="${badgeId}"><i class="fas fa-user-tie me-1"></i>Loading...</span>`);
+    // Resolve manager name asynchronously
+    setTimeout(() => resolveManagerName(user.reporting_manager_id, badgeId), 100);
+  }
+  
+  return badges.length > 0 ? `<div class="mt-2">${badges.join('')}</div>` : '';
 }
