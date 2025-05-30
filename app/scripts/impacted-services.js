@@ -295,9 +295,14 @@ const ImpactedServices = {
           
           // Check if this is a 404 error (relationships endpoint not available)
           if (error.status === 404) {
-            console.log(`ℹ️ Asset relationships endpoint not available (404 error)`);
-            console.log(`ℹ️ This could mean: 1) Relationships feature not enabled, 2) Asset has no relationships, or 3) Endpoint not supported`);
+            console.log(`ℹ️ Asset relationships endpoint returned 404 for asset ${directAsset.name}`);
+            console.log(`ℹ️ This could mean:`);
+            console.log(`   1. Asset has no relationships defined`);
+            console.log(`   2. Relationships feature not enabled for this asset type`);
+            console.log(`   3. Asset relationships endpoint not supported in this Freshservice instance`);
             relationshipsApiAvailable = false; // Don't try for other assets
+          } else {
+            console.log(`ℹ️ Other error occurred (status: ${error.status}), will continue trying for other assets`);
           }
         }
       }
@@ -367,29 +372,37 @@ const ImpactedServices = {
         // Method 1: Search by base name (first word)
         const baseName = directAsset.name.split(' ')[0];
         if (baseName.length >= 3) {
-          const searchResults = await window.CacheManager.searchAssets(baseName, 'name');
-          const filtered = searchResults.filter(asset => 
-            asset.id !== directAsset.id && 
-            !this.state.directAssets.some(da => da.id === asset.id) &&
-            !processedAssetIds.has(asset.id)
-          );
-          
-          filtered.forEach(asset => {
-            processedAssetIds.add(asset.id);
-            relatedAssets.push({
-              ...asset,
-              relationship_type: 'Similar Name',
-              source_asset: directAsset.name
+          try {
+            const searchResults = await window.CacheManager.searchAssets(baseName, 'name');
+            const filtered = searchResults.filter(asset => 
+              asset.id !== directAsset.id && 
+              !this.state.directAssets.some(da => da.id === asset.id) &&
+              !processedAssetIds.has(asset.id)
+            );
+            
+            filtered.forEach(asset => {
+              processedAssetIds.add(asset.id);
+              relatedAssets.push({
+                ...asset,
+                relationship_type: 'Similar Name',
+                source_asset: directAsset.name
+              });
             });
-          });
-          
-          console.log(`🔄 Fallback search by name found ${filtered.length} potential related assets`);
+            
+            console.log(`🔄 Fallback search by name found ${filtered.length} potential related assets`);
+          } catch (nameSearchError) {
+            console.warn(`⚠️ Name-based search failed for ${directAsset.name}:`, nameSearchError);
+          }
         }
         
         // Method 2: Search by asset type (if same type, might be related)
         if (directAsset.asset_type_id) {
           try {
-            const typeResults = await window.CacheManager.searchAssets(directAsset.asset_type_id, 'asset_type_id');
+            // Convert asset_type_id to string for search
+            const assetTypeIdString = String(directAsset.asset_type_id);
+            console.log(`🔍 Searching for assets with type ID: ${assetTypeIdString}`);
+            
+            const typeResults = await window.CacheManager.searchAssets(assetTypeIdString, 'asset_type_id');
             const typeFiltered = typeResults.filter(asset => 
               asset.id !== directAsset.id && 
               !this.state.directAssets.some(da => da.id === asset.id) &&
@@ -408,7 +421,42 @@ const ImpactedServices = {
             
             console.log(`🔄 Fallback search by type found ${typeFiltered.length} potential related assets`);
           } catch (typeError) {
-            console.warn(`⚠️ Type-based search failed:`, typeError);
+            console.warn(`⚠️ Type-based search failed for ${directAsset.name}:`, typeError);
+          }
+        }
+        
+        // Method 3: Search by environment (if available in type_fields)
+        if (directAsset.type_fields) {
+          try {
+            // Look for environment field in type_fields
+            const environmentField = Object.keys(directAsset.type_fields).find(key => 
+              key.toLowerCase().includes('environment')
+            );
+            
+            if (environmentField && directAsset.type_fields[environmentField]) {
+              const environment = directAsset.type_fields[environmentField];
+              console.log(`🔍 Searching for assets in environment: ${environment}`);
+              
+              const envResults = await window.CacheManager.searchAssets(environment, 'type_fields');
+              const envFiltered = envResults.filter(asset => 
+                asset.id !== directAsset.id && 
+                !this.state.directAssets.some(da => da.id === asset.id) &&
+                !processedAssetIds.has(asset.id)
+              ).slice(0, 2); // Limit to 2 to avoid too many results
+              
+              envFiltered.forEach(asset => {
+                processedAssetIds.add(asset.id);
+                relatedAssets.push({
+                  ...asset,
+                  relationship_type: 'Same Environment',
+                  source_asset: directAsset.name
+                });
+              });
+              
+              console.log(`🔄 Fallback search by environment found ${envFiltered.length} potential related assets`);
+            }
+          } catch (envError) {
+            console.warn(`⚠️ Environment-based search failed for ${directAsset.name}:`, envError);
           }
         }
       }
