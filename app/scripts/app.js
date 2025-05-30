@@ -2067,18 +2067,18 @@ function setupEventListeners() {
   // Impacted Services tab
   const impactedServicesTab = document.getElementById('impacted-services-tab');
   if (impactedServicesTab) {
-    impactedServicesTab.addEventListener('shown.bs.tab', async function () {
+    impactedServicesTab.addEventListener('shown.bs.tab', function () {
       // Initialize Impacted Services Module when tab is first shown
       if (window.ImpactedServices && !window.ImpactedServices._initialized) {
         console.log('🔧 Initializing Impacted Services Module...');
-        await window.ImpactedServices.init();
+        window.ImpactedServices.init();
         window.ImpactedServices._initialized = true;
         console.log('✅ Impacted Services Module initialized');
       }
       
       // Refresh direct assets from Asset Association
       if (window.ImpactedServices && window.ImpactedServices.loadDirectAssets) {
-        await window.ImpactedServices.loadDirectAssets();
+        window.ImpactedServices.loadDirectAssets();
       }
     });
     
@@ -5486,7 +5486,7 @@ async function initializeAppWithProgress() {
     // Initialize Impacted Services module
     window.ImpactedServices = ImpactedServices;
     if (window.ImpactedServices) {
-      await window.ImpactedServices.init();
+      window.ImpactedServices.init();
     }
     
     // Setup form components
@@ -5562,10 +5562,10 @@ const ImpactedServices = {
   /**
    * Initialize the impacted services module
    */
-  async init() {
+  init() {
     console.log('🔧 Initializing Impacted Services Module...');
     this.setupEventListeners();
-    await this.loadDirectAssets();
+    this.loadDirectAssets();
     console.log('✅ Impacted Services Module initialized');
   },
 
@@ -5587,7 +5587,7 @@ const ImpactedServices = {
   /**
    * Load direct assets from the Asset Association module
    */
-  async loadDirectAssets() {
+  loadDirectAssets() {
     if (window.AssetAssociation && window.AssetAssociation.getSelectedAssets) {
       this.state.directAssets = window.AssetAssociation.getSelectedAssets();
       console.log(`📦 Loaded ${this.state.directAssets.length} direct assets`);
@@ -5610,7 +5610,7 @@ const ImpactedServices = {
 
     try {
       // Step 1: Load fresh direct assets
-      await this.loadDirectAssets();
+      this.loadDirectAssets();
 
       if (this.state.directAssets.length === 0) {
         console.log('⚠️ No direct assets to analyze');
@@ -5631,7 +5631,7 @@ const ImpactedServices = {
       await this.extractStakeholdersFromRelatedAssets();
 
       // Step 5: Display results
-      await this.displayResults();
+      this.displayResults();
 
       this.state.analysisComplete = true;
       console.log('✅ Impacted services analysis complete');
@@ -5654,7 +5654,6 @@ const ImpactedServices = {
     for (const asset of this.state.directAssets) {
       try {
         // Get managed by information using existing helper methods
-        let managedByInfo = 'N/A';
         let managedById = null;
 
         // Try to get managed by ID from various fields
@@ -5796,7 +5795,7 @@ const ImpactedServices = {
   /**
    * Display analysis results
    */
-  async displayResults() {
+  displayResults() {
     // Display approvers
     this.displayUserList('approvers-list', this.state.approvers, 'approver');
     
@@ -5831,7 +5830,7 @@ const ImpactedServices = {
     }
 
     let html = '';
-    users.forEach((user, index) => {
+    users.forEach((user) => {
       const badgeClass = userType === 'approver' ? 'bg-success' : 'bg-primary';
       html += `
         <div class="user-item" data-user-id="${user.id}">
@@ -5908,7 +5907,7 @@ const ImpactedServices = {
     if (window.showNotification) {
       window.showNotification(type, message);
     } else {
-      alert(message);
+      console.error('Notification:', type, message);
     }
   },
 
