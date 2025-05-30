@@ -193,10 +193,9 @@ const ImpactedServices = {
           // Make API call using FDK invokeTemplate with correct parameter format
           // The API endpoint is: /api/v2/assets/{asset_id}/relationships
           const response = await window.client.request.invokeTemplate("getAssetRelationships", {
-            context: {},
-            body: JSON.stringify({}),
-            headers: {},
-            asset_id: assetId  // Pass asset_id directly as a path parameter
+            context: {
+              asset_id: assetId
+            }
           });
           
           if (!response || !response.response) {
@@ -342,10 +341,9 @@ const ImpactedServices = {
     // If not in cache, fetch from API
     try {
       const assetResponse = await window.client.request.invokeTemplate("getAssetDetails", {
-        context: {},
-        body: JSON.stringify({}),
-        headers: {},
-        asset_id: assetId
+        context: {
+          asset_id: assetId
+        }
       });
       
       if (assetResponse && assetResponse.response) {
