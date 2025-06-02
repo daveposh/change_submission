@@ -406,7 +406,7 @@ const CacheManager = {
         // Use the getAssetsByType template with proper filter format
         const response = await window.client.request.invokeTemplate('getAssetsByType', {
           context: {
-            filter_query: `"${filterQuery}"`,
+            filter_query: filterQuery,  // Remove the extra quotes around the filter
             include: 'type_fields',
             page: '1'
           },
@@ -438,7 +438,7 @@ const CacheManager = {
             // Use single asset type filter
             const response = await window.client.request.invokeTemplate('getAssetsByType', {
               context: {
-                filter_query: `"asset_type_id: ${typeId}"`,
+                filter_query: `asset_type_id: ${typeId}`,  // Remove the extra quotes around the filter
                 include: 'type_fields',
                 page: '1'
               },
