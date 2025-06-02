@@ -378,20 +378,8 @@ const ChangeSubmission = {
       console.log('🏢 Adding workspace_id to request:', workspaceId);
     }
 
-    // Add custom fields if they exist (some Freshservice instances may not support all custom fields)
-    if (data.riskAssessment || impactedData.approvers || impactedData.stakeholders) {
-      changeRequestData.custom_fields = {
-        risk_level: data.riskAssessment?.riskLevel || 'Medium',
-        risk_score: data.riskAssessment?.totalScore || 0,
-        associated_asset_ids: assetIds.join(','),
-        approver_count: impactedData.approvers?.length || 0,
-        stakeholder_count: impactedData.stakeholders?.length || 0,
-        change_category: data.changeType || 'normal',
-        implementation_plan: data.implementationPlan,
-        backout_plan: data.backoutPlan,
-        validation_plan: data.validationPlan || 'Not specified'
-      };
-    }
+    // Note: Custom fields don't exist in this Freshservice instance
+    // All additional details are included in the description instead
 
     // Add assets if any are selected (comment out temporarily to test)
     // if (assetIds.length > 0) {
@@ -418,6 +406,14 @@ const ChangeSubmission = {
     let description = `
 <h3>Change Request Details</h3>
 
+<h4>Change Information:</h4>
+<ul>
+  <li><strong>Change Type:</strong> ${data.changeType || 'Normal'}</li>
+  <li><strong>Risk Level:</strong> ${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}</li>
+  <li><strong>Risk Score:</strong> ${data.riskAssessment?.totalScore || 0}/15</li>
+  <li><strong>Priority:</strong> ${data.riskAssessment?.riskLevel === 'High' ? 'High' : data.riskAssessment?.riskLevel === 'Low' ? 'Low' : 'Medium'}</li>
+</ul>
+
 <h4>Reason for Change:</h4>
 <p>${data.reasonForChange}</p>
 
@@ -430,10 +426,10 @@ const ChangeSubmission = {
 <h4>Validation Plan:</h4>
 <p>${data.validationPlan || 'Not specified'}</p>
 
-<h4>Risk Assessment:</h4>
+<h4>Risk Assessment Details:</h4>
 <ul>
-  <li><strong>Risk Level:</strong> ${data.riskAssessment?.riskLevel?.toUpperCase() || 'Not assessed'}</li>
-  <li><strong>Risk Score:</strong> ${data.riskAssessment?.totalScore || 0}/15</li>
+  <li><strong>Overall Risk Level:</strong> ${data.riskAssessment?.riskLevel?.toUpperCase() || 'Not assessed'}</li>
+  <li><strong>Total Risk Score:</strong> ${data.riskAssessment?.totalScore || 0}/15</li>
 </ul>
 `;
 
@@ -443,9 +439,13 @@ const ChangeSubmission = {
 <h4>Associated Assets (${data.selectedAssets.length}):</h4>
 <ul>`;
       data.selectedAssets.forEach(asset => {
-        description += `<li><strong>${asset.name}</strong> (${asset.asset_tag || 'No tag'})</li>`;
+        description += `<li><strong>${asset.name}</strong> (${asset.asset_tag || 'No tag'}) - ${asset.asset_type_name || 'Unknown type'}</li>`;
       });
       description += '</ul>';
+      
+      // Add asset IDs for reference
+      const assetIds = data.selectedAssets.map(asset => asset.id);
+      description += `<p><strong>Asset IDs:</strong> ${assetIds.join(', ')}</p>`;
     }
 
     // Add approvers
@@ -469,6 +469,20 @@ const ChangeSubmission = {
       });
       description += '</ul>';
     }
+
+    // Add summary statistics
+    description += `
+<h4>Change Summary:</h4>
+<ul>
+  <li><strong>Total Assets Affected:</strong> ${data.selectedAssets?.length || 0}</li>
+  <li><strong>Approvers Required:</strong> ${impactedData.approvers?.length || 0}</li>
+  <li><strong>Stakeholders to Notify:</strong> ${impactedData.stakeholders?.length || 0}</li>
+  <li><strong>Change Category:</strong> ${data.changeType || 'Normal'}</li>
+</ul>
+
+<hr>
+<p><em>This change request was created using the Freshworks Change Management App.</em></p>
+`;
 
     return description;
   },
