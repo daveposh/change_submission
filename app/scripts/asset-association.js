@@ -25,7 +25,13 @@ const AssetAssociation = {
     // Services dropdown state
     services: [],
     servicesLoaded: false,
-    isLoadingServices: false
+    isLoadingServices: false,
+    // Enhanced services state
+    filteredServices: [],
+    selectedServiceIds: new Set(),
+    serviceSearchTerm: '',
+    serviceTypeFilter: '',
+    servicesInitialized: false
   },
 
   // Configuration
@@ -55,14 +61,14 @@ const AssetAssociation = {
    * Initialize services dropdown
    */
   async initializeServicesDropdown() {
-    console.log('🔧 Initializing services dropdown...');
+    console.log('🔧 Initializing enhanced services display...');
     try {
       await this.loadServices();
-      this.populateServicesDropdown();
+      this.populateServicesDisplay();
       this.setupServicesEventListeners();
-      console.log('✅ Services dropdown initialized');
+      console.log('✅ Enhanced services display initialized');
     } catch (error) {
-      console.error('❌ Error initializing services dropdown:', error);
+      console.error('❌ Error initializing services display:', error);
       this.showServicesError('Failed to load services');
     }
   },
@@ -146,6 +152,47 @@ const AssetAssociation = {
    * Setup event listeners for services functionality
    */
   setupServicesEventListeners() {
+    // Service search input
+    const servicesSearch = document.getElementById('services-search');
+    if (servicesSearch) {
+      servicesSearch.addEventListener('input', (e) => {
+        this.state.serviceSearchTerm = e.target.value.trim();
+        this.populateServicesDisplay();
+      });
+    }
+
+    // Service type filter
+    const serviceTypeFilter = document.getElementById('service-type-filter');
+    if (serviceTypeFilter) {
+      serviceTypeFilter.addEventListener('change', (e) => {
+        this.state.serviceTypeFilter = e.target.value;
+        this.populateServicesDisplay();
+        
+        // Add visual indicator for active filter
+        if (e.target.value) {
+          e.target.classList.add('services-filter-active');
+        } else {
+          e.target.classList.remove('services-filter-active');
+        }
+      });
+    }
+
+    // Clear filters button
+    const clearFiltersBtn = document.getElementById('clear-services-filters-btn');
+    if (clearFiltersBtn) {
+      clearFiltersBtn.addEventListener('click', () => {
+        this.clearServicesFilters();
+      });
+    }
+
+    // Select all visible services button
+    const selectAllBtn = document.getElementById('select-all-visible-services-btn');
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', () => {
+        this.selectAllVisibleServices();
+      });
+    }
+
     // Add selected services button
     const addSelectedBtn = document.getElementById('add-selected-services-btn');
     if (addSelectedBtn) {
@@ -164,15 +211,12 @@ const AssetAssociation = {
   },
 
   /**
-   * Add selected services from dropdown to selected assets
+   * Add selected services from the enhanced display to selected assets
    */
   async addSelectedServices() {
-    const dropdown = document.getElementById('services-dropdown');
     const addBtn = document.getElementById('add-selected-services-btn');
-    if (!dropdown) return;
-
-    const selectedOptions = Array.from(dropdown.selectedOptions);
-    if (selectedOptions.length === 0) {
+    
+    if (this.state.selectedServiceIds.size === 0) {
       this.showNotification('info', 'Please select one or more services to add');
       return;
     }
@@ -185,43 +229,13 @@ const AssetAssociation = {
 
     try {
       let addedCount = 0;
-      for (const option of selectedOptions) {
+      
+      for (const serviceId of this.state.selectedServiceIds) {
         try {
-          const serviceJsonString = option.dataset.service.replace(/&quot;/g, '"');
-          const serviceData = JSON.parse(serviceJsonString);
+          const serviceData = this.state.services.find(s => s.id === serviceId);
+          if (!serviceData) continue;
           
-          // Convert service to asset-like structure for consistency
-          const assetLikeService = {
-            id: serviceData.id,
-            name: serviceData.name,
-            description: serviceData.description || '',
-            display_name: serviceData.name,
-            asset_type_id: serviceData.category || null, // Use category as asset type
-            location_id: serviceData.original_asset?.location_id || null, // Get from original asset
-            agent_id: serviceData.original_asset?.agent_id || null, // Get from original asset
-            user_id: serviceData.original_asset?.user_id || null, // Get from original asset
-            asset_tag: serviceData.original_asset?.asset_tag || 'SERVICE', // Get from original or mark as service
-            serial_number: serviceData.original_asset?.serial_number || null,
-            impact: serviceData.original_asset?.impact || 'unknown', // Get from original asset
-            environment: serviceData.original_asset?.environment || null, // Get from original asset
-            type_fields: {
-              // Preserve original asset type fields
-              ...(serviceData.original_asset?.type_fields || {}),
-              // Add service-specific fields
-              service_category: serviceData.category || 'General',
-              service_visibility: serviceData.visibility || 1,
-              service_type: 'Service',
-              description: serviceData.description || ''
-            },
-            created_at: serviceData.created_at,
-            updated_at: serviceData.updated_at,
-            // Mark as service for special handling
-            is_service: true,
-            service_visibility: serviceData.visibility,
-            service_category: serviceData.category,
-            // Keep reference to original asset data
-            original_asset: serviceData.original_asset
-          };
+          const assetLikeService = this.convertServiceToAsset(serviceData);
           
           // Check if already selected
           if (!this.isAssetSelected(assetLikeService.id)) {
@@ -235,8 +249,11 @@ const AssetAssociation = {
 
       if (addedCount > 0) {
         this.showNotification('success', `Added ${addedCount} service${addedCount > 1 ? 's' : ''} to selection`);
-        // Clear dropdown selection
-        dropdown.selectedIndex = -1;
+        
+        // Clear selection
+        this.state.selectedServiceIds.clear();
+        this.populateServicesDisplay();
+        this.updateServiceSelectionCount();
       } else {
         this.showNotification('info', 'All selected services were already in your selection');
       }
@@ -269,13 +286,16 @@ const AssetAssociation = {
       // Reset state
       this.state.services = [];
       this.state.servicesLoaded = false;
+      this.state.filteredServices = [];
+      this.state.selectedServiceIds.clear();
       
       // Force refresh from CacheManager
       if (window.CacheManager) {
         this.state.services = await window.CacheManager.loadServicesFromAssets();
         this.state.servicesLoaded = true;
         
-        this.populateServicesDropdown();
+        this.populateServicesDisplay();
+        this.updateServiceSelectionCount();
         this.showNotification('success', `Refreshed ${this.state.services.length} services`);
         console.log('✅ Services refreshed successfully');
       } else {
@@ -294,22 +314,35 @@ const AssetAssociation = {
   },
 
   /**
-   * Show loading state in services dropdown
+   * Show loading state in services display
    */
   showServicesLoading() {
-    const dropdown = document.getElementById('services-dropdown');
-    if (dropdown) {
-      dropdown.innerHTML = '<option value="">🔄 Loading services...</option>';
+    const servicesList = document.getElementById('services-list');
+    if (servicesList) {
+      servicesList.innerHTML = `
+        <div class="services-loading">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+          <div>Loading services...</div>
+        </div>
+      `;
     }
   },
 
   /**
-   * Show error state in services dropdown
+   * Show error state in services display
    */
   showServicesError(message) {
-    const dropdown = document.getElementById('services-dropdown');
-    if (dropdown) {
-      dropdown.innerHTML = `<option value="">❌ ${message}</option>`;
+    const servicesList = document.getElementById('services-list');
+    if (servicesList) {
+      servicesList.innerHTML = `
+        <div class="services-error">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div class="mt-2">
+            <strong>Error Loading Services</strong>
+            <p class="mb-0">${message}</p>
+          </div>
+        </div>
+      `;
     }
   },
 
@@ -1986,6 +2019,368 @@ const AssetAssociation = {
       console.warn('Error getting serial number:', error);
       return 'N/A';
     }
+  },
+
+  /**
+   * Populate services list with enhanced card-based display
+   */
+  populateServicesDisplay() {
+    const servicesList = document.getElementById('services-list');
+    const totalCountEl = document.getElementById('services-total-count');
+    const shownCountEl = document.getElementById('services-shown-count');
+    
+    if (!servicesList) return;
+
+    // Update total count
+    if (totalCountEl) totalCountEl.textContent = this.state.services.length;
+
+    if (this.state.services.length === 0) {
+      servicesList.innerHTML = `
+        <div class="services-empty">
+          <i class="fas fa-inbox"></i>
+          <div class="mt-2">
+            <strong>No services available</strong>
+            <p class="mb-0 text-muted">No services are configured. Visit app configuration to set asset types.</p>
+          </div>
+        </div>
+      `;
+      if (shownCountEl) shownCountEl.textContent = '0';
+      return;
+    }
+
+    // Apply filtering
+    this.filterServices();
+
+    if (this.state.filteredServices.length === 0) {
+      servicesList.innerHTML = `
+        <div class="services-empty">
+          <i class="fas fa-filter"></i>
+          <div class="mt-2">
+            <strong>No services match your filters</strong>
+            <p class="mb-0 text-muted">Try adjusting your search or filter criteria.</p>
+          </div>
+        </div>
+      `;
+      if (shownCountEl) shownCountEl.textContent = '0';
+      return;
+    }
+
+    // Update shown count
+    if (shownCountEl) shownCountEl.textContent = this.state.filteredServices.length;
+
+    // Generate service cards
+    let html = '';
+    this.state.filteredServices.forEach(service => {
+      const isSelected = this.state.selectedServiceIds.has(service.id);
+      const serviceType = this.getServiceType(service);
+      const serviceIcon = this.getServiceIcon(serviceType);
+      
+      html += `
+        <div class="service-item ${isSelected ? 'selected' : ''}" data-service-id="${service.id}">
+          <div class="service-item-header">
+            <div class="service-item-title">
+              ${serviceIcon}
+              ${this.escapeHtml(service.name)}
+            </div>
+            <span class="service-item-type ${serviceType}">${serviceType}</span>
+          </div>
+          
+          ${service.description ? `
+            <div class="service-item-description">
+              ${this.escapeHtml(service.description.substring(0, 150))}${service.description.length > 150 ? '...' : ''}
+            </div>
+          ` : ''}
+          
+          <div class="service-item-meta">
+            <div class="service-item-details">
+              <div class="service-item-detail">
+                <i class="fas fa-hashtag"></i>
+                ID: ${service.id}
+              </div>
+              ${service.original_asset ? `
+                <div class="service-item-detail">
+                  <i class="fas fa-layer-group"></i>
+                  Asset-based
+                </div>
+              ` : ''}
+              <div class="service-item-detail">
+                <i class="fas fa-clock"></i>
+                ${this.formatRelativeTime(service.updated_at)}
+              </div>
+            </div>
+            <div class="service-quick-actions">
+              <button class="service-quick-action" title="Quick add" onclick="window.AssetAssociation.quickAddService(${service.id})">
+                <i class="fas fa-plus"></i>
+              </button>
+            </div>
+          </div>
+          
+          <input type="checkbox" class="service-item-checkbox" ${isSelected ? 'checked' : ''} 
+                 onchange="window.AssetAssociation.toggleServiceSelection(${service.id}, this.checked)">
+        </div>
+      `;
+    });
+
+    servicesList.innerHTML = html;
+    console.log(`✅ Populated services display with ${this.state.filteredServices.length} services`);
+  },
+
+  /**
+   * Filter services based on search term and type filter
+   */
+  filterServices() {
+    let filtered = [...this.state.services];
+
+    // Apply search filter
+    if (this.state.serviceSearchTerm) {
+      const searchTerm = this.state.serviceSearchTerm.toLowerCase();
+      filtered = filtered.filter(service => 
+        service.name.toLowerCase().includes(searchTerm) ||
+        (service.description && service.description.toLowerCase().includes(searchTerm))
+      );
+    }
+
+    // Apply type filter
+    if (this.state.serviceTypeFilter) {
+      filtered = filtered.filter(service => 
+        this.getServiceType(service) === this.state.serviceTypeFilter
+      );
+    }
+
+    this.state.filteredServices = filtered;
+  },
+
+  /**
+   * Determine service type from service data
+   * @param {Object} service - Service object
+   * @returns {string} - Service type
+   */
+  getServiceType(service) {
+    const name = (service.name || '').toLowerCase();
+    const description = (service.description || '').toLowerCase();
+    const category = (service.service_category || service.category || '').toLowerCase();
+
+    // Check for software services
+    if (name.includes('software') || name.includes('application') || name.includes('app') ||
+        category.includes('software') || category.includes('application')) {
+      return 'software';
+    }
+
+    // Check for database services
+    if (name.includes('database') || name.includes('db') || name.includes('sql') || 
+        name.includes('mysql') || name.includes('oracle') || name.includes('postgres') ||
+        category.includes('database')) {
+      return 'database';
+    }
+
+    // Check for network services
+    if (name.includes('network') || name.includes('router') || name.includes('switch') ||
+        name.includes('firewall') || name.includes('vpn') || name.includes('dns') ||
+        category.includes('network')) {
+      return 'network';
+    }
+
+    // Check for infrastructure services
+    if (name.includes('server') || name.includes('infrastructure') || name.includes('cloud') ||
+        name.includes('hosting') || name.includes('vm') || name.includes('virtual') ||
+        category.includes('infrastructure')) {
+      return 'infrastructure';
+    }
+
+    // Check for application services
+    if (name.includes('service') || name.includes('api') || name.includes('web') ||
+        category.includes('service')) {
+      return 'application';
+    }
+
+    return 'other';
+  },
+
+  /**
+   * Get icon for service type
+   * @param {string} serviceType - Service type
+   * @returns {string} - HTML icon
+   */
+  getServiceIcon(serviceType) {
+    const icons = {
+      software: '<i class="fas fa-code text-success"></i>',
+      database: '<i class="fas fa-database text-purple"></i>',
+      network: '<i class="fas fa-network-wired text-primary"></i>',
+      infrastructure: '<i class="fas fa-server text-warning"></i>',
+      application: '<i class="fas fa-cogs text-info"></i>',
+      other: '<i class="fas fa-cube text-muted"></i>'
+    };
+    return icons[serviceType] || icons.other;
+  },
+
+  /**
+   * Format relative time for display
+   * @param {string} dateString - ISO date string
+   * @returns {string} - Formatted relative time
+   */
+  formatRelativeTime(dateString) {
+    if (!dateString) return 'Unknown';
+    
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+      if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
+      return `${Math.floor(diffDays / 365)} years ago`;
+    } catch (error) {
+      return 'Unknown';
+    }
+  },
+
+  /**
+   * Toggle service selection
+   * @param {number} serviceId - Service ID
+   * @param {boolean} selected - Whether service is selected
+   */
+  toggleServiceSelection(serviceId, selected) {
+    if (selected) {
+      this.state.selectedServiceIds.add(serviceId);
+    } else {
+      this.state.selectedServiceIds.delete(serviceId);
+    }
+    
+    // Update visual state
+    const serviceItem = document.querySelector(`[data-service-id="${serviceId}"]`);
+    if (serviceItem) {
+      if (selected) {
+        serviceItem.classList.add('selected');
+      } else {
+        serviceItem.classList.remove('selected');
+      }
+    }
+    
+    this.updateServiceSelectionCount();
+  },
+
+  /**
+   * Quick add a single service
+   * @param {number} serviceId - Service ID to add
+   */
+  async quickAddService(serviceId) {
+    const service = this.state.services.find(s => s.id === serviceId);
+    if (!service) return;
+
+    try {
+      // Convert service to asset-like structure
+      const serviceJsonString = JSON.stringify(service);
+      const serviceData = JSON.parse(serviceJsonString);
+      
+      const assetLikeService = this.convertServiceToAsset(serviceData);
+      
+      // Check if already selected
+      if (!this.isAssetSelected(assetLikeService.id)) {
+        await this.addAsset(assetLikeService);
+        this.showNotification('success', `Added "${service.name}" to selection`);
+      } else {
+        this.showNotification('info', `"${service.name}" is already selected`);
+      }
+    } catch (error) {
+      console.error('Error quick adding service:', error);
+      this.showNotification('error', 'Failed to add service. Please try again.');
+    }
+  },
+
+  /**
+   * Update service selection count display
+   */
+  updateServiceSelectionCount() {
+    const addBtn = document.getElementById('add-selected-services-btn');
+    if (addBtn) {
+      const count = this.state.selectedServiceIds.size;
+      if (count > 0) {
+        addBtn.innerHTML = `<i class="fas fa-plus me-1"></i>Add Selected (${count})`;
+        addBtn.classList.remove('btn-success');
+        addBtn.classList.add('btn-primary');
+      } else {
+        addBtn.innerHTML = `<i class="fas fa-plus me-1"></i>Add Selected`;
+        addBtn.classList.remove('btn-primary');
+        addBtn.classList.add('btn-success');
+      }
+    }
+  },
+
+  /**
+   * Clear all service filters
+   */
+  clearServicesFilters() {
+    this.state.serviceSearchTerm = '';
+    this.state.serviceTypeFilter = '';
+    
+    // Reset UI controls
+    const searchInput = document.getElementById('services-search');
+    if (searchInput) searchInput.value = '';
+    
+    const typeFilter = document.getElementById('service-type-filter');
+    if (typeFilter) {
+      typeFilter.value = '';
+      typeFilter.classList.remove('services-filter-active');
+    }
+    
+    // Refresh display
+    this.populateServicesDisplay();
+  },
+
+  /**
+   * Select all visible services
+   */
+  selectAllVisibleServices() {
+    this.state.filteredServices.forEach(service => {
+      this.state.selectedServiceIds.add(service.id);
+    });
+    
+    // Update visual state
+    this.populateServicesDisplay();
+    this.updateServiceSelectionCount();
+  },
+
+  /**
+   * Convert service data to asset-like structure
+   * @param {Object} serviceData - Service data
+   * @returns {Object} - Asset-like service object
+   */
+  convertServiceToAsset(serviceData) {
+    return {
+      id: serviceData.id,
+      name: serviceData.name,
+      description: serviceData.description || '',
+      display_name: serviceData.name,
+      asset_type_id: serviceData.category || null, // Use category as asset type
+      location_id: serviceData.original_asset?.location_id || null, // Get from original asset
+      agent_id: serviceData.original_asset?.agent_id || null, // Get from original asset
+      user_id: serviceData.original_asset?.user_id || null, // Get from original asset
+      asset_tag: serviceData.original_asset?.asset_tag || 'SERVICE', // Get from original or mark as service
+      serial_number: serviceData.original_asset?.serial_number || null,
+      impact: serviceData.original_asset?.impact || 'unknown', // Get from original asset
+      environment: serviceData.original_asset?.environment || null, // Get from original asset
+      type_fields: {
+        // Preserve original asset type fields
+        ...(serviceData.original_asset?.type_fields || {}),
+        // Add service-specific fields
+        service_category: serviceData.category || 'General',
+        service_visibility: serviceData.visibility || 1,
+        service_type: 'Service',
+        description: serviceData.description || ''
+      },
+      created_at: serviceData.created_at,
+      updated_at: serviceData.updated_at,
+      // Mark as service for special handling
+      is_service: true,
+      service_visibility: serviceData.visibility,
+      service_category: serviceData.category,
+      // Keep reference to original asset data
+      original_asset: serviceData.original_asset
+    };
   },
 };
 

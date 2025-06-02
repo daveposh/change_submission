@@ -217,17 +217,67 @@
               <!-- Services Selection Section -->
               <div class="services-selection-section">
                 <h5><i class="fas fa-cogs me-2"></i>Select Services</h5>
-                <div class="services-dropdown-form">
-                  <select id="services-dropdown" class="form-select" multiple size="5">
-                    <option value="">Loading services...</option>
-                  </select>
-                  <div class="services-actions mt-2">
-                    <button type="button" id="add-selected-services-btn" class="btn btn-success btn-sm">
-                      <i class="fas fa-plus me-1"></i>Add Selected
-                    </button>
-                    <button type="button" id="refresh-services-btn" class="btn btn-outline-secondary btn-sm">
-                      <i class="fas fa-sync-alt me-1"></i>Refresh
-                    </button>
+                <p class="text-muted small mb-3">Choose from available services that will be impacted by this change.</p>
+                
+                <!-- Services Filter and Search Controls -->
+                <div class="services-controls mb-3">
+                  <div class="row g-2">
+                    <div class="col-md-4">
+                      <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" id="services-search" class="form-control" placeholder="Quick search services...">
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <select id="service-type-filter" class="form-select">
+                        <option value="">All Service Types</option>
+                        <option value="software">Software Services</option>
+                        <option value="infrastructure">Infrastructure Services</option>
+                        <option value="network">Network Services</option>
+                        <option value="database">Database Services</option>
+                        <option value="application">Application Services</option>
+                        <option value="other">Other Services</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <div class="d-flex gap-2">
+                        <button type="button" id="clear-services-filters-btn" class="btn btn-outline-secondary btn-sm">
+                          <i class="fas fa-times me-1"></i>Clear Filters
+                        </button>
+                        <button type="button" id="refresh-services-btn" class="btn btn-outline-secondary btn-sm">
+                          <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Services List with Enhanced Display -->
+                <div class="services-list-container">
+                  <div class="services-list-header">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <span class="text-muted small">
+                        <span id="services-shown-count">0</span> of <span id="services-total-count">0</span> services shown
+                      </span>
+                      <div class="services-list-actions">
+                        <button type="button" id="select-all-visible-services-btn" class="btn btn-outline-primary btn-sm me-2">
+                          <i class="fas fa-check-double me-1"></i>Select All Visible
+                        </button>
+                        <button type="button" id="add-selected-services-btn" class="btn btn-success btn-sm">
+                          <i class="fas fa-plus me-1"></i>Add Selected
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Enhanced Services List -->
+                  <div id="services-list" class="services-list">
+                    <div class="services-loading">
+                      <div class="d-flex align-items-center justify-content-center p-4">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <span>Loading services...</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
