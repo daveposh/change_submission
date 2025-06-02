@@ -759,13 +759,49 @@ const CacheManager = {
     }
 
     try {
-      // Use field-specific search format as required by API: field:'searchterm'
-      const fieldQuery = `${searchField}:'${searchString}'`;
-      
-      console.log(`📡 CacheManager: API call with query '${fieldQuery}' and include=type_fields`);
+      // For asset_type_id searches, use filter instead of search
+      if (searchField === 'asset_type_id') {
+        console.log(`📡 CacheManager: Using filter for asset_type_id search: ${searchString}`);
+        
+        const templateContext = {
+          filter_query: `asset_type_id:${searchString}`,
+          include: 'type_fields',
+          page: '1'
+        };
+        
+        const response = await window.client.request.invokeTemplate('getAssetsByType', {
+          context: templateContext,
+          cache: true,
+          ttl: 180000 // 3 minutes cache for asset searches
+        });
+
+        if (!response || !response.response) {
+          console.log('⚠️ No response from asset filter search');
+          return [];
+        }
+
+        const data = JSON.parse(response.response);
+        const assets = data.assets || [];
+
+        console.log(`✅ CacheManager: Asset filter search returned ${assets.length} results with type_fields`);
+
+        // Sort results by name for better UX
+        assets.sort((a, b) => {
+          const nameA = (a.display_name || a.name || '').toLowerCase();
+          const nameB = (b.display_name || b.name || '').toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+
+        // Cache the results
+        await this.cacheAssetSearch(cacheKey, assets);
+        return assets;
+      }
+
+      // For other fields, use simple search with just the term (not field-specific)
+      console.log(`📡 CacheManager: Using simple search for '${searchString}'`);
       
       const templateContext = {
-        search_query: fieldQuery,
+        search_query: searchString, // Just the search term, no field specification
         include_fields: 'type_fields'
       };
       
@@ -785,22 +821,40 @@ const CacheManager = {
 
       console.log(`✅ CacheManager: Asset search returned ${assets.length} results with type_fields`);
 
-      // Log sample of type_fields structure for debugging
-      if (assets.length > 0 && assets[0].type_fields) {
-        console.log('📋 Sample type_fields structure:', assets[0].type_fields);
+      // If searching by specific field, filter results client-side for better accuracy
+      let filteredAssets = assets;
+      if (searchField !== 'name' && searchField !== 'asset_type_id') {
+        filteredAssets = assets.filter(asset => {
+          try {
+            // Check the specific field
+            if (searchField === 'type_fields') {
+              // Search within type_fields for the term
+              const typeFieldsStr = JSON.stringify(asset.type_fields || {}).toLowerCase();
+              return typeFieldsStr.includes(searchString.toLowerCase());
+            } else {
+              // Check the specific field directly
+              const fieldValue = String(asset[searchField] || '').toLowerCase();
+              return fieldValue.includes(searchString.toLowerCase());
+            }
+          } catch (error) {
+            return false;
+          }
+        });
+        
+        console.log(`🔍 Client-side filtering reduced results from ${assets.length} to ${filteredAssets.length} for field '${searchField}'`);
       }
 
       // Sort results by name for better UX
-      assets.sort((a, b) => {
+      filteredAssets.sort((a, b) => {
         const nameA = (a.display_name || a.name || '').toLowerCase();
         const nameB = (b.display_name || b.name || '').toLowerCase();
         return nameA.localeCompare(nameB);
       });
 
       // Cache the results
-      await this.cacheAssetSearch(cacheKey, assets);
+      await this.cacheAssetSearch(cacheKey, filteredAssets);
 
-      return assets;
+      return filteredAssets;
 
     } catch (error) {
       console.error('❌ CacheManager: Error searching assets:', error);
