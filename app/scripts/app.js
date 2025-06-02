@@ -2190,12 +2190,18 @@ function setupEventListeners() {
   const impactedServicesTab = document.getElementById('impacted-services-tab');
   if (impactedServicesTab) {
     impactedServicesTab.addEventListener('shown.bs.tab', function () {
+      console.log('🔄 Impacted Services tab shown - checking initialization...');
+      
       // Initialize Impacted Services Module when tab is first shown
       if (window.ImpactedServices && !window.ImpactedServices._initialized) {
-        console.log('🔧 Initializing Impacted Services Module...');
+        console.log('🔧 Initializing Impacted Services Module for the first time...');
         window.ImpactedServices.init();
         window.ImpactedServices._initialized = true;
         console.log('✅ Impacted Services Module initialized');
+      } else if (window.ImpactedServices && window.ImpactedServices._initialized) {
+        console.log('ℹ️ Impacted Services Module already initialized, refreshing direct assets...');
+      } else if (!window.ImpactedServices) {
+        console.error('❌ ImpactedServices module not available!');
       }
       
       // Refresh direct assets from Asset Association
@@ -5632,10 +5638,8 @@ async function initializeAppWithProgress() {
     
     updateInitializationProgress(80, 'Setting up form components...');
     
-    // Initialize Impacted Services module
-    if (window.ImpactedServices) {
-      window.ImpactedServices.init();
-    }
+    // Initialize Impacted Services module - removed from here as it should initialize when tab is shown
+    // The module will be initialized when the impacted services tab is first accessed
     
     // Setup form components
     populateFormFields();

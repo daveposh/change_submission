@@ -19,10 +19,32 @@ const ImpactedServices = {
    * Initialize the Impacted Services module
    */
   init() {
+    console.log('🔧 === IMPACTED SERVICES MODULE INITIALIZATION ===');
     console.log('🔧 Initializing Impacted Services Module...');
+    
+    // Check if we're in the right context
+    const impactedServicesTab = document.getElementById('impacted-services');
+    if (!impactedServicesTab) {
+      console.warn('⚠️ Impacted services tab not found in DOM - may not be loaded yet');
+    } else {
+      console.log('✅ Impacted services tab found in DOM');
+    }
+    
+    // Check for critical elements
+    const addApproverBtn = document.getElementById('add-approver-btn');
+    const addStakeholderBtn = document.getElementById('add-stakeholder-btn');
+    const analyzeBtn = document.getElementById('analyze-services-btn');
+    
+    console.log('🔍 Critical elements check:', {
+      addApproverBtn: !!addApproverBtn,
+      addStakeholderBtn: !!addStakeholderBtn,
+      analyzeBtn: !!analyzeBtn
+    });
+    
     this.setupEventListeners();
     this.loadDirectAssets();
     console.log('✅ Impacted Services Module initialized');
+    console.log('🔧 === INITIALIZATION COMPLETE ===');
   },
 
   /**
@@ -37,6 +59,7 @@ const ImpactedServices = {
       analyzeBtn.addEventListener('click', () => {
         this.analyzeServices();
       });
+      console.log('✅ Analyze services button listener added');
     } else {
       console.warn('⚠️ Analyze services button not found');
     }
@@ -44,17 +67,27 @@ const ImpactedServices = {
     // Add approver button with debounce
     const addApproverBtn = document.getElementById('add-approver-btn');
     if (addApproverBtn) {
+      console.log('✅ Found add-approver-btn element');
       let approverClickTimeout;
-      addApproverBtn.addEventListener('click', () => {
+      addApproverBtn.addEventListener('click', (e) => {
+        console.log('🖱️ Add approver button clicked!');
+        e.preventDefault();
+        e.stopPropagation();
+        
         // Prevent rapid clicking
-        if (approverClickTimeout) return;
+        if (approverClickTimeout) {
+          console.log('⚠️ Ignoring rapid click for approver button');
+          return;
+        }
         
         approverClickTimeout = setTimeout(() => {
           approverClickTimeout = null;
         }, 300); // 300ms debounce
         
+        console.log('🔄 Calling toggleUserSearch for approver');
         this.toggleUserSearch('approver');
       });
+      console.log('✅ Add approver button listener added');
     } else {
       console.warn('⚠️ Add approver button not found');
     }
@@ -62,17 +95,27 @@ const ImpactedServices = {
     // Add stakeholder button with debounce
     const addStakeholderBtn = document.getElementById('add-stakeholder-btn');
     if (addStakeholderBtn) {
+      console.log('✅ Found add-stakeholder-btn element');
       let stakeholderClickTimeout;
-      addStakeholderBtn.addEventListener('click', () => {
+      addStakeholderBtn.addEventListener('click', (e) => {
+        console.log('🖱️ Add stakeholder button clicked!');
+        e.preventDefault();
+        e.stopPropagation();
+        
         // Prevent rapid clicking
-        if (stakeholderClickTimeout) return;
+        if (stakeholderClickTimeout) {
+          console.log('⚠️ Ignoring rapid click for stakeholder button');
+          return;
+        }
         
         stakeholderClickTimeout = setTimeout(() => {
           stakeholderClickTimeout = null;
         }, 300); // 300ms debounce
         
+        console.log('🔄 Calling toggleUserSearch for stakeholder');
         this.toggleUserSearch('stakeholder');
       });
+      console.log('✅ Add stakeholder button listener added');
     } else {
       console.warn('⚠️ Add stakeholder button not found');
     }
@@ -134,9 +177,20 @@ const ImpactedServices = {
    * @param {string} type - 'approver' or 'stakeholder'
    */
   toggleUserSearch(type) {
+    console.log(`🔄 === toggleUserSearch called for ${type} ===`);
+    
     const container = document.getElementById(`${type}-search-container`);
     const input = document.getElementById(`${type}-search`);
     const button = document.getElementById(`add-${type}-btn`);
+    
+    console.log(`🔍 DOM elements found:`, {
+      container: !!container,
+      input: !!input,
+      button: !!button,
+      containerId: `${type}-search-container`,
+      inputId: `${type}-search`,
+      buttonId: `add-${type}-btn`
+    });
     
     if (!container || !input) {
       console.error(`❌ Missing elements for ${type} search:`, {
@@ -149,9 +203,22 @@ const ImpactedServices = {
     }
 
     // Check current state using both inline style and button state
+    const currentDisplay = container.style.display;
+    const currentVisibility = container.style.visibility;
+    const buttonState = button ? button.getAttribute('data-search-open') : null;
+    
+    console.log(`📊 Current state:`, {
+      containerDisplay: currentDisplay,
+      containerVisibility: currentVisibility,
+      buttonDataSearchOpen: buttonState,
+      containerHTML: container.innerHTML.substring(0, 100) + '...'
+    });
+    
     const isCurrentlyVisible = container.style.display === 'block' && 
                               button && 
                               button.getAttribute('data-search-open') === 'true';
+    
+    console.log(`🎯 State decision: isCurrentlyVisible = ${isCurrentlyVisible}`);
     
     if (!isCurrentlyVisible) {
       console.log(`📝 Opening ${type} search`);
@@ -160,17 +227,23 @@ const ImpactedServices = {
       container.style.display = 'block';
       container.style.visibility = 'visible';
       
+      console.log(`✅ Set container styles: display=${container.style.display}, visibility=${container.style.visibility}`);
+      
       // Update button state immediately to prevent rapid clicks
       if (button) {
+        const oldText = button.innerHTML;
         button.innerHTML = `<i class="fas fa-times me-1"></i>Cancel Search`;
         button.classList.remove('btn-outline-success', 'btn-outline-primary');
         button.classList.add('btn-outline-secondary');
         button.setAttribute('data-search-open', 'true');
         
+        console.log(`🔄 Updated button: oldText="${oldText}", newText="${button.innerHTML}", classes="${button.className}"`);
+        
         // Disable button briefly to prevent rapid clicking
         button.disabled = true;
         setTimeout(() => {
           button.disabled = false;
+          console.log(`✅ Re-enabled ${type} button`);
         }, 200);
       }
       
@@ -179,6 +252,8 @@ const ImpactedServices = {
         if (input && container.style.display === 'block') {
           input.focus();
           console.log(`✅ Search input focused for ${type}`);
+        } else {
+          console.warn(`⚠️ Could not focus input: input=${!!input}, display=${container.style.display}`);
         }
       }, 150);
       
@@ -189,15 +264,19 @@ const ImpactedServices = {
       container.style.display = 'none';
       input.value = '';
       
+      console.log(`✅ Hidden container and cleared input`);
+      
       // Clear search results
       const resultsContainer = document.getElementById(`${type}-results`);
       if (resultsContainer) {
         resultsContainer.innerHTML = '';
+        console.log(`✅ Cleared search results`);
       }
       
       // Reset button state
       if (button) {
         const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
+        const oldText = button.innerHTML;
         button.innerHTML = `<i class="fas fa-plus me-1"></i>Add ${capitalizedType}`;
         button.classList.remove('btn-outline-secondary');
         if (type === 'approver') {
@@ -207,13 +286,18 @@ const ImpactedServices = {
         }
         button.removeAttribute('data-search-open');
         
+        console.log(`🔄 Reset button: oldText="${oldText}", newText="${button.innerHTML}", classes="${button.className}"`);
+        
         // Disable button briefly to prevent rapid clicking
         button.disabled = true;
         setTimeout(() => {
           button.disabled = false;
+          console.log(`✅ Re-enabled ${type} button after close`);
         }, 200);
       }
     }
+    
+    console.log(`🏁 === toggleUserSearch complete for ${type} ===`);
   },
 
   /**
