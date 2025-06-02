@@ -41,20 +41,36 @@ const ImpactedServices = {
       console.warn('⚠️ Analyze services button not found');
     }
 
-    // Add approver button
+    // Add approver button with debounce
     const addApproverBtn = document.getElementById('add-approver-btn');
     if (addApproverBtn) {
+      let approverClickTimeout;
       addApproverBtn.addEventListener('click', () => {
+        // Prevent rapid clicking
+        if (approverClickTimeout) return;
+        
+        approverClickTimeout = setTimeout(() => {
+          approverClickTimeout = null;
+        }, 300); // 300ms debounce
+        
         this.toggleUserSearch('approver');
       });
     } else {
       console.warn('⚠️ Add approver button not found');
     }
 
-    // Add stakeholder button
+    // Add stakeholder button with debounce
     const addStakeholderBtn = document.getElementById('add-stakeholder-btn');
     if (addStakeholderBtn) {
+      let stakeholderClickTimeout;
       addStakeholderBtn.addEventListener('click', () => {
+        // Prevent rapid clicking
+        if (stakeholderClickTimeout) return;
+        
+        stakeholderClickTimeout = setTimeout(() => {
+          stakeholderClickTimeout = null;
+        }, 300); // 300ms debounce
+        
         this.toggleUserSearch('stakeholder');
       });
     } else {
@@ -71,20 +87,45 @@ const ImpactedServices = {
    * Setup user search input event listeners
    */
   setupUserSearchInputs() {
-    // Approver search
+    // Create debounce function for search inputs
+    const debounce = (func, wait) => {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    };
+
+    // Approver search with debouncing
     const approverSearch = document.getElementById('approver-search');
     if (approverSearch) {
+      const debouncedApproverSearch = debounce((value) => {
+        this.handleUserSearch(value, 'approver');
+      }, 500); // 500ms debounce for search
+
       approverSearch.addEventListener('input', (e) => {
-        this.handleUserSearch(e.target.value, 'approver');
+        debouncedApproverSearch(e.target.value);
       });
+      
+      console.log('✅ Approver search input configured with debouncing');
     }
 
-    // Stakeholder search
+    // Stakeholder search with debouncing
     const stakeholderSearch = document.getElementById('stakeholder-search');
     if (stakeholderSearch) {
+      const debouncedStakeholderSearch = debounce((value) => {
+        this.handleUserSearch(value, 'stakeholder');
+      }, 500); // 500ms debounce for search
+
       stakeholderSearch.addEventListener('input', (e) => {
-        this.handleUserSearch(e.target.value, 'stakeholder');
+        debouncedStakeholderSearch(e.target.value);
       });
+      
+      console.log('✅ Stakeholder search input configured with debouncing');
     }
   },
 
@@ -97,48 +138,71 @@ const ImpactedServices = {
     const input = document.getElementById(`${type}-search`);
     const button = document.getElementById(`add-${type}-btn`);
     
-    if (container && input) {
-      const isCurrentlyHidden = container.style.display === 'none' || container.style.display === '';
-      
-      if (isCurrentlyHidden) {
-        console.log(`📝 Opening ${type} search`);
-        container.style.display = 'block';
-        input.focus();
-        
-        // Update button text and style
-        if (button) {
-          button.innerHTML = `<i class="fas fa-times me-1"></i>Cancel Search`;
-          button.classList.remove('btn-outline-success', 'btn-outline-primary');
-          button.classList.add('btn-outline-secondary');
-        }
-      } else {
-        console.log(`📝 Closing ${type} search`);
-        container.style.display = 'none';
-        input.value = '';
-        const resultsContainer = document.getElementById(`${type}-results`);
-        if (resultsContainer) {
-          resultsContainer.innerHTML = '';
-        }
-        
-        // Reset button text and style
-        if (button) {
-          const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
-          button.innerHTML = `<i class="fas fa-plus me-1"></i>Add ${capitalizedType}`;
-          button.classList.remove('btn-outline-secondary');
-          if (type === 'approver') {
-            button.classList.add('btn-outline-success');
-          } else {
-            button.classList.add('btn-outline-primary');
-          }
-        }
-      }
-    } else {
+    if (!container || !input) {
       console.error(`❌ Missing elements for ${type} search:`, {
         container: !!container,
         input: !!input,
         containerId: `${type}-search-container`,
         inputId: `${type}-search`
       });
+      return;
+    }
+
+    // Check current state by looking at computed style instead of inline style
+    const computedStyle = window.getComputedStyle(container);
+    const isCurrentlyHidden = computedStyle.display === 'none' || container.style.display === 'none';
+    
+    if (isCurrentlyHidden) {
+      console.log(`📝 Opening ${type} search`);
+      
+      // Show the search container
+      container.style.display = 'block';
+      container.style.visibility = 'visible';
+      
+      // Focus the input after a small delay to ensure it's visible
+      setTimeout(() => {
+        if (input && container.style.display === 'block') {
+          input.focus();
+          console.log(`✅ Search input focused for ${type}`);
+        }
+      }, 100);
+      
+      // Update button text and style
+      if (button) {
+        button.innerHTML = `<i class="fas fa-times me-1"></i>Cancel Search`;
+        button.classList.remove('btn-outline-success', 'btn-outline-primary');
+        button.classList.add('btn-outline-secondary');
+        
+        // Add a data attribute to track state
+        button.setAttribute('data-search-open', 'true');
+      }
+    } else {
+      console.log(`📝 Closing ${type} search`);
+      
+      // Hide the search container
+      container.style.display = 'none';
+      input.value = '';
+      
+      // Clear search results
+      const resultsContainer = document.getElementById(`${type}-results`);
+      if (resultsContainer) {
+        resultsContainer.innerHTML = '';
+      }
+      
+      // Reset button text and style
+      if (button) {
+        const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
+        button.innerHTML = `<i class="fas fa-plus me-1"></i>Add ${capitalizedType}`;
+        button.classList.remove('btn-outline-secondary');
+        if (type === 'approver') {
+          button.classList.add('btn-outline-success');
+        } else {
+          button.classList.add('btn-outline-primary');
+        }
+        
+        // Remove the state tracking attribute
+        button.removeAttribute('data-search-open');
+      }
     }
   },
 
@@ -774,7 +838,7 @@ const ImpactedServices = {
     });
     
     if (Object.keys(relationshipTypes).length > 0) {
-      console.log(`📊 Relationship types found:`, relationshipTypes);
+      console.log(`�� Relationship types found:`, relationshipTypes);
       console.log(`📋 Detailed relationship information:`);
       relationshipDetails.forEach((detail, index) => {
         console.log(`   ${index + 1}. ${detail.asset_name} (ID: ${detail.asset_id})`);

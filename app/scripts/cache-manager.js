@@ -800,8 +800,19 @@ const CacheManager = {
       // For other fields, use simple search with just the term (not field-specific)
       console.log(`📡 CacheManager: Using simple search for '${searchString}'`);
       
+      // Use the format the API expects: "search_field:'search_term'"
+      let searchQuery;
+      if (searchField === 'name') {
+        searchQuery = `name:'${searchString}'`;
+      } else if (searchField === 'type_fields') {
+        // For type_fields searches, use a generic search instead
+        searchQuery = searchString;
+      } else {
+        searchQuery = `${searchField}:'${searchString}'`;
+      }
+      
       const templateContext = {
-        search_query: searchString, // Just the search term, no field specification
+        search_query: searchQuery,
         include_fields: 'type_fields'
       };
       
