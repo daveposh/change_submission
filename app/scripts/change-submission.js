@@ -180,14 +180,14 @@ const ChangeSubmission = {
     try {
       // Step 1: Validate all form data
       console.log('📋 Step 1: Validating form data...');
-      const validationResult = await this.validateSubmissionData();
+      const validationResult = this.validateSubmissionData();
       if (!validationResult.isValid) {
         throw new Error(`Validation failed: ${validationResult.message}`);
       }
 
       // Step 2: Prepare change request data
       console.log('📦 Step 2: Preparing change request data...');
-      const changeRequestData = await this.prepareChangeRequestData();
+      const changeRequestData = this.prepareChangeRequestData();
 
       // Step 3: Create the change request
       console.log('🎯 Step 3: Creating change request in Freshservice...');
@@ -226,7 +226,7 @@ const ChangeSubmission = {
   /**
    * Validate all submission data
    */
-  async validateSubmissionData() {
+  validateSubmissionData() {
     console.log('🔍 Validating submission data...');
 
     const errors = [];
@@ -295,7 +295,7 @@ const ChangeSubmission = {
   /**
    * Prepare change request data for API submission
    */
-  async prepareChangeRequestData() {
+  prepareChangeRequestData() {
     console.log('📦 Preparing change request data...');
 
     const data = window.changeRequestData;
@@ -885,10 +885,12 @@ const ChangeSubmission = {
     // Update UI with success details
     this.displaySubmissionSummary(successData);
 
-    // Optionally redirect after delay
+    // Show option to view change request
     setTimeout(() => {
-      if (confirm('Change request submitted successfully! Would you like to view it in Freshservice?')) {
-        window.open(successData.changeUrl, '_blank');
+      if (window.showNotification) {
+        window.showNotification('info', 
+          `Would you like to view the change request in Freshservice? Click the "View Change Request" button above.`
+        );
       }
     }, 2000);
   },
