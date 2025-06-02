@@ -391,46 +391,81 @@ const CacheManager = {
         return [];
       }
 
-      // Now fetch assets for each matching asset type using proper query format
+      // Now fetch assets for all matching asset types using a single request with OR filter
       const allServiceAssets = [];
       
-      console.log(`📦 Fetching assets for ${matchingTypeIds.length} matching asset types...`);
+      console.log(`📦 Fetching assets for ${matchingTypeIds.length} matching asset types using single filter request...`);
       
-      for (const typeId of matchingTypeIds) {
-        try {
-          console.log(`   📄 Fetching assets for asset type ID ${typeId}...`);
-          
-          // Use the getAssetsByType template with proper query format
-          const response = await window.client.request.invokeTemplate('getAssetsByType', {
-            context: {
-              query_filter: `asset_type_id:${typeId}`,
-              include_fields: 'type_fields',
-              per_page: '100',
-              page: '1'
-            },
-            cache: true,
-            ttl: 180000 // 3 minutes cache
-          });
+      // Build OR filter query exactly like Postman: "asset_type_id: ID1 OR asset_type_id: ID2 OR ..."
+      const filterParts = matchingTypeIds.map(typeId => `asset_type_id: ${typeId}`);
+      const filterQuery = filterParts.join(' OR ');
+      
+      console.log(`🔍 Using filter query: "${filterQuery}"`);
+      
+      try {
+        // Use the getAssetsByType template with proper filter format
+        const response = await window.client.request.invokeTemplate('getAssetsByType', {
+          context: {
+            filter_query: `"${filterQuery}"`,
+            include: 'type_fields',
+            page: '1'
+          },
+          cache: true,
+          ttl: 180000 // 3 minutes cache
+        });
 
-          if (!response || !response.response) {
-            console.warn(`⚠️ No response for asset type ${typeId}`);
+        if (!response || !response.response) {
+          console.warn(`⚠️ No response from assets filter request`);
+          return [];
+        }
+
+        const pageData = JSON.parse(response.response);
+        const assets = pageData.assets || [];
+        
+        console.log(`✅ Retrieved ${assets.length} assets using filter request`);
+        allServiceAssets.push(...assets);
+        
+      } catch (filterError) {
+        console.warn(`⚠️ Error fetching assets with filter:`, filterError);
+        
+        // Fallback: try individual requests if the filter approach fails
+        console.log(`🔄 Falling back to individual asset type requests...`);
+        
+        for (const typeId of matchingTypeIds) {
+          try {
+            console.log(`   📄 Fetching assets for asset type ID ${typeId}...`);
+            
+            // Use single asset type filter
+            const response = await window.client.request.invokeTemplate('getAssetsByType', {
+              context: {
+                filter_query: `"asset_type_id: ${typeId}"`,
+                include: 'type_fields',
+                page: '1'
+              },
+              cache: true,
+              ttl: 180000 // 3 minutes cache
+            });
+
+            if (!response || !response.response) {
+              console.warn(`⚠️ No response for asset type ${typeId}`);
+              continue;
+            }
+
+            const pageData = JSON.parse(response.response);
+            const typeAssets = pageData.assets || [];
+            
+            console.log(`   ✅ Retrieved ${typeAssets.length} assets for asset type ${typeId}`);
+            allServiceAssets.push(...typeAssets);
+            
+            // Add delay between requests to be API-friendly
+            if (matchingTypeIds.indexOf(typeId) < matchingTypeIds.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            
+          } catch (typeError) {
+            console.warn(`⚠️ Error fetching assets for type ${typeId}:`, typeError);
             continue;
           }
-
-          const pageData = JSON.parse(response.response);
-          const typeAssets = pageData.assets || [];
-          
-          console.log(`   ✅ Retrieved ${typeAssets.length} assets for asset type ${typeId}`);
-          allServiceAssets.push(...typeAssets);
-          
-          // Add delay between requests to be API-friendly
-          if (matchingTypeIds.indexOf(typeId) < matchingTypeIds.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-          
-        } catch (typeError) {
-          console.warn(`⚠️ Error fetching assets for type ${typeId}:`, typeError);
-          continue;
         }
       }
       

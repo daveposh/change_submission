@@ -150,10 +150,9 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/assets",
       "query": {
-        "query": "<%= context.query_filter %>",
-        "per_page": "<%= context.per_page || '100' %>",
+        "filter": "<%= context.filter_query %>",
         "page": "<%= context.page || '1' %>",
-        "include": "<%= context.include_fields %>"
+        "include": "<%= context.include %>"
       },
       "headers": {
         "Content-Type": "application/json",
