@@ -335,6 +335,18 @@ const ChangeSubmission = {
     // Format description with all relevant details
     const description = this.formatChangeDescription(data, impactedData);
 
+    // Format dates properly for Freshservice API (ISO 8601 format)
+    const formatDateForAPI = (dateString) => {
+      if (!dateString) return null;
+      try {
+        const date = new Date(dateString);
+        return date.toISOString();
+      } catch (error) {
+        console.warn('⚠️ Error formatting date:', dateString, error);
+        return null;
+      }
+    };
+
     // Prepare the change request data according to Freshservice API v2 format
     const changeRequestData = {
       subject: data.changeTitle,
@@ -346,9 +358,13 @@ const ChangeSubmission = {
       impact: impact,
       requester_id: data.selectedRequester.id,
       owner_id: data.selectedAgent.id,
-      planned_start_date: data.plannedStart,
-      planned_end_date: data.plannedEnd,
-      custom_fields: {
+      planned_start_date: formatDateForAPI(data.plannedStart),
+      planned_end_date: formatDateForAPI(data.plannedEnd)
+    };
+
+    // Add custom fields if they exist (some Freshservice instances may not support all custom fields)
+    if (data.riskAssessment || impactedData.approvers || impactedData.stakeholders) {
+      changeRequestData.custom_fields = {
         risk_level: data.riskAssessment?.riskLevel || 'Medium',
         risk_score: data.riskAssessment?.totalScore || 0,
         associated_asset_ids: assetIds.join(','),
@@ -358,13 +374,13 @@ const ChangeSubmission = {
         implementation_plan: data.implementationPlan,
         backout_plan: data.backoutPlan,
         validation_plan: data.validationPlan || 'Not specified'
-      }
-    };
-
-    // Add assets if any are selected
-    if (assetIds.length > 0) {
-      changeRequestData.assets = assetIds.map(id => ({ display_id: id }));
+      };
     }
+
+    // Add assets if any are selected (comment out temporarily to test)
+    // if (assetIds.length > 0) {
+    //   changeRequestData.assets = assetIds.map(id => ({ display_id: id }));
+    // }
 
     console.log('✅ Change request data prepared:', {
       subject: changeRequestData.subject,
@@ -481,9 +497,19 @@ const ChangeSubmission = {
         // Check for error messages in the response
         if (data.errors) {
           const errorMessages = Array.isArray(data.errors) 
-            ? data.errors.map(err => err.message || err).join(', ')
+            ? data.errors.map(err => {
+                if (typeof err === 'object' && err.message) {
+                  return `${err.field || 'Unknown field'}: ${err.message}`;
+                }
+                return err.message || err;
+              }).join(', ')
             : JSON.stringify(data.errors);
           throw new Error(`API validation errors: ${errorMessages}`);
+        }
+        
+        // Check for description field which might contain error details
+        if (data.description) {
+          throw new Error(`API error: ${data.description}`);
         }
         
         throw new Error(`Invalid response format - expected 'change' object but got: ${JSON.stringify(data)}`);
