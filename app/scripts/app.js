@@ -4749,6 +4749,7 @@ function validateDetailsAndNext() {
   console.log('🔍 Validating change details...');
   
   // Check required fields
+  const changeTitle = document.getElementById('change-title');
   const plannedStart = document.getElementById('planned-start');
   const plannedEnd = document.getElementById('planned-end');
   const reasonForChange = document.getElementById('reason-for-change');
@@ -4761,6 +4762,13 @@ function validateDetailsAndNext() {
   
   // Clear previous highlighting
   clearFieldHighlighting();
+  
+  // Validate change title
+  if (!changeTitle.value.trim()) {
+    highlightInvalidField('change-title', 'Change title is required');
+    isValid = false;
+    if (!firstErrorField) firstErrorField = 'change-title';
+  }
   
   // Validate requester
   if (!window.formData || !window.formData.requester || !window.formData.requester.id) {
@@ -4948,9 +4956,49 @@ function clearFieldHighlighting() {
 function showSubmissionSummary() {
   console.log('📋 Showing submission summary...');
   
+  // Collect all form data
+  if (!window.formData) {
+    window.formData = {};
+  }
+  
+  // Collect change details
+  const changeTitle = document.getElementById('change-title');
+  const changeType = document.getElementById('change-type');
+  const reasonForChange = document.getElementById('reason-for-change');
+  const plannedStart = document.getElementById('planned-start');
+  const plannedEnd = document.getElementById('planned-end');
+  const implementationPlan = document.getElementById('implementation-plan');
+  const backoutPlan = document.getElementById('backout-plan');
+  const validationPlan = document.getElementById('validation-plan');
+  
+  // Store all change details
+  window.formData.changeDetails = {
+    title: changeTitle ? changeTitle.value.trim() : '',
+    changeType: changeType ? changeType.value : '',
+    reasonForChange: reasonForChange ? reasonForChange.value.trim() : '',
+    plannedStart: plannedStart ? plannedStart.value : '',
+    plannedEnd: plannedEnd ? plannedEnd.value : '',
+    implementationPlan: implementationPlan ? implementationPlan.value.trim() : '',
+    backoutPlan: backoutPlan ? backoutPlan.value.trim() : '',
+    validationPlan: validationPlan ? validationPlan.value.trim() : ''
+  };
+  
+  // Collect selected assets
+  if (window.AssetAssociation && window.AssetAssociation.getSelectedAssets) {
+    window.formData.selectedAssets = window.AssetAssociation.getSelectedAssets();
+  }
+  
+  // Collect impacted services data
+  if (window.ImpactedServices && window.ImpactedServices.getApproversAndStakeholders) {
+    const impactData = window.ImpactedServices.getApproversAndStakeholders();
+    window.formData.impactedServices = impactData;
+  }
+  
+  console.log('📊 Complete form data collected:', window.formData);
+  
   // This would typically show a modal with the summary
   // For now, just show a success message
-  showNotification('success', 'Change request is ready for submission!');
+  showNotification('success', `Change request "${window.formData.changeDetails.title}" is ready for submission!`);
   
   // You could implement a modal here to show the full summary
 }
