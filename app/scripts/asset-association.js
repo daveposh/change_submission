@@ -197,14 +197,17 @@ const AssetAssociation = {
             description: serviceData.description || '',
             display_name: serviceData.name,
             asset_type_id: serviceData.category || null, // Use category as asset type
-            location_id: null, // Services don't have physical locations
-            agent_id: null, // Services don't have direct managed by
-            user_id: null,
-            asset_tag: 'SERVICE', // Mark as service
-            serial_number: null,
-            impact: 'unknown', // Default impact for services
-            environment: 'N/A', // Services don't have environments like assets
+            location_id: serviceData.original_asset?.location_id || null, // Get from original asset
+            agent_id: serviceData.original_asset?.agent_id || null, // Get from original asset
+            user_id: serviceData.original_asset?.user_id || null, // Get from original asset
+            asset_tag: serviceData.original_asset?.asset_tag || 'SERVICE', // Get from original or mark as service
+            serial_number: serviceData.original_asset?.serial_number || null,
+            impact: serviceData.original_asset?.impact || 'unknown', // Get from original asset
+            environment: serviceData.original_asset?.environment || null, // Get from original asset
             type_fields: {
+              // Preserve original asset type fields
+              ...(serviceData.original_asset?.type_fields || {}),
+              // Add service-specific fields
               service_category: serviceData.category || 'General',
               service_visibility: serviceData.visibility || 1,
               service_type: 'Service',
@@ -215,7 +218,9 @@ const AssetAssociation = {
             // Mark as service for special handling
             is_service: true,
             service_visibility: serviceData.visibility,
-            service_category: serviceData.category
+            service_category: serviceData.category,
+            // Keep reference to original asset data
+            original_asset: serviceData.original_asset
           };
           
           // Check if already selected
@@ -636,6 +641,52 @@ const AssetAssociation = {
    */
   async getManagedByInfo(asset) {
     try {
+      // For services, try to get managed by from original asset data first
+      if (asset && asset.is_service && asset.original_asset) {
+        // Use the original asset's managed by information
+        const originalAsset = asset.original_asset;
+        
+        // First check agent_id from original asset
+        if (originalAsset.agent_id) {
+          const numericId = parseInt(originalAsset.agent_id);
+          if (!isNaN(numericId) && numericId > 0) {
+            const userName = await this.resolveUserName(numericId);
+            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+              return userName;
+            }
+          }
+        }
+        
+        // Check other managed by fields from original asset
+        if (originalAsset.user_id) {
+          const numericId = parseInt(originalAsset.user_id);
+          if (!isNaN(numericId) && numericId > 0) {
+            const userName = await this.resolveUserName(numericId);
+            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+              return userName;
+            }
+          }
+        }
+        
+        // Try to get from original asset's type_fields
+        if (originalAsset.type_fields) {
+          const managedByField = this.getAssetTypeField(originalAsset, 'managed_by');
+          if (managedByField && managedByField !== 'N/A') {
+            const numericId = parseInt(managedByField);
+            if (!isNaN(numericId) && numericId > 0) {
+              const userName = await this.resolveUserName(numericId);
+              if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+                return userName;
+              }
+            }
+            return managedByField;
+          }
+        }
+        
+        // If no managed by found in original asset, return service-specific message
+        return 'Service (No Owner)';
+      }
+      
       // Handle services specially - they don't have managed by in the same way
       if (asset && asset.is_service) {
         return 'Service (No Owner)';
@@ -799,6 +850,32 @@ const AssetAssociation = {
    */
   getEnvironmentInfo(asset) {
     try {
+      // Handle services specially - try original asset environment first
+      if (asset && asset.is_service && asset.original_asset) {
+        // Try to get environment from original asset
+        const originalAsset = asset.original_asset;
+        
+        // First try to get from original asset's type_fields
+        const originalEnvironmentField = this.getAssetTypeField(originalAsset, 'environment');
+        if (originalEnvironmentField && originalEnvironmentField !== 'N/A') {
+          return originalEnvironmentField + ' (Service)';
+        }
+        
+        // Try direct property access on original asset
+        if (originalAsset.environment) {
+          return originalAsset.environment + ' (Service)';
+        }
+        
+        // Try additional field variations in original asset's type_fields
+        const alternativeFields = ['env', 'deployment_environment', 'stage'];
+        for (const fieldName of alternativeFields) {
+          const value = this.getAssetTypeField(originalAsset, fieldName);
+          if (value && value !== 'N/A') {
+            return value + ' (Service)';
+          }
+        }
+      }
+      
       // Handle services specially - they might have different environment handling
       if (asset && asset.is_service) {
         const serviceVisibility = asset.service_visibility || asset.type_fields?.service_visibility;
@@ -1527,6 +1604,33 @@ const AssetAssociation = {
    * @returns {Promise<string>} - Location name
    */
   async getLocationName(locationId, asset = null) {
+    // Handle services specially - but try original asset location first
+    if (asset && asset.is_service && asset.original_asset && asset.original_asset.location_id) {
+      // Try to get actual location from original asset
+      const originalLocationId = asset.original_asset.location_id;
+      if (originalLocationId) {
+        try {
+          // Use the global getLocationName function from main app if available
+          if (typeof window.getLocationName === 'function') {
+            const locationName = await window.getLocationName(originalLocationId);
+            if (locationName && locationName !== 'N/A' && !locationName.startsWith('Location ID:')) {
+              return locationName + ' (Service)';
+            }
+          }
+          
+          // Fallback: try to call the function directly if it exists in global scope
+          if (typeof getLocationName === 'function') {
+            const locationName = await getLocationName(originalLocationId);
+            if (locationName && locationName !== 'N/A' && !locationName.startsWith('Location ID:')) {
+              return locationName + ' (Service)';
+            }
+          }
+        } catch (error) {
+          console.warn('Error getting location for service:', error);
+        }
+      }
+    }
+    
     // Handle services specially - they don't have physical locations
     if (asset && asset.is_service) {
       return 'Virtual/Cloud Service';
@@ -1809,6 +1913,40 @@ const AssetAssociation = {
    */
   getSerialNumber(asset) {
     try {
+      // Handle services specially - try original asset serial first
+      if (asset && asset.is_service && asset.original_asset) {
+        const originalAsset = asset.original_asset;
+        
+        // First check direct property from original asset
+        if (originalAsset.serial_number && originalAsset.serial_number !== '') {
+          return originalAsset.serial_number + ' (Service)';
+        }
+        
+        // Check in original asset's type_fields
+        const serialField = this.getAssetTypeField(originalAsset, 'serial_number');
+        if (serialField && serialField !== 'N/A') {
+          return serialField + ' (Service)';
+        }
+
+        // Try alternative field variations in original asset's type_fields
+        const alternativeFields = ['serial', 'serial_no', 'sn', 'device_serial', 'asset_serial'];
+        for (const fieldName of alternativeFields) {
+          const value = this.getAssetTypeField(originalAsset, fieldName);
+          if (value && value !== 'N/A') {
+            return value + ' (Service)';
+          }
+        }
+
+        // Try direct property alternatives on original asset
+        if (originalAsset.serial && originalAsset.serial !== '') {
+          return originalAsset.serial + ' (Service)';
+        }
+        
+        if (originalAsset.sn && originalAsset.sn !== '') {
+          return originalAsset.sn + ' (Service)';
+        }
+      }
+      
       // Handle services specially - they don't have serial numbers
       if (asset && asset.is_service) {
         return 'Service ID: ' + asset.id;
