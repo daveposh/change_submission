@@ -266,8 +266,8 @@ const ChangeSubmission = {
       errors.push('Assigned agent must be selected');
     }
 
-    // Validate risk assessment
-    if (!window.changeRequestData.riskAssessment?.level) {
+    // Validate risk assessment - check for riskLevel property
+    if (!window.changeRequestData.riskAssessment?.riskLevel) {
       errors.push('Risk assessment must be completed');
     }
 
@@ -303,9 +303,9 @@ const ChangeSubmission = {
 
     // Calculate priority based on risk level
     let priority = this.config.priorities.medium; // default
-    if (data.riskAssessment?.level === 'low') {
+    if (data.riskAssessment?.riskLevel === 'Low') {
       priority = this.config.priorities.low;
-    } else if (data.riskAssessment?.level === 'high') {
+    } else if (data.riskAssessment?.riskLevel === 'High') {
       priority = this.config.priorities.high;
     }
 
@@ -314,8 +314,8 @@ const ChangeSubmission = {
 
     // Prepare custom fields for additional data
     const customFields = {
-      risk_level: data.riskAssessment?.level || 'medium',
-      risk_score: data.riskAssessment?.score || 0,
+      risk_level: data.riskAssessment?.riskLevel || 'Medium',
+      risk_score: data.riskAssessment?.totalScore || 0,
       associated_asset_ids: assetIds.join(','),
       approver_count: impactedData.approvers?.length || 0,
       stakeholder_count: impactedData.stakeholders?.length || 0,
@@ -367,8 +367,8 @@ const ChangeSubmission = {
 
 <h4>Risk Assessment:</h4>
 <ul>
-  <li><strong>Risk Level:</strong> ${data.riskAssessment?.level?.toUpperCase() || 'Not assessed'}</li>
-  <li><strong>Risk Score:</strong> ${data.riskAssessment?.score || 0}/15</li>
+  <li><strong>Risk Level:</strong> ${data.riskAssessment?.riskLevel?.toUpperCase() || 'Not assessed'}</li>
+  <li><strong>Risk Score:</strong> ${data.riskAssessment?.totalScore || 0}/15</li>
 </ul>
 `;
 
@@ -470,7 +470,7 @@ const ChangeSubmission = {
 
     try {
       // Create approval workflow based on risk level
-      const riskLevel = window.changeRequestData.riskAssessment?.level || 'medium';
+      const riskLevel = window.changeRequestData.riskAssessment?.riskLevel || 'Medium';
       const workflowType = this.determineWorkflowType(riskLevel, approvers.length);
 
       console.log(`📋 Creating ${workflowType} approval workflow for ${approvers.length} approvers`);
@@ -485,7 +485,7 @@ const ChangeSubmission = {
           approver_name: approver.name,
           approver_email: approver.email,
           level: 1, // All approvers at same level for parallel approval
-          required: riskLevel === 'high' // High risk requires all, others allow majority
+          required: riskLevel === 'High' // High risk requires all, others allow majority
         }))
       };
 
@@ -518,7 +518,7 @@ const ChangeSubmission = {
    * Determine workflow type based on risk and approver count
    */
   determineWorkflowType(riskLevel, approverCount) {
-    if (riskLevel === 'high' || approverCount > 3) {
+    if (riskLevel === 'High' || approverCount > 3) {
       return 'sequential'; // High risk or many approvers = sequential approval
     } else if (approverCount > 1) {
       return 'parallel'; // Multiple approvers = parallel approval
@@ -541,7 +541,7 @@ const ChangeSubmission = {
           approver_name: approver.name,
           change_title: changeRequest.subject,
           requester_name: window.changeRequestData.selectedRequester.name,
-          risk_level: window.changeRequestData.riskAssessment?.level?.toUpperCase() || 'MEDIUM',
+          risk_level: window.changeRequestData.riskAssessment?.riskLevel?.toUpperCase() || 'MEDIUM',
           planned_start: this.formatDate(changeRequest.planned_start_date),
           planned_end: this.formatDate(changeRequest.planned_end_date),
           implementation_plan: window.changeRequestData.implementationPlan,
@@ -588,7 +588,7 @@ const ChangeSubmission = {
           stakeholder_name: stakeholder.name,
           change_title: changeRequest.subject,
           requester_name: window.changeRequestData.selectedRequester.name,
-          risk_level: window.changeRequestData.riskAssessment?.level?.toUpperCase() || 'MEDIUM',
+          risk_level: window.changeRequestData.riskAssessment?.riskLevel?.toUpperCase() || 'MEDIUM',
           planned_start: this.formatDate(changeRequest.planned_start_date),
           planned_end: this.formatDate(changeRequest.planned_end_date),
           impacted_assets_list: impactedAssetsList,
@@ -627,8 +627,8 @@ const ChangeSubmission = {
     }
 
     // Determine if peer review is needed based on risk level
-    const riskLevel = window.changeRequestData.riskAssessment?.level || 'medium';
-    if (riskLevel === 'low') {
+    const riskLevel = window.changeRequestData.riskAssessment?.riskLevel || 'Medium';
+    if (riskLevel === 'Low') {
       console.log('ℹ️ Low risk change, skipping peer review');
       return;
     }
@@ -652,7 +652,7 @@ const ChangeSubmission = {
         subject: taskContent.subject,
         description: taskContent.body,
         status: 2, // Open
-        priority: riskLevel === 'high' ? 3 : 2, // High or Medium priority
+        priority: riskLevel === 'High' ? 3 : 2, // High or Medium priority
         agent_id: assignedAgent.id,
         source: 2, // Email
         type: 'Peer Review',
