@@ -21,7 +21,11 @@ const AssetAssociation = {
       perPage: 30,
       hasMore: false
     },
-    configuredAssetTypeId: null // Add this to store the configured asset type ID
+    configuredAssetTypeId: null, // Add this to store the configured asset type ID
+    // Services dropdown state
+    services: [],
+    servicesLoaded: false,
+    isLoadingServices: false
   },
 
   // Configuration
@@ -40,25 +44,287 @@ const AssetAssociation = {
    */
   async init() {
     console.log('🔧 Initializing Asset Association Module...');
-    await this.loadConfiguredAssetTypeId();
     this.setupEventListeners();
     await this.loadSelectedAssets();
+    await this.initializeServicesDropdown();
     this.updateAssetCount();
     console.log('✅ Asset Association Module initialized');
   },
 
   /**
-   * Load the configured asset type ID from iparams
+   * Initialize services dropdown
    */
-  async loadConfiguredAssetTypeId() {
+  async initializeServicesDropdown() {
+    console.log('🔧 Initializing services dropdown...');
     try {
-      const params = await window.client.request.get('iparams');
-      this.state.configuredAssetTypeId = params.inventory_type_id;
-      console.log(`📋 Loaded configured asset type ID: ${this.state.configuredAssetTypeId}`);
+      await this.loadServices();
+      this.populateServicesDropdown();
+      this.setupServicesEventListeners();
+      console.log('✅ Services dropdown initialized');
     } catch (error) {
-      console.error('Error loading configured asset type ID:', error);
-      this.state.configuredAssetTypeId = null;
+      console.error('❌ Error initializing services dropdown:', error);
+      this.showServicesError('Failed to load services');
     }
+  },
+
+  /**
+   * Load services from configured asset types
+   */
+  async loadServices() {
+    if (this.state.servicesLoaded && this.state.services.length > 0) {
+      console.log('📦 Services already loaded from cache');
+      return;
+    }
+
+    if (this.state.isLoadingServices) {
+      console.log('⏳ Services loading already in progress');
+      return;
+    }
+
+    this.state.isLoadingServices = true;
+    this.showServicesLoading();
+
+    try {
+      console.log('🔄 Loading services from configured asset types...');
+      
+      // Get installation parameters
+      const params = await window.client.request.get('iparams');
+      const assetTypeNames = params.assetTypeNames || '';
+      
+      if (!assetTypeNames.trim()) {
+        console.warn('⚠️ No asset type names configured for services');
+        this.state.services = [];
+        this.state.servicesLoaded = true;
+        return;
+      }
+
+      // Parse asset type names
+      const targetNames = assetTypeNames.split(',').map(name => name.trim()).filter(name => name);
+      console.log(`🎯 Looking for asset types: ${targetNames.join(', ')}`);
+
+      // Get asset types to find IDs
+      const assetTypesResponse = await window.client.request.invokeTemplate("getAssetTypes", {
+        context: {
+          per_page: '100'
+        },
+        cache: true,
+        ttl: 300000 // 5 minutes cache
+      });
+
+      if (!assetTypesResponse || !assetTypesResponse.response) {
+        throw new Error('Failed to fetch asset types');
+      }
+
+      const assetTypesData = JSON.parse(assetTypesResponse.response);
+      const assetTypes = assetTypesData.asset_types || [];
+
+      // Find matching asset type IDs
+      const matchingTypeIds = [];
+      assetTypes.forEach(assetType => {
+        const typeName = assetType.name.toLowerCase();
+        if (targetNames.some(name => typeName.includes(name.toLowerCase()))) {
+          matchingTypeIds.push(assetType.id);
+          console.log(`✅ Found matching asset type: ${assetType.name} (ID: ${assetType.id})`);
+        }
+      });
+
+      if (matchingTypeIds.length === 0) {
+        console.warn('⚠️ No matching asset types found for configured names');
+        this.state.services = [];
+        this.state.servicesLoaded = true;
+        return;
+      }
+
+      // Build filter query for asset types
+      const assetTypeFilter = matchingTypeIds.map(id => `asset_type_id:${id}`).join(' OR ');
+      console.log(`🔍 Asset type filter: ${assetTypeFilter}`);
+
+      // Fetch assets for these types
+      const servicesResponse = await window.client.request.invokeTemplate("getAssetsByType", {
+        context: {
+          asset_type_filter: assetTypeFilter,
+          per_page: '100',
+          include_fields: 'type_fields'
+        },
+        cache: true,
+        ttl: 180000 // 3 minutes cache for services
+      });
+
+      if (!servicesResponse || !servicesResponse.response) {
+        throw new Error('Failed to fetch services');
+      }
+
+      const servicesData = JSON.parse(servicesResponse.response);
+      this.state.services = servicesData.assets || [];
+      this.state.servicesLoaded = true;
+
+      console.log(`✅ Loaded ${this.state.services.length} services`);
+
+    } catch (error) {
+      console.error('❌ Error loading services:', error);
+      this.state.services = [];
+      this.showServicesError('Failed to load services. Please try refreshing.');
+    } finally {
+      this.state.isLoadingServices = false;
+    }
+  },
+
+  /**
+   * Populate services dropdown with loaded services
+   */
+  populateServicesDropdown() {
+    const dropdown = document.getElementById('services-dropdown');
+    if (!dropdown) return;
+
+    if (this.state.services.length === 0) {
+      dropdown.innerHTML = '<option value="">No services available</option>';
+      return;
+    }
+
+    let html = '';
+    this.state.services.forEach(service => {
+      const name = service.display_name || service.name || `Asset ${service.id}`;
+      const description = service.description ? ` - ${service.description.substring(0, 50)}...` : '';
+      const serviceJson = JSON.stringify(service).replace(/"/g, '&quot;');
+      html += `<option value="${service.id}" data-service="${serviceJson}">${this.escapeHtml(name)}${this.escapeHtml(description)}</option>`;
+    });
+
+    dropdown.innerHTML = html;
+    console.log(`✅ Populated services dropdown with ${this.state.services.length} services`);
+  },
+
+  /**
+   * Setup event listeners for services functionality
+   */
+  setupServicesEventListeners() {
+    // Add selected services button
+    const addSelectedBtn = document.getElementById('add-selected-services-btn');
+    if (addSelectedBtn) {
+      addSelectedBtn.addEventListener('click', async () => {
+        await this.addSelectedServices();
+      });
+    }
+
+    // Refresh services button
+    const refreshBtn = document.getElementById('refresh-services-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async () => {
+        await this.refreshServices();
+      });
+    }
+  },
+
+  /**
+   * Add selected services from dropdown to selected assets
+   */
+  async addSelectedServices() {
+    const dropdown = document.getElementById('services-dropdown');
+    const addBtn = document.getElementById('add-selected-services-btn');
+    if (!dropdown) return;
+
+    const selectedOptions = Array.from(dropdown.selectedOptions);
+    if (selectedOptions.length === 0) {
+      this.showNotification('info', 'Please select one or more services to add');
+      return;
+    }
+
+    // Show loading state
+    if (addBtn) {
+      addBtn.classList.add('loading');
+      addBtn.disabled = true;
+    }
+
+    try {
+      let addedCount = 0;
+      for (const option of selectedOptions) {
+        try {
+          const serviceJsonString = option.dataset.service.replace(/&quot;/g, '"');
+          const serviceData = JSON.parse(serviceJsonString);
+          
+          // Check if already selected
+          if (!this.isAssetSelected(serviceData.id)) {
+            await this.addAsset(serviceData);
+            addedCount++;
+          }
+        } catch (error) {
+          console.error('Error adding service:', error);
+        }
+      }
+
+      // Clear selections
+      dropdown.selectedIndex = -1;
+      
+      if (addedCount > 0) {
+        this.showNotification('success', `Added ${addedCount} service${addedCount > 1 ? 's' : ''} to selection`);
+      } else {
+        this.showNotification('info', 'Selected services were already in your selection');
+      }
+    } finally {
+      // Remove loading state
+      if (addBtn) {
+        addBtn.classList.remove('loading');
+        addBtn.disabled = false;
+      }
+    }
+  },
+
+  /**
+   * Refresh services by reloading from API
+   */
+  async refreshServices() {
+    const refreshBtn = document.getElementById('refresh-services-btn');
+    
+    // Show loading state
+    if (refreshBtn) {
+      refreshBtn.classList.add('loading');
+      refreshBtn.disabled = true;
+    }
+
+    try {
+      console.log('🔄 Refreshing services...');
+      this.state.servicesLoaded = false;
+      this.state.services = [];
+      await this.loadServices();
+      this.populateServicesDropdown();
+      this.showNotification('success', 'Services refreshed successfully');
+    } catch (error) {
+      console.error('❌ Error refreshing services:', error);
+      this.showNotification('error', 'Failed to refresh services');
+    } finally {
+      // Remove loading state
+      if (refreshBtn) {
+        refreshBtn.classList.remove('loading');
+        refreshBtn.disabled = false;
+      }
+    }
+  },
+
+  /**
+   * Show loading state in services dropdown
+   */
+  showServicesLoading() {
+    const dropdown = document.getElementById('services-dropdown');
+    if (dropdown) {
+      dropdown.innerHTML = '<option value="">🔄 Loading services...</option>';
+    }
+  },
+
+  /**
+   * Show error state in services dropdown
+   */
+  showServicesError(message) {
+    const dropdown = document.getElementById('services-dropdown');
+    if (dropdown) {
+      dropdown.innerHTML = `<option value="">❌ ${message}</option>`;
+    }
+  },
+
+  /**
+   * Show notification message (placeholder - implement based on your notification system)
+   */
+  showNotification(type, message) {
+    console.log(`${type.toUpperCase()}: ${message}`);
+    // You can implement your notification system here
   },
 
   /**
@@ -261,13 +527,10 @@ const AssetAssociation = {
       // Determine the best field to search based on the search term pattern
       const searchField = this.getSearchField(searchTerm);
       
-      // Build the search query with asset type filter if configured
-      let fieldQuery = `${searchField}:'${searchTerm}'`;
-      if (this.state.configuredAssetTypeId) {
-        fieldQuery = `(${fieldQuery}) AND asset_type_id:${this.state.configuredAssetTypeId}`;
-      }
+      // Build the search query without asset type filtering (search ALL assets)
+      const fieldQuery = `${searchField}:'${searchTerm}'`;
       
-      console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
+      console.log(`🔍 Searching ALL assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
       console.log(`📡 Will construct URL: /api/v2/assets?search=${fieldQuery}&include=type_fields`);
       
       const templateContext = {
@@ -1029,10 +1292,13 @@ const AssetAssociation = {
     }
     
     // Reset state
-    this.state.searchResults = [];
-    this.state.currentSearchTerm = '';
     this.state.isLiveSearchActive = false;
     this.state.isSearching = false;
+    this.state.currentSearchTerm = '';
+    this.state.searchResults = [];
+    this.state.servicesLoaded = false;
+    this.state.services = [];
+    this.state.isLoadingServices = false;
     
     // Remove live search form styling
     this.setLiveSearchFormState(false);
@@ -1501,6 +1767,9 @@ const AssetAssociation = {
     this.state.isSearching = false;
     this.state.currentSearchTerm = '';
     this.state.searchResults = [];
+    this.state.servicesLoaded = false;
+    this.state.services = [];
+    this.state.isLoadingServices = false;
     
     // Remove live search form styling
     this.setLiveSearchFormState(false);
@@ -1549,8 +1818,11 @@ const AssetAssociation = {
       console.warn('Error getting serial number:', error);
       return 'N/A';
     }
-  }
+  },
 };
+
+// Expose AssetAssociation module globally for debugging and external access
+window.AssetAssociation = AssetAssociation;
 
 // Global debug function to test asset type fields extraction
 window.debugAssetTypeFields = function(assetId) {
