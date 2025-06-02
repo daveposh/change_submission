@@ -12,6 +12,13 @@
     "required": true,
     "secure": true
   },
+  "workspace_id": {
+    "display_name": "Workspace ID",
+    "description": "Freshservice Workspace ID (optional - leave blank if not using workspaces)",
+    "type": "number",
+    "required": false,
+    "default_value": null
+  },
   "plan_type": {
     "display_name": "Freshservice Plan",
     "description": "Select your Freshservice plan to configure API rate limits",

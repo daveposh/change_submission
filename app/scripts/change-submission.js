@@ -187,7 +187,7 @@ const ChangeSubmission = {
 
       // Step 2: Prepare change request data
       console.log('📦 Step 2: Preparing change request data...');
-      const changeRequestData = this.prepareChangeRequestData();
+      const changeRequestData = await this.prepareChangeRequestData();
 
       // Step 3: Create the change request
       console.log('🎯 Step 3: Creating change request in Freshservice...');
@@ -295,11 +295,21 @@ const ChangeSubmission = {
   /**
    * Prepare change request data for API submission
    */
-  prepareChangeRequestData() {
+  async prepareChangeRequestData() {
     console.log('📦 Preparing change request data...');
 
     const data = window.changeRequestData;
     const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+
+    // Get installation parameters for workspace configuration
+    let workspaceId = null;
+    try {
+      const params = await window.client.iparams.get();
+      workspaceId = params.workspace_id;
+      console.log('🏢 Workspace ID from config:', workspaceId);
+    } catch (error) {
+      console.warn('⚠️ Could not retrieve installation parameters:', error);
+    }
 
     // Calculate priority based on risk level
     let priority = this.config.priorities.medium; // default
@@ -361,6 +371,12 @@ const ChangeSubmission = {
       planned_start_date: formatDateForAPI(data.plannedStart),
       planned_end_date: formatDateForAPI(data.plannedEnd)
     };
+
+    // Add workspace_id if configured
+    if (workspaceId && workspaceId !== null) {
+      changeRequestData.workspace_id = workspaceId;
+      console.log('🏢 Adding workspace_id to request:', workspaceId);
+    }
 
     // Add custom fields if they exist (some Freshservice instances may not support all custom fields)
     if (data.riskAssessment || impactedData.approvers || impactedData.stakeholders) {
