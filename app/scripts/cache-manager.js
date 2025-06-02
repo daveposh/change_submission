@@ -403,7 +403,7 @@ const CacheManager = {
           // Use the getAssetsByType template with proper query format
           const response = await window.client.request.invokeTemplate('getAssetsByType', {
             context: {
-              asset_type_filter: `"asset_type_id:${typeId}"`,
+              query_filter: `asset_type_id:${typeId}`,
               include_fields: 'type_fields',
               per_page: '100',
               page: '1'
