@@ -124,7 +124,7 @@ const AssetAssociation = {
     if (!dropdown) return;
 
     if (this.state.services.length === 0) {
-      dropdown.innerHTML = '<option value="">No services available</option>';
+      dropdown.innerHTML = '<option value="">No services configured - Visit app configuration to set asset types</option>';
       return;
     }
 

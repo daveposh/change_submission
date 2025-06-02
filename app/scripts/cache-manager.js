@@ -339,10 +339,16 @@ const CacheManager = {
       
       // Get installation parameters
       const params = await window.client.iparams.get();
+      console.log('🔍 Debug: Retrieved iparams:', params);
       const assetTypeNames = params.assetTypeNames || '';
+      console.log('🔍 Debug: assetTypeNames value:', JSON.stringify(assetTypeNames));
       
       if (!assetTypeNames.trim()) {
         console.warn('⚠️ No asset type names configured for services');
+        console.log('💡 To enable services dropdown:');
+        console.log('   1. Visit http://localhost:10001/custom_configs to configure the app');
+        console.log('   2. Set "Asset Type Names" to include types like: Software, IT Software, Service');
+        console.log('   3. Save the configuration and refresh the app');
         return [];
       }
 
