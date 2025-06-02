@@ -2086,6 +2086,19 @@ async function initializeApp() {
     // Initialize change type defaults
     initializeChangeTypeDefaults();
     
+    // Pre-initialize AssetAssociation module to ensure services are ready
+    try {
+      if (window.AssetAssociation && !window.AssetAssociation._initialized) {
+        console.log('🔄 Pre-initializing Asset Association Module...');
+        await window.AssetAssociation.init();
+        window.AssetAssociation._initialized = true;
+        console.log('✅ Asset Association Module pre-initialized');
+      }
+    } catch (error) {
+      console.warn('⚠️ Asset Association pre-initialization failed:', error);
+      // Don't fail the entire app if this fails - it will be retried when tab is shown
+    }
+    
     console.log('✅ App initialization completed successfully');
     
   } catch (error) {

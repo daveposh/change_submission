@@ -71,11 +71,6 @@ const AssetAssociation = {
    * Load services from configured asset types
    */
   async loadServices() {
-    if (this.state.servicesLoaded && this.state.services.length > 0) {
-      console.log('📦 Services already loaded from cache');
-      return;
-    }
-
     if (this.state.isLoadingServices) {
       console.log('⏳ Services loading already in progress');
       return;
@@ -93,15 +88,17 @@ const AssetAssociation = {
         throw new Error('CacheManager not available');
       }
 
-      // Get services from cache manager (will load from API if needed)
+      // Always try to get cached services first (they should be pre-loaded during app init)
       const cachedServices = await window.CacheManager.getCachedServices();
       
-      if (!cachedServices || cachedServices.length === 0) {
-        console.log('🔄 No cached services, loading from API...');
-        this.state.services = await window.CacheManager.loadServicesFromAssets();
-      } else {
+      if (cachedServices && cachedServices.length > 0) {
         console.log(`✅ Using cached services: ${cachedServices.length} services`);
         this.state.services = cachedServices;
+        this.state.servicesLoaded = true;
+      } else {
+        console.log('🔄 No cached services, loading from API...');
+        this.state.services = await window.CacheManager.loadServicesFromAssets();
+        this.state.servicesLoaded = true;
       }
 
       // Ensure services is always an array
@@ -110,7 +107,6 @@ const AssetAssociation = {
         this.state.services = [];
       }
 
-      this.state.servicesLoaded = true;
       console.log(`✅ Loaded ${this.state.services.length} services`);
 
     } catch (error) {
