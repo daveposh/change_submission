@@ -142,7 +142,7 @@ const ImpactedServices = {
    * @param {string} searchTerm - Search term
    * @returns {Promise<Array>} - Array of user objects
    */
-  async searchUsers(searchTerm) {
+  searchUsers(searchTerm) {
     return new Promise((resolve, reject) => {
       if (!window.client || !window.client.request) {
         reject(new Error('API client not available'));
