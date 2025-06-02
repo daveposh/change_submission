@@ -2162,6 +2162,7 @@ const AssetAssociation = {
 
     // Check for software services
     if (name.includes('software') || name.includes('application') || name.includes('app') ||
+        description.includes('software') || description.includes('application') || description.includes('app') ||
         category.includes('software') || category.includes('application')) {
       return 'software';
     }
@@ -2169,6 +2170,7 @@ const AssetAssociation = {
     // Check for database services
     if (name.includes('database') || name.includes('db') || name.includes('sql') || 
         name.includes('mysql') || name.includes('oracle') || name.includes('postgres') ||
+        description.includes('database') || description.includes('sql') || description.includes('mysql') ||
         category.includes('database')) {
       return 'database';
     }
@@ -2176,6 +2178,7 @@ const AssetAssociation = {
     // Check for network services
     if (name.includes('network') || name.includes('router') || name.includes('switch') ||
         name.includes('firewall') || name.includes('vpn') || name.includes('dns') ||
+        description.includes('network') || description.includes('firewall') || description.includes('vpn') ||
         category.includes('network')) {
       return 'network';
     }
@@ -2183,12 +2186,14 @@ const AssetAssociation = {
     // Check for infrastructure services
     if (name.includes('server') || name.includes('infrastructure') || name.includes('cloud') ||
         name.includes('hosting') || name.includes('vm') || name.includes('virtual') ||
+        description.includes('server') || description.includes('infrastructure') || description.includes('cloud') ||
         category.includes('infrastructure')) {
       return 'infrastructure';
     }
 
     // Check for application services
     if (name.includes('service') || name.includes('api') || name.includes('web') ||
+        description.includes('service') || description.includes('api') || description.includes('web') ||
         category.includes('service')) {
       return 'application';
     }
