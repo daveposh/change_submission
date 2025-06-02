@@ -185,11 +185,11 @@ const AssetAssociation = {
       });
     }
 
-    // Select all visible services button
-    const selectAllBtn = document.getElementById('select-all-visible-services-btn');
-    if (selectAllBtn) {
-      selectAllBtn.addEventListener('click', () => {
-        this.selectAllVisibleServices();
+    // Unselect all services button (renamed from select all)
+    const unselectAllBtn = document.getElementById('unselect-all-services-btn');
+    if (unselectAllBtn) {
+      unselectAllBtn.addEventListener('click', () => {
+        this.unselectAllServices();
       });
     }
 
@@ -2203,41 +2203,60 @@ const AssetAssociation = {
     const description = (service.description || '').toString().toLowerCase();
     const category = ((service.service_category || service.category || '')).toString().toLowerCase();
 
+    // Check for ISP/Network services first (most specific)
+    if (name.includes('isp') || name.includes('internet service') || name.includes('broadband') ||
+        name.includes('fiber') || name.includes('mpls') || name.includes('wan') || name.includes('colo') ||
+        name.includes('colocation') || name.includes('bandwidth') || name.includes('circuit') ||
+        description.includes('isp') || description.includes('internet service') || description.includes('broadband') ||
+        description.includes('fiber') || description.includes('mpls') || description.includes('wan') ||
+        category.includes('isp') || category.includes('internet') || category.includes('network')) {
+      return 'network';
+    }
+
     // Check for software services
     if (name.includes('software') || name.includes('application') || name.includes('app') ||
+        name.includes('license') || name.includes('microsoft') || name.includes('adobe') ||
         description.includes('software') || description.includes('application') || description.includes('app') ||
-        category.includes('software') || category.includes('application')) {
+        description.includes('license') || description.includes('microsoft') || description.includes('adobe') ||
+        category.includes('software') || category.includes('application') || category.includes('license')) {
       return 'software';
     }
 
     // Check for database services
     if (name.includes('database') || name.includes('db') || name.includes('sql') || 
         name.includes('mysql') || name.includes('oracle') || name.includes('postgres') ||
+        name.includes('mongodb') || name.includes('redis') || name.includes('elasticsearch') ||
         description.includes('database') || description.includes('sql') || description.includes('mysql') ||
+        description.includes('oracle') || description.includes('postgres') || description.includes('mongodb') ||
         category.includes('database')) {
       return 'database';
-    }
-
-    // Check for network services
-    if (name.includes('network') || name.includes('router') || name.includes('switch') ||
-        name.includes('firewall') || name.includes('vpn') || name.includes('dns') ||
-        description.includes('network') || description.includes('firewall') || description.includes('vpn') ||
-        category.includes('network')) {
-      return 'network';
     }
 
     // Check for infrastructure services
     if (name.includes('server') || name.includes('infrastructure') || name.includes('cloud') ||
         name.includes('hosting') || name.includes('vm') || name.includes('virtual') ||
+        name.includes('aws') || name.includes('azure') || name.includes('datacenter') ||
         description.includes('server') || description.includes('infrastructure') || description.includes('cloud') ||
-        category.includes('infrastructure')) {
+        description.includes('hosting') || description.includes('vm') || description.includes('virtual') ||
+        category.includes('infrastructure') || category.includes('cloud') || category.includes('hosting')) {
       return 'infrastructure';
     }
 
-    // Check for application services
+    // Check for network equipment/services (after ISP check)
+    if (name.includes('network') || name.includes('router') || name.includes('switch') ||
+        name.includes('firewall') || name.includes('vpn') || name.includes('dns') ||
+        name.includes('wifi') || name.includes('wireless') || name.includes('ethernet') ||
+        description.includes('network') || description.includes('firewall') || description.includes('vpn') ||
+        description.includes('router') || description.includes('switch') || description.includes('wifi')) {
+      return 'network';
+    }
+
+    // Check for application/web services
     if (name.includes('service') || name.includes('api') || name.includes('web') ||
+        name.includes('portal') || name.includes('platform') || name.includes('system') ||
         description.includes('service') || description.includes('api') || description.includes('web') ||
-        category.includes('service')) {
+        description.includes('portal') || description.includes('platform') ||
+        category.includes('service') || category.includes('application')) {
       return 'application';
     }
 
@@ -2380,12 +2399,10 @@ const AssetAssociation = {
   },
 
   /**
-   * Select all visible services
+   * Unselect all selected services
    */
-  selectAllVisibleServices() {
-    this.state.filteredServices.forEach(service => {
-      this.state.selectedServiceIds.add(service.id);
-    });
+  unselectAllServices() {
+    this.state.selectedServiceIds.clear();
     
     // Update visual state
     this.populateServicesDisplay();
