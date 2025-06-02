@@ -37,7 +37,214 @@ const ImpactedServices = {
       });
     }
 
+    // Add approver button
+    const addApproverBtn = document.getElementById('add-approver-btn');
+    if (addApproverBtn) {
+      addApproverBtn.addEventListener('click', () => {
+        this.toggleUserSearch('approver');
+      });
+    }
+
+    // Add stakeholder button
+    const addStakeholderBtn = document.getElementById('add-stakeholder-btn');
+    if (addStakeholderBtn) {
+      addStakeholderBtn.addEventListener('click', () => {
+        this.toggleUserSearch('stakeholder');
+      });
+    }
+
+    // Setup user search inputs
+    this.setupUserSearchInputs();
+
     console.log('✅ Impacted services event listeners setup complete');
+  },
+
+  /**
+   * Setup user search input event listeners
+   */
+  setupUserSearchInputs() {
+    // Approver search
+    const approverSearch = document.getElementById('approver-search');
+    if (approverSearch) {
+      approverSearch.addEventListener('input', (e) => {
+        this.handleUserSearch(e.target.value, 'approver');
+      });
+    }
+
+    // Stakeholder search
+    const stakeholderSearch = document.getElementById('stakeholder-search');
+    if (stakeholderSearch) {
+      stakeholderSearch.addEventListener('input', (e) => {
+        this.handleUserSearch(e.target.value, 'stakeholder');
+      });
+    }
+  },
+
+  /**
+   * Toggle user search interface
+   * @param {string} type - 'approver' or 'stakeholder'
+   */
+  toggleUserSearch(type) {
+    const container = document.getElementById(`${type}-search-container`);
+    const input = document.getElementById(`${type}-search`);
+    if (container && input) {
+      if (container.style.display === 'none') {
+        container.style.display = 'block';
+        input.focus();
+      } else {
+        container.style.display = 'none';
+        input.value = '';
+        document.getElementById(`${type}-results`).innerHTML = '';
+      }
+    }
+  },
+
+  /**
+   * Handle user search
+   * @param {string} searchTerm - Search term
+   * @param {string} type - 'approver' or 'stakeholder'
+   */
+  async handleUserSearch(searchTerm, type) {
+    if (!searchTerm || searchTerm.length < 3) {
+      document.getElementById(`${type}-results`).innerHTML = '';
+      return;
+    }
+
+    try {
+      const results = await searchUsers(searchTerm);
+      this.displayUserSearchResults(results, type);
+    } catch (error) {
+      console.error(`Error searching ${type}s:`, error);
+      this.showNotification('danger', `Error searching ${type}s: ${error.message}`);
+    }
+  },
+
+  /**
+   * Display user search results
+   * @param {Array} users - Array of user objects
+   * @param {string} type - 'approver' or 'stakeholder'
+   */
+  displayUserSearchResults(users, type) {
+    const resultsContainer = document.getElementById(`${type}-results`);
+    if (!resultsContainer) return;
+
+    if (users.length === 0) {
+      resultsContainer.innerHTML = `
+        <div class="list-group-item text-muted">
+          <i class="fas fa-info-circle me-2"></i>No users found
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    users.forEach(user => {
+      const isAlreadyAdded = type === 'approver' 
+        ? this.state.approvers.some(a => a.id === user.id)
+        : this.state.stakeholders.some(s => s.id === user.id);
+
+      if (!isAlreadyAdded) {
+        html += `
+          <div class="list-group-item list-group-item-action user-search-result" 
+               data-user-id="${user.id}" 
+               data-user-name="${this.escapeHtml(user.name)}"
+               data-user-email="${this.escapeHtml(user.email)}"
+               data-user-department="${this.escapeHtml(user.department || 'N/A')}">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <strong>${this.escapeHtml(user.name)}</strong>
+                <div class="small text-muted">
+                  <i class="fas fa-envelope me-1"></i>${this.escapeHtml(user.email)}
+                  ${user.department ? `<br><i class="fas fa-building me-1"></i>${this.escapeHtml(user.department)}` : ''}
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-primary add-user-btn">
+                <i class="fas fa-plus me-1"></i>Add
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    });
+
+    resultsContainer.innerHTML = html;
+
+    // Add click handlers for add buttons
+    resultsContainer.querySelectorAll('.add-user-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const resultItem = e.target.closest('.user-search-result');
+        const userData = {
+          id: resultItem.dataset.userId,
+          name: resultItem.dataset.userName,
+          email: resultItem.dataset.userEmail,
+          department: resultItem.dataset.userDepartment,
+          role: type === 'approver' ? 'Approver' : 'Stakeholder',
+          source: 'Manually added',
+          userDetails: null
+        };
+        this.addUser(userData, type);
+      });
+    });
+  },
+
+  /**
+   * Add a user to approvers or stakeholders
+   * @param {Object} user - User object
+   * @param {string} type - 'approver' or 'stakeholder'
+   */
+  addUser(user, type) {
+    // Check if user is already added
+    const existingUser = type === 'approver'
+      ? this.state.approvers.find(a => a.id === user.id)
+      : this.state.stakeholders.find(s => s.id === user.id);
+
+    if (existingUser) {
+      this.showNotification('warning', `${user.name} is already added as a ${type}`);
+      return;
+    }
+
+    // Add user to appropriate list
+    if (type === 'approver') {
+      this.state.approvers.push(user);
+    } else {
+      this.state.stakeholders.push(user);
+    }
+
+    // Update displays
+    this.displayResults();
+    this.updateServiceCount();
+
+    // Hide search interface
+    this.toggleUserSearch(type);
+
+    // Show success message
+    this.showNotification('success', `Added ${user.name} as a ${type}`);
+
+    console.log(`✅ Added ${user.name} as ${type}`);
+  },
+
+  /**
+   * Remove a user from approvers or stakeholders
+   * @param {number} userId - User ID to remove
+   * @param {string} type - 'approver' or 'stakeholder'
+   */
+  removeUser(userId, type) {
+    const list = type === 'approver' ? this.state.approvers : this.state.stakeholders;
+    const index = list.findIndex(u => u.id === userId);
+    
+    if (index === -1) return;
+
+    const removedUser = list[index];
+    list.splice(index, 1);
+
+    // Update displays
+    this.displayResults();
+    this.updateServiceCount();
+
+    // Show success message
+    this.showNotification('success', `Removed ${removedUser.name} from ${type}s`);
+
+    console.log(`❌ Removed ${removedUser.name} from ${type}s`);
   },
 
   /**
@@ -659,6 +866,8 @@ const ImpactedServices = {
     let html = '';
     users.forEach((user) => {
       const badgeClass = userType === 'approver' ? 'bg-success' : 'bg-primary';
+      const isManuallyAdded = user.source === 'Manually added';
+      
       html += `
         <div class="user-item" data-user-id="${user.id}">
           <div class="user-info">
@@ -670,13 +879,31 @@ const ImpactedServices = {
             <div class="user-badges">
               <span class="badge ${badgeClass} user-role-badge">${this.escapeHtml(user.role)}</span>
               <span class="badge bg-secondary user-role-badge" title="Source">${this.escapeHtml(user.source)}</span>
+              ${isManuallyAdded ? '<span class="badge bg-info user-role-badge">Manually Added</span>' : ''}
             </div>
+          </div>
+          <div class="user-actions">
+            <button type="button" class="btn btn-sm btn-outline-danger remove-user-btn" 
+                    data-user-id="${user.id}" 
+                    data-user-type="${userType}"
+                    title="Remove this ${userType}">
+              <i class="fas fa-times"></i>
+            </button>
           </div>
         </div>
       `;
     });
 
     container.innerHTML = html;
+
+    // Add click handlers for remove buttons
+    container.querySelectorAll('.remove-user-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const userId = parseInt(e.target.closest('.remove-user-btn').dataset.userId);
+        const userType = e.target.closest('.remove-user-btn').dataset.userType;
+        this.removeUser(userId, userType);
+      });
+    });
   },
 
   /**

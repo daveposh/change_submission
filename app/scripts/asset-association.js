@@ -20,7 +20,8 @@ const AssetAssociation = {
       totalPages: 1,
       perPage: 30,
       hasMore: false
-    }
+    },
+    configuredAssetTypeId: null // Add this to store the configured asset type ID
   },
 
   // Configuration
@@ -39,10 +40,25 @@ const AssetAssociation = {
    */
   async init() {
     console.log('🔧 Initializing Asset Association Module...');
+    await this.loadConfiguredAssetTypeId();
     this.setupEventListeners();
     await this.loadSelectedAssets();
     this.updateAssetCount();
     console.log('✅ Asset Association Module initialized');
+  },
+
+  /**
+   * Load the configured asset type ID from iparams
+   */
+  async loadConfiguredAssetTypeId() {
+    try {
+      const params = await window.client.request.get('iparams');
+      this.state.configuredAssetTypeId = params.inventory_type_id;
+      console.log(`📋 Loaded configured asset type ID: ${this.state.configuredAssetTypeId}`);
+    } catch (error) {
+      console.error('Error loading configured asset type ID:', error);
+      this.state.configuredAssetTypeId = null;
+    }
   },
 
   /**
@@ -245,8 +261,11 @@ const AssetAssociation = {
       // Determine the best field to search based on the search term pattern
       const searchField = this.getSearchField(searchTerm);
       
-      // Use field-specific search format as required by API: field:'searchterm'
-      const fieldQuery = `${searchField}:'${searchTerm}'`;
+      // Build the search query with asset type filter if configured
+      let fieldQuery = `${searchField}:'${searchTerm}'`;
+      if (this.state.configuredAssetTypeId) {
+        fieldQuery = `(${fieldQuery}) AND asset_type_id:${this.state.configuredAssetTypeId}`;
+      }
       
       console.log(`🔍 Searching assets with field query: "${fieldQuery}" (detected field: ${searchField})`);
       console.log(`📡 Will construct URL: /api/v2/assets?search=${fieldQuery}&include=type_fields`);
@@ -283,22 +302,9 @@ const AssetAssociation = {
       return assets.slice(0, this.config.maxResults);
 
     } catch (error) {
-      console.error(`❌ Error searching assets:`, error);
-      
-      // Log the full error response for debugging
-      if (error.response) {
-        try {
-          const errorData = JSON.parse(error.response);
-          console.error(`📄 Full API error response:`, errorData);
-          if (errorData.errors && errorData.errors.length > 0) {
-            console.error(`🔍 API error details:`, errorData.errors[0]);
-          }
-        } catch (parseError) {
-          console.error(`📄 Raw API error response:`, error.response);
-        }
-      }
-      
-      throw error;
+      console.error('Error searching assets:', error);
+      this.showSearchMessage('Error searching assets. Please try again.');
+      return [];
     }
   },
 
