@@ -2031,123 +2031,166 @@ const AssetAssociation = {
     
     if (!servicesList) return;
 
-    // Update total count
-    if (totalCountEl) totalCountEl.textContent = this.state.services.length;
+    try {
+      // Update total count
+      if (totalCountEl) totalCountEl.textContent = this.state.services.length;
 
-    if (this.state.services.length === 0) {
-      servicesList.innerHTML = `
-        <div class="services-empty">
-          <i class="fas fa-inbox"></i>
-          <div class="mt-2">
-            <strong>No services available</strong>
-            <p class="mb-0 text-muted">No services are configured. Visit app configuration to set asset types.</p>
-          </div>
-        </div>
-      `;
-      if (shownCountEl) shownCountEl.textContent = '0';
-      return;
-    }
-
-    // Apply filtering
-    this.filterServices();
-
-    if (this.state.filteredServices.length === 0) {
-      servicesList.innerHTML = `
-        <div class="services-empty">
-          <i class="fas fa-filter"></i>
-          <div class="mt-2">
-            <strong>No services match your filters</strong>
-            <p class="mb-0 text-muted">Try adjusting your search or filter criteria.</p>
-          </div>
-        </div>
-      `;
-      if (shownCountEl) shownCountEl.textContent = '0';
-      return;
-    }
-
-    // Update shown count
-    if (shownCountEl) shownCountEl.textContent = this.state.filteredServices.length;
-
-    // Generate service cards
-    let html = '';
-    this.state.filteredServices.forEach(service => {
-      const isSelected = this.state.selectedServiceIds.has(service.id);
-      const serviceType = this.getServiceType(service);
-      const serviceIcon = this.getServiceIcon(serviceType);
-      
-      html += `
-        <div class="service-item ${isSelected ? 'selected' : ''}" data-service-id="${service.id}">
-          <div class="service-item-header">
-            <div class="service-item-title">
-              ${serviceIcon}
-              ${this.escapeHtml(service.name)}
+      if (this.state.services.length === 0) {
+        servicesList.innerHTML = `
+          <div class="services-empty">
+            <i class="fas fa-inbox"></i>
+            <div class="mt-2">
+              <strong>No services available</strong>
+              <p class="mb-0 text-muted">No services are configured. Visit app configuration to set asset types.</p>
             </div>
-            <span class="service-item-type ${serviceType}">${serviceType}</span>
           </div>
-          
-          ${service.description ? `
-            <div class="service-item-description">
-              ${this.escapeHtml(service.description.substring(0, 150))}${service.description.length > 150 ? '...' : ''}
+        `;
+        if (shownCountEl) shownCountEl.textContent = '0';
+        return;
+      }
+
+      // Apply filtering with error handling
+      try {
+        this.filterServices();
+      } catch (filterError) {
+        console.error('❌ Error filtering services:', filterError);
+        // Fallback to showing all services if filtering fails
+        this.state.filteredServices = [...this.state.services];
+      }
+
+      if (this.state.filteredServices.length === 0) {
+        servicesList.innerHTML = `
+          <div class="services-empty">
+            <i class="fas fa-filter"></i>
+            <div class="mt-2">
+              <strong>No services match your filters</strong>
+              <p class="mb-0 text-muted">Try adjusting your search or filter criteria.</p>
             </div>
-          ` : ''}
+          </div>
+        `;
+        if (shownCountEl) shownCountEl.textContent = '0';
+        return;
+      }
+
+      // Update shown count
+      if (shownCountEl) shownCountEl.textContent = this.state.filteredServices.length;
+
+      // Generate service cards with error handling
+      let html = '';
+      this.state.filteredServices.forEach(service => {
+        try {
+          const isSelected = this.state.selectedServiceIds.has(service.id);
+          const serviceType = this.getServiceType(service);
+          const serviceIcon = this.getServiceIcon(serviceType);
           
-          <div class="service-item-meta">
-            <div class="service-item-details">
-              <div class="service-item-detail">
-                <i class="fas fa-hashtag"></i>
-                ID: ${service.id}
+          html += `
+            <div class="service-item ${isSelected ? 'selected' : ''}" data-service-id="${service.id}">
+              <div class="service-item-header">
+                <div class="service-item-title">
+                  ${serviceIcon}
+                  ${this.escapeHtml(service.name || 'Unnamed Service')}
+                </div>
+                <span class="service-item-type ${serviceType}">${serviceType}</span>
               </div>
-              ${service.original_asset ? `
-                <div class="service-item-detail">
-                  <i class="fas fa-layer-group"></i>
-                  Asset-based
+              
+              ${service.description ? `
+                <div class="service-item-description">
+                  ${this.escapeHtml(service.description.toString().substring(0, 150))}${service.description.toString().length > 150 ? '...' : ''}
                 </div>
               ` : ''}
-              <div class="service-item-detail">
-                <i class="fas fa-clock"></i>
-                ${this.formatRelativeTime(service.updated_at)}
+              
+              <div class="service-item-meta">
+                <div class="service-item-details">
+                  <div class="service-item-detail">
+                    <i class="fas fa-hashtag"></i>
+                    ID: ${service.id}
+                  </div>
+                  ${service.original_asset ? `
+                    <div class="service-item-detail">
+                      <i class="fas fa-layer-group"></i>
+                      Asset-based
+                    </div>
+                  ` : ''}
+                  <div class="service-item-detail">
+                    <i class="fas fa-clock"></i>
+                    ${this.formatRelativeTime(service.updated_at)}
+                  </div>
+                </div>
+                <div class="service-quick-actions">
+                  <button class="service-quick-action" title="Quick add" onclick="window.AssetAssociation.quickAddService(${service.id})">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
               </div>
+              
+              <input type="checkbox" class="service-item-checkbox" ${isSelected ? 'checked' : ''} 
+                     onchange="window.AssetAssociation.toggleServiceSelection(${service.id}, this.checked)">
             </div>
-            <div class="service-quick-actions">
-              <button class="service-quick-action" title="Quick add" onclick="window.AssetAssociation.quickAddService(${service.id})">
-                <i class="fas fa-plus"></i>
-              </button>
-            </div>
+          `;
+        } catch (serviceError) {
+          console.error('❌ Error rendering service:', service, serviceError);
+          // Skip this service and continue with others
+        }
+      });
+
+      servicesList.innerHTML = html;
+      console.log(`✅ Populated services display with ${this.state.filteredServices.length} services`);
+      
+    } catch (error) {
+      console.error('❌ Error in populateServicesDisplay:', error);
+      // Show error state
+      servicesList.innerHTML = `
+        <div class="services-error">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div class="mt-2">
+            <strong>Error Loading Services</strong>
+            <p class="mb-0">Failed to display services. Please try refreshing.</p>
           </div>
-          
-          <input type="checkbox" class="service-item-checkbox" ${isSelected ? 'checked' : ''} 
-                 onchange="window.AssetAssociation.toggleServiceSelection(${service.id}, this.checked)">
         </div>
       `;
-    });
-
-    servicesList.innerHTML = html;
-    console.log(`✅ Populated services display with ${this.state.filteredServices.length} services`);
+    }
   },
 
   /**
    * Filter services based on search term and type filter
    */
   filterServices() {
-    let filtered = [...this.state.services];
+    try {
+      let filtered = [...this.state.services];
 
-    // Apply search filter
-    if (this.state.serviceSearchTerm) {
-      const searchTerm = this.state.serviceSearchTerm.toLowerCase();
-      filtered = filtered.filter(service => 
-        service.name.toLowerCase().includes(searchTerm) ||
-        (service.description && service.description.toLowerCase().includes(searchTerm))
-      );
+      // Apply search filter
+      if (this.state.serviceSearchTerm) {
+        const searchTerm = this.state.serviceSearchTerm.toLowerCase();
+        filtered = filtered.filter(service => {
+          try {
+            const name = (service.name || '').toString().toLowerCase();
+            const description = (service.description || '').toString().toLowerCase();
+            return name.includes(searchTerm) || description.includes(searchTerm);
+          } catch (error) {
+            console.warn('Error filtering service:', service, error);
+            return false; // Exclude services that can't be filtered
+          }
+        });
+      }
+
+      // Apply type filter
+      if (this.state.serviceTypeFilter) {
+        filtered = filtered.filter(service => {
+          try {
+            return this.getServiceType(service) === this.state.serviceTypeFilter;
+          } catch (error) {
+            console.warn('Error determining service type for filtering:', service, error);
+            return false; // Exclude services that can't be typed
+          }
+        });
+      }
+
+      this.state.filteredServices = filtered;
+    } catch (error) {
+      console.error('❌ Error in filterServices:', error);
+      // Fallback to all services if filtering fails
+      this.state.filteredServices = [...this.state.services];
     }
-
-    // Apply type filter
-    if (this.state.serviceTypeFilter) {
-      filtered = filtered.filter(service => 
-        this.getServiceType(service) === this.state.serviceTypeFilter
-      );
-    }
-
-    this.state.filteredServices = filtered;
   },
 
   /**
@@ -2156,9 +2199,9 @@ const AssetAssociation = {
    * @returns {string} - Service type
    */
   getServiceType(service) {
-    const name = (service.name || '').toLowerCase();
-    const description = (service.description || '').toLowerCase();
-    const category = (service.service_category || service.category || '').toLowerCase();
+    const name = (service.name || '').toString().toLowerCase();
+    const description = (service.description || '').toString().toLowerCase();
+    const category = ((service.service_category || service.category || '')).toString().toLowerCase();
 
     // Check for software services
     if (name.includes('software') || name.includes('application') || name.includes('app') ||
