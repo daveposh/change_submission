@@ -28,14 +28,14 @@ const ChangeSubmission = {
       urgent: 4
     },
     
-    // Change request statuses
+    // Change request statuses (Freshservice API v2 values)
     statuses: {
-      open: 2,
-      planning: 3,
-      approval: 4,
-      pending_release: 5,
-      pending_review: 6,
-      closed: 7
+      open: 1,
+      planning: 2,
+      approval: 3,
+      pending_release: 4,
+      pending_review: 5,
+      closed: 6
     },
     
     // Risk level mappings
@@ -309,36 +309,69 @@ const ChangeSubmission = {
       priority = this.config.priorities.high;
     }
 
+    // Map change type to Freshservice values
+    const changeTypeMapping = {
+      'minor': 1,
+      'major': 3,
+      'normal': 2,
+      'emergency': 4
+    };
+    const change_type = changeTypeMapping[data.changeType] || 2; // default to normal
+
+    // Map risk level to Freshservice values
+    const riskMapping = {
+      'Low': 1,
+      'Medium': 2,
+      'High': 3
+    };
+    const risk = riskMapping[data.riskAssessment?.riskLevel] || 2; // default to medium
+
+    // Map impact (assuming medium impact for now, can be enhanced later)
+    const impact = 2; // Medium impact
+
     // Prepare asset associations
     const assetIds = data.selectedAssets?.map(asset => asset.id) || [];
 
-    // Prepare custom fields for additional data
-    const customFields = {
-      risk_level: data.riskAssessment?.riskLevel || 'Medium',
-      risk_score: data.riskAssessment?.totalScore || 0,
-      associated_asset_ids: assetIds.join(','),
-      approver_count: impactedData.approvers?.length || 0,
-      stakeholder_count: impactedData.stakeholders?.length || 0,
-      change_category: data.changeType || 'normal'
-    };
+    // Format description with all relevant details
+    const description = this.formatChangeDescription(data, impactedData);
 
+    // Prepare the change request data according to Freshservice API v2 format
     const changeRequestData = {
       subject: data.changeTitle,
-      description: this.formatChangeDescription(data, impactedData),
-      change_type: this.mapChangeType(data.changeType),
+      description: description,
+      change_type: change_type,
       priority: priority,
-      status: this.config.statuses.open,
+      status: this.config.statuses.open, // Open status
+      risk: risk,
+      impact: impact,
       requester_id: data.selectedRequester.id,
-      agent_id: data.selectedAgent.id,
+      owner_id: data.selectedAgent.id,
       planned_start_date: data.plannedStart,
       planned_end_date: data.plannedEnd,
-      custom_fields: customFields,
-      assets: assetIds
+      custom_fields: {
+        risk_level: data.riskAssessment?.riskLevel || 'Medium',
+        risk_score: data.riskAssessment?.totalScore || 0,
+        associated_asset_ids: assetIds.join(','),
+        approver_count: impactedData.approvers?.length || 0,
+        stakeholder_count: impactedData.stakeholders?.length || 0,
+        change_category: data.changeType || 'normal',
+        implementation_plan: data.implementationPlan,
+        backout_plan: data.backoutPlan,
+        validation_plan: data.validationPlan || 'Not specified'
+      }
     };
+
+    // Add assets if any are selected
+    if (assetIds.length > 0) {
+      changeRequestData.assets = assetIds.map(id => ({ display_id: id }));
+    }
 
     console.log('✅ Change request data prepared:', {
       subject: changeRequestData.subject,
+      change_type: changeRequestData.change_type,
       priority: changeRequestData.priority,
+      risk: changeRequestData.risk,
+      impact: changeRequestData.impact,
       assetCount: assetIds.length,
       approverCount: impactedData.approvers?.length || 0
     });
@@ -409,23 +442,11 @@ const ChangeSubmission = {
   },
 
   /**
-   * Map change type to Freshservice values
-   */
-  mapChangeType(changeType) {
-    const typeMapping = {
-      'minor': 1,
-      'major': 2,
-      'normal': 3,
-      'emergency': 4
-    };
-    return typeMapping[changeType] || typeMapping['normal'];
-  },
-
-  /**
    * Create the change request in Freshservice
    */
   async createChangeRequest(changeRequestData) {
     console.log('🎯 Creating change request in Freshservice...');
+    console.log('📦 Change request data being sent:', changeRequestData);
 
     try {
       const response = await window.client.request.invokeTemplate('createChangeRequest', {
@@ -434,13 +455,38 @@ const ChangeSubmission = {
         cache: false
       });
 
-      if (!response || !response.response) {
-        throw new Error('No response received from change request creation');
+      console.log('📡 Raw API response:', response);
+
+      if (!response) {
+        throw new Error('No response received from Freshservice API');
       }
 
-      const data = JSON.parse(response.response);
+      if (!response.response) {
+        console.error('❌ Response object missing response property:', response);
+        throw new Error(`API call failed - Response status: ${response.status || 'unknown'}, Headers: ${JSON.stringify(response.headers || {})}`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(response.response);
+        console.log('📋 Parsed response data:', data);
+      } catch (parseError) {
+        console.error('❌ Failed to parse response JSON:', response.response);
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+
       if (!data.change) {
-        throw new Error('Invalid response format from change request creation');
+        console.error('❌ Response missing change object:', data);
+        
+        // Check for error messages in the response
+        if (data.errors) {
+          const errorMessages = Array.isArray(data.errors) 
+            ? data.errors.map(err => err.message || err).join(', ')
+            : JSON.stringify(data.errors);
+          throw new Error(`API validation errors: ${errorMessages}`);
+        }
+        
+        throw new Error(`Invalid response format - expected 'change' object but got: ${JSON.stringify(data)}`);
       }
 
       const changeRequest = data.change;
@@ -450,7 +496,21 @@ const ChangeSubmission = {
 
     } catch (error) {
       console.error('❌ Error creating change request:', error);
-      throw new Error(`Failed to create change request: ${error.message}`);
+      
+      // Provide more detailed error information
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.status) {
+        errorMessage = `HTTP ${error.status}: ${error.statusText || 'API request failed'}`;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        errorMessage = `Unexpected error type: ${JSON.stringify(error)}`;
+      }
+      
+      throw new Error(`Failed to create change request: ${errorMessage}`);
     }
   },
 
