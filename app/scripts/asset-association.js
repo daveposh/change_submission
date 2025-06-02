@@ -196,15 +196,26 @@ const AssetAssociation = {
             name: serviceData.name,
             description: serviceData.description || '',
             display_name: serviceData.name,
-            asset_type_id: null, // Services don't have asset types
+            asset_type_id: serviceData.category || null, // Use category as asset type
+            location_id: null, // Services don't have physical locations
+            agent_id: null, // Services don't have direct managed by
+            user_id: null,
+            asset_tag: 'SERVICE', // Mark as service
+            serial_number: null,
+            impact: 'unknown', // Default impact for services
+            environment: 'N/A', // Services don't have environments like assets
             type_fields: {
-              service_category_6000417768: serviceData.category || ''
+              service_category: serviceData.category || 'General',
+              service_visibility: serviceData.visibility || 1,
+              service_type: 'Service',
+              description: serviceData.description || ''
             },
             created_at: serviceData.created_at,
             updated_at: serviceData.updated_at,
             // Mark as service for special handling
             is_service: true,
-            service_visibility: serviceData.visibility
+            service_visibility: serviceData.visibility,
+            service_category: serviceData.category
           };
           
           // Check if already selected
@@ -625,6 +636,11 @@ const AssetAssociation = {
    */
   async getManagedByInfo(asset) {
     try {
+      // Handle services specially - they don't have managed by in the same way
+      if (asset && asset.is_service) {
+        return 'Service (No Owner)';
+      }
+      
       // First check agent_id - this is the primary managed by field in Freshservice assets
       if (asset.agent_id) {
         const numericId = parseInt(asset.agent_id);
@@ -783,6 +799,18 @@ const AssetAssociation = {
    */
   getEnvironmentInfo(asset) {
     try {
+      // Handle services specially - they might have different environment handling
+      if (asset && asset.is_service) {
+        const serviceVisibility = asset.service_visibility || asset.type_fields?.service_visibility;
+        if (serviceVisibility === 1) {
+          return 'Public Service';
+        } else if (serviceVisibility === 2) {
+          return 'Private Service';
+        } else {
+          return 'Service';
+        }
+      }
+      
       // First try to get from type_fields
       const environmentField = this.getAssetTypeField(asset, 'environment');
       if (environmentField && environmentField !== 'N/A') {
@@ -851,7 +879,7 @@ const AssetAssociation = {
       const managedBy = await this.getManagedByInfo(asset);
       
       const locationId = asset.location_id;
-      const location = await this.getLocationName(locationId);
+      const location = await this.getLocationName(locationId, asset);
       const assetTag = asset.asset_tag || 'N/A';
       const serialNumber = this.getSerialNumber(asset);
       const impact = asset.impact || 'unknown';
@@ -1081,7 +1109,7 @@ const AssetAssociation = {
       const managedBy = await this.getManagedByInfo(asset);
       
       const locationId = asset.location_id;
-      const location = await this.getLocationName(locationId);
+      const location = await this.getLocationName(locationId, asset);
       const assetTag = asset.asset_tag || 'N/A';
       const serialNumber = this.getSerialNumber(asset);
       const impact = asset.impact || 'unknown';
@@ -1460,9 +1488,16 @@ const AssetAssociation = {
   /**
    * Get asset type name using the global function from main app
    * @param {number} assetTypeId - Asset type ID
+   * @param {Object} asset - Asset object (optional, for service handling)
    * @returns {Promise<string>} - Asset type name
    */
-  async getAssetTypeName(assetTypeId) {
+  async getAssetTypeName(assetTypeId, asset = null) {
+    // Handle services specially
+    if (asset && asset.is_service) {
+      const serviceCategory = asset.service_category || asset.type_fields?.service_category || 'General';
+      return `Service (${serviceCategory})`;
+    }
+    
     if (!assetTypeId) return 'N/A';
     
     try {
@@ -1488,9 +1523,15 @@ const AssetAssociation = {
   /**
    * Get location name using the global function from main app
    * @param {number} locationId - Location ID
+   * @param {Object} asset - Asset object (optional, for service handling)
    * @returns {Promise<string>} - Location name
    */
-  async getLocationName(locationId) {
+  async getLocationName(locationId, asset = null) {
+    // Handle services specially - they don't have physical locations
+    if (asset && asset.is_service) {
+      return 'Virtual/Cloud Service';
+    }
+    
     if (!locationId) return 'N/A';
     
     try {
@@ -1768,6 +1809,11 @@ const AssetAssociation = {
    */
   getSerialNumber(asset) {
     try {
+      // Handle services specially - they don't have serial numbers
+      if (asset && asset.is_service) {
+        return 'Service ID: ' + asset.id;
+      }
+      
       // First check direct property
       if (asset.serial_number && asset.serial_number !== '') {
         return asset.serial_number;
