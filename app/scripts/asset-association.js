@@ -96,12 +96,18 @@ const AssetAssociation = {
       // Get services from cache manager (will load from API if needed)
       const cachedServices = await window.CacheManager.getCachedServices();
       
-      if (cachedServices.length === 0) {
+      if (!cachedServices || cachedServices.length === 0) {
         console.log('🔄 No cached services, loading from API...');
         this.state.services = await window.CacheManager.loadServicesFromAssets();
       } else {
         console.log(`✅ Using cached services: ${cachedServices.length} services`);
         this.state.services = cachedServices;
+      }
+
+      // Ensure services is always an array
+      if (!Array.isArray(this.state.services)) {
+        console.warn('⚠️ Services result was not an array, defaulting to empty array');
+        this.state.services = [];
       }
 
       this.state.servicesLoaded = true;

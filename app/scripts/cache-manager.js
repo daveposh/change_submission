@@ -646,8 +646,6 @@ const CacheManager = {
   async getLocationName(locationId) {
     if (!locationId) return 'Unknown';
     
-    console.log(`🔍 Looking up location name for ID: ${locationId}`);
-    
     try {
       // Check cache first
       const cachedLocations = await this.getCachedLocations();
@@ -655,11 +653,8 @@ const CacheManager = {
       // If location is in cache and not expired, use it
       if (cachedLocations[locationId] && 
           cachedLocations[locationId].timestamp > Date.now() - this.CACHE_TIMEOUT) {
-        console.log(`✅ Using cached location: '${cachedLocations[locationId].name}' for ID ${locationId}`);
         return cachedLocations[locationId].name;
       }
-      
-      console.log(`🔄 Location ${locationId} not in cache or expired, trying individual lookup...`);
       
       // Try individual location lookup first
       try {
@@ -673,7 +668,6 @@ const CacheManager = {
           if (response && response.response) {
             const data = JSON.parse(response.response);
             if (data.location && data.location.name) {
-              console.log(`✅ Found location via individual lookup: '${data.location.name}'`);
               
               // Cache this individual result
               cachedLocations[locationId] = {
@@ -690,10 +684,9 @@ const CacheManager = {
           }
         }
       } catch (individualError) {
-        console.log(`⚠️ Individual location lookup failed: ${individualError.message}`);
+        // Silent fallback
       }
       
-      console.log(`❌ Location ${locationId} not found, falling back to display ID`);
       return `Location ${locationId}`;
       
     } catch (error) {
@@ -961,13 +954,10 @@ const CacheManager = {
         return 'Unknown';
       }
 
-      console.log(`🔍 Resolving user ID ${userId} (checking both requesters and agents)...`);
-
       // Use the global getUserName function if available (this checks both requesters and agents)
       if (typeof window.getUserName === 'function') {
         const userName = await window.getUserName(userId);
         if (userName && userName !== 'N/A' && userName !== 'Unknown') {
-          console.log(`✅ Resolved user ID ${userId} to: '${userName}'`);
           return userName;
         }
       }
@@ -976,43 +966,32 @@ const CacheManager = {
       if (typeof getUserName === 'function') {
         const userName = await getUserName(userId);
         if (userName && userName !== 'N/A' && userName !== 'Unknown') {
-          console.log(`✅ Resolved user ID ${userId} to: '${userName}' (fallback)`);
           return userName;
         }
       }
 
       // If global functions aren't available, try direct cache access
       if (window.client && window.client.db) {
-        console.log(`🔄 Trying direct cache access for user ID ${userId}...`);
-        
         try {
           // Check user cache (which should contain both requesters and agents)
           const userCache = await window.client.db.get('user_cache') || {};
           
           if (userCache[userId]) {
             const cachedUser = userCache[userId];
-            console.log(`   ✅ Agent ${userId} found in cache:`);
-            console.log(`      Name: '${cachedUser.name}'`);
-            console.log(`      Type: ${cachedUser.type || 'unknown'}`);
-            console.log(`      Timestamp: ${new Date(cachedUser.timestamp).toLocaleString()}`);
             
             if (cachedUser.type === 'agent' || cachedUser.type === 'both') {
-              console.log('   🎯 This is an agent - perfect for managed by resolution!');
-            } else if (cachedUser.type === 'requester') {
-              console.log('   ⚠️ This is marked as requester, but managed by should be an agent');
+              // Prefer agents for managed by resolution
             }
             
-            return cachedUser;
+            return cachedUser.name;
           }
           
-          console.log(`⚠️ User ID ${userId} not found in cache`);
         } catch (cacheError) {
-          console.warn(`⚠️ Error accessing user cache for ID ${userId}:`, cacheError);
+          // Silent fallback
         }
       }
 
       // Try as requester (fallback)
-      console.log(`🔄 Falling back to general user resolution for ${userId}...`);
       try {
         const requesterResponse = await window.client.request.invokeTemplate('getRequesterDetails', {
           context: { requester_id: userId },
@@ -1025,7 +1004,6 @@ const CacheManager = {
           if (data && data.requester) {
             const user = data.requester;
             const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unknown';
-            console.log(`✅ Found user via requester API: '${userName}'`);
             
             // Cache this user for future use
             const userCache = await window.client.db.get('user_cache') || {};
@@ -1041,11 +1019,10 @@ const CacheManager = {
           }
         }
       } catch (requesterError) {
-        console.log(`⚠️ Error in requester API lookup: ${requesterError.message}`);
+        // Silent fallback
       }
 
       // If user resolution functions are not available, return with ID
-      console.log(`⚠️ Could not resolve user ID ${userId} - user functions not available`);
       return `User ID: ${userId}`;
       
     } catch (error) {
@@ -1065,12 +1042,8 @@ const CacheManager = {
         return 'Unknown';
       }
 
-      console.log(`🔍 Resolving agent ID ${agentId} (agent-specific lookup)...`);
-
       // First try direct cache access for agents
       if (window.client && window.client.db) {
-        console.log(`🔄 Checking agent cache for ID ${agentId}...`);
-        
         try {
           // Check user cache for agents specifically
           const userCache = await window.client.db.get('user_cache') || {};
@@ -1080,22 +1053,18 @@ const CacheManager = {
             if (cachedUser.name && cachedUser.name !== 'Unknown') {
               // Prefer agents over requesters for managed by
               if (cachedUser.type === 'agent' || cachedUser.type === 'both') {
-                console.log(`✅ Found agent ID ${agentId} in cache: '${cachedUser.name}' (${cachedUser.type})`);
                 return cachedUser.name;
               }
             }
           }
           
-          console.log(`⚠️ Agent ID ${agentId} not found in cache`);
         } catch (cacheError) {
-          console.warn(`⚠️ Error accessing agent cache for ID ${agentId}:`, cacheError);
+          // Silent fallback
         }
       }
 
       // Try direct API lookup as agent (primary method)
       if (window.client && window.client.request && window.client.request.invokeTemplate) {
-        console.log(`📡 Trying direct agent API lookup for ID ${agentId}...`);
-        
         try {
           const response = await window.client.request.invokeTemplate('getAgents', {
             path_suffix: `/${agentId}`,
@@ -1108,7 +1077,6 @@ const CacheManager = {
             if (data && data.agent) {
               const agent = data.agent;
               const agentName = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || 'Unknown';
-              console.log(`✅ Found agent via API: '${agentName}'`);
               
               // Cache this agent for future use
               const userCache = await window.client.db.get('user_cache') || {};
@@ -1124,19 +1092,17 @@ const CacheManager = {
             }
           }
         } catch (apiError) {
-          console.log(`⚠️ Error in direct agent API lookup: ${apiError.message}`);
+          // Silent fallback
         }
       }
 
       // Fallback to general user resolution
-      console.log(`🔄 Falling back to general user resolution for ${agentId}...`);
       const userName = await this.resolveUserName(agentId);
       if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
         return userName;
       }
 
       // If all resolution failed, return with ID
-      console.log(`⚠️ Could not resolve agent ID ${agentId}`);
       return `Agent ID: ${agentId}`;
       
     } catch (error) {
@@ -1157,10 +1123,8 @@ const CacheManager = {
       if (asset.agent_id) {
         const numericId = parseInt(asset.agent_id);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving agent_id (managed by): ${numericId} (agent lookup)`);
           const agentName = await this.resolveAgentName(numericId);
           if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
-            console.log(`✅ agent_id ${numericId} resolved to agent: '${agentName}'`);
             return agentName;
           }
         }
@@ -1173,10 +1137,8 @@ const CacheManager = {
       if (managedByField && managedByField !== 'N/A') {
         const numericId = parseInt(managedByField);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving managed_by from type_fields: ${numericId} (agent lookup)`);
           const agentName = await this.resolveAgentName(numericId);
           if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
-            console.log(`✅ managed_by ${numericId} resolved to agent: '${agentName}'`);
             return agentName;
           }
         }
@@ -1192,10 +1154,8 @@ const CacheManager = {
       if (asset.managed_by) {
         const numericId = parseInt(asset.managed_by);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving direct managed_by: ${numericId} (agent lookup)`);
           const agentName = await this.resolveAgentName(numericId);
           if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
-            console.log(`✅ direct managed_by ${numericId} resolved to agent: '${agentName}'`);
             return agentName;
           }
         }
@@ -1207,7 +1167,6 @@ const CacheManager = {
       if (asset.user_id) {
         const numericId = parseInt(asset.user_id);
         if (!isNaN(numericId) && numericId > 0) {
-          console.log(`🔍 Resolving user_id (alternative managed by): ${numericId} (agent lookup)`);
           const agentName = await this.resolveAgentName(numericId);
           if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
             return agentName;
@@ -1223,10 +1182,8 @@ const CacheManager = {
         if (value && value !== 'N/A') {
           const numericId = parseInt(value);
           if (!isNaN(numericId) && numericId > 0) {
-            console.log(`🔍 Resolving ${fieldName}: ${numericId} (agent lookup)`);
             const agentName = await this.resolveAgentName(numericId);
             if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
-              console.log(`✅ ${fieldName} ${numericId} resolved to agent: '${agentName}'`);
               return agentName;
             }
           }
