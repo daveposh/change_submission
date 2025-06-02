@@ -141,6 +141,99 @@
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
+    },
+    "options": {
+      "isOAuth": false
+    }
+  },
+  "createChangeRequest": {
+    "schema": {
+      "method": "POST",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/changes",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
+    }
+  },
+  "updateChangeRequest": {
+    "schema": {
+      "method": "PUT",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/changes/<%= context.change_id %>",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
+    }
+  },
+  "createApprovalWorkflow": {
+    "schema": {
+      "method": "POST",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/changes/<%= context.change_id %>/approvals",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
+    }
+  },
+  "sendEmail": {
+    "schema": {
+      "method": "POST",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/email",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
+    }
+  },
+  "createTask": {
+    "schema": {
+      "method": "POST",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/tickets",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
+    }
+  },
+  "createTicket": {
+    "schema": {
+      "method": "POST",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/tickets",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
     }
   },
   "getAssetsByType": {

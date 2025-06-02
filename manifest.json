@@ -21,7 +21,13 @@
         "getLocations": {},
         "getLocation": {},
         "getAssetTypes": {},
-        "createChange": {}
+        "createChange": {},
+        "createChangeRequest": {},
+        "updateChangeRequest": {},
+        "createApprovalWorkflow": {},
+        "sendEmail": {},
+        "createTask": {},
+        "createTicket": {}
       },
       "storage": {
         "data_storage": {

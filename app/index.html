@@ -605,7 +605,7 @@
               </button>
               <div>
                 <button id="calculate-risk" class="btn btn-secondary me-2" onclick="calculateRisk()">Calculate Risk</button>
-                <button id="submit-change" class="btn btn-primary" onclick="validateRiskAndNext()">Submit Change Request</button>
+                <button id="submit-change-btn" class="btn btn-primary" onclick="validateRiskAndNext()">Submit Change Request</button>
               </div>
             </div>
           </div>
@@ -630,10 +630,22 @@
           </div>
         </div>
       </div>
+
+      <!-- Submission Status -->
+      <div id="submission-status" class="alert alert-info" style="display: none;">
+        <div class="d-flex align-items-center">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+          <span>Submitting change request...</span>
+        </div>
+      </div>
+
+      <!-- Submission Summary -->
+      <div id="submission-summary"></div>
     </div>
   </body>
   <script src="scripts/cache-manager.js"></script>
   <script src="scripts/asset-association.js"></script>
   <script src="scripts/impacted-services.js"></script>
+  <script src="scripts/change-submission.js"></script>
   <script src="scripts/app.js"></script>
 </html>

@@ -4729,7 +4729,7 @@ function hideRiskResult() {
 }
 
 /**
- * Validate risk assessment and proceed to next step
+ * Validate risk assessment and proceed to submission
  */
 function validateRiskAndNext() {
   console.log('🔍 Validating risk assessment...');
@@ -4742,10 +4742,67 @@ function validateRiskAndNext() {
   
   console.log('✅ Risk assessment validation passed');
   
-  // Show submission summary
-  showSubmissionSummary();
+  // Prepare consolidated change request data for submission
+  prepareChangeRequestDataForSubmission();
+  
+  // Use the change submission module to handle the submission
+  if (window.ChangeSubmission) {
+    window.ChangeSubmission.handleSubmission();
+  } else {
+    console.error('❌ Change Submission module not available');
+    showNotification('error', 'Change submission module not loaded. Please refresh the page.');
+  }
   
   return true;
+}
+
+/**
+ * Prepare consolidated change request data for submission
+ */
+function prepareChangeRequestDataForSubmission() {
+  console.log('📦 Preparing consolidated change request data...');
+  
+  // Ensure we have the latest form data
+  if (!window.formData) {
+    window.formData = {};
+  }
+  
+  // Collect all form data
+  const changeTitle = document.getElementById('change-title')?.value?.trim() || '';
+  const reasonForChange = document.getElementById('reason-for-change')?.value?.trim() || '';
+  const implementationPlan = document.getElementById('implementation-plan')?.value?.trim() || '';
+  const backoutPlan = document.getElementById('backout-plan')?.value?.trim() || '';
+  const validationPlan = document.getElementById('validation-plan')?.value?.trim() || '';
+  const plannedStart = document.getElementById('planned-start')?.value || '';
+  const plannedEnd = document.getElementById('planned-end')?.value || '';
+  const changeType = document.getElementById('change-type')?.value || 'normal';
+  
+  // Get selected assets
+  const selectedAssets = window.AssetAssociation ? window.AssetAssociation.getSelectedAssets() : [];
+  
+  // Create consolidated data object
+  window.changeRequestData = {
+    changeTitle,
+    reasonForChange,
+    implementationPlan,
+    backoutPlan,
+    validationPlan,
+    plannedStart,
+    plannedEnd,
+    changeType,
+    selectedRequester: window.formData.requester || null,
+    selectedAgent: window.formData.agent || null,
+    riskAssessment: window.formData.riskAssessment || null,
+    selectedAssets: selectedAssets
+  };
+  
+  console.log('✅ Change request data prepared:', {
+    title: changeTitle,
+    requester: window.formData.requester?.name || 'Not selected',
+    agent: window.formData.agent?.name || 'Not selected',
+    riskLevel: window.formData.riskAssessment?.riskLevel || 'Not assessed',
+    assetCount: selectedAssets.length
+  });
 }
 
 /**
@@ -5640,6 +5697,14 @@ async function initializeAppWithProgress() {
     
     // Initialize Impacted Services module - removed from here as it should initialize when tab is shown
     // The module will be initialized when the impacted services tab is first accessed
+    
+    // Initialize Change Submission module
+    if (window.ChangeSubmission) {
+      window.ChangeSubmission.init();
+      console.log('✅ Change Submission module initialized');
+    } else {
+      console.warn('⚠️ Change Submission module not available');
+    }
     
     // Setup form components
     populateFormFields();
