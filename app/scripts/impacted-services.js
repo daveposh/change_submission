@@ -110,13 +110,152 @@ const ImpactedServices = {
       return;
     }
 
+    const resultsContainer = document.getElementById(`${type}-results`);
+    if (!resultsContainer) return;
+
+    // Show loading indicator
+    resultsContainer.innerHTML = `
+      <div class="list-group-item">
+        <div class="d-flex align-items-center">
+          <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+          <span>Searching users...</span>
+        </div>
+      </div>
+    `;
+
     try {
-      const results = await searchUsers(searchTerm);
+      // Use the global user search functionality
+      const results = await this.searchUsers(searchTerm);
       this.displayUserSearchResults(results, type);
     } catch (error) {
       console.error(`Error searching ${type}s:`, error);
-      this.showNotification('danger', `Error searching ${type}s: ${error.message}`);
+      resultsContainer.innerHTML = `
+        <div class="list-group-item text-danger">
+          <i class="fas fa-exclamation-triangle me-2"></i>Error searching users: ${error.message}
+        </div>
+      `;
     }
+  },
+
+  /**
+   * Search for users using the global search functionality
+   * @param {string} searchTerm - Search term
+   * @returns {Promise<Array>} - Array of user objects
+   */
+  async searchUsers(searchTerm) {
+    return new Promise((resolve, reject) => {
+      if (!window.client || !window.client.request) {
+        reject(new Error('API client not available'));
+        return;
+      }
+
+      let allResults = [];
+      let requestersLoaded = false;
+      let agentsLoaded = false;
+
+      // Function to check if both searches are complete
+      const checkComplete = () => {
+        if (requestersLoaded && agentsLoaded) {
+          // Remove duplicates based on email
+          const uniqueResults = [];
+          const seenEmails = new Set();
+          
+          allResults.forEach(user => {
+            if (!seenEmails.has(user.email)) {
+              seenEmails.add(user.email);
+              uniqueResults.push({
+                id: user.id,
+                name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+                email: user.email,
+                department: user.department_names ? user.department_names.join(', ') : 'N/A',
+                role: user.role || (user._isAgent ? 'Agent' : 'Requester'),
+                userDetails: user
+              });
+            }
+          });
+
+          resolve(uniqueResults);
+        }
+      };
+
+      // Search requesters
+      const userQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+      const requestUrl = `?query=${userQuery}&page=1&per_page=30`;
+
+      // Search in requesters
+      window.client.request.invokeTemplate("getRequesters", {
+        path_suffix: requestUrl,
+        cache: true,
+        ttl: 300000
+      })
+      .then(function(data) {
+        try {
+          if (data && data.response) {
+            const response = JSON.parse(data.response);
+            const requesters = response.requesters || [];
+            
+            // Filter results manually for better accuracy
+            const filteredRequesters = requesters.filter(user => {
+              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
+              const email = (user.email || '').toLowerCase();
+              const term = searchTerm.toLowerCase();
+              return fullName.includes(term) || email.includes(term);
+            });
+
+            allResults = [...allResults, ...filteredRequesters];
+          }
+        } catch (error) {
+          console.warn('Error parsing requesters response:', error);
+        }
+        requestersLoaded = true;
+        checkComplete();
+      })
+      .catch(function(error) {
+        console.warn('Requesters search failed:', error);
+        requestersLoaded = true;
+        checkComplete();
+      });
+
+      // Search in agents
+      window.client.request.invokeTemplate("getAgents", {
+        path_suffix: requestUrl,
+        cache: true,
+        ttl: 300000
+      })
+      .then(function(data) {
+        try {
+          if (data && data.response) {
+            const response = JSON.parse(data.response);
+            const agents = response.agents || [];
+            
+            // Filter results manually for better accuracy
+            const filteredAgents = agents.filter(user => {
+              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
+              const email = (user.email || '').toLowerCase();
+              const term = searchTerm.toLowerCase();
+              return fullName.includes(term) || email.includes(term);
+            });
+
+            // Mark as agents
+            const agentsWithFlag = filteredAgents.map(agent => ({
+              ...agent,
+              _isAgent: true
+            }));
+
+            allResults = [...allResults, ...agentsWithFlag];
+          }
+        } catch (error) {
+          console.warn('Error parsing agents response:', error);
+        }
+        agentsLoaded = true;
+        checkComplete();
+      })
+      .catch(function(error) {
+        console.warn('Agents search failed:', error);
+        agentsLoaded = true;
+        checkComplete();
+      });
+    });
   },
 
   /**
