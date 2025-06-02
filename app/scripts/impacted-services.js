@@ -148,34 +148,40 @@ const ImpactedServices = {
       return;
     }
 
-    // Check current state by looking at computed style instead of inline style
-    const computedStyle = window.getComputedStyle(container);
-    const isCurrentlyHidden = computedStyle.display === 'none' || container.style.display === 'none';
+    // Check current state using both inline style and button state
+    const isCurrentlyVisible = container.style.display === 'block' && 
+                              button && 
+                              button.getAttribute('data-search-open') === 'true';
     
-    if (isCurrentlyHidden) {
+    if (!isCurrentlyVisible) {
       console.log(`📝 Opening ${type} search`);
       
       // Show the search container
       container.style.display = 'block';
       container.style.visibility = 'visible';
       
-      // Focus the input after a small delay to ensure it's visible
+      // Update button state immediately to prevent rapid clicks
+      if (button) {
+        button.innerHTML = `<i class="fas fa-times me-1"></i>Cancel Search`;
+        button.classList.remove('btn-outline-success', 'btn-outline-primary');
+        button.classList.add('btn-outline-secondary');
+        button.setAttribute('data-search-open', 'true');
+        
+        // Disable button briefly to prevent rapid clicking
+        button.disabled = true;
+        setTimeout(() => {
+          button.disabled = false;
+        }, 200);
+      }
+      
+      // Focus the input after ensuring visibility
       setTimeout(() => {
         if (input && container.style.display === 'block') {
           input.focus();
           console.log(`✅ Search input focused for ${type}`);
         }
-      }, 100);
+      }, 150);
       
-      // Update button text and style
-      if (button) {
-        button.innerHTML = `<i class="fas fa-times me-1"></i>Cancel Search`;
-        button.classList.remove('btn-outline-success', 'btn-outline-primary');
-        button.classList.add('btn-outline-secondary');
-        
-        // Add a data attribute to track state
-        button.setAttribute('data-search-open', 'true');
-      }
     } else {
       console.log(`📝 Closing ${type} search`);
       
@@ -189,7 +195,7 @@ const ImpactedServices = {
         resultsContainer.innerHTML = '';
       }
       
-      // Reset button text and style
+      // Reset button state
       if (button) {
         const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
         button.innerHTML = `<i class="fas fa-plus me-1"></i>Add ${capitalizedType}`;
@@ -199,9 +205,13 @@ const ImpactedServices = {
         } else {
           button.classList.add('btn-outline-primary');
         }
-        
-        // Remove the state tracking attribute
         button.removeAttribute('data-search-open');
+        
+        // Disable button briefly to prevent rapid clicking
+        button.disabled = true;
+        setTimeout(() => {
+          button.disabled = false;
+        }, 200);
       }
     }
   },
@@ -838,7 +848,7 @@ const ImpactedServices = {
     });
     
     if (Object.keys(relationshipTypes).length > 0) {
-      console.log(`�� Relationship types found:`, relationshipTypes);
+      console.log(` Relationship types found:`, relationshipTypes);
       console.log(`📋 Detailed relationship information:`);
       relationshipDetails.forEach((detail, index) => {
         console.log(`   ${index + 1}. ${detail.asset_name} (ID: ${detail.asset_id})`);
@@ -974,28 +984,38 @@ const ImpactedServices = {
               const environment = directAsset.type_fields[environmentField];
               console.log(`🔍 Searching for assets in environment: ${environment}`);
               
-              const envResults = await window.CacheManager.searchAssets(environment, 'type_fields');
-              const envFiltered = envResults.filter(asset => 
-                asset.id !== directAsset.id && 
-                asset.display_id !== directAsset.display_id &&
-                !this.state.directAssets.some(da => da.id === asset.id || da.display_id === asset.display_id) &&
-                !processedAssetIds.has(asset.id) &&
-                !processedAssetIds.has(asset.display_id)
-              ).slice(0, 2); // Limit to 2 to avoid too many results
-              
-              envFiltered.forEach(asset => {
-                processedAssetIds.add(asset.id);
-                if (asset.display_id && asset.display_id !== asset.id) {
-                  processedAssetIds.add(asset.display_id);
+              // Skip environment search if environment value is too short or might cause API issues
+              if (environment.length < 3 || environment.length > 50) {
+                console.log(`⚠️ Skipping environment search for "${environment}" - length not suitable for API search`);
+              } else {
+                try {
+                  const envResults = await window.CacheManager.searchAssets(environment, 'type_fields');
+                  const envFiltered = envResults.filter(asset => 
+                    asset.id !== directAsset.id && 
+                    asset.display_id !== directAsset.display_id &&
+                    !this.state.directAssets.some(da => da.id === asset.id || da.display_id === asset.display_id) &&
+                    !processedAssetIds.has(asset.id) &&
+                    !processedAssetIds.has(asset.display_id)
+                  ).slice(0, 2); // Limit to 2 to avoid too many results
+                  
+                  envFiltered.forEach(asset => {
+                    processedAssetIds.add(asset.id);
+                    if (asset.display_id && asset.display_id !== asset.id) {
+                      processedAssetIds.add(asset.display_id);
+                    }
+                    relatedAssets.push({
+                      ...asset,
+                      relationship_type: 'Same Environment',
+                      source_asset: directAsset.name
+                    });
+                  });
+                  
+                  console.log(`🔄 Fallback search by environment found ${envFiltered.length} potential related assets`);
+                } catch (envSearchError) {
+                  console.warn(`⚠️ Environment search API error for "${environment}":`, envSearchError.message || envSearchError);
+                  console.log(`ℹ️ Skipping environment-based search due to API constraints`);
                 }
-                relatedAssets.push({
-                  ...asset,
-                  relationship_type: 'Same Environment',
-                  source_asset: directAsset.name
-                });
-              });
-              
-              console.log(`🔄 Fallback search by environment found ${envFiltered.length} potential related assets`);
+              }
             }
           } catch (envError) {
             console.warn(`⚠️ Environment-based search failed for ${directAsset.name}:`, envError);

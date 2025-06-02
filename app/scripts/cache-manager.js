@@ -805,11 +805,15 @@ const CacheManager = {
       if (searchField === 'name') {
         searchQuery = `name:'${searchString}'`;
       } else if (searchField === 'type_fields') {
-        // For type_fields searches, use a generic search instead
+        // For type_fields searches, just use the search term without field specification
+        // This is more likely to work with the API than trying to search within JSON fields
         searchQuery = searchString;
       } else {
+        // For other fields, use the field:term format
         searchQuery = `${searchField}:'${searchString}'`;
       }
+      
+      console.log(`🔍 Search query: "${searchQuery}"`);
       
       const templateContext = {
         search_query: searchQuery,
@@ -869,6 +873,47 @@ const CacheManager = {
 
     } catch (error) {
       console.error('❌ CacheManager: Error searching assets:', error);
+      
+      // If it's a validation error and we were searching type_fields, try a simpler approach
+      if (error.status === 400 && searchField === 'type_fields') {
+        console.log('🔄 CacheManager: Retrying type_fields search with name-based approach...');
+        try {
+          // Fallback: search by name instead since type_fields search failed
+          const fallbackResponse = await window.client.request.invokeTemplate('getAssets', {
+            context: {
+              search_query: `name:'${searchString}'`,
+              include_fields: 'type_fields'
+            },
+            cache: true,
+            ttl: 180000
+          });
+          
+          if (fallbackResponse && fallbackResponse.response) {
+            const fallbackData = JSON.parse(fallbackResponse.response);
+            const fallbackAssets = fallbackData.assets || [];
+            
+            // Filter results client-side for type_fields content
+            const typeFieldsFiltered = fallbackAssets.filter(asset => {
+              try {
+                const typeFieldsStr = JSON.stringify(asset.type_fields || {}).toLowerCase();
+                return typeFieldsStr.includes(searchString.toLowerCase());
+              } catch (error) {
+                return false;
+              }
+            });
+            
+            console.log(`✅ CacheManager: Fallback search found ${typeFieldsFiltered.length} assets containing "${searchString}" in type_fields`);
+            
+            // Cache the fallback results
+            await this.cacheAssetSearch(cacheKey, typeFieldsFiltered);
+            
+            return typeFieldsFiltered;
+          }
+        } catch (fallbackError) {
+          console.warn('⚠️ CacheManager: Fallback search also failed:', fallbackError);
+        }
+      }
+      
       return [];
     }
   },
