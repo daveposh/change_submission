@@ -13,7 +13,8 @@ const CacheManager = {
     ASSET_TYPE_CACHE: 'asset_type_cache',
     LOCATION_CACHE: 'location_cache',
     USER_CACHE: 'user_cache',
-    ASSET_SEARCH_CACHE: 'asset_search_cache'
+    ASSET_SEARCH_CACHE: 'asset_search_cache',
+    SERVICES_CACHE: 'services_cache'
   },
 
   /**
@@ -26,6 +27,7 @@ const CacheManager = {
     const results = {
       assetTypes: 0,
       locations: 0,
+      services: 0,
       errors: []
     };
 
@@ -49,6 +51,17 @@ const CacheManager = {
     } catch (error) {
       console.error('❌ Failed to load locations cache:', error);
       results.errors.push('locations');
+    }
+
+    try {
+      // Initialize services cache
+      console.log('🛡️ Preloading services cache...');
+      const services = await this.loadServicesCache();
+      results.services = services.length;
+      console.log(`✅ Services cached: ${results.services}`);
+    } catch (error) {
+      console.error('❌ Failed to load services cache:', error);
+      results.errors.push('services');
     }
 
     console.log('✅ Cache initialization complete:', results);
@@ -200,18 +213,15 @@ const CacheManager = {
           per_page: 1
         },
         cache: true,
-        ttl: 300000 // 5 minutes cache for location test
+        ttl: 300000
       });
-      
-      if (!testResponse || !testResponse.response) {
-        console.log('⚠️ Locations API test failed - API may not be available in this instance');
+
+      if (!testResponse) {
+        console.log('⚠️ Locations API not available - using graceful degradation');
         return {};
       }
-      
-      console.log('✅ Locations API is available, proceeding with pagination fetch');
     } catch (testError) {
-      console.log('⚠️ Locations API is not available in this Freshservice instance:', testError);
-      console.log('ℹ️ Location resolution will fall back to displaying Location IDs');
+      console.log('⚠️ Locations API test failed - using graceful degradation:', testError);
       return {};
     }
 
@@ -219,10 +229,9 @@ const CacheManager = {
       const allLocations = {};
       let page = 1;
       let totalFetched = 0;
-      const maxPages = 10; // Use same limit as asset types initially
+      const maxPages = 10; // Support up to 10 pages for locations
       
       console.log(`📡 Starting location pagination fetch (max ${maxPages} pages)`);
-      console.log('📋 Will fetch pages until: (1) 0 results returned, OR (2) max pages reached');
       
       // Continue fetching pages until we get no more results
       while (page <= maxPages) {
@@ -236,7 +245,7 @@ const CacheManager = {
               per_page: 30
             },
             cache: true,
-            ttl: 600000 // 10 minutes cache for location pagination
+            ttl: 900000 // 15 minutes cache for locations
           });
           
           if (!response || !response.response) {
@@ -266,7 +275,9 @@ const CacheManager = {
             if (location && location.id && location.name) {
               allLocations[location.id] = {
                 name: location.name,
-                description: location.description || '',
+                address: location.address || '',
+                phone: location.phone || '',
+                contact_name: location.contact_name || '',
                 timestamp: Date.now()
               };
               totalFetched++;
@@ -294,19 +305,92 @@ const CacheManager = {
         await this.saveLocationsCache(allLocations);
         
         // Log sample of cached locations for debugging
-        const sampleLocations = Object.entries(allLocations).slice(0, 5);
+        const sampleLocations = Object.entries(allLocations).slice(0, 3);
         console.log('📋 Sample cached locations:');
         sampleLocations.forEach(([id, location]) => {
           console.log(`   ${id}: '${location.name}'`);
         });
       } else {
-        console.log('⚠️ No locations found to cache - locations API may not be available');
+        console.log('⚠️ No locations were fetched');
       }
       
       return allLocations;
     } catch (error) {
       console.error('❌ Error in loadLocationsCache:', error);
       return {};
+    }
+  },
+
+  /**
+   * Load services from API with pagination
+   * @returns {Promise<Array>} - Cached services array
+   */
+  async loadServicesCache() {
+    console.log('🔄 Fetching all services from API');
+    
+    // Check for client availability
+    if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
+      console.log('⚠️ Client or invokeTemplate not available for services fetch');
+      return [];
+    }
+
+    try {
+      console.log('📡 Fetching services from Freshservice API...');
+      
+      const response = await window.client.request.invokeTemplate('getServices', {
+        cache: true,
+        ttl: 600000 // 10 minutes cache for services
+      });
+      
+      if (!response || !response.response) {
+        console.log('⚠️ No response from services API');
+        return [];
+      }
+      
+      let parsedData;
+      try {
+        parsedData = JSON.parse(response.response);
+      } catch (parseError) {
+        console.error('❌ Error parsing services response:', parseError);
+        return [];
+      }
+      
+      const services = parsedData.services || [];
+      console.log(`✅ Retrieved ${services.length} services from API`);
+      
+      // Filter and process services
+      const processedServices = services
+        .filter(service => service && service.id && service.name)
+        .map(service => ({
+          id: service.id,
+          name: service.name,
+          description: service.description || '',
+          category: service.category_id || null,
+          visibility: service.visibility || 1,
+          created_at: service.created_at,
+          updated_at: service.updated_at,
+          timestamp: Date.now()
+        }));
+      
+      // Save services to cache
+      if (processedServices.length > 0) {
+        console.log(`✅ Successfully processed ${processedServices.length} services`);
+        await this.saveServicesCache(processedServices);
+        
+        // Log sample of cached services for debugging
+        const sampleServices = processedServices.slice(0, 5);
+        console.log('📋 Sample cached services:');
+        sampleServices.forEach(service => {
+          console.log(`   ${service.id}: '${service.name}'`);
+        });
+      } else {
+        console.log('⚠️ No services were processed');
+      }
+      
+      return processedServices;
+    } catch (error) {
+      console.error('❌ Error in loadServicesCache:', error);
+      return [];
     }
   },
 
@@ -366,6 +450,36 @@ const CacheManager = {
       return true;
     } catch (error) {
       console.error('Failed to save location cache:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Get cached services from storage
+   * @returns {Promise<Array>} - Cached services array
+   */
+  async getCachedServices() {
+    try {
+      const result = await window.client.db.get(this.STORAGE_KEYS.SERVICES_CACHE);
+      return result || [];
+    } catch (error) {
+      console.log('No services cache found or error:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Save services to cache
+   * @param {Array} services - Services array to cache
+   * @returns {Promise<boolean>} - Success status
+   */
+  async saveServicesCache(services) {
+    try {
+      await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, services);
+      console.log('Services cache updated');
+      return true;
+    } catch (error) {
+      console.error('Failed to save services cache:', error);
       return false;
     }
   },
@@ -449,7 +563,9 @@ const CacheManager = {
               // Cache this individual result
               cachedLocations[locationId] = {
                 name: data.location.name,
-                description: data.location.description || '',
+                address: data.location.address || '',
+                phone: data.location.phone || '',
+                contact_name: data.location.contact_name || '',
                 timestamp: Date.now()
               };
               await this.saveLocationsCache(cachedLocations);
@@ -480,6 +596,7 @@ const CacheManager = {
       await window.client.db.set(this.STORAGE_KEYS.ASSET_TYPE_CACHE, {});
       await window.client.db.set(this.STORAGE_KEYS.LOCATION_CACHE, {});
       await window.client.db.set(this.STORAGE_KEYS.ASSET_SEARCH_CACHE, {});
+      await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, {});
       console.log('✅ All caches cleared');
       return true;
     } catch (error) {

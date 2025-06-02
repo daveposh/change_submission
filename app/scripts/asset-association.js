@@ -85,79 +85,26 @@ const AssetAssociation = {
     this.showServicesLoading();
 
     try {
-      console.log('🔄 Loading services from configured asset types...');
+      console.log('🔄 Loading services using intelligent caching...');
       
-      // Get installation parameters
-      const params = await window.client.request.get('iparams');
-      const assetTypeNames = params.assetTypeNames || '';
+      // Check if CacheManager is available
+      if (!window.CacheManager) {
+        console.error('❌ CacheManager not available');
+        throw new Error('CacheManager not available');
+      }
+
+      // Get services from cache manager (will load from API if needed)
+      const cachedServices = await window.CacheManager.getCachedServices();
       
-      if (!assetTypeNames.trim()) {
-        console.warn('⚠️ No asset type names configured for services');
-        this.state.services = [];
-        this.state.servicesLoaded = true;
-        return;
+      if (cachedServices.length === 0) {
+        console.log('🔄 No cached services, loading from API...');
+        this.state.services = await window.CacheManager.loadServicesCache();
+      } else {
+        console.log(`✅ Using cached services: ${cachedServices.length} services`);
+        this.state.services = cachedServices;
       }
 
-      // Parse asset type names
-      const targetNames = assetTypeNames.split(',').map(name => name.trim()).filter(name => name);
-      console.log(`🎯 Looking for asset types: ${targetNames.join(', ')}`);
-
-      // Get asset types to find IDs
-      const assetTypesResponse = await window.client.request.invokeTemplate("getAssetTypes", {
-        context: {
-          per_page: '100'
-        },
-        cache: true,
-        ttl: 300000 // 5 minutes cache
-      });
-
-      if (!assetTypesResponse || !assetTypesResponse.response) {
-        throw new Error('Failed to fetch asset types');
-      }
-
-      const assetTypesData = JSON.parse(assetTypesResponse.response);
-      const assetTypes = assetTypesData.asset_types || [];
-
-      // Find matching asset type IDs
-      const matchingTypeIds = [];
-      assetTypes.forEach(assetType => {
-        const typeName = assetType.name.toLowerCase();
-        if (targetNames.some(name => typeName.includes(name.toLowerCase()))) {
-          matchingTypeIds.push(assetType.id);
-          console.log(`✅ Found matching asset type: ${assetType.name} (ID: ${assetType.id})`);
-        }
-      });
-
-      if (matchingTypeIds.length === 0) {
-        console.warn('⚠️ No matching asset types found for configured names');
-        this.state.services = [];
-        this.state.servicesLoaded = true;
-        return;
-      }
-
-      // Build filter query for asset types
-      const assetTypeFilter = matchingTypeIds.map(id => `asset_type_id:${id}`).join(' OR ');
-      console.log(`🔍 Asset type filter: ${assetTypeFilter}`);
-
-      // Fetch assets for these types
-      const servicesResponse = await window.client.request.invokeTemplate("getAssetsByType", {
-        context: {
-          asset_type_filter: assetTypeFilter,
-          per_page: '100',
-          include_fields: 'type_fields'
-        },
-        cache: true,
-        ttl: 180000 // 3 minutes cache for services
-      });
-
-      if (!servicesResponse || !servicesResponse.response) {
-        throw new Error('Failed to fetch services');
-      }
-
-      const servicesData = JSON.parse(servicesResponse.response);
-      this.state.services = servicesData.assets || [];
       this.state.servicesLoaded = true;
-
       console.log(`✅ Loaded ${this.state.services.length} services`);
 
     } catch (error) {
@@ -183,7 +130,7 @@ const AssetAssociation = {
 
     let html = '';
     this.state.services.forEach(service => {
-      const name = service.display_name || service.name || `Asset ${service.id}`;
+      const name = service.name || `Service ${service.id}`;
       const description = service.description ? ` - ${service.description.substring(0, 50)}...` : '';
       const serviceJson = JSON.stringify(service).replace(/"/g, '&quot;');
       html += `<option value="${service.id}" data-service="${serviceJson}">${this.escapeHtml(name)}${this.escapeHtml(description)}</option>`;
@@ -241,9 +188,26 @@ const AssetAssociation = {
           const serviceJsonString = option.dataset.service.replace(/&quot;/g, '"');
           const serviceData = JSON.parse(serviceJsonString);
           
+          // Convert service to asset-like structure for consistency
+          const assetLikeService = {
+            id: serviceData.id,
+            name: serviceData.name,
+            description: serviceData.description || '',
+            display_name: serviceData.name,
+            asset_type_id: null, // Services don't have asset types
+            type_fields: {
+              service_category_6000417768: serviceData.category || ''
+            },
+            created_at: serviceData.created_at,
+            updated_at: serviceData.updated_at,
+            // Mark as service for special handling
+            is_service: true,
+            service_visibility: serviceData.visibility
+          };
+          
           // Check if already selected
-          if (!this.isAssetSelected(serviceData.id)) {
-            await this.addAsset(serviceData);
+          if (!this.isAssetSelected(assetLikeService.id)) {
+            await this.addAsset(assetLikeService);
             addedCount++;
           }
         } catch (error) {
@@ -251,14 +215,17 @@ const AssetAssociation = {
         }
       }
 
-      // Clear selections
-      dropdown.selectedIndex = -1;
-      
       if (addedCount > 0) {
         this.showNotification('success', `Added ${addedCount} service${addedCount > 1 ? 's' : ''} to selection`);
+        // Clear dropdown selection
+        dropdown.selectedIndex = -1;
       } else {
-        this.showNotification('info', 'Selected services were already in your selection');
+        this.showNotification('info', 'All selected services were already in your selection');
       }
+
+    } catch (error) {
+      console.error('❌ Error adding selected services:', error);
+      this.showNotification('error', 'Failed to add services. Please try again.');
     } finally {
       // Remove loading state
       if (addBtn) {
@@ -269,29 +236,38 @@ const AssetAssociation = {
   },
 
   /**
-   * Refresh services by reloading from API
+   * Refresh services from API
    */
   async refreshServices() {
-    const refreshBtn = document.getElementById('refresh-services-btn');
+    console.log('🔄 Refreshing services...');
     
-    // Show loading state
+    const refreshBtn = document.getElementById('refresh-services-btn');
     if (refreshBtn) {
       refreshBtn.classList.add('loading');
       refreshBtn.disabled = true;
     }
 
     try {
-      console.log('🔄 Refreshing services...');
-      this.state.servicesLoaded = false;
+      // Reset state
       this.state.services = [];
-      await this.loadServices();
-      this.populateServicesDropdown();
-      this.showNotification('success', 'Services refreshed successfully');
+      this.state.servicesLoaded = false;
+      
+      // Force refresh from CacheManager
+      if (window.CacheManager) {
+        this.state.services = await window.CacheManager.loadServicesCache();
+        this.state.servicesLoaded = true;
+        
+        this.populateServicesDropdown();
+        this.showNotification('success', `Refreshed ${this.state.services.length} services`);
+        console.log('✅ Services refreshed successfully');
+      } else {
+        throw new Error('CacheManager not available');
+      }
+      
     } catch (error) {
       console.error('❌ Error refreshing services:', error);
-      this.showNotification('error', 'Failed to refresh services');
+      this.showServicesError('Failed to refresh services. Please try again.');
     } finally {
-      // Remove loading state
       if (refreshBtn) {
         refreshBtn.classList.remove('loading');
         refreshBtn.disabled = false;
@@ -866,7 +842,7 @@ const AssetAssociation = {
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
       const assetTypeId = asset.asset_type_id;
-      const assetTypeName = await this.getAssetTypeName(assetTypeId);
+      const assetTypeName = await this.getAssetTypeName(assetTypeId, asset);
       
       // Use the new helper methods to extract field values
       const environment = this.getEnvironmentInfo(asset);
@@ -882,7 +858,7 @@ const AssetAssociation = {
       // Get impact badge styling
       const impactBadge = this.getImpactBadge(impact);
       const environmentBadge = this.getEnvironmentBadge(environment);
-      const assetTypeIcon = this.getAssetTypeIcon(assetTypeName);
+      const assetTypeIcon = this.getAssetTypeIcon(assetTypeName, asset);
       
       html += `
         <div class="asset-result-item ${isSelected ? 'selected' : ''}" data-asset-id="${asset.id}">
@@ -1096,7 +1072,7 @@ const AssetAssociation = {
       const name = asset.display_name || asset.name || 'Unknown Asset';
       const description = asset.description || '';
       const assetTypeId = asset.asset_type_id;
-      const assetTypeName = await this.getAssetTypeName(assetTypeId);
+      const assetTypeName = await this.getAssetTypeName(assetTypeId, asset);
       
       // Use the new helper methods to extract field values
       const environment = this.getEnvironmentInfo(asset);
@@ -1111,7 +1087,7 @@ const AssetAssociation = {
       // Get badge styling
       const impactBadge = this.getImpactBadge(impact);
       const environmentBadge = this.getEnvironmentBadge(environment);
-      const assetTypeIcon = this.getAssetTypeIcon(assetTypeName);
+      const assetTypeIcon = this.getAssetTypeIcon(assetTypeName, asset);
       
       html += `
         <div class="selected-asset-card" data-asset-id="${asset.id}">
@@ -1686,9 +1662,15 @@ const AssetAssociation = {
   /**
    * Get asset type icon based on asset type name
    * @param {string} assetTypeName - Name of the asset type
+   * @param {Object} asset - The asset object (optional, for special handling)
    * @returns {string} - HTML for asset type icon
    */
-  getAssetTypeIcon(assetTypeName) {
+  getAssetTypeIcon(assetTypeName, asset = null) {
+    // Special handling for services
+    if (asset && asset.is_service) {
+      return '<i class="fas fa-cogs text-info me-2"></i>';
+    }
+    
     if (!assetTypeName || assetTypeName === 'Unknown') {
       return '<i class="fas fa-cube text-muted me-2"></i>';
     }
