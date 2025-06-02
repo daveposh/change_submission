@@ -352,24 +352,108 @@ const CacheManager = {
         return [];
       }
 
-      // Parse asset type names and search for assets of these types
+      // Parse asset type names
       const targetNames = assetTypeNames.split(',').map(name => name.trim()).filter(name => name);
-      console.log(`🎯 Looking for assets from types: ${targetNames.join(', ')}`);
+      console.log(`🎯 Looking for asset types: ${targetNames.join(', ')}`);
 
-      // Use searchAssets method to find assets matching the configured types
+      // First, get all asset types to find the IDs for our target names
+      const assetTypesResponse = await window.client.request.invokeTemplate("getAssetTypes", {
+        context: {
+          per_page: '100'
+        },
+        cache: true,
+        ttl: 300000 // 5 minutes cache
+      });
+
+      if (!assetTypesResponse || !assetTypesResponse.response) {
+        throw new Error('Failed to fetch asset types');
+      }
+
+      const assetTypesData = JSON.parse(assetTypesResponse.response);
+      const assetTypes = assetTypesData.asset_types || [];
+
+      // Find matching asset type IDs
+      const matchingTypeIds = [];
+      assetTypes.forEach(assetType => {
+        const typeName = assetType.name.toLowerCase();
+        if (targetNames.some(name => typeName.includes(name.toLowerCase()) || name.toLowerCase().includes(typeName))) {
+          matchingTypeIds.push(assetType.id);
+          console.log(`✅ Found matching asset type: ${assetType.name} (ID: ${assetType.id})`);
+        }
+      });
+
+      if (matchingTypeIds.length === 0) {
+        console.warn('⚠️ No matching asset types found for configured names');
+        console.log('💡 Available asset types:');
+        assetTypes.slice(0, 10).forEach(type => {
+          console.log(`   - ${type.name} (ID: ${type.id})`);
+        });
+        return [];
+      }
+
+      // Now fetch assets that belong to these asset types
       const allServiceAssets = [];
       
-      for (const typeName of targetNames) {
-        console.log(`📦 Searching for assets with type name containing: ${typeName}`);
+      // Try to get all assets first and then filter by asset type
+      console.log(`📦 Fetching all assets to filter by asset types...`);
+      
+      try {
+        let page = 1;
+        let hasMore = true;
+        const maxPages = 10; // Limit to prevent infinite loops
         
-        try {
-          // Use the existing searchAssets method which handles the API properly
-          const assets = await this.searchAssets(typeName, 'name');
-          console.log(`   Found ${assets.length} assets for type pattern: ${typeName}`);
-          allServiceAssets.push(...assets);
-        } catch (searchError) {
-          console.warn(`⚠️ Error searching for type ${typeName}:`, searchError);
+        while (hasMore && page <= maxPages) {
+          console.log(`   📄 Fetching assets page ${page}...`);
+          
+          const response = await window.client.request.invokeTemplate('getAssets', {
+            context: {
+              include_fields: 'type_fields',
+              page: page.toString(),
+              per_page: '100'
+            },
+            cache: true,
+            ttl: 180000 // 3 minutes cache
+          });
+
+          if (!response || !response.response) {
+            console.warn(`⚠️ No response for assets page ${page}`);
+            break;
+          }
+
+          const pageData = JSON.parse(response.response);
+          const pageAssets = pageData.assets || [];
+          
+          console.log(`   ✅ Retrieved ${pageAssets.length} assets from page ${page}`);
+          
+          if (pageAssets.length === 0) {
+            hasMore = false;
+          } else {
+            // Filter assets by matching asset type IDs
+            const matchingAssets = pageAssets.filter(asset => 
+              asset.asset_type_id && matchingTypeIds.includes(asset.asset_type_id)
+            );
+            
+            console.log(`   🎯 Found ${matchingAssets.length} matching service assets on page ${page}`);
+            allServiceAssets.push(...matchingAssets);
+            
+            // Check if we got a full page (if less than per_page, probably the last page)
+            if (pageAssets.length < 100) {
+              hasMore = false;
+            }
+            page++;
+          }
         }
+        
+        console.log(`🎯 Total service assets found: ${allServiceAssets.length}`);
+        
+        // Log breakdown by asset type
+        matchingTypeIds.forEach(typeId => {
+          const typeAssets = allServiceAssets.filter(a => a.asset_type_id === typeId);
+          console.log(`   Type ID ${typeId}: ${typeAssets.length} assets`);
+        });
+        
+      } catch (fetchError) {
+        console.warn(`⚠️ Error fetching assets:`, fetchError);
       }
 
       // Remove duplicates based on asset ID
