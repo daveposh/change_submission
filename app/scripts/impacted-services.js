@@ -33,10 +33,8 @@ const ImpactedServices = {
     
     // Analyze services button
     const analyzeBtn = document.getElementById('analyze-services-btn');
-    console.log('🔍 Analyze button found:', analyzeBtn);
     if (analyzeBtn) {
       analyzeBtn.addEventListener('click', () => {
-        console.log('🔧 Analyze services button clicked');
         this.analyzeServices();
       });
     } else {
@@ -45,10 +43,8 @@ const ImpactedServices = {
 
     // Add approver button
     const addApproverBtn = document.getElementById('add-approver-btn');
-    console.log('🔍 Add approver button found:', addApproverBtn);
     if (addApproverBtn) {
       addApproverBtn.addEventListener('click', () => {
-        console.log('🔧 Add approver button clicked');
         this.toggleUserSearch('approver');
       });
     } else {
@@ -57,10 +53,8 @@ const ImpactedServices = {
 
     // Add stakeholder button
     const addStakeholderBtn = document.getElementById('add-stakeholder-btn');
-    console.log('🔍 Add stakeholder button found:', addStakeholderBtn);
     if (addStakeholderBtn) {
       addStakeholderBtn.addEventListener('click', () => {
-        console.log('🔧 Add stakeholder button clicked');
         this.toggleUserSearch('stakeholder');
       });
     } else {
@@ -99,32 +93,44 @@ const ImpactedServices = {
    * @param {string} type - 'approver' or 'stakeholder'
    */
   toggleUserSearch(type) {
-    console.log(`🔧 toggleUserSearch called with type: ${type}`);
-    
     const container = document.getElementById(`${type}-search-container`);
     const input = document.getElementById(`${type}-search`);
-    
-    console.log(`🔍 Search container (${type}-search-container):`, container);
-    console.log(`🔍 Search input (${type}-search):`, input);
+    const button = document.getElementById(`add-${type}-btn`);
     
     if (container && input) {
-      const currentDisplay = container.style.display;
-      console.log(`🔍 Current display style: "${currentDisplay}"`);
+      const isCurrentlyHidden = container.style.display === 'none' || container.style.display === '';
       
-      if (container.style.display === 'none' || container.style.display === '') {
-        console.log(`🔧 Showing search container for ${type}`);
+      if (isCurrentlyHidden) {
+        console.log(`📝 Opening ${type} search`);
         container.style.display = 'block';
         input.focus();
-        console.log(`✅ Search container shown and input focused for ${type}`);
+        
+        // Update button text and style
+        if (button) {
+          button.innerHTML = `<i class="fas fa-times me-1"></i>Cancel Search`;
+          button.classList.remove('btn-outline-success', 'btn-outline-primary');
+          button.classList.add('btn-outline-secondary');
+        }
       } else {
-        console.log(`🔧 Hiding search container for ${type}`);
+        console.log(`📝 Closing ${type} search`);
         container.style.display = 'none';
         input.value = '';
         const resultsContainer = document.getElementById(`${type}-results`);
         if (resultsContainer) {
           resultsContainer.innerHTML = '';
         }
-        console.log(`✅ Search container hidden for ${type}`);
+        
+        // Reset button text and style
+        if (button) {
+          const capitalizedType = type.charAt(0).toUpperCase() + type.slice(1);
+          button.innerHTML = `<i class="fas fa-plus me-1"></i>Add ${capitalizedType}`;
+          button.classList.remove('btn-outline-secondary');
+          if (type === 'approver') {
+            button.classList.add('btn-outline-success');
+          } else {
+            button.classList.add('btn-outline-primary');
+          }
+        }
       }
     } else {
       console.error(`❌ Missing elements for ${type} search:`, {
