@@ -29,28 +29,42 @@ const ImpactedServices = {
    * Setup event listeners for impacted services functionality
    */
   setupEventListeners() {
+    console.log('🔧 Setting up Impacted Services event listeners...');
+    
     // Analyze services button
     const analyzeBtn = document.getElementById('analyze-services-btn');
+    console.log('🔍 Analyze button found:', analyzeBtn);
     if (analyzeBtn) {
       analyzeBtn.addEventListener('click', () => {
+        console.log('🔧 Analyze services button clicked');
         this.analyzeServices();
       });
+    } else {
+      console.warn('⚠️ Analyze services button not found');
     }
 
     // Add approver button
     const addApproverBtn = document.getElementById('add-approver-btn');
+    console.log('🔍 Add approver button found:', addApproverBtn);
     if (addApproverBtn) {
       addApproverBtn.addEventListener('click', () => {
+        console.log('🔧 Add approver button clicked');
         this.toggleUserSearch('approver');
       });
+    } else {
+      console.warn('⚠️ Add approver button not found');
     }
 
     // Add stakeholder button
     const addStakeholderBtn = document.getElementById('add-stakeholder-btn');
+    console.log('🔍 Add stakeholder button found:', addStakeholderBtn);
     if (addStakeholderBtn) {
       addStakeholderBtn.addEventListener('click', () => {
+        console.log('🔧 Add stakeholder button clicked');
         this.toggleUserSearch('stakeholder');
       });
+    } else {
+      console.warn('⚠️ Add stakeholder button not found');
     }
 
     // Setup user search inputs
@@ -85,17 +99,40 @@ const ImpactedServices = {
    * @param {string} type - 'approver' or 'stakeholder'
    */
   toggleUserSearch(type) {
+    console.log(`🔧 toggleUserSearch called with type: ${type}`);
+    
     const container = document.getElementById(`${type}-search-container`);
     const input = document.getElementById(`${type}-search`);
+    
+    console.log(`🔍 Search container (${type}-search-container):`, container);
+    console.log(`🔍 Search input (${type}-search):`, input);
+    
     if (container && input) {
-      if (container.style.display === 'none') {
+      const currentDisplay = container.style.display;
+      console.log(`🔍 Current display style: "${currentDisplay}"`);
+      
+      if (container.style.display === 'none' || container.style.display === '') {
+        console.log(`🔧 Showing search container for ${type}`);
         container.style.display = 'block';
         input.focus();
+        console.log(`✅ Search container shown and input focused for ${type}`);
       } else {
+        console.log(`🔧 Hiding search container for ${type}`);
         container.style.display = 'none';
         input.value = '';
-        document.getElementById(`${type}-results`).innerHTML = '';
+        const resultsContainer = document.getElementById(`${type}-results`);
+        if (resultsContainer) {
+          resultsContainer.innerHTML = '';
+        }
+        console.log(`✅ Search container hidden for ${type}`);
       }
+    } else {
+      console.error(`❌ Missing elements for ${type} search:`, {
+        container: !!container,
+        input: !!input,
+        containerId: `${type}-search-container`,
+        inputId: `${type}-search`
+      });
     }
   },
 
