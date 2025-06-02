@@ -98,7 +98,7 @@ const AssetAssociation = {
       
       if (cachedServices.length === 0) {
         console.log('🔄 No cached services, loading from API...');
-        this.state.services = await window.CacheManager.loadServicesCache();
+        this.state.services = await window.CacheManager.loadServicesFromAssets();
       } else {
         console.log(`✅ Using cached services: ${cachedServices.length} services`);
         this.state.services = cachedServices;
@@ -254,7 +254,7 @@ const AssetAssociation = {
       
       // Force refresh from CacheManager
       if (window.CacheManager) {
-        this.state.services = await window.CacheManager.loadServicesCache();
+        this.state.services = await window.CacheManager.loadServicesFromAssets();
         this.state.servicesLoaded = true;
         
         this.populateServicesDropdown();

@@ -56,7 +56,7 @@ const CacheManager = {
     try {
       // Initialize services cache
       console.log('🛡️ Preloading services cache...');
-      const services = await this.loadServicesCache();
+      const services = await this.loadServicesFromAssets();
       results.services = services.length;
       console.log(`✅ Services cached: ${results.services}`);
     } catch (error) {
@@ -322,11 +322,11 @@ const CacheManager = {
   },
 
   /**
-   * Load services from API with pagination
+   * Load services from configured asset types instead of services API
    * @returns {Promise<Array>} - Cached services array
    */
-  async loadServicesCache() {
-    console.log('🔄 Fetching all services from API');
+  async loadServicesFromAssets() {
+    console.log('🔄 Loading services from configured asset types...');
     
     // Check for client availability
     if (!window.client || !window.client.request || !window.client.request.invokeTemplate) {
@@ -335,63 +335,88 @@ const CacheManager = {
     }
 
     try {
-      console.log('📡 Fetching services from Freshservice API...');
+      console.log('📡 Getting services from configured asset types...');
       
-      const response = await window.client.request.invokeTemplate('getServices', {
-        cache: true,
-        ttl: 600000 // 10 minutes cache for services
-      });
+      // Get installation parameters
+      const params = await window.client.iparams.get();
+      const assetTypeNames = params.assetTypeNames || '';
       
-      if (!response || !response.response) {
-        console.log('⚠️ No response from services API');
+      if (!assetTypeNames.trim()) {
+        console.warn('⚠️ No asset type names configured for services');
         return [];
       }
+
+      // Parse asset type names and search for assets of these types
+      const targetNames = assetTypeNames.split(',').map(name => name.trim()).filter(name => name);
+      console.log(`🎯 Looking for assets from types: ${targetNames.join(', ')}`);
+
+      // Use searchAssets method to find assets matching the configured types
+      const allServiceAssets = [];
       
-      let parsedData;
-      try {
-        parsedData = JSON.parse(response.response);
-      } catch (parseError) {
-        console.error('❌ Error parsing services response:', parseError);
-        return [];
+      for (const typeName of targetNames) {
+        console.log(`📦 Searching for assets with type name containing: ${typeName}`);
+        
+        try {
+          // Use the existing searchAssets method which handles the API properly
+          const assets = await this.searchAssets(typeName, 'name');
+          console.log(`   Found ${assets.length} assets for type pattern: ${typeName}`);
+          allServiceAssets.push(...assets);
+        } catch (searchError) {
+          console.warn(`⚠️ Error searching for type ${typeName}:`, searchError);
+        }
       }
-      
-      const services = parsedData.services || [];
-      console.log(`✅ Retrieved ${services.length} services from API`);
-      
-      // Filter and process services
-      const processedServices = services
-        .filter(service => service && service.id && service.name)
-        .map(service => ({
-          id: service.id,
-          name: service.name,
-          description: service.description || '',
-          category: service.category_id || null,
-          visibility: service.visibility || 1,
-          created_at: service.created_at,
-          updated_at: service.updated_at,
+
+      // Remove duplicates based on asset ID
+      const uniqueAssets = allServiceAssets.filter((asset, index, arr) => 
+        arr.findIndex(a => a.id === asset.id) === index
+      );
+
+      console.log(`✅ Retrieved ${uniqueAssets.length} unique service assets`);
+
+      // Process assets into service-like objects
+      const processedServices = uniqueAssets
+        .filter(asset => asset && asset.id && asset.name)
+        .map(asset => ({
+          id: asset.id,
+          name: asset.display_name || asset.name,
+          description: asset.description || '',
+          category: asset.asset_type_id,
+          visibility: 1,
+          created_at: asset.created_at,
+          updated_at: asset.updated_at,
+          // Keep original asset data for reference
+          original_asset: asset,
           timestamp: Date.now()
         }));
-      
+
       // Save services to cache
       if (processedServices.length > 0) {
-        console.log(`✅ Successfully processed ${processedServices.length} services`);
+        console.log(`✅ Successfully processed ${processedServices.length} services from assets`);
         await this.saveServicesCache(processedServices);
         
         // Log sample of cached services for debugging
         const sampleServices = processedServices.slice(0, 5);
         console.log('📋 Sample cached services:');
         sampleServices.forEach(service => {
-          console.log(`   ${service.id}: '${service.name}'`);
+          console.log(`   ${service.id}: '${service.name}' (Asset Type: ${service.category})`);
         });
       } else {
-        console.log('⚠️ No services were processed');
+        console.log('⚠️ No services were processed from assets');
       }
       
       return processedServices;
     } catch (error) {
-      console.error('❌ Error in loadServicesCache:', error);
+      console.error('❌ Error in loadServicesFromAssets:', error);
       return [];
     }
+  },
+
+  /**
+   * Backward compatibility method - calls loadServicesFromAssets
+   * @returns {Promise<Array>} - Cached services array
+   */
+  async loadServicesCache() {
+    return await this.loadServicesFromAssets();
   },
 
   /**
