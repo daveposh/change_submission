@@ -640,6 +640,13 @@ const ChangeSubmission = {
       let isAssetError = false;
       let isServerError = false;
       
+      // Check for HTTP 500 server errors
+      if (error.status === 500) {
+        isServerError = true;
+        console.warn('⚠️ Server error (500) detected - this might be related to asset processing or server limitations');
+      }
+      
+      // Check for asset-related validation errors
       if (error.response) {
         try {
           const errorData = JSON.parse(error.response);
@@ -652,14 +659,8 @@ const ChangeSubmission = {
         }
       }
       
-      // Check for 500 server errors which might be related to asset processing
-      if (error.status === 500) {
-        isServerError = true;
-        console.warn('⚠️ Server error (500) detected - this might be related to asset processing');
-      }
-      
       if (isAssetError || (isServerError && changeRequestData.assets)) {
-        console.warn('⚠️ Asset-related error detected, attempting to create change request without assets...');
+        console.warn('⚠️ Asset-related or server error detected, attempting to create change request without assets...');
         
         // Remove assets and try again
         const dataWithoutAssets = { ...changeRequestData };
@@ -696,8 +697,24 @@ const ChangeSubmission = {
             throw retryError;
           }
         }
+      } else if (isServerError) {
+        // If it's a server error but no assets, try with simplified description
+        console.warn('⚠️ Server error detected, trying with simplified description...');
+        
+        const dataWithSimpleDescription = { ...changeRequestData };
+        dataWithSimpleDescription.description = this.createSimplifiedDescription(window.changeRequestData, window.ImpactedServices?.getImpactedServicesData() || {});
+        
+        try {
+          const response = await this.attemptChangeRequestCreation(dataWithSimpleDescription);
+          console.log('✅ Change request created successfully with simplified description');
+          console.log('ℹ️ Full details were simplified due to server limitations');
+          return response;
+        } catch (finalError) {
+          console.error('❌ Failed even with simplified description:', finalError);
+          throw finalError;
+        }
       } else {
-        // Re-throw the original error if it's not asset-related
+        // Re-throw the original error if it's not asset-related or server error
         throw error;
       }
     }
