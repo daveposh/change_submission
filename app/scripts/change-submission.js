@@ -357,6 +357,23 @@ const ChangeSubmission = {
     const data = window.changeRequestData;
     const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
 
+    // Debug: Log the data sources being used
+    console.log('🔍 DATA SOURCES DEBUG:');
+    console.log('  window.changeRequestData:', window.changeRequestData);
+    console.log('  data parameter:', data);
+    console.log('  impactedData:', impactedData);
+    
+    // Debug: Log specific field values from different sources
+    console.log('🔍 FIELD VALUES FROM DIFFERENT SOURCES:');
+    console.log(`  window.changeRequestData.reasonForChange: "${window.changeRequestData?.reasonForChange}"`);
+    console.log(`  data.reasonForChange: "${data?.reasonForChange}"`);
+    console.log(`  window.changeRequestData.implementationPlan: "${window.changeRequestData?.implementationPlan}"`);
+    console.log(`  data.implementationPlan: "${data?.implementationPlan}"`);
+    console.log(`  window.changeRequestData.backoutPlan: "${window.changeRequestData?.backoutPlan}"`);
+    console.log(`  data.backoutPlan: "${data?.backoutPlan}"`);
+    console.log(`  window.changeRequestData.validationPlan: "${window.changeRequestData?.validationPlan}"`);
+    console.log(`  data.validationPlan: "${data?.validationPlan}"`);
+
     // Get installation parameters for workspace configuration
     let workspaceId = null;
     let departmentId = null;
@@ -458,30 +475,7 @@ const ChangeSubmission = {
       planned_end_date: formatDateForAPI(data.plannedEnd),
       
       // OPTIONAL: Planning fields structure (matching actual API structure)
-      planning_fields: {
-        reason_for_change: data.reasonForChange ? {
-          description_text: data.reasonForChange,
-          description_html: `<div dir="ltr">${data.reasonForChange}</div>`
-        } : null,
-        change_impact: impactSummary ? {
-          description_text: impactSummary,
-          description_html: `<div dir="ltr">${impactSummary.replace(/\n/g, '<br>')}</div>`
-        } : null,
-        rollout_plan: data.implementationPlan ? {
-          description_text: data.implementationPlan,
-          description_html: `<div dir="ltr">${data.implementationPlan.replace(/\n/g, '<br>')}</div>`
-        } : null,
-        backout_plan: data.backoutPlan ? {
-          description_text: data.backoutPlan,
-          description_html: `<div dir="ltr">${data.backoutPlan.replace(/\n/g, '<br>')}</div>`
-        } : null,
-        custom_fields: {
-          cfp_validation: data.validationPlan ? {
-            description_text: data.validationPlan,
-            description_html: `<div dir="ltr">${data.validationPlan.replace(/\n/g, '<br>')}</div>`
-          } : null
-        }
-      }
+      planning_fields: {}
     };
 
     // Add department_id if configured
@@ -498,6 +492,105 @@ const ChangeSubmission = {
       lf_technical_owner: await this.getTechnicalOwnerUserId(data.selectedAssets)
     };
 
+    // Add planning fields only if they have content (avoid null values)
+    console.log('🔍 DEBUGGING PLANNING FIELDS POPULATION:');
+    console.log(`  Raw data.reasonForChange: "${data.reasonForChange}"`);
+    console.log(`  Trimmed data.reasonForChange: "${data.reasonForChange?.trim()}"`);
+    console.log(`  Boolean check: ${!!data.reasonForChange?.trim()}`);
+    
+    if (data.reasonForChange?.trim()) {
+      console.log('✅ Adding reason_for_change to planning_fields');
+      changeRequestData.planning_fields.reason_for_change = {
+        description_text: data.reasonForChange,
+        description_html: `<div dir="ltr">${data.reasonForChange}</div>`
+      };
+    } else {
+      console.log('❌ Skipping reason_for_change - no content');
+    }
+
+    console.log(`  Raw impactSummary: "${impactSummary}"`);
+    console.log(`  Trimmed impactSummary: "${impactSummary?.trim()}"`);
+    console.log(`  Boolean check: ${!!impactSummary?.trim()}`);
+    
+    if (impactSummary?.trim()) {
+      console.log('✅ Adding change_impact to planning_fields');
+      changeRequestData.planning_fields.change_impact = {
+        description_text: impactSummary,
+        description_html: `<div dir="ltr">${impactSummary.replace(/\n/g, '<br>')}</div>`
+      };
+    } else {
+      console.log('❌ Skipping change_impact - no content');
+    }
+
+    console.log(`  Raw data.implementationPlan: "${data.implementationPlan}"`);
+    console.log(`  Trimmed data.implementationPlan: "${data.implementationPlan?.trim()}"`);
+    console.log(`  Boolean check: ${!!data.implementationPlan?.trim()}`);
+    
+    if (data.implementationPlan?.trim()) {
+      console.log('✅ Adding rollout_plan to planning_fields');
+      changeRequestData.planning_fields.rollout_plan = {
+        description_text: data.implementationPlan,
+        description_html: `<div dir="ltr">${data.implementationPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    } else {
+      console.log('❌ Skipping rollout_plan - no content');
+    }
+
+    console.log(`  Raw data.backoutPlan: "${data.backoutPlan}"`);
+    console.log(`  Trimmed data.backoutPlan: "${data.backoutPlan?.trim()}"`);
+    console.log(`  Boolean check: ${!!data.backoutPlan?.trim()}`);
+    
+    if (data.backoutPlan?.trim()) {
+      console.log('✅ Adding backout_plan to planning_fields');
+      changeRequestData.planning_fields.backout_plan = {
+        description_text: data.backoutPlan,
+        description_html: `<div dir="ltr">${data.backoutPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    } else {
+      console.log('❌ Skipping backout_plan - no content');
+    }
+
+    // Add custom planning fields only if they have content
+    console.log(`  Raw data.validationPlan: "${data.validationPlan}"`);
+    console.log(`  Trimmed data.validationPlan: "${data.validationPlan?.trim()}"`);
+    console.log(`  Boolean check: ${!!data.validationPlan?.trim()}`);
+    
+    // Initialize custom_fields if needed
+    if (!changeRequestData.planning_fields.custom_fields) {
+      changeRequestData.planning_fields.custom_fields = {};
+    }
+    
+    // 1. Validation Plan (existing)
+    if (data.validationPlan?.trim()) {
+      console.log('✅ Adding cfp_validation to planning_fields');
+      changeRequestData.planning_fields.custom_fields.cfp_validation = {
+        description_text: data.validationPlan,
+        description_html: `<div dir="ltr">${data.validationPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    } else {
+      console.log('❌ Skipping cfp_validation - no content');
+    }
+
+    // 2. Impact and Risk Summary (comprehensive summary from questionnaire)
+    const comprehensiveRiskSummary = this.generateComprehensiveRiskAndImpactSummary(data.riskAssessment, data.selectedAssets, impactedData);
+    if (comprehensiveRiskSummary?.trim()) {
+      console.log('✅ Adding cfp_impact_risk_summary to planning_fields');
+      changeRequestData.planning_fields.custom_fields.cfp_impact_risk_summary = {
+        description_text: comprehensiveRiskSummary,
+        description_html: `<div dir="ltr">${comprehensiveRiskSummary.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    // 3. Service Impacted (formatted details from affected assets and services)
+    const serviceImpactedSummary = this.generateServiceImpactedSummary(data.selectedAssets, impactedData);
+    if (serviceImpactedSummary?.trim()) {
+      console.log('✅ Adding cfp_service_impacted to planning_fields');
+      changeRequestData.planning_fields.custom_fields.cfp_service_impacted = {
+        description_text: serviceImpactedSummary,
+        description_html: `<div dir="ltr">${serviceImpactedSummary.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
     console.log('✅ Change request data prepared:', {
       subject: changeRequestData.subject,
       change_type: changeRequestData.change_type,
@@ -510,8 +603,9 @@ const ChangeSubmission = {
       approverCount: impactedData.approvers?.length || 0,
       hasDepartment: !!changeRequestData.department_id,
       hasDefaultFields: !!(changeRequestData.change_reason || changeRequestData.change_impact || changeRequestData.change_plan || changeRequestData.backout_plan),
-      hasPlanningFields: !!changeRequestData.planning_fields,
-      planningFieldsCount: changeRequestData.planning_fields ? Object.keys(changeRequestData.planning_fields).filter(key => changeRequestData.planning_fields[key] !== null).length : 0,
+      hasPlanningFields: !!changeRequestData.planning_fields && Object.keys(changeRequestData.planning_fields).length > 0,
+      planningFieldsCount: changeRequestData.planning_fields ? Object.keys(changeRequestData.planning_fields).length : 0,
+      planningFieldsData: changeRequestData.planning_fields,
       hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0,
       hasRiskSummary: !!changeRequestData.custom_fields.risks,
       riskSummaryLength: changeRequestData.custom_fields.risks ? changeRequestData.custom_fields.risks.length : 0,
@@ -538,6 +632,22 @@ const ChangeSubmission = {
     const technicalOwnerUserId = await this.getTechnicalOwnerUserId(data.selectedAssets);
     console.log(`  • Technical Owner: ${technicalOwnerUserId || 'NULL'} (${technicalOwnerUserId ? '✅' : '❌'})`);
     console.log(`  • Risk Summary: ${changeRequestData.custom_fields.risks ? 'Present' : 'NULL'} (${changeRequestData.custom_fields.risks ? '✅' : '❌'})`);
+    
+    // Log planning fields details
+    console.log('📋 PLANNING FIELDS:');
+    console.log(`  • Reason for Change: ${changeRequestData.planning_fields.reason_for_change ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.reason_for_change ? '✅' : '❌'})`);
+    console.log(`  • Change Impact: ${changeRequestData.planning_fields.change_impact ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.change_impact ? '✅' : '❌'})`);
+    console.log(`  • Rollout Plan: ${changeRequestData.planning_fields.rollout_plan ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.rollout_plan ? '✅' : '❌'})`);
+    console.log(`  • Backout Plan: ${changeRequestData.planning_fields.backout_plan ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.backout_plan ? '✅' : '❌'})`);
+    console.log(`  • Validation Plan: ${changeRequestData.planning_fields.custom_fields?.cfp_validation ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.custom_fields?.cfp_validation ? '✅' : '❌'})`);
+    
+    // Log source data for planning fields
+    console.log('📋 SOURCE DATA FOR PLANNING FIELDS:');
+    console.log(`  • data.reasonForChange: "${data.reasonForChange || 'NULL'}" (${data.reasonForChange?.trim() ? '✅' : '❌'})`);
+    console.log(`  • impactSummary: "${impactSummary?.substring(0, 100) || 'NULL'}..." (${impactSummary?.trim() ? '✅' : '❌'})`);
+    console.log(`  • data.implementationPlan: "${data.implementationPlan?.substring(0, 100) || 'NULL'}..." (${data.implementationPlan?.trim() ? '✅' : '❌'})`);
+    console.log(`  • data.backoutPlan: "${data.backoutPlan?.substring(0, 100) || 'NULL'}..." (${data.backoutPlan?.trim() ? '✅' : '❌'})`);
+    console.log(`  • data.validationPlan: "${data.validationPlan?.substring(0, 100) || 'NULL'}..." (${data.validationPlan?.trim() ? '✅' : '❌'})`);
     
     // Log technical owner identification process
     if (!technicalOwnerUserId) {
@@ -674,36 +784,76 @@ Submission Time: ${new Date().toISOString()}`;
       agent_id: data.selectedAgent?.id,
       
       // OPTIONAL: Planning fields (matching actual API structure)
-      planning_fields: {
-        reason_for_change: data.reasonForChange ? {
-          description_text: data.reasonForChange,
-          description_html: `<div dir="ltr">${data.reasonForChange}</div>`
-        } : null,
-        change_impact: impactSummary ? {
-          description_text: impactSummary,
-          description_html: `<div dir="ltr">${impactSummary.replace(/\n/g, '<br>')}</div>`
-        } : null,
-        rollout_plan: data.implementationPlan ? {
-          description_text: data.implementationPlan,
-          description_html: `<div dir="ltr">${data.implementationPlan.replace(/\n/g, '<br>')}</div>`
-        } : null,
-        backout_plan: data.backoutPlan ? {
-          description_text: data.backoutPlan,
-          description_html: `<div dir="ltr">${data.backoutPlan.replace(/\n/g, '<br>')}</div>`
-        } : null,
-        custom_fields: {
-          cfp_validation: data.validationPlan ? {
-            description_text: data.validationPlan,
-            description_html: `<div dir="ltr">${data.validationPlan.replace(/\n/g, '<br>')}</div>`
-          } : null
-        }
-      },
-      
-      // OPTIONAL: Custom fields
-      custom_fields: {
-        risks: riskSummary,
-        lf_technical_owner: await this.getTechnicalOwnerUserId(data.selectedAssets)
+      planning_fields: {}
+    };
+
+    // Add planning fields only if they have content (avoid null values)
+    if (data.reasonForChange?.trim()) {
+      minimalData.planning_fields.reason_for_change = {
+        description_text: data.reasonForChange,
+        description_html: `<div dir="ltr">${data.reasonForChange}</div>`
+      };
+    }
+
+    if (impactSummary?.trim()) {
+      minimalData.planning_fields.change_impact = {
+        description_text: impactSummary,
+        description_html: `<div dir="ltr">${impactSummary.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    if (data.implementationPlan?.trim()) {
+      minimalData.planning_fields.rollout_plan = {
+        description_text: data.implementationPlan,
+        description_html: `<div dir="ltr">${data.implementationPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    if (data.backoutPlan?.trim()) {
+      minimalData.planning_fields.backout_plan = {
+        description_text: data.backoutPlan,
+        description_html: `<div dir="ltr">${data.backoutPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    // Add custom planning fields only if they have content
+    if (data.validationPlan?.trim()) {
+      if (!minimalData.planning_fields.custom_fields) {
+        minimalData.planning_fields.custom_fields = {};
       }
+      minimalData.planning_fields.custom_fields.cfp_validation = {
+        description_text: data.validationPlan,
+        description_html: `<div dir="ltr">${data.validationPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    // Add the same custom planning fields as the main function
+    if (!minimalData.planning_fields.custom_fields) {
+      minimalData.planning_fields.custom_fields = {};
+    }
+
+    // 2. Impact and Risk Summary (comprehensive summary from questionnaire)
+    const comprehensiveRiskSummary = this.generateComprehensiveRiskAndImpactSummary(data.riskAssessment, data.selectedAssets, impactedData);
+    if (comprehensiveRiskSummary?.trim()) {
+      minimalData.planning_fields.custom_fields.cfp_impact_risk_summary = {
+        description_text: comprehensiveRiskSummary,
+        description_html: `<div dir="ltr">${comprehensiveRiskSummary.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    // 3. Service Impacted (formatted details from affected assets and services)
+    const serviceImpactedSummary = this.generateServiceImpactedSummary(data.selectedAssets, impactedData);
+    if (serviceImpactedSummary?.trim()) {
+      minimalData.planning_fields.custom_fields.cfp_service_impacted = {
+        description_text: serviceImpactedSummary,
+        description_html: `<div dir="ltr">${serviceImpactedSummary.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    // Add custom fields
+    minimalData.custom_fields = {
+      risks: riskSummary,
+      lf_technical_owner: await this.getTechnicalOwnerUserId(data.selectedAssets)
     };
 
     // Add dates if available
@@ -2588,6 +2738,423 @@ Workflow Summary:
       
       return null;
     }
+  },
+
+  /**
+   * Generate comprehensive risk and impact summary for planning fields
+   * Combines risk assessment questionnaire data with impact analysis
+   * @param {Object} riskAssessment - Risk assessment data from questionnaire
+   * @param {Array} selectedAssets - Selected assets that will be impacted
+   * @param {Object} impactedData - Impacted services data (approvers/stakeholders)
+   * @returns {string} Comprehensive formatted risk and impact summary
+   */
+  generateComprehensiveRiskAndImpactSummary(riskAssessment, selectedAssets = [], impactedData = {}) {
+    console.log('📊 Generating comprehensive risk and impact summary for planning fields...');
+    
+    if (!riskAssessment || !riskAssessment.riskLevel) {
+      return 'Risk and impact assessment not completed.';
+    }
+
+    let summary = `COMPREHENSIVE RISK & IMPACT ASSESSMENT\n\n`;
+    
+    // Executive Summary
+    summary += `EXECUTIVE SUMMARY:\n`;
+    summary += `Risk Level: ${riskAssessment.riskLevel?.toUpperCase()} (Score: ${riskAssessment.totalScore || 0}/15)\n`;
+    summary += `Assets Affected: ${selectedAssets.length} systems/services\n`;
+    summary += `Stakeholders Involved: ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)} people\n`;
+    
+    // Risk level interpretation
+    switch (riskAssessment.riskLevel?.toLowerCase()) {
+      case 'low':
+        summary += `Risk Assessment: Routine change with minimal business disruption expected.\n`;
+        break;
+      case 'medium':
+        summary += `Risk Assessment: Moderate complexity requiring additional oversight and coordination.\n`;
+        break;
+      case 'high':
+        summary += `Risk Assessment: Complex change requiring extensive planning and approval.\n`;
+        break;
+    }
+    summary += `\n`;
+
+    // Detailed Risk Breakdown
+    summary += `DETAILED RISK ANALYSIS:\n\n`;
+    
+    summary += `1. BUSINESS IMPACT RISK (${riskAssessment.businessImpact || 'N/A'}/3):\n`;
+    switch (riskAssessment.businessImpact) {
+      case 1:
+        summary += `   • Limited impact on business operations\n`;
+        summary += `   • Standard business hours implementation acceptable\n`;
+        summary += `   • Minimal operational disruption expected\n`;
+        break;
+      case 2:
+        summary += `   • Noticeable impact on business operations\n`;
+        summary += `   • Consider off-hours implementation window\n`;
+        summary += `   • Some operational coordination required\n`;
+        break;
+      case 3:
+        summary += `   • Significant impact on business operations\n`;
+        summary += `   • Mandatory maintenance window implementation\n`;
+        summary += `   • Extensive business continuity planning required\n`;
+        break;
+    }
+    summary += `\n`;
+
+    summary += `2. USER IMPACT RISK (${riskAssessment.affectedUsers || 'N/A'}/3):\n`;
+    switch (riskAssessment.affectedUsers) {
+      case 1:
+        summary += `   • Few users affected (<50 users)\n`;
+        summary += `   • Direct user communication sufficient\n`;
+        summary += `   • Minimal training or support required\n`;
+        break;
+      case 2:
+        summary += `   • Some users affected (50-200 users)\n`;
+        summary += `   • Department-level communication required\n`;
+        summary += `   • Support team coordination needed\n`;
+        break;
+      case 3:
+        summary += `   • Many users affected (>200 users)\n`;
+        summary += `   • Organization-wide communication mandatory\n`;
+        summary += `   • Extensive user support and training required\n`;
+        break;
+    }
+    summary += `\n`;
+
+    summary += `3. TECHNICAL COMPLEXITY RISK (${riskAssessment.complexity || 'N/A'}/3):\n`;
+    switch (riskAssessment.complexity) {
+      case 1:
+        summary += `   • Simple change with established procedures\n`;
+        summary += `   • Standard technical implementation\n`;
+        summary += `   • Single team can execute independently\n`;
+        break;
+      case 2:
+        summary += `   • Moderate complexity requiring coordination\n`;
+        summary += `   • Multiple technical components involved\n`;
+        summary += `   • Cross-team collaboration required\n`;
+        break;
+      case 3:
+        summary += `   • Complex change affecting multiple systems\n`;
+        summary += `   • Extensive technical coordination required\n`;
+        summary += `   • Multiple specialized teams must be involved\n`;
+        break;
+    }
+    summary += `\n`;
+
+    summary += `4. TESTING & VALIDATION RISK (${riskAssessment.testing || 'N/A'}/3):\n`;
+    switch (riskAssessment.testing) {
+      case 1:
+        summary += `   • Comprehensive testing completed\n`;
+        summary += `   • All critical functions validated\n`;
+        summary += `   • High confidence in implementation success\n`;
+        break;
+      case 2:
+        summary += `   • Adequate testing of primary functions\n`;
+        summary += `   • Some edge cases may not be fully tested\n`;
+        summary += `   • Monitor closely during implementation\n`;
+        break;
+      case 3:
+        summary += `   • Limited testing or testing not possible\n`;
+        summary += `   • Higher risk of unexpected issues\n`;
+        summary += `   • Requires enhanced monitoring and rapid response\n`;
+        break;
+    }
+    summary += `\n`;
+
+    summary += `5. RECOVERY & ROLLBACK RISK (${riskAssessment.rollback || 'N/A'}/3):\n`;
+    switch (riskAssessment.rollback) {
+      case 1:
+        summary += `   • Detailed rollback plan with proven procedures\n`;
+        summary += `   • Quick recovery possible if issues occur\n`;
+        summary += `   • Minimal additional downtime for rollback\n`;
+        break;
+      case 2:
+        summary += `   • Basic rollback steps identified\n`;
+        summary += `   • Moderate recovery time if rollback needed\n`;
+        summary += `   • Some manual intervention may be required\n`;
+        break;
+      case 3:
+        summary += `   • Limited or no rollback capability\n`;
+        summary += `   • Extended recovery time if issues occur\n`;
+        summary += `   • Forward-fix strategy must be primary approach\n`;
+        break;
+    }
+    summary += `\n`;
+
+    // Impact Scope Analysis
+    if (selectedAssets.length > 0) {
+      summary += `IMPACT SCOPE ANALYSIS:\n\n`;
+      summary += `Asset Count: ${selectedAssets.length} systems/services directly affected\n`;
+      
+      // Categorize impact scope
+      if (selectedAssets.length <= 2) {
+        summary += `Scope Assessment: LIMITED - Focused change affecting few systems\n`;
+      } else if (selectedAssets.length <= 5) {
+        summary += `Scope Assessment: MODERATE - Multi-system change requiring coordination\n`;
+      } else {
+        summary += `Scope Assessment: EXTENSIVE - Large-scale change affecting many systems\n`;
+      }
+      
+      summary += `\nAffected Systems:\n`;
+      selectedAssets.forEach((asset, index) => {
+        summary += `${index + 1}. ${asset.name} (ID: ${asset.display_id || asset.id})\n`;
+        if (asset.asset_tag) {
+          summary += `   Tag: ${asset.asset_tag}\n`;
+        }
+      });
+      summary += `\n`;
+    }
+
+    // Stakeholder Impact
+    const totalStakeholders = (impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0);
+    if (totalStakeholders > 0) {
+      summary += `STAKEHOLDER IMPACT:\n`;
+      summary += `Total Stakeholders: ${totalStakeholders}\n`;
+      summary += `Required Approvers: ${impactedData.approvers?.length || 0}\n`;
+      summary += `Notification Recipients: ${impactedData.stakeholders?.length || 0}\n`;
+      
+      if (impactedData.approvers?.length > 0) {
+        summary += `\nKey Approvers:\n`;
+        impactedData.approvers.slice(0, 5).forEach((approver, index) => {
+          summary += `${index + 1}. ${approver.name} - ${approver.source}\n`;
+        });
+        if (impactedData.approvers.length > 5) {
+          summary += `... and ${impactedData.approvers.length - 5} more approvers\n`;
+        }
+      }
+      summary += `\n`;
+    }
+
+    // Risk Mitigation Summary
+    summary += `RISK MITIGATION RECOMMENDATIONS:\n\n`;
+    
+    // Based on overall risk level
+    switch (riskAssessment.riskLevel?.toLowerCase()) {
+      case 'low':
+        summary += `• Standard change management procedures apply\n`;
+        summary += `• Basic monitoring during implementation\n`;
+        summary += `• Post-implementation validation recommended\n`;
+        break;
+      case 'medium':
+        summary += `• Enhanced monitoring and coordination required\n`;
+        summary += `• Consider phased implementation approach\n`;
+        summary += `• Peer review mandatory before execution\n`;
+        summary += `• Detailed post-implementation assessment\n`;
+        break;
+      case 'high':
+        summary += `• Extensive pre-implementation planning required\n`;
+        summary += `• Mandatory management approval and oversight\n`;
+        summary += `• Consider pilot/limited rollout first\n`;
+        summary += `• Dedicated support team during implementation\n`;
+        summary += `• Comprehensive post-implementation review\n`;
+        break;
+    }
+
+    // Specific recommendations based on weak areas
+    if (riskAssessment.testing >= 3) {
+      summary += `• CRITICAL: Enhance testing procedures before implementation\n`;
+    }
+    if (riskAssessment.rollback >= 3) {
+      summary += `• CRITICAL: Develop detailed recovery procedures\n`;
+    }
+    if (riskAssessment.complexity >= 3) {
+      summary += `• CRITICAL: Ensure adequate technical expertise available\n`;
+    }
+
+    summary += `\nThis assessment was generated automatically from the risk questionnaire responses and asset analysis.`;
+    summary += `\nLast Updated: ${new Date().toISOString().split('T')[0]}`;
+    
+    console.log('📋 Comprehensive risk and impact summary generated');
+    return summary;
+  },
+
+  /**
+   * Generate service impacted summary for planning fields
+   * Detailed breakdown of affected services, systems, and stakeholders
+   * @param {Array} selectedAssets - Selected assets that will be impacted
+   * @param {Object} impactedData - Impacted services data (approvers/stakeholders)
+   * @returns {string} Formatted service impact summary
+   */
+  generateServiceImpactedSummary(selectedAssets = [], impactedData = {}) {
+    console.log('🏢 Generating service impacted summary for planning fields...');
+    
+    if (!selectedAssets.length && !impactedData.approvers?.length && !impactedData.stakeholders?.length) {
+      return 'No service impact analysis available.';
+    }
+
+    let summary = `IMPACTED SERVICES & SYSTEMS ANALYSIS\n\n`;
+    
+    // Executive Summary
+    summary += `IMPACT OVERVIEW:\n`;
+    summary += `• Directly Affected Assets: ${selectedAssets.length}\n`;
+    summary += `• Service Owners/Managers: ${impactedData.approvers?.length || 0}\n`;
+    summary += `• Additional Stakeholders: ${impactedData.stakeholders?.length || 0}\n`;
+    summary += `• Total Impacted Personnel: ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)}\n\n`;
+
+    // Detailed Asset Analysis
+    if (selectedAssets.length > 0) {
+      summary += `AFFECTED ASSETS & SYSTEMS:\n\n`;
+      
+      selectedAssets.forEach((asset, index) => {
+        summary += `${index + 1}. ASSET: ${asset.name}\n`;
+        summary += `   Asset ID: ${asset.display_id || asset.id}\n`;
+        summary += `   Asset Tag: ${asset.asset_tag || 'Not assigned'}\n`;
+        
+        // Add asset type or category if available
+        if (asset.asset_type_id || asset.product_id) {
+          summary += `   Type/Product: ${asset.asset_type_id || asset.product_id}\n`;
+        }
+        
+        // Add location if available
+        if (asset.location_id || asset.department_id) {
+          summary += `   Location/Dept: ${asset.location_id || asset.department_id}\n`;
+        }
+        
+        // Add management info if available
+        if (asset.managed_by || asset.agent_id || asset.user_id) {
+          summary += `   Managed By: User ID ${asset.managed_by || asset.agent_id || asset.user_id}\n`;
+        }
+        
+        // Add status/state if available
+        if (asset.asset_state || asset.state) {
+          summary += `   Current State: ${asset.asset_state || asset.state}\n`;
+        }
+        
+        summary += `\n`;
+      });
+    }
+
+    // Service Owners & Approvers
+    if (impactedData.approvers?.length > 0) {
+      summary += `SERVICE OWNERS & APPROVERS:\n\n`;
+      
+      impactedData.approvers.forEach((approver, index) => {
+        summary += `${index + 1}. APPROVER: ${approver.name}\n`;
+        summary += `   Email: ${approver.email}\n`;
+        summary += `   Role/Source: ${approver.source}\n`;
+        summary += `   Approval Level: ${approver.level || 'Standard'}\n`;
+        
+        // Add relationship to assets if available
+        if (approver.assetNames && approver.assetNames.length > 0) {
+          summary += `   Manages Assets: ${approver.assetNames.join(', ')}\n`;
+        }
+        
+        summary += `\n`;
+      });
+    }
+
+    // Additional Stakeholders
+    if (impactedData.stakeholders?.length > 0) {
+      summary += `ADDITIONAL STAKEHOLDERS:\n\n`;
+      
+      impactedData.stakeholders.forEach((stakeholder, index) => {
+        summary += `${index + 1}. STAKEHOLDER: ${stakeholder.name}\n`;
+        summary += `   Email: ${stakeholder.email}\n`;
+        summary += `   Relationship: ${stakeholder.source}\n`;
+        
+        // Add notification method if specified
+        if (stakeholder.notificationMethod) {
+          summary += `   Notification: ${stakeholder.notificationMethod}\n`;
+        }
+        
+        summary += `\n`;
+      });
+    }
+
+    // Service Dependencies & Relationships
+    if (selectedAssets.length > 1) {
+      summary += `SERVICE DEPENDENCIES:\n\n`;
+      summary += `• ${selectedAssets.length} interconnected systems identified\n`;
+      summary += `• Potential cascade effects between systems\n`;
+      summary += `• Coordination required across multiple service areas\n`;
+      
+      // Group assets by type or department if possible
+      const assetsByType = {};
+      selectedAssets.forEach(asset => {
+        const type = asset.asset_type_id || asset.product_id || 'Unspecified';
+        if (!assetsByType[type]) {
+          assetsByType[type] = [];
+        }
+        assetsByType[type].push(asset.name);
+      });
+      
+      if (Object.keys(assetsByType).length > 1) {
+        summary += `\nAsset Categories Affected:\n`;
+        Object.keys(assetsByType).forEach(type => {
+          summary += `• ${type}: ${assetsByType[type].length} assets (${assetsByType[type].slice(0, 3).join(', ')}${assetsByType[type].length > 3 ? '...' : ''})\n`;
+        });
+      }
+      summary += `\n`;
+    }
+
+    // Communication Plan
+    const totalNotifications = (impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0);
+    if (totalNotifications > 0) {
+      summary += `COMMUNICATION REQUIREMENTS:\n\n`;
+      
+      if (impactedData.approvers?.length > 0) {
+        summary += `APPROVAL NOTIFICATIONS (${impactedData.approvers.length}):\n`;
+        summary += `• Formal approval requests to be sent\n`;
+        summary += `• Response required before implementation\n`;
+        summary += `• Escalation procedures apply for delays\n\n`;
+      }
+      
+      if (impactedData.stakeholders?.length > 0) {
+        summary += `STAKEHOLDER NOTIFICATIONS (${impactedData.stakeholders.length}):\n`;
+        summary += `• Information-only notifications to be sent\n`;
+        summary += `• Advance notice of potential service impact\n`;
+        summary += `• Contact information provided for questions\n\n`;
+      }
+      
+      // Timeline recommendations
+      if (totalNotifications > 5) {
+        summary += `RECOMMENDED NOTIFICATION TIMELINE:\n`;
+        summary += `• T-72h: Initial stakeholder notification\n`;
+        summary += `• T-48h: Formal approval requests sent\n`;
+        summary += `• T-24h: Confirmation and final updates\n`;
+        summary += `• T-0h: Implementation commencement notice\n\n`;
+      }
+    }
+
+    // Service Impact Assessment
+    summary += `SERVICE IMPACT ASSESSMENT:\n\n`;
+    
+    // Determine overall service impact level
+    const assetCount = selectedAssets.length;
+    const stakeholderCount = totalNotifications;
+    
+    let impactLevel = 'LOW';
+    if (assetCount > 5 || stakeholderCount > 10) {
+      impactLevel = 'HIGH';
+    } else if (assetCount > 2 || stakeholderCount > 5) {
+      impactLevel = 'MEDIUM';
+    }
+    
+    summary += `Overall Service Impact Level: ${impactLevel}\n\n`;
+    
+    switch (impactLevel) {
+      case 'LOW':
+        summary += `• Limited service disruption expected\n`;
+        summary += `• Standard communication procedures sufficient\n`;
+        summary += `• Normal business hours implementation acceptable\n`;
+        break;
+      case 'MEDIUM':
+        summary += `• Moderate service disruption possible\n`;
+        summary += `• Enhanced communication and coordination required\n`;
+        summary += `• Consider off-hours implementation window\n`;
+        break;
+      case 'HIGH':
+        summary += `• Significant service disruption likely\n`;
+        summary += `• Extensive coordination and communication mandatory\n`;
+        summary += `• Maintenance window implementation required\n`;
+        summary += `• Executive notification recommended\n`;
+        break;
+    }
+
+    summary += `\nThis analysis was generated automatically from asset selections and stakeholder identification.`;
+    summary += `\nGenerated: ${new Date().toLocaleString()}`;
+    
+    console.log('📋 Service impacted summary generated');
+    return summary;
   },
 
   // ... [rest of the original file content remains unchanged]
