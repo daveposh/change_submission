@@ -338,13 +338,8 @@ const ChangeSubmission = {
       workspaceId = 2; // Fallback to default workspace
     }
 
-    // Calculate priority based on risk level
-    let priority = 2; // default to medium
-    if (data.riskAssessment?.riskLevel === 'Low') {
-      priority = 1; // Low priority
-    } else if (data.riskAssessment?.riskLevel === 'High') {
-      priority = 3; // High priority
-    }
+    // Calculate priority based on change type and risk level
+    let priority = this.calculatePriority(data.changeType, data.riskAssessment?.riskLevel);
 
     // Map change type to Freshservice values (this instance supports 4=Emergency, 6=Normal Change)
     const changeTypeMapping = {
@@ -362,6 +357,9 @@ const ChangeSubmission = {
       'High': 3        // High (not using 4=Very High for now)
     };
     const risk = riskMapping[data.riskAssessment?.riskLevel] || 2; // default to medium
+
+    // Generate risk summary based on questionnaire responses
+    const riskSummary = this.generateRiskSummary(data.riskAssessment);
 
     // Map impact based on risk level and affected assets count
     let impact = 2; // Default to Medium impact
@@ -427,7 +425,7 @@ const ChangeSubmission = {
 
     // Add custom fields structure to match the expected format (based on actual schema)
     changeRequestData.custom_fields = {
-      risks: null,
+      risks: riskSummary,
       lf_technical_owner: null
     };
 
@@ -435,6 +433,7 @@ const ChangeSubmission = {
       subject: changeRequestData.subject,
       change_type: changeRequestData.change_type,
       priority: changeRequestData.priority,
+      calculatedFromRisk: `${data.changeType}+${data.riskAssessment?.riskLevel}→${priority}`,
       risk: changeRequestData.risk,
       impact: changeRequestData.impact,
       workspace_id: changeRequestData.workspace_id,
@@ -444,7 +443,9 @@ const ChangeSubmission = {
       hasDefaultFields: !!(changeRequestData.change_reason || changeRequestData.change_impact || changeRequestData.change_plan || changeRequestData.backout_plan),
       hasPlanningFields: !!changeRequestData.planning_fields,
       planningFieldsCount: changeRequestData.planning_fields ? Object.keys(changeRequestData.planning_fields).filter(key => changeRequestData.planning_fields[key] !== null).length : 0,
-      hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0
+      hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0,
+      hasRiskSummary: !!changeRequestData.custom_fields.risks,
+      riskSummaryLength: changeRequestData.custom_fields.risks ? changeRequestData.custom_fields.risks.length : 0
     });
 
     console.log('📦 Final change request data structure:', JSON.stringify(changeRequestData, null, 2));
@@ -524,12 +525,18 @@ Submission Time: ${new Date().toISOString()}`;
   createMinimalChangeRequest(data) {
     console.log('📦 Creating minimal change request with only required fields...');
     
+    // Calculate priority based on change type and risk level
+    const priority = this.calculatePriority(data.changeType, data.riskAssessment?.riskLevel);
+    
+    // Generate risk summary based on questionnaire responses
+    const riskSummary = this.generateRiskSummary(data.riskAssessment);
+    
     // Only include the absolute minimum required fields
     const minimalData = {
       subject: data.changeTitle || 'Test Change Request',
       description: data.reasonForChange || 'Change request created via app',
       change_type: 6, // Normal Change (based on actual field choices)
-      priority: 2,    // Medium priority
+      priority: priority,    // Calculated priority based on change type and risk
       status: 1,      // Open
       risk: 2,        // Medium risk
       impact: 2,      // Medium impact
@@ -549,7 +556,7 @@ Submission Time: ${new Date().toISOString()}`;
       },
       
       custom_fields: {
-        risks: null,
+        risks: riskSummary,
         lf_technical_owner: null
       }
     };
@@ -604,11 +611,15 @@ Submission Time: ${new Date().toISOString()}`;
           // If it still fails, try with an even simpler configuration
           console.warn('⚠️ Trying with ultra-minimal configuration...');
           try {
+            // Calculate priority and risk summary for ultra-minimal as well
+            const ultraPriority = this.calculatePriority(window.changeRequestData.changeType, window.changeRequestData.riskAssessment?.riskLevel);
+            const ultraRiskSummary = this.generateRiskSummary(window.changeRequestData.riskAssessment);
+            
             const ultraMinimalData = {
               subject: 'Change Request',
               description: 'Change request created via app',
               change_type: 6, // Normal Change (based on actual field choices)
-              priority: 2,
+              priority: ultraPriority,
               status: 1,
               risk: 2,
               impact: 2,
@@ -628,7 +639,7 @@ Submission Time: ${new Date().toISOString()}`;
               },
               
               custom_fields: {
-                risks: null,
+                risks: ultraRiskSummary,
                 lf_technical_owner: null
               }
             };
@@ -1836,6 +1847,133 @@ Workflow Summary:
     }
     
     console.log('✅ Returned to edit mode successfully');
+  },
+
+  /**
+   * Calculate priority based on change type and risk assessment
+   * @param {string} changeType - Type of change (emergency, normal, etc.)
+   * @param {string} riskLevel - Risk level from assessment (Low, Medium, High)
+   * @returns {number} Priority level (1-4: Low, Medium, High, Urgent)
+   */
+  calculatePriority(changeType, riskLevel) {
+    console.log(`🎯 Calculating priority for changeType: ${changeType}, riskLevel: ${riskLevel}`);
+    
+    // Emergency changes are always high priority regardless of risk
+    if (changeType === 'emergency') {
+      console.log('⚡ Emergency change - setting priority to Urgent (4)');
+      return 4; // Urgent
+    }
+    
+    // For normal changes, base priority on risk level
+    switch (riskLevel?.toLowerCase()) {
+      case 'low':
+        console.log('🟢 Low risk - setting priority to Low (1)');
+        return 1; // Low priority
+      case 'medium':
+        console.log('🟡 Medium risk - setting priority to Medium (2)');
+        return 2; // Medium priority
+      case 'high':
+        console.log('🔴 High risk - setting priority to High (3)');
+        return 3; // High priority
+      default:
+        console.log('❓ Unknown risk level - defaulting to Medium priority (2)');
+        return 2; // Default to medium
+    }
+  },
+
+  /**
+   * Generate comprehensive risk summary based on questionnaire responses
+   * @param {Object} riskAssessment - Risk assessment data from questionnaire
+   * @returns {string} Formatted risk summary
+   */
+  generateRiskSummary(riskAssessment) {
+    console.log('📊 Generating risk summary from questionnaire responses...');
+    
+    if (!riskAssessment || !riskAssessment.riskLevel) {
+      console.warn('⚠️ No risk assessment data available');
+      return 'Risk assessment not completed.';
+    }
+
+    // Map numeric scores to descriptive text
+    const getScoreDescription = (score, category) => {
+      const descriptions = {
+        businessImpact: {
+          1: 'Limited impact on business operations',
+          2: 'Noticeable impact on some business operations',
+          3: 'Significant impact on business operations'
+        },
+        affectedUsers: {
+          1: 'Few users affected (<50 users)',
+          2: 'Some users affected (50-200 users)',
+          3: 'Many users affected (>200 users)'
+        },
+        complexity: {
+          1: 'Simple - Routine change with established procedures',
+          2: 'Moderate - Some complexity but well understood',
+          3: 'Complex - Multiple systems or uncommon procedures'
+        },
+        testing: {
+          1: 'Comprehensive - Thoroughly tested in multiple environments',
+          2: 'Adequate - Primary functions tested in test environment',
+          3: 'Limited - Minimal testing or testing not possible'
+        },
+        rollback: {
+          1: 'Yes - Detailed rollback plan with proven procedures',
+          2: 'Partial - Basic rollback steps identified',
+          3: 'No - No rollback possible or very difficult'
+        }
+      };
+      
+      return descriptions[category]?.[score] || `Score: ${score}`;
+    };
+
+    // Generate detailed risk summary
+    let summary = `RISK ASSESSMENT SUMMARY\n`;
+    summary += `Overall Risk Level: ${riskAssessment.riskLevel?.toUpperCase()}\n`;
+    summary += `Risk Score: ${riskAssessment.totalScore || 0}/15\n\n`;
+    
+    summary += `DETAILED RISK FACTORS:\n\n`;
+    
+    summary += `1. BUSINESS IMPACT (Score: ${riskAssessment.businessImpact || 'N/A'}/3)\n`;
+    summary += `   ${getScoreDescription(riskAssessment.businessImpact, 'businessImpact')}\n\n`;
+    
+    summary += `2. AFFECTED USERS (Score: ${riskAssessment.affectedUsers || 'N/A'}/3)\n`;
+    summary += `   ${getScoreDescription(riskAssessment.affectedUsers, 'affectedUsers')}\n\n`;
+    
+    summary += `3. COMPLEXITY (Score: ${riskAssessment.complexity || 'N/A'}/3)\n`;
+    summary += `   ${getScoreDescription(riskAssessment.complexity, 'complexity')}\n\n`;
+    
+    summary += `4. TESTING LEVEL (Score: ${riskAssessment.testing || 'N/A'}/3)\n`;
+    summary += `   ${getScoreDescription(riskAssessment.testing, 'testing')}\n\n`;
+    
+    summary += `5. ROLLBACK CAPABILITY (Score: ${riskAssessment.rollback || 'N/A'}/3)\n`;
+    summary += `   ${getScoreDescription(riskAssessment.rollback, 'rollback')}\n\n`;
+    
+    // Add risk level interpretation
+    summary += `RISK LEVEL INTERPRETATION:\n`;
+    switch (riskAssessment.riskLevel?.toLowerCase()) {
+      case 'low':
+        summary += `• Low risk changes are routine with minimal impact\n`;
+        summary += `• Standard approval process applies\n`;
+        summary += `• Can typically proceed with minimal oversight\n`;
+        break;
+      case 'medium':
+        summary += `• Medium risk changes require careful planning\n`;
+        summary += `• Additional review and approval may be required\n`;
+        summary += `• Peer review task will be created for technical validation\n`;
+        break;
+      case 'high':
+        summary += `• High risk changes require extensive oversight\n`;
+        summary += `• All approvers must review and approve\n`;
+        summary += `• Mandatory peer review with 24-hour deadline\n`;
+        summary += `• Consider additional testing or phased implementation\n`;
+        break;
+    }
+    
+    summary += `\nGenerated automatically from risk questionnaire responses.`;
+    
+    console.log('📋 Risk summary generated:', summary.substring(0, 200) + '...');
+    return summary;
   },
 
   // Add any new methods or properties needed for the new implementation
