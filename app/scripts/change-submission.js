@@ -1278,9 +1278,21 @@ Workflow Summary:
       }
 
       // Show modal using Bootstrap
-      const bootstrapModal = new bootstrap.Modal(modal);
+      const bootstrapModal = new bootstrap.Modal(modal, {
+        backdrop: true,  // Allow clicking backdrop to close
+        keyboard: true   // Allow ESC key to close
+      });
       
       bootstrapModal.show();
+
+      // Store modal instance for cleanup
+      this.currentModal = bootstrapModal;
+
+      // Handle modal hidden event for cleanup
+      modal.addEventListener('hidden.bs.modal', () => {
+        console.log('🧹 Modal hidden - cleaning up...');
+        this.cleanupModal();
+      });
 
       // Handle confirm submission button
       const confirmBtn = document.getElementById('confirm-submit');
@@ -1290,10 +1302,12 @@ Workflow Summary:
         // Add new listener
         this.handleSubmissionBound = (e) => {
           e.preventDefault();
-          bootstrapModal.hide();
-          setTimeout(() => {
+          console.log('✅ User confirmed submission - proceeding...');
+          
+          // Hide modal and proceed with submission
+          this.hideModalAndProceed(() => {
             this.handleSubmission();
-          }, 300);
+          });
         };
         confirmBtn.addEventListener('click', this.handleSubmissionBound);
       }
@@ -1308,56 +1322,10 @@ Workflow Summary:
           e.preventDefault();
           console.log('📝 User clicked Edit Request - returning to form...');
           
-          // Hide the modal
-          bootstrapModal.hide();
-          
-          // After modal is hidden, navigate back to the first tab and scroll to top
-          setTimeout(() => {
-            // Switch to the first tab (change details)
-            const firstTab = document.querySelector('.nav-tabs .nav-link[data-target="change-details"]');
-            if (firstTab) {
-              firstTab.click();
-            } else {
-              // Fallback: use switchTab function if available
-              if (typeof window.switchTab === 'function') {
-                window.switchTab('change-details');
-              }
-            }
-            
-            // Scroll to the top of the page
-            window.scrollTo({
-              top: 0,
-              behavior: 'smooth'
-            });
-            
-            // Show a helpful message
-            const statusElement = document.getElementById('submission-status');
-            if (statusElement) {
-              statusElement.innerHTML = `
-                <div class="alert alert-info alert-dismissible fade show" role="alert">
-                  <i class="fas fa-info-circle me-2"></i>
-                  <strong>Edit Mode:</strong> You can now make changes to your change request. Click "Submit Change Request" when ready.
-                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-              `;
-              statusElement.style.display = 'block';
-              
-              // Auto-hide the message after 5 seconds
-              setTimeout(() => {
-                if (statusElement.querySelector('.alert')) {
-                  const alert = statusElement.querySelector('.alert');
-                  if (alert) {
-                    alert.classList.remove('show');
-                    setTimeout(() => {
-                      statusElement.style.display = 'none';
-                    }, 150);
-                  }
-                }
-              }, 5000);
-            }
-            
-            console.log('✅ Returned to edit mode successfully');
-          }, 300); // Wait for modal to fully close
+          // Hide modal and return to edit mode
+          this.hideModalAndProceed(() => {
+            this.returnToEditMode();
+          });
         };
         editBtn.addEventListener('click', this.handleEditBound);
       }
@@ -1726,6 +1694,9 @@ Workflow Summary:
       }, 10000);
     }
   },
+
+  // Add any new methods or properties needed for the new implementation
+  // ...
 };
 
 // Initialize the module when the script loads
