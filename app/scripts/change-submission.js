@@ -405,13 +405,15 @@ const ChangeSubmission = {
       planned_end_date: formatDateForAPI(data.plannedEnd),
       workspace_id: workspaceId, // Always include workspace_id (required field)
       
-      // Planning fields structure - this is where the planning details should go
+      // Default fields (based on actual schema)
+      change_reason: data.reasonForChange || null,
+      change_impact: data.implementationPlan || null,  // Implementation plan describes the impact
+      change_plan: data.implementationPlan || null,    // Rollout/Implementation Plan
+      backout_plan: data.backoutPlan || null,
+      
+      // Planning fields structure (only cfp_validation based on schema)
       planning_fields: {
-        change_reason: data.reasonForChange || null,
-        change_impact: data.implementationPlan || null,  // Implementation plan describes the impact
-        change_plan: data.implementationPlan || null,    // Rollout/Implementation Plan
-        backout_plan: data.backoutPlan || null,
-        validation_plan: data.validationPlan || null
+        cfp_validation: data.validationPlan || null
       }
     };
 
@@ -423,11 +425,10 @@ const ChangeSubmission = {
       console.log('🏢 No department_id configured, skipping department assignment');
     }
 
-    // Add custom fields structure to match the expected format
+    // Add custom fields structure to match the expected format (based on actual schema)
     changeRequestData.custom_fields = {
       risks: null,
-      lf_technical_owner: null,
-      cfp_validation: data.validationPlan || null // Map validation plan to the planning field
+      lf_technical_owner: null
     };
 
     console.log('✅ Change request data prepared:', {
@@ -440,6 +441,7 @@ const ChangeSubmission = {
       assetCount: 0, // Not including assets in initial request to avoid 500 errors
       approverCount: impactedData.approvers?.length || 0,
       hasDepartment: !!changeRequestData.department_id,
+      hasDefaultFields: !!(changeRequestData.change_reason || changeRequestData.change_impact || changeRequestData.change_plan || changeRequestData.backout_plan),
       hasPlanningFields: !!changeRequestData.planning_fields,
       planningFieldsCount: changeRequestData.planning_fields ? Object.keys(changeRequestData.planning_fields).filter(key => changeRequestData.planning_fields[key] !== null).length : 0,
       hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0
@@ -535,13 +537,15 @@ Submission Time: ${new Date().toISOString()}`;
       requester_id: data.selectedRequester?.id,
       agent_id: data.selectedAgent?.id,
       
-      // Planning fields structure for minimal request
+      // Default fields (based on actual schema)
+      change_reason: data.reasonForChange || null,
+      change_impact: data.implementationPlan || null,
+      change_plan: data.implementationPlan || null,
+      backout_plan: data.backoutPlan || null,
+      
+      // Planning fields (only cfp_validation based on schema)
       planning_fields: {
-        change_reason: data.reasonForChange || null,
-        change_impact: data.implementationPlan || null,
-        change_plan: data.implementationPlan || null,
-        backout_plan: data.backoutPlan || null,
-        validation_plan: data.validationPlan || null
+        cfp_validation: data.validationPlan || null
       },
       
       custom_fields: {
@@ -612,13 +616,15 @@ Submission Time: ${new Date().toISOString()}`;
               requester_id: window.changeRequestData.selectedRequester?.id,
               agent_id: window.changeRequestData.selectedAgent?.id,
               
-              // Even in ultra-minimal, include planning_fields structure
+              // Default fields (based on actual schema)
+              change_reason: window.changeRequestData.reasonForChange || null,
+              change_impact: null,
+              change_plan: null,
+              backout_plan: null,
+              
+              // Planning fields (only cfp_validation based on schema)
               planning_fields: {
-                change_reason: window.changeRequestData.reasonForChange || null,
-                change_impact: null,
-                change_plan: null,
-                backout_plan: null,
-                validation_plan: null
+                cfp_validation: null
               },
               
               custom_fields: {
@@ -634,7 +640,33 @@ Submission Time: ${new Date().toISOString()}`;
             return response;
           } catch (ultraMinimalError) {
             console.error('❌ Failed even with ultra-minimal fields:', ultraMinimalError);
-            throw ultraMinimalError;
+            
+            // Final attempt: Remove all optional structures
+            console.warn('⚠️ Final attempt - removing all optional field structures...');
+            try {
+              const bareMinimalData = {
+                subject: 'Change Request',
+                description: 'Change request created via app',
+                change_type: 6,
+                priority: 2,
+                status: 1,
+                risk: 2,
+                impact: 2,
+                workspace_id: 2,
+                requester_id: window.changeRequestData.selectedRequester?.id,
+                agent_id: window.changeRequestData.selectedAgent?.id,
+                change_reason: window.changeRequestData.reasonForChange || null
+              };
+              
+              console.log('📦 Bare minimal data (no planning_fields/custom_fields):', JSON.stringify(bareMinimalData, null, 2));
+              const response = await this.attemptChangeRequestCreation(bareMinimalData);
+              console.log('✅ Change request created successfully with bare minimal fields');
+              console.log('⚠️ You will need to update this change request manually with all the details');
+              return response;
+            } catch (bareMinimalError) {
+              console.error('❌ Failed even with bare minimal fields:', bareMinimalError);
+              throw bareMinimalError;
+            }
           }
         }
       }
