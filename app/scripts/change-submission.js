@@ -1084,6 +1084,9 @@ Workflow Summary:
   showSubmissionSuccess(changeRequest) {
     console.log('🎉 Showing submission success...');
 
+    // Clean up any modal remnants
+    this.cleanupModal();
+
     // Hide submission status
     this.showSubmissionStatus(false);
 
@@ -1120,6 +1123,9 @@ Workflow Summary:
    */
   showSubmissionError(error) {
     console.error('❌ Showing submission error:', error);
+
+    // Clean up any modal remnants
+    this.cleanupModal();
 
     // Hide submission status
     this.showSubmissionStatus(false);
@@ -1693,6 +1699,111 @@ Workflow Summary:
         statusElement.style.display = 'none';
       }, 10000);
     }
+  },
+
+  /**
+   * Properly hide modal and proceed with callback
+   */
+  hideModalAndProceed(callback) {
+    if (this.currentModal) {
+      // Hide the modal
+      this.currentModal.hide();
+      
+      // Wait for modal to be fully hidden before proceeding
+      setTimeout(() => {
+        if (callback && typeof callback === 'function') {
+          callback();
+        }
+      }, 300); // Bootstrap modal transition time
+    } else {
+      // If no modal instance, just proceed
+      if (callback && typeof callback === 'function') {
+        callback();
+      }
+    }
+  },
+
+  /**
+   * Clean up modal instances and backdrop
+   */
+  cleanupModal() {
+    console.log('🧹 Cleaning up modal...');
+    
+    // Remove any lingering modal backdrops
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => {
+      console.log('🗑️ Removing lingering backdrop...');
+      backdrop.remove();
+    });
+    
+    // Reset body classes
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    
+    // Clear modal instance
+    if (this.currentModal) {
+      try {
+        this.currentModal.dispose();
+      } catch (error) {
+        console.warn('⚠️ Error disposing modal:', error);
+      }
+      this.currentModal = null;
+    }
+    
+    console.log('✅ Modal cleanup complete');
+  },
+
+  /**
+   * Return to edit mode after modal closes
+   */
+  returnToEditMode() {
+    console.log('📝 Returning to edit mode...');
+    
+    // Switch to the first tab (change details)
+    const firstTab = document.querySelector('.nav-tabs .nav-link[data-bs-target="#change-details"]');
+    if (firstTab) {
+      firstTab.click();
+    } else {
+      // Fallback: use switchTab function if available
+      if (typeof window.switchTab === 'function') {
+        window.switchTab('change-details');
+      }
+    }
+    
+    // Scroll to the top of the page
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+    
+    // Show a helpful message
+    const statusElement = document.getElementById('submission-status');
+    if (statusElement) {
+      statusElement.innerHTML = `
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+          <i class="fas fa-info-circle me-2"></i>
+          <strong>Edit Mode:</strong> You can now make changes to your change request. Click "Submit Change Request" when ready.
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      `;
+      statusElement.style.display = 'block';
+      
+      // Auto-hide the message after 5 seconds
+      setTimeout(() => {
+        if (statusElement.querySelector('.alert')) {
+          const alert = statusElement.querySelector('.alert');
+          if (alert) {
+            alert.classList.remove('show');
+            setTimeout(() => {
+              statusElement.style.display = 'none';
+            }, 150);
+          }
+        }
+      }, 5000);
+    }
+    
+    console.log('✅ Returned to edit mode successfully');
   },
 
   // Add any new methods or properties needed for the new implementation
