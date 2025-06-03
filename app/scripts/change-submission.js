@@ -489,7 +489,7 @@ const ChangeSubmission = {
     // Add custom fields structure to match the expected format (based on actual schema)
     changeRequestData.custom_fields = {
       risks: riskSummary,
-      lf_technical_owner: await this.getTechnicalOwnerUserId(data.selectedAssets)
+      lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets)
     };
 
     // Add planning fields only if they have content (avoid null values)
@@ -586,8 +586,8 @@ const ChangeSubmission = {
       riskSummaryLength: changeRequestData.custom_fields.risks ? changeRequestData.custom_fields.risks.length : 0,
       hasImpactSummary: !!impactSummary,
       impactSummaryLength: impactSummary ? impactSummary.length : 0,
-      hasTechnicalOwner: !!(await this.getTechnicalOwnerUserId(data.selectedAssets)),
-      technicalOwnerUserId: await this.getTechnicalOwnerUserId(data.selectedAssets) || 'None identified'
+      hasTechnicalOwner: !!(this.getTechnicalOwnerUserId(data.selectedAssets)),
+      technicalOwnerUserId: this.getTechnicalOwnerUserId(data.selectedAssets) || 'None identified'
     });
 
     // Log detailed mapping of all REQUIRED fields
@@ -604,7 +604,7 @@ const ChangeSubmission = {
 
     // Log custom fields details
     console.log('📋 CUSTOM FIELDS:');
-    const technicalOwnerUserId = await this.getTechnicalOwnerUserId(data.selectedAssets);
+    const technicalOwnerUserId = this.getTechnicalOwnerUserId(data.selectedAssets);
     console.log(`  • Technical Owner: ${technicalOwnerUserId || 'NULL'} (${technicalOwnerUserId ? '✅' : '❌'})`);
     console.log(`  • Risk Summary: ${changeRequestData.custom_fields.risks ? 'Present' : 'NULL'} (${changeRequestData.custom_fields.risks ? '✅' : '❌'})`);
     
@@ -704,4 +704,498 @@ const ChangeSubmission = {
     }
 
     // Service Impact Section with comprehensive risk and impact information
+    description += `</div>`;
+    
+    console.log('✅ Enhanced description created with rich formatting');
+    return description;
+  },
+
+  /**
+   * Create change request with minimal required fields only
+   */
+  createMinimalChangeRequest(data) {
+    console.log('📦 Creating minimal change request with only required fields...');
+    
+    // Calculate priority based on change type and risk level
+    const priority = this.calculatePriority(data.changeType, data.riskAssessment?.riskLevel);
+    
+    // Generate risk summary based on questionnaire responses
+    const riskSummary = this.generateRiskSummary(data.riskAssessment);
+    
+    // Generate impact summary (simplified for minimal request)
+    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+    const impactSummary = this.generateImpactSummary(data.riskAssessment, data.selectedAssets, impactedData);
+    
+    // Only include the absolute minimum required fields
+    const minimalData = {
+      // REQUIRED: Subject (Title)
+      subject: data.changeTitle || 'Untitled Change Request',
+      
+      // REQUIRED: Description
+      description: data.changeDescription || data.reasonForChange || 'Change request created via app',
+      
+      // REQUIRED: Workspace
+      workspace_id: 2, // Required field - "CXI Change Management" workspace
+      
+      // REQUIRED: Requester
+      requester_id: data.selectedRequester?.id,
+      
+      // REQUIRED: Change Type
+      change_type: 6, // Normal Change (based on actual field choices)
+      
+      // REQUIRED: Status
+      status: 1,      // Open
+      
+      // REQUIRED: Priority (calculated)
+      priority: priority,    // Calculated priority based on change type and risk
+      
+      // REQUIRED: Impact
+      impact: 2,      // Medium impact
+      
+      // REQUIRED: Risk
+      risk: 2,        // Medium risk
+      
+      // OPTIONAL: Agent assignment
+      agent_id: data.selectedAgent?.id,
+      
+      // OPTIONAL: Planning fields (matching actual API structure)
+      planning_fields: {}
+    };
+
+    // Add planning fields only if they have content (avoid null values)
+    if (data.reasonForChange?.trim()) {
+      minimalData.planning_fields.reason_for_change = {
+        description_text: data.reasonForChange,
+        description_html: `<div dir="ltr">${data.reasonForChange}</div>`
+      };
+    }
+
+    if (impactSummary?.trim()) {
+      minimalData.planning_fields.change_impact = {
+        description_text: impactSummary,
+        description_html: `<div dir="ltr">${impactSummary.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    if (data.implementationPlan?.trim()) {
+      minimalData.planning_fields.rollout_plan = {
+        description_text: data.implementationPlan,
+        description_html: `<div dir="ltr">${data.implementationPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    if (data.backoutPlan?.trim()) {
+      minimalData.planning_fields.backout_plan = {
+        description_text: data.backoutPlan,
+        description_html: `<div dir="ltr">${data.backoutPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    // Add custom planning fields only if they have content
+    if (data.validationPlan?.trim()) {
+      if (!minimalData.planning_fields.custom_fields) {
+        minimalData.planning_fields.custom_fields = {};
+      }
+      minimalData.planning_fields.custom_fields.cfp_validation = {
+        description_text: data.validationPlan,
+        description_html: `<div dir="ltr">${data.validationPlan.replace(/\n/g, '<br>')}</div>`
+      };
+    }
+
+    // Add custom fields
+    minimalData.custom_fields = {
+      risks: riskSummary,
+      lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets)
+    };
+
+    // Add dates if available
+    if (data.plannedStart) {
+      try {
+        minimalData.planned_start_date = new Date(data.plannedStart).toISOString();
+      } catch (error) {
+        console.warn('⚠️ Error formatting planned start date:', error);
+      }
+    }
+
+    if (data.plannedEnd) {
+      try {
+        minimalData.planned_end_date = new Date(data.plannedEnd).toISOString();
+      } catch (error) {
+        console.warn('⚠️ Error formatting planned end date:', error);
+      }
+    }
+
+    console.log('📦 Minimal change request data:', JSON.stringify(minimalData, null, 2));
+    return minimalData;
+  },
+
+  /**
+   * Create the change request in Freshservice
+   */
+  async createChangeRequest(changeRequestData) {
+    console.log('🎯 Creating change request in Freshservice...');
+    console.log('📦 Change request data being sent:', changeRequestData);
+
+    try {
+      const response = await this.attemptChangeRequestCreation(changeRequestData);
+      return response;
+    } catch (error) {
+      console.error('❌ First attempt failed with error:', error);
+      
+      // Check if the error is a 500 server error
+      if (error.status === 500) {
+        console.warn('⚠️ Server error (500) detected - attempting with minimal required fields only...');
+        
+        try {
+          const minimalData = this.createMinimalChangeRequest(window.changeRequestData);
+          const response = await this.attemptChangeRequestCreation(minimalData);
+          console.log('✅ Change request created successfully with minimal fields');
+          console.log('ℹ️ You may need to update the change request manually with additional details');
+          return response;
+        } catch (minimalError) {
+          console.error('❌ Failed even with minimal fields:', minimalError);
+          throw minimalError;
+        }
+      }
+      
+      // Re-throw the original error if it's not a server error
+      throw error;
+    }
+  },
+
+  /**
+   * Attempt to create change request with given data
+   */
+  async attemptChangeRequestCreation(changeRequestData) {
+    try {
+      const response = await window.client.request.invokeTemplate('createChangeRequest', {
+        context: {},
+        body: JSON.stringify(changeRequestData),
+        cache: false
+      });
+
+      console.log('📡 Raw API response:', response);
+
+      if (!response || !response.response) {
+        throw new Error('No response received from Freshservice API');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(response.response);
+        console.log('📋 Parsed response data:', data);
+      } catch (parseError) {
+        console.error('❌ Failed to parse response JSON:', response.response);
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+
+      if (!data.change) {
+        console.error('❌ Response missing change object:', data);
+        
+        // Check for error messages in the response
+        if (data.errors) {
+          console.error('🔍 API Validation Errors:', data.errors);
+          const errorMessages = Array.isArray(data.errors) 
+            ? data.errors.map(err => {
+                if (typeof err === 'object' && err.message) {
+                  return `${err.field || 'Unknown field'}: ${err.message}`;
+                }
+                return err.message || err;
+              }).join(', ')
+            : JSON.stringify(data.errors);
+          throw new Error(`API validation errors: ${errorMessages}`);
+        }
+        
+        throw new Error(`Invalid response format - expected 'change' object but got: ${JSON.stringify(data)}`);
+      }
+
+      const changeRequest = data.change;
+      console.log(`✅ Change request created successfully: CR-${changeRequest.id}`);
+
+      return changeRequest;
+
+    } catch (error) {
+      console.error('❌ Error creating change request:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Calculate priority based on change type and risk assessment
+   */
+  calculatePriority(changeType, riskLevel) {
+    console.log(`🎯 Calculating priority for changeType: ${changeType}, riskLevel: ${riskLevel}`);
+    
+    // Emergency changes are always high priority regardless of risk
+    if (changeType === 'emergency') {
+      console.log('⚡ Emergency change - setting priority to Urgent (4)');
+      return 4; // Urgent
+    }
+    
+    // For normal changes, base priority on risk level
+    switch (riskLevel?.toLowerCase()) {
+      case 'low':
+        console.log('🟢 Low risk - setting priority to Low (1)');
+        return 1; // Low priority
+      case 'medium':
+        console.log('🟡 Medium risk - setting priority to Medium (2)');
+        return 2; // Medium priority
+      case 'high':
+        console.log('🔴 High risk - setting priority to High (3)');
+        return 3; // High priority
+      default:
+        console.log('❓ Unknown risk level - defaulting to Medium priority (2)');
+        return 2; // Default to medium
+    }
+  },
+
+  /**
+   * Generate comprehensive risk summary based on questionnaire responses
+   */
+  generateRiskSummary(riskAssessment) {
+    console.log('📊 Generating risk summary from questionnaire responses...');
+    
+    if (!riskAssessment || !riskAssessment.riskLevel) {
+      console.warn('⚠️ No risk assessment data available');
+      return 'Risk assessment not completed.';
+    }
+
+    let summary = `RISK ASSESSMENT SUMMARY\n`;
+    summary += `Overall Risk Level: ${riskAssessment.riskLevel?.toUpperCase()}\n`;
+    summary += `Risk Score: ${riskAssessment.totalScore || 0}/15\n\n`;
+    
+    summary += `DETAILED RISK FACTORS:\n\n`;
+    summary += `1. BUSINESS IMPACT (Score: ${riskAssessment.businessImpact || 'N/A'}/3)\n`;
+    summary += `2. AFFECTED USERS (Score: ${riskAssessment.affectedUsers || 'N/A'}/3)\n`;
+    summary += `3. COMPLEXITY (Score: ${riskAssessment.complexity || 'N/A'}/3)\n`;
+    summary += `4. TESTING LEVEL (Score: ${riskAssessment.testing || 'N/A'}/3)\n`;
+    summary += `5. ROLLBACK CAPABILITY (Score: ${riskAssessment.rollback || 'N/A'}/3)\n\n`;
+    
+    summary += `Generated automatically from risk questionnaire responses.`;
+    
+    console.log('📋 Risk summary generated:', summary.substring(0, 200) + '...');
+    return summary;
+  },
+
+  /**
+   * Generate comprehensive impact summary based on questionnaire and assets
+   */
+  generateImpactSummary(riskAssessment, selectedAssets = [], impactedData = {}) {
+    console.log('📊 Generating impact summary from questionnaire and asset data...');
+    
+    if (!riskAssessment || !riskAssessment.riskLevel) {
+      console.warn('⚠️ No risk assessment data available for impact summary');
+      return 'Impact assessment not completed.';
+    }
+
+    let summary = `CHANGE IMPACT ASSESSMENT\n\n`;
+    summary += `Business Impact: ${riskAssessment.businessImpact || 'N/A'}/3\n`;
+    summary += `User Impact: ${riskAssessment.affectedUsers || 'N/A'}/3\n`;
+    summary += `Technical Complexity: ${riskAssessment.complexity || 'N/A'}/3\n`;
+    summary += `Assets Affected: ${selectedAssets.length || 0}\n`;
+    summary += `Stakeholders: ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)}\n\n`;
+    
+    summary += `Generated automatically from risk questionnaire and asset analysis.`;
+    
+    console.log('📋 Impact summary generated:', summary.substring(0, 200) + '...');
+    return summary;
+  },
+
+  /**
+   * Get technical owner user ID from asset managers
+   */
+  getTechnicalOwnerUserId(selectedAssets = []) {
+    console.log('👤 Identifying technical owner user ID from asset managers...');
+    
+    if (!selectedAssets || selectedAssets.length === 0) {
+      console.log('ℹ️ No assets selected, cannot determine technical owner');
+      return null;
+    }
+
+    try {
+      // Collect all potential manager/owner IDs from multiple fields
+      const managerIds = new Set();
+      selectedAssets.forEach(asset => {
+        if (asset.managed_by) managerIds.add(asset.managed_by);
+        if (asset.agent_id && asset.agent_id !== asset.managed_by) managerIds.add(asset.agent_id);
+        if (asset.user_id && asset.user_id !== asset.managed_by && asset.user_id !== asset.agent_id) managerIds.add(asset.user_id);
+      });
+
+      if (managerIds.size === 0) {
+        // Fallback: Use assigned agent or requester
+        if (window.changeRequestData?.selectedAgent?.id) {
+          console.log(`🔄 Using assigned agent as technical owner: ${window.changeRequestData.selectedAgent.id}`);
+          return window.changeRequestData.selectedAgent.id;
+        }
+        
+        if (window.changeRequestData?.selectedRequester?.id) {
+          console.log(`🔄 Using requester as technical owner: ${window.changeRequestData.selectedRequester.id}`);
+          return window.changeRequestData.selectedRequester.id;
+        }
+        
+        return null;
+      }
+
+      // Return the first valid manager ID
+      const primaryManagerId = Array.from(managerIds)[0];
+      console.log(`✅ Technical owner user ID identified: ${primaryManagerId}`);
+      return primaryManagerId;
+
+    } catch (error) {
+      console.error('❌ Error getting technical owner user ID:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Create approval workflow for the change request
+   */
+  createApprovalWorkflow() {
+    console.log('✅ Setting up approval workflow...');
+    // Implementation would go here
+  },
+
+  /**
+   * Send stakeholder notifications
+   */
+  sendStakeholderNotifications() {
+    console.log('📧 Sending stakeholder notifications...');
+    // Implementation would go here
+  },
+
+  /**
+   * Create peer review tasks for assigned agents
+   */
+  createPeerReviewTasks() {
+    console.log('👥 Creating peer review tasks...');
+    // Implementation would go here
+  },
+
+  /**
+   * Update change request with additional metadata
+   */
+  updateChangeRequestMetadata() {
+    console.log('🔄 Updating change request with workflow metadata...');
+    // Implementation would go here
+  },
+
+  /**
+   * Show submission success and redirect
+   */
+  showSubmissionSuccess(changeRequest) {
+    console.log('🎉 Showing submission success...');
+    
+    const successMessage = `
+      <div class="alert alert-success" role="alert">
+        <h4 class="alert-heading">✅ Change Request Submitted Successfully!</h4>
+        <p><strong>Change Request ID:</strong> CR-${changeRequest.id}</p>
+        <p><strong>Title:</strong> ${changeRequest.subject}</p>
+      </div>
+    `;
+
+    const container = document.querySelector('.container-fluid') || document.body;
+    container.innerHTML = successMessage + `
+      <div class="text-center mt-4">
+        <button class="btn btn-primary" onclick="window.location.reload()">Create Another Change Request</button>
+      </div>
+    `;
+  },
+
+  /**
+   * Show submission error
+   */
+  showSubmissionError(error) {
+    console.error('❌ Showing submission error:', error);
+    
+    const errorMessage = `
+      <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">❌ Change Request Submission Failed</h4>
+        <p><strong>Error:</strong> ${error.message || 'Unknown error occurred'}</p>
+      </div>
+    `;
+
+    const statusElement = document.getElementById('submission-status');
+    if (statusElement) {
+      statusElement.innerHTML = errorMessage;
+      statusElement.className = 'alert alert-danger';
+      statusElement.style.display = 'block';
+    }
+  },
+
+  /**
+   * Show/hide submission status
+   */
+  showSubmissionStatus(show) {
+    const statusElement = document.getElementById('submission-status');
+    if (statusElement) {
+      statusElement.style.display = show ? 'block' : 'none';
+    }
+  },
+
+  /**
+   * Show comprehensive submission summary modal
+   */
+  showSubmissionSummary() {
+    console.log('📋 Showing comprehensive submission summary...');
+
+    // First validate all data
+    const validationResult = this.validateSubmissionData();
+    if (!validationResult.isValid) {
+      this.showValidationErrors(validationResult.errors);
+      return;
+    }
+
+    // For now, just proceed directly to submission
+    // TODO: Implement modal summary
+    this.handleSubmission();
+  },
+
+  /**
+   * Show validation errors in a user-friendly way
+   */
+  showValidationErrors(errors) {
+    const errorMessage = `
+      <div class="alert alert-danger" role="alert">
+        <h6><i class="fas fa-exclamation-triangle me-2"></i>Please complete the following before submitting:</h6>
+        <ul class="mb-0 mt-2">
+          ${errors.map(error => `<li>${error}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+
+    const statusElement = document.getElementById('submission-status');
+    if (statusElement) {
+      statusElement.innerHTML = errorMessage;
+      statusElement.style.display = 'block';
+      
+      statusElement.scrollIntoView({ behavior: 'smooth' });
+      
+      setTimeout(() => {
+        statusElement.style.display = 'none';
+      }, 10000);
+    }
+  }
+};
+
+// Initialize the module when the script loads
+if (typeof window !== 'undefined') {
+  console.log('🔧 ChangeSubmission: Script loaded, initializing module...');
+  window.ChangeSubmission = ChangeSubmission; 
+  console.log('🔧 ChangeSubmission: Module attached to window object');
+  
+  // Auto-initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    console.log('🔧 ChangeSubmission: DOM still loading, adding event listener...');
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🔧 ChangeSubmission: DOM loaded, initializing...');
+      ChangeSubmission.init();
+    });
+  } else {
+    console.log('🔧 ChangeSubmission: DOM already loaded, initializing immediately...');
+    ChangeSubmission.init();
+  }
+} else {
+  console.error('❌ ChangeSubmission: Window object not available');
+}
+
     
