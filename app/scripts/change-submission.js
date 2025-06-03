@@ -331,14 +331,14 @@ const ChangeSubmission = {
       priority = this.config.priorities.high;
     }
 
-    // Map change type to Freshservice values
+    // Map change type to Freshservice values (this instance only accepts 4 or 6)
     const changeTypeMapping = {
-      'minor': 1,
-      'major': 3,
-      'normal': 2,
-      'emergency': 4
+      'minor': 4,      // Minor change
+      'major': 6,      // Major change  
+      'normal': 4,     // Normal change (map to minor)
+      'emergency': 6   // Emergency change (map to major)
     };
-    const change_type = changeTypeMapping[data.changeType] || 2; // default to normal
+    const change_type = changeTypeMapping[data.changeType] || 4; // default to minor (4)
 
     // Map risk level to Freshservice values
     const riskMapping = {
