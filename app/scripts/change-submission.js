@@ -388,6 +388,8 @@ const ChangeSubmission = {
     if (workspaceId && workspaceId !== null) {
       changeRequestData.workspace_id = workspaceId;
       console.log('🏢 Adding workspace_id to request:', workspaceId);
+    } else {
+      console.log('🏢 No workspace_id configured, skipping workspace assignment');
     }
 
     // Note: Custom fields don't exist in this Freshservice instance
@@ -405,6 +407,8 @@ const ChangeSubmission = {
       data.selectedAssets.forEach(asset => {
         console.log(`   - Asset ID: ${asset.id}, Name: ${asset.name}, Display ID: ${asset.display_id || 'N/A'}`);
       });
+    } else {
+      console.log('🔗 No assets selected, skipping asset association');
     }
 
     console.log('✅ Change request data prepared:', {
@@ -414,8 +418,12 @@ const ChangeSubmission = {
       risk: changeRequestData.risk,
       impact: changeRequestData.impact,
       assetCount: assetIds.length,
-      approverCount: impactedData.approvers?.length || 0
+      approverCount: impactedData.approvers?.length || 0,
+      hasWorkspace: !!changeRequestData.workspace_id,
+      hasAssets: !!changeRequestData.assets
     });
+
+    console.log('📦 Final change request data structure:', JSON.stringify(changeRequestData, null, 2));
 
     return changeRequestData;
   },
