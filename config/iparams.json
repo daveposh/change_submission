@@ -19,6 +19,13 @@
     "required": false,
     "default_value": null
   },
+  "department_id": {
+    "display_name": "Department ID",
+    "description": "Freshservice Department ID for change requests (optional - leave blank if not using departments)",
+    "type": "number",
+    "required": false,
+    "default_value": null
+  },
   "plan_type": {
     "display_name": "Freshservice Plan",
     "description": "Select your Freshservice plan to configure API rate limits",

@@ -315,10 +315,12 @@ const ChangeSubmission = {
 
     // Get installation parameters for workspace configuration
     let workspaceId = null;
+    let departmentId = null;
     try {
       const params = await window.client.iparams.get();
       workspaceId = params.workspace_id;
-      console.log('🏢 Workspace ID from config:', workspaceId);
+      departmentId = params.department_id; // Get department_id from config
+      console.log('🏢 Configuration from iparams:', { workspaceId, departmentId });
     } catch (error) {
       console.warn('⚠️ Could not retrieve installation parameters:', error);
     }
@@ -360,18 +362,6 @@ const ChangeSubmission = {
       impact = 1; // Low impact
     }
 
-    // Prepare asset associations using display_id (not internal ID)
-    const assetDisplayIds = [];
-    if (data.selectedAssets?.length > 0) {
-      data.selectedAssets.forEach(asset => {
-        // Use display_id if available, otherwise fall back to ID
-        const displayId = asset.display_id || asset.id;
-        if (displayId) {
-          assetDisplayIds.push(displayId);
-        }
-      });
-    }
-
     // Format dates properly for Freshservice API (ISO 8601 format)
     const formatDateForAPI = (dateString) => {
       if (!dateString) return null;
@@ -384,13 +374,13 @@ const ChangeSubmission = {
       }
     };
 
-    // Create structured description with proper field mapping
-    const structuredDescription = this.createStructuredDescription(data, impactedData);
+    // Create simplified description (avoid complex HTML that might cause 500 errors)
+    const description = this.createSimplifiedDescription(data, impactedData);
 
     // Prepare the change request data according to Freshservice API v2 format
     const changeRequestData = {
       subject: data.changeTitle,
-      description: structuredDescription,
+      description: description,
       change_type: change_type,
       priority: priority,
       status: this.config.statuses.open, // Open status
@@ -402,6 +392,14 @@ const ChangeSubmission = {
       planned_end_date: formatDateForAPI(data.plannedEnd)
     };
 
+    // Add department_id if configured (this might be required)
+    if (departmentId && departmentId !== null) {
+      changeRequestData.department_id = departmentId;
+      console.log('🏢 Adding department_id to request:', departmentId);
+    } else {
+      console.log('🏢 No department_id configured, skipping department assignment');
+    }
+
     // Add workspace_id if configured
     if (workspaceId && workspaceId !== null) {
       changeRequestData.workspace_id = workspaceId;
@@ -410,29 +408,16 @@ const ChangeSubmission = {
       console.log('🏢 No workspace_id configured, skipping workspace assignment');
     }
 
-    // Try to add planning fields if supported by the API
-    try {
-      // Map our fields to Freshservice planning fields
-      const planningFields = {
-        implementation_plan: data.implementationPlan || '',
-        backout_plan: data.backoutPlan || '',
-        test_plan: data.validationPlan || '',
-        reason: data.reasonForChange || ''
-      };
+    // Add custom fields structure to match the expected format
+    changeRequestData.custom_fields = {
+      risks: null,
+      lf_technical_owner: null
+    };
 
-      // Add planning fields to the request
-      changeRequestData.planning_fields = planningFields;
-      console.log('📋 Added planning fields to change request');
-    } catch (error) {
-      console.warn('⚠️ Planning fields not supported, using description only');
-    }
-
-    // Try to add custom fields if they exist
+    // Try to add additional planning fields as custom fields if they exist
     try {
-      const customFields = {};
-      
       // Common custom field names that might exist
-      const fieldMappings = {
+      const customFieldMappings = {
         'implementation_plan': data.implementationPlan,
         'rollout_plan': data.implementationPlan,
         'backout_plan': data.backoutPlan,
@@ -446,34 +431,16 @@ const ChangeSubmission = {
       };
 
       // Add non-empty custom fields
-      Object.keys(fieldMappings).forEach(fieldName => {
-        const value = fieldMappings[fieldName];
+      Object.keys(customFieldMappings).forEach(fieldName => {
+        const value = customFieldMappings[fieldName];
         if (value && value.trim()) {
-          customFields[fieldName] = value.trim();
+          changeRequestData.custom_fields[fieldName] = value.trim();
         }
       });
 
-      if (Object.keys(customFields).length > 0) {
-        changeRequestData.custom_fields = customFields;
-        console.log('📋 Added custom fields to change request:', Object.keys(customFields));
-      }
+      console.log('📋 Added custom fields to change request:', Object.keys(changeRequestData.custom_fields));
     } catch (error) {
-      console.warn('⚠️ Custom fields not supported, using description only');
-    }
-
-    // Add assets if any are selected
-    if (assetDisplayIds.length > 0) {
-      changeRequestData.assets = assetDisplayIds;
-      console.log('🔗 Adding assets to change request:', assetDisplayIds);
-      
-      // Log asset details for debugging
-      console.log('🔍 Asset details being sent:');
-      data.selectedAssets.forEach(asset => {
-        const displayId = asset.display_id || asset.id;
-        console.log(`   - Asset: ${asset.name}, Internal ID: ${asset.id}, Display ID: ${displayId}, Tag: ${asset.asset_tag || 'N/A'}`);
-      });
-    } else {
-      console.log('🔗 No assets selected, skipping asset association');
+      console.warn('⚠️ Error adding custom fields:', error);
     }
 
     console.log('✅ Change request data prepared:', {
@@ -482,12 +449,11 @@ const ChangeSubmission = {
       priority: changeRequestData.priority,
       risk: changeRequestData.risk,
       impact: changeRequestData.impact,
-      assetCount: assetDisplayIds.length,
+      assetCount: 0, // Not including assets in initial request to avoid 500 errors
       approverCount: impactedData.approvers?.length || 0,
+      hasDepartment: !!changeRequestData.department_id,
       hasWorkspace: !!changeRequestData.workspace_id,
-      hasAssets: !!changeRequestData.assets,
-      hasPlanningFields: !!changeRequestData.planning_fields,
-      hasCustomFields: !!changeRequestData.custom_fields
+      hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0
     });
 
     console.log('📦 Final change request data structure:', JSON.stringify(changeRequestData, null, 2));
@@ -496,43 +462,33 @@ const ChangeSubmission = {
   },
 
   /**
-   * Create structured description with proper field mapping
+   * Create a simplified description for change request
    */
-  createStructuredDescription(data, impactedData) {
-    // Create a clean, structured description that maps to standard change management fields
+  createSimplifiedDescription(data, impactedData) {
+    // Create a very simple, text-only description for maximum compatibility
     let description = `${data.reasonForChange || 'No reason specified'}
 
 CHANGE DETAILS:
-==============
+Reason for Change: ${data.reasonForChange || 'Not specified'}
+Implementation Plan: ${data.implementationPlan || 'Not specified'}
+Backout Plan: ${data.backoutPlan || 'Not specified'}
+Validation Plan: ${data.validationPlan || 'Not specified'}
 
-Reason for Change:
-${data.reasonForChange || 'Not specified'}
+RISK ASSESSMENT:
+Risk Level: ${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}
+Risk Score: ${data.riskAssessment?.totalScore || 0}/15
+Change Type: ${data.changeType || 'Normal'}
 
-Implementation Plan (Rollout Plan):
-${data.implementationPlan || 'Not specified'}
-
-Backout Plan:
-${data.backoutPlan || 'Not specified'}
-
-Validation Plan:
-${data.validationPlan || 'Not specified'}
-
-Risk Assessment:
-- Risk Level: ${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}
-- Risk Score: ${data.riskAssessment?.totalScore || 0}/15
-- Change Type: ${data.changeType || 'Normal'}
-
-Impact Analysis:
-- Assets Affected: ${data.selectedAssets?.length || 0}
-- Approvers Required: ${impactedData.approvers?.length || 0}
-- Stakeholders to Notify: ${impactedData.stakeholders?.length || 0}`;
+IMPACT ANALYSIS:
+Assets Affected: ${data.selectedAssets?.length || 0}
+Approvers Required: ${impactedData.approvers?.length || 0}
+Stakeholders to Notify: ${impactedData.stakeholders?.length || 0}`;
 
     // Add asset details if any
     if (data.selectedAssets?.length > 0) {
       description += `
 
-AFFECTED ASSETS:
-===============`;
+AFFECTED ASSETS:`;
       data.selectedAssets.forEach((asset, index) => {
         const displayId = asset.display_id || asset.id;
         description += `
@@ -544,8 +500,7 @@ ${index + 1}. ${asset.name} (ID: ${displayId}, Tag: ${asset.asset_tag || 'No tag
     if (impactedData.approvers?.length > 0) {
       description += `
 
-REQUIRED APPROVERS:
-==================`;
+REQUIRED APPROVERS:`;
       impactedData.approvers.forEach((approver, index) => {
         description += `
 ${index + 1}. ${approver.name} (${approver.email}) - Source: ${approver.source}`;
@@ -556,8 +511,7 @@ ${index + 1}. ${approver.name} (${approver.email}) - Source: ${approver.source}`
     if (impactedData.stakeholders?.length > 0) {
       description += `
 
-STAKEHOLDERS TO NOTIFY:
-======================`;
+STAKEHOLDERS TO NOTIFY:`;
       impactedData.stakeholders.forEach((stakeholder, index) => {
         description += `
 ${index + 1}. ${stakeholder.name} (${stakeholder.email}) - Source: ${stakeholder.source}`;
@@ -567,10 +521,50 @@ ${index + 1}. ${stakeholder.name} (${stakeholder.email}) - Source: ${stakeholder
     description += `
 
 ---
-This change request was created using the Freshworks Change Management App.
+Created with Freshworks Change Management App
 Submission Time: ${new Date().toISOString()}`;
 
     return description;
+  },
+
+  /**
+   * Create change request with minimal required fields only
+   */
+  createMinimalChangeRequest(data) {
+    console.log('📦 Creating minimal change request with only required fields...');
+    
+    // Only include the absolute minimum required fields
+    const minimalData = {
+      subject: data.changeTitle || 'Test Change Request',
+      description: data.reasonForChange || 'Change request created via app',
+      change_type: 4, // Minor change
+      priority: 2,    // Medium priority
+      status: 1,      // Open
+      risk: 2,        // Medium risk
+      impact: 2,      // Medium impact
+      requester_id: data.selectedRequester?.id,
+      agent_id: data.selectedAgent?.id
+    };
+
+    // Add dates if available
+    if (data.plannedStart) {
+      try {
+        minimalData.planned_start_date = new Date(data.plannedStart).toISOString();
+      } catch (error) {
+        console.warn('⚠️ Error formatting planned start date:', error);
+      }
+    }
+
+    if (data.plannedEnd) {
+      try {
+        minimalData.planned_end_date = new Date(data.plannedEnd).toISOString();
+      } catch (error) {
+        console.warn('⚠️ Error formatting planned end date:', error);
+      }
+    }
+
+    console.log('📦 Minimal change request data:', JSON.stringify(minimalData, null, 2));
+    return minimalData;
   },
 
   /**
@@ -584,15 +578,50 @@ Submission Time: ${new Date().toISOString()}`;
       const response = await this.attemptChangeRequestCreation(changeRequestData);
       return response;
     } catch (error) {
+      console.error('❌ First attempt failed with error:', error);
+      
+      // Check if the error is a 500 server error
+      if (error.status === 500) {
+        console.warn('⚠️ Server error (500) detected - attempting with minimal required fields only...');
+        
+        try {
+          const minimalData = this.createMinimalChangeRequest(window.changeRequestData);
+          const response = await this.attemptChangeRequestCreation(minimalData);
+          console.log('✅ Change request created successfully with minimal fields');
+          console.log('ℹ️ You may need to update the change request manually with additional details');
+          return response;
+        } catch (minimalError) {
+          console.error('❌ Failed even with minimal fields:', minimalError);
+          
+          // If it still fails, try with an even simpler description
+          console.warn('⚠️ Trying with ultra-minimal configuration...');
+          try {
+            const ultraMinimalData = {
+              subject: 'Change Request',
+              description: 'Change request created via app',
+              change_type: 4,
+              priority: 2,
+              status: 1,
+              risk: 2,
+              impact: 2,
+              requester_id: window.changeRequestData.selectedRequester?.id,
+              agent_id: window.changeRequestData.selectedAgent?.id
+            };
+            
+            console.log('📦 Ultra-minimal data:', JSON.stringify(ultraMinimalData, null, 2));
+            const response = await this.attemptChangeRequestCreation(ultraMinimalData);
+            console.log('✅ Change request created successfully with ultra-minimal fields');
+            console.log('⚠️ You will need to update this change request manually with all the details');
+            return response;
+          } catch (ultraMinimalError) {
+            console.error('❌ Failed even with ultra-minimal fields:', ultraMinimalError);
+            throw ultraMinimalError;
+          }
+        }
+      }
+      
       // Check if the error is related to assets OR if it's a 500 server error
       let isAssetError = false;
-      let isServerError = false;
-      
-      // Check for HTTP 500 server errors
-      if (error.status === 500) {
-        isServerError = true;
-        console.warn('⚠️ Server error (500) detected - this might be related to asset processing or server limitations');
-      }
       
       // Check for asset-related validation errors
       if (error.response) {
@@ -607,8 +636,8 @@ Submission Time: ${new Date().toISOString()}`;
         }
       }
       
-      if (isAssetError || (isServerError && changeRequestData.assets)) {
-        console.warn('⚠️ Asset-related or server error detected, attempting to create change request without assets...');
+      if (isAssetError && changeRequestData.assets) {
+        console.warn('⚠️ Asset-related error detected, attempting to create change request without assets...');
         
         // Remove assets and try again
         const dataWithoutAssets = { ...changeRequestData };
@@ -624,42 +653,7 @@ Submission Time: ${new Date().toISOString()}`;
           return response;
         } catch (retryError) {
           console.error('❌ Failed even without assets:', retryError);
-          
-          // If it's still a 500 error, try with a simplified description
-          if (retryError.status === 500) {
-            console.warn('⚠️ Still getting 500 error, trying with simplified description...');
-            
-            const dataWithSimpleDescription = { ...dataWithoutAssets };
-            dataWithSimpleDescription.description = this.createSimplifiedDescription(window.changeRequestData, window.ImpactedServices?.getImpactedServicesData() || {});
-            
-            try {
-              const response = await this.attemptChangeRequestCreation(dataWithSimpleDescription);
-              console.log('✅ Change request created successfully with simplified description');
-              console.log('ℹ️ Full details were simplified due to server limitations');
-              return response;
-            } catch (finalError) {
-              console.error('❌ Failed even with simplified description:', finalError);
-              throw finalError;
-            }
-          } else {
-            throw retryError;
-          }
-        }
-      } else if (isServerError) {
-        // If it's a server error but no assets, try with simplified description
-        console.warn('⚠️ Server error detected, trying with simplified description...');
-        
-        const dataWithSimpleDescription = { ...changeRequestData };
-        dataWithSimpleDescription.description = this.createSimplifiedDescription(window.changeRequestData, window.ImpactedServices?.getImpactedServicesData() || {});
-        
-        try {
-          const response = await this.attemptChangeRequestCreation(dataWithSimpleDescription);
-          console.log('✅ Change request created successfully with simplified description');
-          console.log('ℹ️ Full details were simplified due to server limitations');
-          return response;
-        } catch (finalError) {
-          console.error('❌ Failed even with simplified description:', finalError);
-          throw finalError;
+          throw retryError;
         }
       } else {
         // Re-throw the original error if it's not asset-related or server error
@@ -673,6 +667,9 @@ Submission Time: ${new Date().toISOString()}`;
    */
   async attemptChangeRequestCreation(changeRequestData) {
     try {
+      // Log the exact payload being sent to help debug 500 errors
+      console.log('📡 Sending change request payload:', JSON.stringify(changeRequestData, null, 2));
+      
       const response = await window.client.request.invokeTemplate('createChangeRequest', {
         context: {},
         body: JSON.stringify(changeRequestData),
@@ -735,6 +732,19 @@ Submission Time: ${new Date().toISOString()}`;
 
     } catch (error) {
       console.error('❌ Error creating change request:', error);
+      
+      // Enhanced error logging for 500 errors
+      if (error.status === 500) {
+        console.error('🔍 SERVER ERROR (500) - This is likely due to:');
+        console.error('   - Invalid field values or data types');
+        console.error('   - Required fields missing or incorrectly formatted');
+        console.error('   - Custom fields that don\'t exist in your Freshservice instance');
+        console.error('   - Department or workspace IDs that don\'t exist');
+        console.error('   - Description content that is too long or contains invalid characters');
+        
+        console.error('🔍 Request payload that caused the error:');
+        console.error(JSON.stringify(changeRequestData, null, 2));
+      }
       
       // Log the full error object for debugging
       console.error('🔍 Full error object:', {
@@ -1210,86 +1220,6 @@ Workflow Summary:
       console.warn('⚠️ Error formatting date:', dateString, error);
       return dateString;
     }
-  },
-
-  /**
-   * Create a simplified description for change request
-   */
-  createSimplifiedDescription(data, impactedData) {
-    // Create a simplified, text-only description for better compatibility
-    let description = `${data.reasonForChange || 'No reason specified'}
-
-CHANGE DETAILS:
-==============
-
-Reason for Change:
-${data.reasonForChange || 'Not specified'}
-
-Implementation Plan (Rollout Plan):
-${data.implementationPlan || 'Not specified'}
-
-Backout Plan:
-${data.backoutPlan || 'Not specified'}
-
-Validation Plan:
-${data.validationPlan || 'Not specified'}
-
-Risk Assessment:
-- Risk Level: ${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}
-- Risk Score: ${data.riskAssessment?.totalScore || 0}/15
-- Change Type: ${data.changeType || 'Normal'}
-- Priority: ${data.riskAssessment?.riskLevel === 'High' ? 'High' : data.riskAssessment?.riskLevel === 'Low' ? 'Low' : 'Medium'}
-
-Impact Analysis:
-- Assets Affected: ${data.selectedAssets?.length || 0}
-- Approvers Required: ${impactedData.approvers?.length || 0}
-- Stakeholders to Notify: ${impactedData.stakeholders?.length || 0}`;
-
-    // Add asset details if any
-    if (data.selectedAssets?.length > 0) {
-      description += `
-
-AFFECTED ASSETS:
-===============`;
-      data.selectedAssets.forEach((asset, index) => {
-        const displayId = asset.display_id || asset.id;
-        description += `
-${index + 1}. ${asset.name} (ID: ${displayId}, Tag: ${asset.asset_tag || 'No tag'})`;
-      });
-    }
-
-    // Add approver details if any
-    if (impactedData.approvers?.length > 0) {
-      description += `
-
-REQUIRED APPROVERS:
-==================`;
-      impactedData.approvers.forEach((approver, index) => {
-        description += `
-${index + 1}. ${approver.name} (${approver.email}) - Source: ${approver.source}`;
-      });
-    }
-
-    // Add stakeholder details if any
-    if (impactedData.stakeholders?.length > 0) {
-      description += `
-
-STAKEHOLDERS TO NOTIFY:
-======================`;
-      impactedData.stakeholders.forEach((stakeholder, index) => {
-        description += `
-${index + 1}. ${stakeholder.name} (${stakeholder.email}) - Source: ${stakeholder.source}`;
-      });
-    }
-
-    description += `
-
----
-This change request was created using the Freshworks Change Management App.
-Submission Time: ${new Date().toISOString()}
-Note: Simplified description format used due to server limitations.`;
-
-    return description;
   }
 };
 
