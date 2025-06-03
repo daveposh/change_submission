@@ -14,10 +14,10 @@
   },
   "workspace_id": {
     "display_name": "Workspace ID",
-    "description": "Freshservice Workspace ID (optional - leave blank if not using workspaces)",
+    "description": "Freshservice Workspace ID (default: 2 for 'CXI Change Management')",
     "type": "number",
     "required": false,
-    "default_value": null
+    "default_value": 2
   },
   "department_id": {
     "display_name": "Department ID",

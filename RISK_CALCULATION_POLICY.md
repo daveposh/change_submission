@@ -211,10 +211,54 @@ custom_fields: {
 The `lf_technical_owner` field is automatically populated with the primary technical owner identified through the **Impacted Services** analysis - specifically the user who has direct access management responsibilities for the most critical asset in the change scope.
 
 ### 7.3 API Integration
-Risk level is mapped to Freshservice API values:
+
+#### 7.3.1 Field Mappings
+Based on the actual Freshservice instance schema, risk assessments are mapped as follows:
+
+**Risk Level Mapping:**
 - **Low Risk** → `risk: 1`
 - **Medium Risk** → `risk: 2`
 - **High Risk** → `risk: 3`
+- **Very High Risk** → `risk: 4` (available but not currently used)
+
+**Priority Mapping:**
+- **Low Risk** → `priority: 1` (Low)
+- **Medium Risk** → `priority: 2` (Medium)
+- **High Risk** → `priority: 3` (High)
+- **Critical Changes** → `priority: 4` (Urgent)
+
+**Change Type Mapping:**
+- **Standard Changes** → `change_type: 6` (Normal Change)
+- **Emergency Changes** → `change_type: 4` (Emergency)
+
+**Impact Calculation:**
+```javascript
+// Impact based on risk level and asset scope
+let impact = 2; // Default to Medium impact
+
+if (riskLevel === 'High' || assetCount > 5) {
+    impact = 3; // High impact
+} else if (riskLevel === 'Low' && assetCount <= 2) {
+    impact = 1; // Low impact
+}
+```
+
+#### 7.3.2 Standard Planning Fields
+The system populates the following standard Freshservice planning fields:
+- `change_reason` - Reason for the change
+- `change_impact` - Impact description (mapped from implementation plan)
+- `change_plan` - Rollout plan (mapped from implementation plan)
+- `backout_plan` - Backout procedures
+
+#### 7.3.3 Required Fields
+- `workspace_id: 2` - "CXI Change Management" workspace (required)
+- `subject` - Change title (required)
+- `description` - Change description (required)
+- `change_type` - Change type (required)
+- `priority` - Priority level (required)
+- `status: 1` - Open status (required)
+- `risk` - Risk level (required)
+- `impact` - Impact level (required)
 
 ### 7.4 Technical Owner Identification
 

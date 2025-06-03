@@ -318,35 +318,36 @@ const ChangeSubmission = {
     let departmentId = null;
     try {
       const params = await window.client.iparams.get();
-      workspaceId = params.workspace_id;
-      departmentId = params.department_id; // Get department_id from config
+      workspaceId = params.workspace_id || 2; // Default to workspace 2 ("CXI Change Management")
+      departmentId = params.department_id;
       console.log('🏢 Configuration from iparams:', { workspaceId, departmentId });
     } catch (error) {
       console.warn('⚠️ Could not retrieve installation parameters:', error);
+      workspaceId = 2; // Fallback to default workspace
     }
 
     // Calculate priority based on risk level
-    let priority = this.config.priorities.medium; // default
+    let priority = 2; // default to medium
     if (data.riskAssessment?.riskLevel === 'Low') {
-      priority = this.config.priorities.low;
+      priority = 1; // Low priority
     } else if (data.riskAssessment?.riskLevel === 'High') {
-      priority = this.config.priorities.high;
+      priority = 3; // High priority
     }
 
-    // Map change type to Freshservice values (this instance only accepts 4 or 6)
+    // Map change type to Freshservice values (this instance supports 4=Emergency, 6=Normal Change)
     const changeTypeMapping = {
-      'minor': 4,      // Minor change
-      'major': 6,      // Major change  
-      'normal': 4,     // Normal change (map to minor)
-      'emergency': 6   // Emergency change (map to major)
+      'minor': 6,      // Normal Change
+      'major': 6,      // Normal Change  
+      'normal': 6,     // Normal Change
+      'emergency': 4   // Emergency
     };
-    const change_type = changeTypeMapping[data.changeType] || 4; // default to minor (4)
+    const change_type = changeTypeMapping[data.changeType] || 6; // default to Normal Change (6)
 
-    // Map risk level to Freshservice values
+    // Map risk level to Freshservice values (this instance supports 1-4: Low, Medium, High, Very High)
     const riskMapping = {
-      'Low': 1,
-      'Medium': 2,
-      'High': 3
+      'Low': 1,        // Low
+      'Medium': 2,     // Medium
+      'High': 3        // High (not using 4=Very High for now)
     };
     const risk = riskMapping[data.riskAssessment?.riskLevel] || 2; // default to medium
 
@@ -383,16 +384,22 @@ const ChangeSubmission = {
       description: description,
       change_type: change_type,
       priority: priority,
-      status: this.config.statuses.open, // Open status
+      status: 1, // Open status
       risk: risk,
       impact: impact,
       requester_id: data.selectedRequester.id,
       agent_id: data.selectedAgent.id,
       planned_start_date: formatDateForAPI(data.plannedStart),
-      planned_end_date: formatDateForAPI(data.plannedEnd)
+      planned_end_date: formatDateForAPI(data.plannedEnd),
+      workspace_id: workspaceId, // Always include workspace_id (required field)
+      // Include the standard planning fields that exist in this instance
+      change_reason: data.reasonForChange,
+      change_impact: data.implementationPlan, // Using implementation plan for impact description
+      change_plan: data.implementationPlan,   // Rollout Plan field
+      backout_plan: data.backoutPlan
     };
 
-    // Add department_id if configured (this might be required)
+    // Add department_id if configured
     if (departmentId && departmentId !== null) {
       changeRequestData.department_id = departmentId;
       console.log('🏢 Adding department_id to request:', departmentId);
@@ -400,23 +407,12 @@ const ChangeSubmission = {
       console.log('🏢 No department_id configured, skipping department assignment');
     }
 
-    // Add workspace_id if configured
-    if (workspaceId && workspaceId !== null) {
-      changeRequestData.workspace_id = workspaceId;
-      console.log('🏢 Adding workspace_id to request:', workspaceId);
-    } else {
-      console.log('🏢 No workspace_id configured, skipping workspace assignment');
-    }
-
     // Add custom fields structure to match the expected format
     changeRequestData.custom_fields = {
       risks: null,
-      lf_technical_owner: null
+      lf_technical_owner: null,
+      cfp_validation: data.validationPlan || null // Map validation plan to the planning field
     };
-
-    // Note: Other custom fields like implementation_plan, backout_plan, etc. 
-    // do not exist in this Freshservice instance, so we don't include them.
-    // All planning details are included in the description field instead.
 
     console.log('✅ Change request data prepared:', {
       subject: changeRequestData.subject,
@@ -424,10 +420,11 @@ const ChangeSubmission = {
       priority: changeRequestData.priority,
       risk: changeRequestData.risk,
       impact: changeRequestData.impact,
+      workspace_id: changeRequestData.workspace_id,
       assetCount: 0, // Not including assets in initial request to avoid 500 errors
       approverCount: impactedData.approvers?.length || 0,
       hasDepartment: !!changeRequestData.department_id,
-      hasWorkspace: !!changeRequestData.workspace_id,
+      hasStandardFields: !!(changeRequestData.change_reason && changeRequestData.backout_plan),
       hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0
     });
 
@@ -512,11 +509,12 @@ Submission Time: ${new Date().toISOString()}`;
     const minimalData = {
       subject: data.changeTitle || 'Test Change Request',
       description: data.reasonForChange || 'Change request created via app',
-      change_type: 4, // Minor change
+      change_type: 6, // Normal Change (based on actual field choices)
       priority: 2,    // Medium priority
       status: 1,      // Open
       risk: 2,        // Medium risk
       impact: 2,      // Medium impact
+      workspace_id: 2, // Required field - "CXI Change Management" workspace
       requester_id: data.selectedRequester?.id,
       agent_id: data.selectedAgent?.id,
       custom_fields: {
@@ -578,11 +576,12 @@ Submission Time: ${new Date().toISOString()}`;
             const ultraMinimalData = {
               subject: 'Change Request',
               description: 'Change request created via app',
-              change_type: 4,
+              change_type: 6, // Normal Change (based on actual field choices)
               priority: 2,
               status: 1,
               risk: 2,
               impact: 2,
+              workspace_id: 2, // Required field - "CXI Change Management" workspace
               requester_id: window.changeRequestData.selectedRequester?.id,
               agent_id: window.changeRequestData.selectedAgent?.id,
               custom_fields: {
