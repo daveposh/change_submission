@@ -538,15 +538,10 @@ const ChangeSubmission = {
       console.log('❌ Skipping backout_plan - no content');
     }
 
-    // Initialize custom_fields if needed
-    if (!changeRequestData.planning_fields.custom_fields) {
-      changeRequestData.planning_fields.custom_fields = {};
-    }
-    
-    // 1. Validation Plan (only custom planning field)
+    // 1. Validation Plan (custom planning field at root level)
     if (data.validationPlan?.trim()) {
       console.log('✅ Adding cfp_validation to planning_fields');
-      changeRequestData.planning_fields.custom_fields.cfp_validation = data.validationPlan;
+      changeRequestData.planning_fields.cfp_validation = data.validationPlan;
     } else {
       console.log('❌ Skipping cfp_validation - no content');
     }
@@ -599,7 +594,7 @@ const ChangeSubmission = {
     console.log(`  • Change Impact: ${changeRequestData.planning_fields.change_impact ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.change_impact ? '✅' : '❌'})`);
     console.log(`  • Rollout Plan: ${changeRequestData.planning_fields.rollout_plan ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.rollout_plan ? '✅' : '❌'})`);
     console.log(`  • Backout Plan: ${changeRequestData.planning_fields.backout_plan ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.backout_plan ? '✅' : '❌'})`);
-    console.log(`  • Validation Plan: ${changeRequestData.planning_fields.custom_fields?.cfp_validation ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.custom_fields?.cfp_validation ? '✅' : '❌'})`);
+    console.log(`  • Validation Plan: ${changeRequestData.planning_fields.cfp_validation ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.cfp_validation ? '✅' : '❌'})`);
     
     // Log source data for planning fields
     console.log('📋 SOURCE DATA FOR PLANNING FIELDS:');
@@ -766,10 +761,7 @@ const ChangeSubmission = {
 
     // Add custom planning fields only if they have content
     if (data.validationPlan?.trim()) {
-      if (!minimalData.planning_fields.custom_fields) {
-        minimalData.planning_fields.custom_fields = {};
-      }
-      minimalData.planning_fields.custom_fields.cfp_validation = data.validationPlan;
+      minimalData.planning_fields.cfp_validation = data.validationPlan;
     }
 
     // Add custom fields
