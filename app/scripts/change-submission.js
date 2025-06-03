@@ -704,6 +704,115 @@ const ChangeSubmission = {
         { key: 'affectedUsers', label: 'User Impact', value: riskAssessment.affectedUsers },
         { key: 'complexity', label: 'Complexity', value: riskAssessment.complexity },
         { key: 'testing', label: 'Testing Level', value: riskAssessment.testing },
+        { key: 'rollback', label: 'Rollback Risk', value: riskAssessment.rollback }
+      ];
+      
+      riskFactors.forEach(factor => {
+        const score = factor.value || 0;
+        const barColor = score >= 3 ? '#dc3545' : score >= 2 ? '#ffc107' : '#28a745';
+        description += `<div style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">`;
+        description += `<div style="font-size: 12px; color: #666; margin-bottom: 4px;">${factor.label}</div>`;
+        description += `<div style="display: flex; align-items: center;">`;
+        description += `<div style="flex: 1; background: #e9ecef; height: 6px; border-radius: 3px; margin-right: 8px;">`;
+        description += `<div style="height: 100%; background: ${barColor}; width: ${(score/3)*100}%; border-radius: 3px;"></div>`;
+        description += `</div>`;
+        description += `<span style="font-size: 12px; font-weight: bold;">${score}/3</span>`;
+        description += `</div></div>`;
+      });
+      
+      description += `</div></div>`;
+    }
+
+    // Service Impact Section with comprehensive risk and impact information
+    const comprehensiveRiskSummary = this.generateComprehensiveRiskAndImpactSummary(riskAssessment, data.selectedAssets, impactedData);
+    const serviceImpactedSummary = this.generateServiceImpactedSummary(data.selectedAssets, impactedData);
+    
+    if (comprehensiveRiskSummary || serviceImpactedSummary) {
+      description += `<div style="margin-bottom: 20px; padding: 15px; background-color: #e8f4f8; border-left: 4px solid #17a2b8;">`;
+      description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 15px;">📊 Comprehensive Impact & Risk Analysis</h3>`;
+      
+      if (comprehensiveRiskSummary) {
+        description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #bee5eb; margin-bottom: 15px;">`;
+        description += `<h4 style="margin: 0 0 10px 0; color: #495057; font-size: 14px;">🎯 Risk & Impact Assessment:</h4>`;
+        description += `<div style="font-size: 13px; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">${comprehensiveRiskSummary}</div>`;
+        description += `</div>`;
+      }
+      
+      if (serviceImpactedSummary) {
+        description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #bee5eb;">`;
+        description += `<h4 style="margin: 0 0 10px 0; color: #495057; font-size: 14px;">🏢 Service Impact Details:</h4>`;
+        description += `<div style="font-size: 13px; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">${serviceImpactedSummary}</div>`;
+        description += `</div>`;
+      }
+      
+      description += `</div>`;
+    }
+
+    // Implementation Details Section
+    description += `<div style="margin-bottom: 20px;">`;
+    description += `<h3 style="color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 5px; margin-bottom: 15px;">🛠️ Implementation Details</h3>`;
+    
+    // Implementation Plan
+    if (data.implementationPlan?.trim()) {
+      description += `<div style="margin-bottom: 15px; padding: 12px; background: #e8f5e8; border-left: 4px solid #28a745; border-radius: 4px;">`;
+      description += `<h4 style="margin: 0 0 8px 0; color: #155724; font-size: 14px;">▶️ Implementation Plan:</h4>`;
+      description += `<div style="white-space: pre-wrap; font-size: 13px; line-height: 1.5;">${data.implementationPlan}</div>`;
+      description += `</div>`;
+    }
+    
+    // Backout Plan
+    if (data.backoutPlan?.trim()) {
+      description += `<div style="margin-bottom: 15px; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">`;
+      description += `<h4 style="margin: 0 0 8px 0; color: #856404; font-size: 14px;">🔙 Backout Plan:</h4>`;
+      description += `<div style="white-space: pre-wrap; font-size: 13px; line-height: 1.5;">${data.backoutPlan}</div>`;
+      description += `</div>`;
+    }
+    
+    // Validation Plan
+    if (data.validationPlan?.trim()) {
+      description += `<div style="margin-bottom: 15px; padding: 12px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 4px;">`;
+      description += `<h4 style="margin: 0 0 8px 0; color: #003d82; font-size: 14px;">✅ Validation Plan:</h4>`;
+      description += `<div style="white-space: pre-wrap; font-size: 13px; line-height: 1.5;">${data.validationPlan}</div>`;
+      description += `</div>`;
+    }
+    
+    description += `</div>`;
+
+    // Timeline Section
+    if (data.plannedStart || data.plannedEnd) {
+      description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-left: 4px solid #6c757d;">`;
+      description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 15px;">📅 Timeline</h3>`;
+      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">`;
+      
+      if (data.plannedStart) {
+        description += `<div style="background: white; padding: 10px; border-radius: 6px; border: 1px solid #dee2e6;">`;
+        description += `<div style="font-size: 12px; color: #666; margin-bottom: 4px;">Planned Start</div>`;
+        description += `<div style="font-weight: bold; color: #28a745;">${new Date(data.plannedStart).toLocaleString()}</div>`;
+        description += `</div>`;
+      }
+      
+      if (data.plannedEnd) {
+        description += `<div style="background: white; padding: 10px; border-radius: 6px; border: 1px solid #dee2e6;">`;
+        description += `<div style="font-size: 12px; color: #666; margin-bottom: 4px;">Planned End</div>`;
+        description += `<div style="font-weight: bold; color: #dc3545;">${new Date(data.plannedEnd).toLocaleString()}</div>`;
+        description += `</div>`;
+      }
+      
+      description += `</div></div>`;
+    }
+
+    // Footer
+    description += `<div style="margin-top: 30px; padding-top: 15px; border-top: 1px solid #dee2e6; text-align: center; color: #6c757d; font-size: 12px;">`;
+    description += `<em>Generated by Freshworks Change Management App on ${new Date().toLocaleString()}</em>`;
+    description += `</div>`;
+    
+    description += `</div>`;
+    
+    console.log('✅ Enhanced description created with rich formatting and comprehensive analysis');
+    return description;
+  },
+
+  /**
    * Create a simplified description for change request
    */
   createSimplifiedDescription(data, impactedData) {
