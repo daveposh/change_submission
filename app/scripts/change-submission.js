@@ -141,7 +141,7 @@ const ChangeSubmission = {
     console.log('🚀 Initializing Change Submission Module...');
     
     try {
-      this.setupEventListeners();
+    this.setupEventListeners();
       console.log('✅ Change Submission Module initialized successfully');
       
       // Verify module is accessible
@@ -348,8 +348,17 @@ const ChangeSubmission = {
     };
     const risk = riskMapping[data.riskAssessment?.riskLevel] || 2; // default to medium
 
-    // Map impact (assuming medium impact for now, can be enhanced later)
-    const impact = 2; // Medium impact
+    // Map impact based on risk level and affected assets count
+    let impact = 2; // Default to Medium impact
+    const assetCount = data.selectedAssets?.length || 0;
+    const riskLevel = data.riskAssessment?.riskLevel || 'Medium';
+    
+    // Calculate impact based on risk level and scope
+    if (riskLevel === 'High' || assetCount > 5) {
+      impact = 3; // High impact
+    } else if (riskLevel === 'Low' && assetCount <= 2) {
+      impact = 1; // Low impact
+    }
 
     // Prepare asset associations using display_id (not internal ID)
     const assetDisplayIds = [];
@@ -363,9 +372,6 @@ const ChangeSubmission = {
       });
     }
 
-    // Format description with all relevant details
-    const description = this.formatChangeDescription(data, impactedData);
-
     // Format dates properly for Freshservice API (ISO 8601 format)
     const formatDateForAPI = (dateString) => {
       if (!dateString) return null;
@@ -378,10 +384,13 @@ const ChangeSubmission = {
       }
     };
 
+    // Create structured description with proper field mapping
+    const structuredDescription = this.createStructuredDescription(data, impactedData);
+
     // Prepare the change request data according to Freshservice API v2 format
     const changeRequestData = {
       subject: data.changeTitle,
-      description: description,
+      description: structuredDescription,
       change_type: change_type,
       priority: priority,
       status: this.config.statuses.open, // Open status
@@ -401,15 +410,61 @@ const ChangeSubmission = {
       console.log('🏢 No workspace_id configured, skipping workspace assignment');
     }
 
-    // Note: Custom fields don't exist in this Freshservice instance
-    // All additional details are included in the description instead
+    // Try to add planning fields if supported by the API
+    try {
+      // Map our fields to Freshservice planning fields
+      const planningFields = {
+        implementation_plan: data.implementationPlan || '',
+        backout_plan: data.backoutPlan || '',
+        test_plan: data.validationPlan || '',
+        reason: data.reasonForChange || ''
+      };
 
-    // Add assets if any are selected - try simpler format first
+      // Add planning fields to the request
+      changeRequestData.planning_fields = planningFields;
+      console.log('📋 Added planning fields to change request');
+    } catch (error) {
+      console.warn('⚠️ Planning fields not supported, using description only');
+    }
+
+    // Try to add custom fields if they exist
+    try {
+      const customFields = {};
+      
+      // Common custom field names that might exist
+      const fieldMappings = {
+        'implementation_plan': data.implementationPlan,
+        'rollout_plan': data.implementationPlan,
+        'backout_plan': data.backoutPlan,
+        'rollback_plan': data.backoutPlan,
+        'validation_plan': data.validationPlan,
+        'test_plan': data.validationPlan,
+        'testing_plan': data.validationPlan,
+        'reason_for_change': data.reasonForChange,
+        'justification': data.reasonForChange,
+        'business_justification': data.reasonForChange
+      };
+
+      // Add non-empty custom fields
+      Object.keys(fieldMappings).forEach(fieldName => {
+        const value = fieldMappings[fieldName];
+        if (value && value.trim()) {
+          customFields[fieldName] = value.trim();
+        }
+      });
+
+      if (Object.keys(customFields).length > 0) {
+        changeRequestData.custom_fields = customFields;
+        console.log('📋 Added custom fields to change request:', Object.keys(customFields));
+      }
+    } catch (error) {
+      console.warn('⚠️ Custom fields not supported, using description only');
+    }
+
+    // Add assets if any are selected
     if (assetDisplayIds.length > 0) {
-      // Try different asset formats to see which one works
-      // Format 1: Simple array of IDs
       changeRequestData.assets = assetDisplayIds;
-      console.log('🔗 Adding assets to change request (simple format):', assetDisplayIds);
+      console.log('🔗 Adding assets to change request:', assetDisplayIds);
       
       // Log asset details for debugging
       console.log('🔍 Asset details being sent:');
@@ -417,9 +472,6 @@ const ChangeSubmission = {
         const displayId = asset.display_id || asset.id;
         console.log(`   - Asset: ${asset.name}, Internal ID: ${asset.id}, Display ID: ${displayId}, Tag: ${asset.asset_tag || 'N/A'}`);
       });
-      
-      // Log the display IDs that will be sent to the API
-      console.log('🔗 Display IDs being sent to API:', assetDisplayIds);
     } else {
       console.log('🔗 No assets selected, skipping asset association');
     }
@@ -433,7 +485,9 @@ const ChangeSubmission = {
       assetCount: assetDisplayIds.length,
       approverCount: impactedData.approvers?.length || 0,
       hasWorkspace: !!changeRequestData.workspace_id,
-      hasAssets: !!changeRequestData.assets
+      hasAssets: !!changeRequestData.assets,
+      hasPlanningFields: !!changeRequestData.planning_fields,
+      hasCustomFields: !!changeRequestData.custom_fields
     });
 
     console.log('📦 Final change request data structure:', JSON.stringify(changeRequestData, null, 2));
@@ -442,185 +496,79 @@ const ChangeSubmission = {
   },
 
   /**
-   * Format change description with all relevant details
+   * Create structured description with proper field mapping
    */
-  formatChangeDescription(data, impactedData) {
-    let description = `
-<div style="font-family: Arial, sans-serif; line-height: 1.6;">
+  createStructuredDescription(data, impactedData) {
+    // Create a clean, structured description that maps to standard change management fields
+    let description = `${data.reasonForChange || 'No reason specified'}
 
-<h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">📋 Change Request Details</h2>
+CHANGE DETAILS:
+==============
 
-<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
-  <h3 style="color: #2980b9; margin-top: 0;">📊 Change Information</h3>
-  <table style="width: 100%; border-collapse: collapse;">
-    <tr><td style="padding: 5px; font-weight: bold; width: 30%;">Change Type:</td><td style="padding: 5px;">${data.changeType || 'Normal'}</td></tr>
-    <tr><td style="padding: 5px; font-weight: bold;">Risk Level:</td><td style="padding: 5px; color: ${data.riskAssessment?.riskLevel === 'High' ? '#e74c3c' : data.riskAssessment?.riskLevel === 'Medium' ? '#f39c12' : '#27ae60'}; font-weight: bold;">${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}</td></tr>
-    <tr><td style="padding: 5px; font-weight: bold;">Risk Score:</td><td style="padding: 5px;">${data.riskAssessment?.totalScore || 0}/15</td></tr>
-    <tr><td style="padding: 5px; font-weight: bold;">Priority:</td><td style="padding: 5px;">${data.riskAssessment?.riskLevel === 'High' ? 'High' : data.riskAssessment?.riskLevel === 'Low' ? 'Low' : 'Medium'}</td></tr>
-  </table>
-</div>
+Reason for Change:
+${data.reasonForChange || 'Not specified'}
 
-<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107;">
-  <h3 style="color: #856404; margin-top: 0;">🎯 Reason for Change</h3>
-  <p style="margin: 0;">${data.reasonForChange}</p>
-</div>
+Implementation Plan (Rollout Plan):
+${data.implementationPlan || 'Not specified'}
 
-<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #17a2b8;">
-  <h3 style="color: #0c5460; margin-top: 0;">🔧 Implementation Plan</h3>
-  <p style="margin: 0;">${data.implementationPlan}</p>
-</div>
+Backout Plan:
+${data.backoutPlan || 'Not specified'}
 
-<div style="background-color: #f8d7da; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #dc3545;">
-  <h3 style="color: #721c24; margin-top: 0;">🔄 Backout Plan</h3>
-  <p style="margin: 0;">${data.backoutPlan}</p>
-</div>
+Validation Plan:
+${data.validationPlan || 'Not specified'}
 
-<div style="background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #28a745;">
-  <h3 style="color: #155724; margin-top: 0;">✅ Validation Plan</h3>
-  <p style="margin: 0;">${data.validationPlan || 'Not specified'}</p>
-</div>
+Risk Assessment:
+- Risk Level: ${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}
+- Risk Score: ${data.riskAssessment?.totalScore || 0}/15
+- Change Type: ${data.changeType || 'Normal'}
 
-<div style="background-color: #e2e3e5; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #6c757d;">
-  <h3 style="color: #383d41; margin-top: 0;">⚠️ Risk Assessment Details</h3>
-  <table style="width: 100%; border-collapse: collapse;">
-    <tr><td style="padding: 5px; font-weight: bold; width: 30%;">Overall Risk Level:</td><td style="padding: 5px; color: ${data.riskAssessment?.riskLevel === 'High' ? '#e74c3c' : data.riskAssessment?.riskLevel === 'Medium' ? '#f39c12' : '#27ae60'}; font-weight: bold;">${data.riskAssessment?.riskLevel?.toUpperCase() || 'Not assessed'}</td></tr>
-    <tr><td style="padding: 5px; font-weight: bold;">Total Risk Score:</td><td style="padding: 5px;">${data.riskAssessment?.totalScore || 0}/15</td></tr>
-  </table>
-</div>
-`;
+Impact Analysis:
+- Assets Affected: ${data.selectedAssets?.length || 0}
+- Approvers Required: ${impactedData.approvers?.length || 0}
+- Stakeholders to Notify: ${impactedData.stakeholders?.length || 0}`;
 
-    // Add associated assets with enhanced formatting
+    // Add asset details if any
     if (data.selectedAssets?.length > 0) {
       description += `
-<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #dee2e6;">
-  <h3 style="color: #495057; margin-top: 0;">🖥️ Associated Assets (${data.selectedAssets.length})</h3>
-  <table style="width: 100%; border-collapse: collapse; border: 1px solid #dee2e6;">
-    <thead>
-      <tr style="background-color: #f8f9fa;">
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Name</th>
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Display ID</th>
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Tag</th>
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Type</th>
-      </tr>
-    </thead>
-    <tbody>`;
-      
-      data.selectedAssets.forEach(asset => {
+
+AFFECTED ASSETS:
+===============`;
+      data.selectedAssets.forEach((asset, index) => {
         const displayId = asset.display_id || asset.id;
         description += `
-      <tr>
-        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${asset.name}</strong></td>
-        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${displayId}</strong></td>
-        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_tag || 'No tag'}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_type_name || 'Unknown type'}</td>
-      </tr>`;
+${index + 1}. ${asset.name} (ID: ${displayId}, Tag: ${asset.asset_tag || 'No tag'})`;
       });
-      
-      description += `
-    </tbody>
-  </table>
-</div>`;
     }
 
-    // Add approvers with enhanced formatting
+    // Add approver details if any
     if (impactedData.approvers?.length > 0) {
       description += `
-<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #28a745;">
-  <h3 style="color: #155724; margin-top: 0;">✅ Identified Approvers (${impactedData.approvers.length})</h3>
-  <table style="width: 100%; border-collapse: collapse; border: 1px solid #28a745;">
-    <thead>
-      <tr style="background-color: #d4edda;">
-        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Name</th>
-        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Email</th>
-        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Source</th>
-      </tr>
-    </thead>
-    <tbody>`;
-      
-      impactedData.approvers.forEach(approver => {
+
+REQUIRED APPROVERS:
+==================`;
+      impactedData.approvers.forEach((approver, index) => {
         description += `
-      <tr>
-        <td style="padding: 10px; border: 1px solid #28a745;"><strong>${approver.name}</strong></td>
-        <td style="padding: 10px; border: 1px solid #28a745;">${approver.email}</td>
-        <td style="padding: 10px; border: 1px solid #28a745;">${approver.source}</td>
-      </tr>`;
+${index + 1}. ${approver.name} (${approver.email}) - Source: ${approver.source}`;
       });
-      
-      description += `
-    </tbody>
-  </table>
-</div>`;
     }
 
-    // Add stakeholders with enhanced formatting
+    // Add stakeholder details if any
     if (impactedData.stakeholders?.length > 0) {
       description += `
-<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #17a2b8;">
-  <h3 style="color: #0c5460; margin-top: 0;">👥 Identified Stakeholders (${impactedData.stakeholders.length})</h3>
-  <table style="width: 100%; border-collapse: collapse; border: 1px solid #17a2b8;">
-    <thead>
-      <tr style="background-color: #d1ecf1;">
-        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Name</th>
-        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Email</th>
-        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Source</th>
-      </tr>
-    </thead>
-    <tbody>`;
-      
-      impactedData.stakeholders.forEach(stakeholder => {
+
+STAKEHOLDERS TO NOTIFY:
+======================`;
+      impactedData.stakeholders.forEach((stakeholder, index) => {
         description += `
-      <tr>
-        <td style="padding: 10px; border: 1px solid #17a2b8;"><strong>${stakeholder.name}</strong></td>
-        <td style="padding: 10px; border: 1px solid #17a2b8;">${stakeholder.email}</td>
-        <td style="padding: 10px; border: 1px solid #17a2b8;">${stakeholder.source}</td>
-      </tr>`;
+${index + 1}. ${stakeholder.name} (${stakeholder.email}) - Source: ${stakeholder.source}`;
       });
-      
-      description += `
-    </tbody>
-  </table>
-</div>`;
     }
 
-    // Add summary statistics with enhanced formatting
     description += `
-<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #6c757d;">
-  <h3 style="color: #495057; margin-top: 0;">📈 Change Summary</h3>
-  <div style="display: flex; flex-wrap: wrap; gap: 20px;">
-    <div style="flex: 1; min-width: 200px;">
-      <div style="background-color: #007bff; color: white; padding: 10px; border-radius: 5px; text-align: center;">
-        <div style="font-size: 24px; font-weight: bold;">${data.selectedAssets?.length || 0}</div>
-        <div>Assets Affected</div>
-      </div>
-    </div>
-    <div style="flex: 1; min-width: 200px;">
-      <div style="background-color: #28a745; color: white; padding: 10px; border-radius: 5px; text-align: center;">
-        <div style="font-size: 24px; font-weight: bold;">${impactedData.approvers?.length || 0}</div>
-        <div>Approvers Required</div>
-      </div>
-    </div>
-    <div style="flex: 1; min-width: 200px;">
-      <div style="background-color: #17a2b8; color: white; padding: 10px; border-radius: 5px; text-align: center;">
-        <div style="font-size: 24px; font-weight: bold;">${impactedData.stakeholders?.length || 0}</div>
-        <div>Stakeholders to Notify</div>
-      </div>
-    </div>
-    <div style="flex: 1; min-width: 200px;">
-      <div style="background-color: #6c757d; color: white; padding: 10px; border-radius: 5px; text-align: center;">
-        <div style="font-size: 24px; font-weight: bold;">${data.changeType || 'Normal'}</div>
-        <div>Change Category</div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<hr style="margin: 20px 0; border: none; border-top: 2px solid #dee2e6;">
-<p style="text-align: center; color: #6c757d; font-style: italic; margin: 0;">
-  <em>This change request was created using the Freshworks Change Management App.</em>
-</p>
-
-</div>
-`;
+---
+This change request was created using the Freshworks Change Management App.
+Submission Time: ${new Date().toISOString()}`;
 
     return description;
   },
@@ -1023,14 +971,14 @@ const ChangeSubmission = {
       const taskData = {
         subject: `Peer Review: ${changeRequest.subject}`,
         description: this.renderEmailTemplate('peerReviewTask', {
-          change_title: changeRequest.subject,
-          requester_name: window.changeRequestData.selectedRequester.name,
-          risk_level: riskLevel.toUpperCase(),
-          planned_start: this.formatDate(changeRequest.planned_start_date),
-          planned_end: this.formatDate(changeRequest.planned_end_date),
-          implementation_plan: window.changeRequestData.implementationPlan,
-          validation_plan: window.changeRequestData.validationPlan || 'Not specified',
-          change_url: changeUrl
+        change_title: changeRequest.subject,
+        requester_name: window.changeRequestData.selectedRequester.name,
+        risk_level: riskLevel.toUpperCase(),
+        planned_start: this.formatDate(changeRequest.planned_start_date),
+        planned_end: this.formatDate(changeRequest.planned_end_date),
+        implementation_plan: window.changeRequestData.implementationPlan,
+        validation_plan: window.changeRequestData.validationPlan || 'Not specified',
+        change_url: changeUrl
         }).body,
         requester_id: window.changeRequestData.selectedRequester.id,
         agent_id: window.changeRequestData.selectedAgent.id,
@@ -1268,182 +1216,78 @@ Workflow Summary:
    * Create a simplified description for change request
    */
   createSimplifiedDescription(data, impactedData) {
-    let description = `
-<div style="font-family: Arial, sans-serif; line-height: 1.6;">
+    // Create a simplified, text-only description for better compatibility
+    let description = `${data.reasonForChange || 'No reason specified'}
 
-<h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">📋 Change Request Details</h2>
+CHANGE DETAILS:
+==============
 
-<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
-  <h3 style="color: #2980b9; margin-top: 0;">📊 Change Information</h3>
-  <table style="width: 100%; border-collapse: collapse;">
-    <tr><td style="padding: 5px; font-weight: bold; width: 30%;">Change Type:</td><td style="padding: 5px;">${data.changeType || 'Normal'}</td></tr>
-    <tr><td style="padding: 5px; font-weight: bold;">Risk Level:</td><td style="padding: 5px; color: ${data.riskAssessment?.riskLevel === 'High' ? '#e74c3c' : data.riskAssessment?.riskLevel === 'Medium' ? '#f39c12' : '#27ae60'}; font-weight: bold;">${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}</td></tr>
-    <tr><td style="padding: 5px; font-weight: bold;">Risk Score:</td><td style="padding: 5px;">${data.riskAssessment?.totalScore || 0}/15</td></tr>
-    <tr><td style="padding: 5px; font-weight: bold;">Priority:</td><td style="padding: 5px;">${data.riskAssessment?.riskLevel === 'High' ? 'High' : data.riskAssessment?.riskLevel === 'Low' ? 'Low' : 'Medium'}</td></tr>
-  </table>
-</div>
+Reason for Change:
+${data.reasonForChange || 'Not specified'}
 
-<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107;">
-  <h3 style="color: #856404; margin-top: 0;">🎯 Reason for Change</h3>
-  <p style="margin: 0;">${data.reasonForChange}</p>
-</div>
+Implementation Plan (Rollout Plan):
+${data.implementationPlan || 'Not specified'}
 
-<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #17a2b8;">
-  <h3 style="color: #0c5460; margin-top: 0;">🔧 Implementation Plan</h3>
-  <p style="margin: 0;">${data.implementationPlan}</p>
-</div>
+Backout Plan:
+${data.backoutPlan || 'Not specified'}
 
-<div style="background-color: #f8d7da; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #dc3545;">
-  <h3 style="color: #721c24; margin-top: 0;">🔄 Backout Plan</h3>
-  <p style="margin: 0;">${data.backoutPlan}</p>
-</div>
+Validation Plan:
+${data.validationPlan || 'Not specified'}
 
-<div style="background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #28a745;">
-  <h3 style="color: #155724; margin-top: 0;">✅ Validation Plan</h3>
-  <p style="margin: 0;">${data.validationPlan || 'Not specified'}</p>
-</div>
+Risk Assessment:
+- Risk Level: ${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}
+- Risk Score: ${data.riskAssessment?.totalScore || 0}/15
+- Change Type: ${data.changeType || 'Normal'}
+- Priority: ${data.riskAssessment?.riskLevel === 'High' ? 'High' : data.riskAssessment?.riskLevel === 'Low' ? 'Low' : 'Medium'}
 
-<div style="background-color: #e2e3e5; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #6c757d;">
-  <h3 style="color: #383d41; margin-top: 0;">⚠️ Risk Assessment Details</h3>
-  <table style="width: 100%; border-collapse: collapse;">
-    <tr><td style="padding: 5px; font-weight: bold; width: 30%;">Overall Risk Level:</td><td style="padding: 5px; color: ${data.riskAssessment?.riskLevel === 'High' ? '#e74c3c' : data.riskAssessment?.riskLevel === 'Medium' ? '#f39c12' : '#27ae60'}; font-weight: bold;">${data.riskAssessment?.riskLevel?.toUpperCase() || 'Not assessed'}</td></tr>
-    <tr><td style="padding: 5px; font-weight: bold;">Total Risk Score:</td><td style="padding: 5px;">${data.riskAssessment?.totalScore || 0}/15</td></tr>
-  </table>
-</div>
-`;
+Impact Analysis:
+- Assets Affected: ${data.selectedAssets?.length || 0}
+- Approvers Required: ${impactedData.approvers?.length || 0}
+- Stakeholders to Notify: ${impactedData.stakeholders?.length || 0}`;
 
-    // Add associated assets with enhanced formatting
+    // Add asset details if any
     if (data.selectedAssets?.length > 0) {
       description += `
-<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #dee2e6;">
-  <h3 style="color: #495057; margin-top: 0;">🖥️ Associated Assets (${data.selectedAssets.length})</h3>
-  <table style="width: 100%; border-collapse: collapse; border: 1px solid #dee2e6;">
-    <thead>
-      <tr style="background-color: #f8f9fa;">
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Name</th>
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Display ID</th>
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Tag</th>
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Type</th>
-      </tr>
-    </thead>
-    <tbody>`;
-      
-      data.selectedAssets.forEach(asset => {
+
+AFFECTED ASSETS:
+===============`;
+      data.selectedAssets.forEach((asset, index) => {
         const displayId = asset.display_id || asset.id;
         description += `
-      <tr>
-        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${asset.name}</strong></td>
-        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${displayId}</strong></td>
-        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_tag || 'No tag'}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_type_name || 'Unknown type'}</td>
-      </tr>`;
+${index + 1}. ${asset.name} (ID: ${displayId}, Tag: ${asset.asset_tag || 'No tag'})`;
       });
-      
-      description += `
-    </tbody>
-  </table>
-</div>`;
     }
 
-    // Add approvers with enhanced formatting
+    // Add approver details if any
     if (impactedData.approvers?.length > 0) {
       description += `
-<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #28a745;">
-  <h3 style="color: #155724; margin-top: 0;">✅ Identified Approvers (${impactedData.approvers.length})</h3>
-  <table style="width: 100%; border-collapse: collapse; border: 1px solid #28a745;">
-    <thead>
-      <tr style="background-color: #d4edda;">
-        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Name</th>
-        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Email</th>
-        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Source</th>
-      </tr>
-    </thead>
-    <tbody>`;
-      
-      impactedData.approvers.forEach(approver => {
+
+REQUIRED APPROVERS:
+==================`;
+      impactedData.approvers.forEach((approver, index) => {
         description += `
-      <tr>
-        <td style="padding: 10px; border: 1px solid #28a745;"><strong>${approver.name}</strong></td>
-        <td style="padding: 10px; border: 1px solid #28a745;">${approver.email}</td>
-        <td style="padding: 10px; border: 1px solid #28a745;">${approver.source}</td>
-      </tr>`;
+${index + 1}. ${approver.name} (${approver.email}) - Source: ${approver.source}`;
       });
-      
-      description += `
-    </tbody>
-  </table>
-</div>`;
     }
 
-    // Add stakeholders with enhanced formatting
+    // Add stakeholder details if any
     if (impactedData.stakeholders?.length > 0) {
       description += `
-<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #17a2b8;">
-  <h3 style="color: #0c5460; margin-top: 0;">👥 Identified Stakeholders (${impactedData.stakeholders.length})</h3>
-  <table style="width: 100%; border-collapse: collapse; border: 1px solid #17a2b8;">
-    <thead>
-      <tr style="background-color: #d1ecf1;">
-        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Name</th>
-        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Email</th>
-        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Source</th>
-      </tr>
-    </thead>
-    <tbody>`;
-      
-      impactedData.stakeholders.forEach(stakeholder => {
+
+STAKEHOLDERS TO NOTIFY:
+======================`;
+      impactedData.stakeholders.forEach((stakeholder, index) => {
         description += `
-      <tr>
-        <td style="padding: 10px; border: 1px solid #17a2b8;"><strong>${stakeholder.name}</strong></td>
-        <td style="padding: 10px; border: 1px solid #17a2b8;">${stakeholder.email}</td>
-        <td style="padding: 10px; border: 1px solid #17a2b8;">${stakeholder.source}</td>
-      </tr>`;
+${index + 1}. ${stakeholder.name} (${stakeholder.email}) - Source: ${stakeholder.source}`;
       });
-      
-      description += `
-    </tbody>
-  </table>
-</div>`;
     }
 
-    // Add summary statistics with enhanced formatting
     description += `
-<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #6c757d;">
-  <h3 style="color: #495057; margin-top: 0;">📈 Change Summary</h3>
-  <div style="display: flex; flex-wrap: wrap; gap: 20px;">
-    <div style="flex: 1; min-width: 200px;">
-      <div style="background-color: #007bff; color: white; padding: 10px; border-radius: 5px; text-align: center;">
-        <div style="font-size: 24px; font-weight: bold;">${data.selectedAssets?.length || 0}</div>
-        <div>Assets Affected</div>
-      </div>
-    </div>
-    <div style="flex: 1; min-width: 200px;">
-      <div style="background-color: #28a745; color: white; padding: 10px; border-radius: 5px; text-align: center;">
-        <div style="font-size: 24px; font-weight: bold;">${impactedData.approvers?.length || 0}</div>
-        <div>Approvers Required</div>
-      </div>
-    </div>
-    <div style="flex: 1; min-width: 200px;">
-      <div style="background-color: #17a2b8; color: white; padding: 10px; border-radius: 5px; text-align: center;">
-        <div style="font-size: 24px; font-weight: bold;">${impactedData.stakeholders?.length || 0}</div>
-        <div>Stakeholders to Notify</div>
-      </div>
-    </div>
-    <div style="flex: 1; min-width: 200px;">
-      <div style="background-color: #6c757d; color: white; padding: 10px; border-radius: 5px; text-align: center;">
-        <div style="font-size: 24px; font-weight: bold;">${data.changeType || 'Normal'}</div>
-        <div>Change Category</div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<hr style="margin: 20px 0; border: none; border-top: 2px solid #dee2e6;">
-<p style="text-align: center; color: #6c757d; font-style: italic; margin: 0;">
-  <em>This change request was created using the Freshworks Change Management App.</em>
-</p>
-
-</div>
-`;
+---
+This change request was created using the Freshworks Change Management App.
+Submission Time: ${new Date().toISOString()}
+Note: Simplified description format used due to server limitations.`;
 
     return description;
   }
@@ -1452,7 +1296,7 @@ Workflow Summary:
 // Initialize the module when the script loads
 if (typeof window !== 'undefined') {
   console.log('🔧 ChangeSubmission: Script loaded, initializing module...');
-  window.ChangeSubmission = ChangeSubmission;
+window.ChangeSubmission = ChangeSubmission; 
   console.log('🔧 ChangeSubmission: Module attached to window object');
   
   // Auto-initialize when DOM is ready
