@@ -4729,7 +4729,7 @@ function hideRiskResult() {
 }
 
 /**
- * Validate risk assessment and proceed to submission
+ * Validate risk assessment and proceed to submission summary
  */
 function validateRiskAndNext() {
   console.log('🔍 Validating risk assessment...');
@@ -4745,20 +4745,10 @@ function validateRiskAndNext() {
   // Prepare consolidated change request data for submission
   prepareChangeRequestDataForSubmission();
   
-  // Debug: Check if ChangeSubmission module is available
-  console.log('🔍 Checking ChangeSubmission module availability...');
-  console.log('window.ChangeSubmission exists:', !!window.ChangeSubmission);
-  console.log('window.ChangeSubmission type:', typeof window.ChangeSubmission);
-  
+  // Use the change submission module to show the summary modal
   if (window.ChangeSubmission) {
-    console.log('ChangeSubmission methods available:', Object.keys(window.ChangeSubmission));
-    console.log('handleSubmission method exists:', typeof window.ChangeSubmission.handleSubmission);
-  }
-  
-  // Use the change submission module to handle the submission
-  if (window.ChangeSubmission) {
-    console.log('✅ ChangeSubmission module found, calling handleSubmission...');
-    window.ChangeSubmission.handleSubmission();
+    console.log('✅ ChangeSubmission module found, showing submission summary...');
+    window.ChangeSubmission.showSubmissionSummary();
   } else {
     console.error('❌ Change Submission module not available');
     console.error('Available window properties:', Object.keys(window).filter(key => key.includes('Change') || key.includes('Submission')));

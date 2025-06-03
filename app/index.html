@@ -613,19 +613,34 @@
       </div>
 
       <!-- Confirmation Modal -->
-      <div class="modal fade" id="confirmation-modal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+      <div class="modal fade" id="confirmation-modal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-xl">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="confirmModalLabel">Change Request Summary</h5>
+              <h5 class="modal-title" id="confirmModalLabel">
+                <i class="fas fa-clipboard-check me-2 text-primary"></i>
+                Review Change Request Submission
+              </h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-              <div id="summary-content"></div>
+              <div id="summary-content">
+                <!-- Summary content will be dynamically populated -->
+                <div class="text-center py-4">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading summary...</span>
+                  </div>
+                  <p class="mt-2 text-muted">Preparing submission summary...</p>
+                </div>
+              </div>
             </div>
-            <div class="modal-footer">
-              <button id="edit-request" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Edit</button>
-              <button id="confirm-submit" type="button" class="btn btn-primary">Confirm & Submit</button>
+            <div class="modal-footer d-flex justify-content-between">
+              <button id="edit-request" type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                <i class="fas fa-edit me-2"></i>Edit Request
+              </button>
+              <button id="confirm-submit" type="button" class="btn btn-primary btn-lg">
+                <i class="fas fa-paper-plane me-2"></i>Confirm & Submit
+              </button>
             </div>
           </div>
         </div>

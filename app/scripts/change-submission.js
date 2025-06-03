@@ -161,16 +161,28 @@ const ChangeSubmission = {
   setupEventListeners() {
     console.log('🔧 Setting up Change Submission event listeners...');
     
-    // Submit button
+    // Submit button - now shows summary first
     const submitBtn = document.getElementById('submit-change-btn');
     if (submitBtn) {
       submitBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        this.handleSubmission();
+        this.showSubmissionSummary();
       });
       console.log('✅ Submit button listener added');
     } else {
       console.warn('⚠️ Submit button not found');
+    }
+
+    // Confirm submission button in modal
+    const confirmBtn = document.getElementById('confirm-submit');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.handleSubmission();
+      });
+      console.log('✅ Confirm submit button listener added');
+    } else {
+      console.warn('⚠️ Confirm submit button not found - will try to add listener after modal creation');
     }
 
     console.log('✅ Change submission event listeners setup complete');
@@ -1202,7 +1214,438 @@ Workflow Summary:
       console.warn('⚠️ Error formatting date:', dateString, error);
       return dateString;
     }
-  }
+  },
+
+  /**
+   * Show comprehensive submission summary modal
+   */
+  async showSubmissionSummary() {
+    console.log('📋 Showing comprehensive submission summary...');
+
+    // First validate all data
+    const validationResult = this.validateSubmissionData();
+    if (!validationResult.isValid) {
+      this.showValidationErrors(validationResult.errors);
+      return;
+    }
+
+    // Get all the data
+    const data = window.changeRequestData;
+    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+    const riskAssessment = data.riskAssessment || {};
+
+    // Create the comprehensive summary content
+    const summaryContent = this.createSummaryContent(data, impactedData, riskAssessment);
+
+    // Update the modal content
+    const modalBody = document.getElementById('summary-content');
+    if (modalBody) {
+      modalBody.innerHTML = summaryContent;
+    }
+
+    // Add backdrop blur effect
+    const body = document.body;
+    body.classList.add('modal-backdrop-blur');
+
+    // Show the modal
+    const modal = document.getElementById('confirmation-modal');
+    if (modal) {
+      // Update modal title
+      const modalTitle = document.getElementById('confirmModalLabel');
+      if (modalTitle) {
+        modalTitle.textContent = 'Review Change Request Submission';
+      }
+
+      // Show modal using Bootstrap
+      const bootstrapModal = new bootstrap.Modal(modal);
+      bootstrapModal.show();
+
+      // Add event listener for confirm button if not already added
+      const confirmBtn = document.getElementById('confirm-submit');
+      if (confirmBtn) {
+        // Remove any existing listeners
+        confirmBtn.removeEventListener('click', this.handleSubmissionBound);
+        // Add new listener
+        this.handleSubmissionBound = (e) => {
+          e.preventDefault();
+          bootstrapModal.hide();
+          setTimeout(() => {
+            body.classList.remove('modal-backdrop-blur');
+            this.handleSubmission();
+          }, 300);
+        };
+        confirmBtn.addEventListener('click', this.handleSubmissionBound);
+      }
+
+      // Add event listener for modal close to remove blur
+      modal.addEventListener('hidden.bs.modal', () => {
+        body.classList.remove('modal-backdrop-blur');
+      }, { once: true });
+
+      console.log('✅ Submission summary modal displayed');
+    } else {
+      console.error('❌ Confirmation modal not found');
+      // Fallback to direct submission
+      this.handleSubmission();
+    }
+  },
+
+  /**
+   * Create comprehensive summary content for the modal
+   */
+  createSummaryContent(data, impactedData, riskAssessment) {
+    const formatDate = (dateString) => {
+      if (!dateString) return 'Not specified';
+      try {
+        return new Date(dateString).toLocaleString('en-US', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (error) {
+        return dateString;
+      }
+    };
+
+    const getRiskBadgeClass = (riskLevel) => {
+      switch (riskLevel?.toLowerCase()) {
+        case 'low': return 'bg-success';
+        case 'medium': return 'bg-warning text-dark';
+        case 'high': return 'bg-danger';
+        default: return 'bg-secondary';
+      }
+    };
+
+    const getChangeTypeBadge = (changeType) => {
+      switch (changeType?.toLowerCase()) {
+        case 'emergency': return '<span class="badge bg-danger">Emergency</span>';
+        case 'major': return '<span class="badge bg-warning text-dark">Major</span>';
+        case 'minor': return '<span class="badge bg-info">Minor</span>';
+        default: return '<span class="badge bg-primary">Normal</span>';
+      }
+    };
+
+    return `
+      <div class="container-fluid">
+        <!-- Header Section -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <div class="card border-primary">
+              <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                  <i class="fas fa-clipboard-check me-2"></i>${data.changeTitle || 'Untitled Change Request'}
+                </h5>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-8">
+                    <p class="card-text">${data.reasonForChange || 'No reason specified'}</p>
+                  </div>
+                  <div class="col-md-4 text-end">
+                    <div class="mb-2">
+                      ${getChangeTypeBadge(data.changeType)}
+                      <span class="badge ${getRiskBadgeClass(riskAssessment.riskLevel)} ms-2">
+                        ${riskAssessment.riskLevel?.toUpperCase() || 'UNKNOWN'} RISK
+                      </span>
+                    </div>
+                    <div class="text-muted">
+                      <small>Risk Score: ${riskAssessment.totalScore || 0}/15</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Key Details Row -->
+        <div class="row mb-4">
+          <!-- Timing Section -->
+          <div class="col-md-6 mb-3">
+            <div class="card h-100">
+              <div class="card-header">
+                <h6><i class="fas fa-clock me-2"></i>Timing & Schedule</h6>
+              </div>
+              <div class="card-body">
+                <div class="mb-2">
+                  <strong>Planned Start:</strong><br>
+                  <span class="text-primary">${formatDate(data.plannedStart)}</span>
+                </div>
+                <div>
+                  <strong>Planned End:</strong><br>
+                  <span class="text-primary">${formatDate(data.plannedEnd)}</span>
+                </div>
+                ${data.plannedStart && data.plannedEnd ? `
+                <div class="mt-2 text-muted">
+                  <small><i class="fas fa-hourglass-half me-1"></i>
+                    Duration: ${this.calculateDuration(data.plannedStart, data.plannedEnd)}
+                  </small>
+                </div>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <!-- People Section -->
+          <div class="col-md-6 mb-3">
+            <div class="card h-100">
+              <div class="card-header">
+                <h6><i class="fas fa-users me-2"></i>People & Assignments</h6>
+              </div>
+              <div class="card-body">
+                <div class="mb-2">
+                  <strong>Requester:</strong><br>
+                  <span class="text-info">${data.selectedRequester?.name || 'Not selected'}</span>
+                  ${data.selectedRequester?.email ? `<br><small class="text-muted">${data.selectedRequester.email}</small>` : ''}
+                </div>
+                <div>
+                  <strong>Assigned Agent:</strong><br>
+                  <span class="text-info">${data.selectedAgent?.name || 'Not selected'}</span>
+                  ${data.selectedAgent?.email ? `<br><small class="text-muted">${data.selectedAgent.email}</small>` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Impact Analysis Row -->
+        <div class="row mb-4">
+          <!-- Assets Section -->
+          <div class="col-md-6 mb-3">
+            <div class="card h-100">
+              <div class="card-header">
+                <h6><i class="fas fa-server me-2"></i>Affected Assets (${data.selectedAssets?.length || 0})</h6>
+              </div>
+              <div class="card-body">
+                ${data.selectedAssets?.length ? `
+                  <div class="asset-list" style="max-height: 200px; overflow-y: auto;">
+                    ${data.selectedAssets.map((asset, index) => `
+                      <div class="d-flex justify-content-between align-items-center py-1 ${index > 0 ? 'border-top' : ''}">
+                        <div>
+                          <div class="fw-bold">${asset.name}</div>
+                          <small class="text-muted">
+                            ID: ${asset.display_id || asset.id} | 
+                            Tag: ${asset.asset_tag || 'No tag'}
+                          </small>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : '<p class="text-muted">No assets selected</p>'}
+              </div>
+            </div>
+          </div>
+
+          <!-- Approvals Section -->
+          <div class="col-md-6 mb-3">
+            <div class="card h-100">
+              <div class="card-header">
+                <h6><i class="fas fa-check-circle me-2"></i>Approvals & Notifications</h6>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <strong>Required Approvers:</strong> ${impactedData.approvers?.length || 0}
+                  ${impactedData.approvers?.length ? `
+                    <div class="mt-1">
+                      ${impactedData.approvers.slice(0, 3).map(approver => `
+                        <div class="text-success small">
+                          <i class="fas fa-user-check me-1"></i>${approver.name}
+                        </div>
+                      `).join('')}
+                      ${impactedData.approvers.length > 3 ? `
+                        <div class="text-muted small">
+                          <i class="fas fa-ellipsis-h me-1"></i>and ${impactedData.approvers.length - 3} more
+                        </div>
+                      ` : ''}
+                    </div>
+                  ` : ''}
+                </div>
+                <div>
+                  <strong>Stakeholders to Notify:</strong> ${impactedData.stakeholders?.length || 0}
+                  ${impactedData.stakeholders?.length ? `
+                    <div class="mt-1">
+                      ${impactedData.stakeholders.slice(0, 2).map(stakeholder => `
+                        <div class="text-info small">
+                          <i class="fas fa-envelope me-1"></i>${stakeholder.name}
+                        </div>
+                      `).join('')}
+                      ${impactedData.stakeholders.length > 2 ? `
+                        <div class="text-muted small">
+                          <i class="fas fa-ellipsis-h me-1"></i>and ${impactedData.stakeholders.length - 2} more
+                        </div>
+                      ` : ''}
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Implementation Plans Row -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header">
+                <h6><i class="fas fa-tasks me-2"></i>Implementation & Recovery Plans</h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <div class="plan-section">
+                      <h6 class="text-primary">
+                        <i class="fas fa-play-circle me-1"></i>Implementation Plan
+                      </h6>
+                      <div class="plan-content p-2 bg-light rounded" style="max-height: 150px; overflow-y: auto;">
+                        ${data.implementationPlan ? 
+                          data.implementationPlan.split('\n').map(line => `<div>${line || '<br>'}</div>`).join('') : 
+                          '<em class="text-muted">Not specified</em>'
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <div class="plan-section">
+                      <h6 class="text-warning">
+                        <i class="fas fa-undo me-1"></i>Backout Plan
+                      </h6>
+                      <div class="plan-content p-2 bg-light rounded" style="max-height: 150px; overflow-y: auto;">
+                        ${data.backoutPlan ? 
+                          data.backoutPlan.split('\n').map(line => `<div>${line || '<br>'}</div>`).join('') : 
+                          '<em class="text-muted">Not specified</em>'
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <div class="plan-section">
+                      <h6 class="text-success">
+                        <i class="fas fa-check-double me-1"></i>Validation Plan
+                      </h6>
+                      <div class="plan-content p-2 bg-light rounded" style="max-height: 150px; overflow-y: auto;">
+                        ${data.validationPlan ? 
+                          data.validationPlan.split('\n').map(line => `<div>${line || '<br>'}</div>`).join('') : 
+                          '<em class="text-muted">Not specified</em>'
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <div class="plan-section">
+                      <h6 class="text-info">
+                        <i class="fas fa-clipboard-list me-1"></i>Risk Assessment Details
+                      </h6>
+                      <div class="plan-content p-2 bg-light rounded">
+                        <div class="small">
+                          <div><strong>Business Impact:</strong> ${riskAssessment.businessImpact || 'N/A'}/3</div>
+                          <div><strong>Affected Users:</strong> ${riskAssessment.affectedUsers || 'N/A'}/3</div>
+                          <div><strong>Complexity:</strong> ${riskAssessment.complexity || 'N/A'}/3</div>
+                          <div><strong>Testing Level:</strong> ${riskAssessment.testing || 'N/A'}/3</div>
+                          <div><strong>Rollback Capability:</strong> ${riskAssessment.rollback || 'N/A'}/3</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submission Actions Summary -->
+        <div class="row">
+          <div class="col-12">
+            <div class="card bg-light">
+              <div class="card-header">
+                <h6><i class="fas fa-cogs me-2"></i>What Will Happen After Submission</h6>
+              </div>
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6">
+                    <h6 class="text-primary">Automatic Actions:</h6>
+                    <ul class="list-unstyled">
+                      <li><i class="fas fa-plus-circle text-success me-2"></i>Change request created in Freshservice</li>
+                      <li><i class="fas fa-envelope text-info me-2"></i>Email notifications sent to ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)} people</li>
+                      ${riskAssessment.riskLevel !== 'Low' ? 
+                        '<li><i class="fas fa-tasks text-warning me-2"></i>Peer review task created (24-hour deadline)</li>' : ''
+                      }
+                      <li><i class="fas fa-workflow text-primary me-2"></i>Approval workflow initiated</li>
+                    </ul>
+                  </div>
+                  <div class="col-md-6">
+                    <h6 class="text-secondary">Next Steps:</h6>
+                    <ul class="list-unstyled">
+                      <li><i class="fas fa-clock text-muted me-2"></i>Approvers will receive email notifications</li>
+                      <li><i class="fas fa-eye text-muted me-2"></i>Stakeholders will be notified of the change</li>
+                      <li><i class="fas fa-check-circle text-muted me-2"></i>You'll receive a confirmation with the change ID</li>
+                      <li><i class="fas fa-link text-muted me-2"></i>You can track progress in Freshservice</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  /**
+   * Calculate duration between two dates
+   */
+  calculateDuration(startDate, endDate) {
+    try {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const diffMs = end - start;
+      
+      if (diffMs < 0) return 'Invalid duration';
+      
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (diffHours < 24) {
+        return `${diffHours}h ${diffMinutes}m`;
+      } else {
+        const diffDays = Math.floor(diffHours / 24);
+        const remainingHours = diffHours % 24;
+        return `${diffDays}d ${remainingHours}h`;
+      }
+    } catch (error) {
+      return 'Unknown duration';
+    }
+  },
+
+  /**
+   * Show validation errors in a user-friendly way
+   */
+  showValidationErrors(errors) {
+    const errorMessage = `
+      <div class="alert alert-danger" role="alert">
+        <h6><i class="fas fa-exclamation-triangle me-2"></i>Please complete the following before submitting:</h6>
+        <ul class="mb-0 mt-2">
+          ${errors.map(error => `<li>${error}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+
+    // Show in the submission status area
+    const statusElement = document.getElementById('submission-status');
+    if (statusElement) {
+      statusElement.innerHTML = errorMessage;
+      statusElement.style.display = 'block';
+      
+      // Scroll to the error message
+      statusElement.scrollIntoView({ behavior: 'smooth' });
+      
+      // Hide after 10 seconds
+      setTimeout(() => {
+        statusElement.style.display = 'none';
+      }, 10000);
+    }
+  },
 };
 
 // Initialize the module when the script loads
