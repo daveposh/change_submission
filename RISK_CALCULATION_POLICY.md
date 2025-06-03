@@ -198,17 +198,15 @@ riskAssessment: {
 ```
 
 #### 7.2.1 Custom Fields Integration
-The system also populates specific Freshservice custom fields:
+The system populates specific Freshservice custom fields that exist in the instance:
 ```javascript
 custom_fields: {
     risks: null,                    // Reserved for risk documentation
-    lf_technical_owner: null,       // Primary technical owner (from impacted services analysis)
-    implementation_plan: string,    // Implementation details
-    backout_plan: string,          // Rollback procedures
-    validation_plan: string,       // Testing and validation steps
-    reason_for_change: string      // Business justification
+    lf_technical_owner: null        // Primary technical owner (from impacted services analysis)
 }
 ```
+
+**Note**: Planning details such as implementation plans, backout plans, and validation plans are included in the main description field rather than custom fields, as the specific custom fields for these do not exist in this Freshservice instance.
 
 The `lf_technical_owner` field is automatically populated with the primary technical owner identified through the **Impacted Services** analysis - specifically the user who has direct access management responsibilities for the most critical asset in the change scope.
 

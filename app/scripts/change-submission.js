@@ -414,34 +414,9 @@ const ChangeSubmission = {
       lf_technical_owner: null
     };
 
-    // Try to add additional planning fields as custom fields if they exist
-    try {
-      // Common custom field names that might exist
-      const customFieldMappings = {
-        'implementation_plan': data.implementationPlan,
-        'rollout_plan': data.implementationPlan,
-        'backout_plan': data.backoutPlan,
-        'rollback_plan': data.backoutPlan,
-        'validation_plan': data.validationPlan,
-        'test_plan': data.validationPlan,
-        'testing_plan': data.validationPlan,
-        'reason_for_change': data.reasonForChange,
-        'justification': data.reasonForChange,
-        'business_justification': data.reasonForChange
-      };
-
-      // Add non-empty custom fields
-      Object.keys(customFieldMappings).forEach(fieldName => {
-        const value = customFieldMappings[fieldName];
-        if (value && value.trim()) {
-          changeRequestData.custom_fields[fieldName] = value.trim();
-        }
-      });
-
-      console.log('📋 Added custom fields to change request:', Object.keys(changeRequestData.custom_fields));
-    } catch (error) {
-      console.warn('⚠️ Error adding custom fields:', error);
-    }
+    // Note: Other custom fields like implementation_plan, backout_plan, etc. 
+    // do not exist in this Freshservice instance, so we don't include them.
+    // All planning details are included in the description field instead.
 
     console.log('✅ Change request data prepared:', {
       subject: changeRequestData.subject,
@@ -543,7 +518,11 @@ Submission Time: ${new Date().toISOString()}`;
       risk: 2,        // Medium risk
       impact: 2,      // Medium impact
       requester_id: data.selectedRequester?.id,
-      agent_id: data.selectedAgent?.id
+      agent_id: data.selectedAgent?.id,
+      custom_fields: {
+        risks: null,
+        lf_technical_owner: null
+      }
     };
 
     // Add dates if available
@@ -593,7 +572,7 @@ Submission Time: ${new Date().toISOString()}`;
         } catch (minimalError) {
           console.error('❌ Failed even with minimal fields:', minimalError);
           
-          // If it still fails, try with an even simpler description
+          // If it still fails, try with an even simpler configuration
           console.warn('⚠️ Trying with ultra-minimal configuration...');
           try {
             const ultraMinimalData = {
@@ -605,7 +584,11 @@ Submission Time: ${new Date().toISOString()}`;
               risk: 2,
               impact: 2,
               requester_id: window.changeRequestData.selectedRequester?.id,
-              agent_id: window.changeRequestData.selectedAgent?.id
+              agent_id: window.changeRequestData.selectedAgent?.id,
+              custom_fields: {
+                risks: null,
+                lf_technical_owner: null
+              }
             };
             
             console.log('📦 Ultra-minimal data:', JSON.stringify(ultraMinimalData, null, 2));
