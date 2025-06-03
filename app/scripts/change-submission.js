@@ -423,9 +423,6 @@ const ChangeSubmission = {
       }
     };
 
-    // Create simplified description (avoid complex HTML that might cause 500 errors)
-    const description = this.createSimplifiedDescription(data, impactedData);
-
     // Prepare the change request data according to Freshservice API v2 format
     // Mapping all REQUIRED fields as specified:
     const changeRequestData = {
