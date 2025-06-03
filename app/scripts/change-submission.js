@@ -1059,8 +1059,7 @@ Workflow Summary:
   showSubmissionSuccess(changeRequest) {
     console.log('🎉 Showing submission success...');
 
-    // Remove backdrop blur and hide submission status
-    this.removeBackdropBlur();
+    // Hide submission status
     this.showSubmissionStatus(false);
 
     // Show success notification
@@ -1097,8 +1096,7 @@ Workflow Summary:
   showSubmissionError(error) {
     console.error('❌ Showing submission error:', error);
 
-    // Remove backdrop blur and hide submission status
-    this.removeBackdropBlur();
+    // Hide submission status
     this.showSubmissionStatus(false);
 
     // Show error notification
@@ -1257,11 +1255,6 @@ Workflow Summary:
       // Show modal using Bootstrap
       const bootstrapModal = new bootstrap.Modal(modal);
       
-      // Apply blur effect to background after modal is shown
-      modal.addEventListener('shown.bs.modal', () => {
-        document.body.classList.add('modal-backdrop-blur');
-      }, { once: true });
-
       bootstrapModal.show();
 
       // Handle confirm submission button
@@ -1272,7 +1265,6 @@ Workflow Summary:
         // Add new listener
         this.handleSubmissionBound = (e) => {
           e.preventDefault();
-          this.removeBackdropBlur();
           bootstrapModal.hide();
           setTimeout(() => {
             this.handleSubmission();
@@ -1289,21 +1281,10 @@ Workflow Summary:
         // Add new listener
         this.handleEditBound = (e) => {
           e.preventDefault();
-          this.removeBackdropBlur();
           bootstrapModal.hide();
         };
         editBtn.addEventListener('click', this.handleEditBound);
       }
-
-      // Add event listener for modal close to remove blur
-      modal.addEventListener('hidden.bs.modal', () => {
-        this.removeBackdropBlur();
-      }, { once: true });
-
-      // Handle ESC key and close button
-      modal.addEventListener('hide.bs.modal', () => {
-        this.removeBackdropBlur();
-      }, { once: true });
 
       console.log('✅ Submission summary modal displayed');
     } else {
@@ -1311,14 +1292,6 @@ Workflow Summary:
       // Fallback to direct submission
       this.handleSubmission();
     }
-  },
-
-  /**
-   * Remove backdrop blur effect
-   */
-  removeBackdropBlur() {
-    document.body.classList.remove('modal-backdrop-blur');
-    console.log('✅ Backdrop blur removed');
   },
 
   /**
