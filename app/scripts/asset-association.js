@@ -2505,6 +2505,90 @@ window.testEnhancedAssetDisplay = function() {
   console.log('💡 Use real asset search to see the enhanced display with badges and icons');
 };
 
+// Global debug function to check services state
+window.debugServicesState = function() {
+  console.log('🔍 === SERVICES DEBUG INFORMATION ===');
+  
+  if (!window.AssetAssociation) {
+    console.error('❌ AssetAssociation module not available');
+    return;
+  }
+  
+  const state = window.AssetAssociation.state;
+  console.log('📊 Services State:', {
+    servicesCount: state.services?.length || 0,
+    servicesLoaded: state.servicesLoaded,
+    isLoadingServices: state.isLoadingServices,
+    filteredServicesCount: state.filteredServices?.length || 0,
+    selectedServiceIds: state.selectedServiceIds?.size || 0,
+    serviceSearchTerm: state.serviceSearchTerm,
+    serviceTypeFilter: state.serviceTypeFilter
+  });
+  
+  // Check DOM elements
+  const servicesSearch = document.getElementById('services-search');
+  const servicesList = document.getElementById('services-list');
+  const servicesControls = document.querySelector('.services-controls');
+  const servicesSection = document.querySelector('.services-selection-section');
+  
+  console.log('🔍 DOM Elements:', {
+    servicesSearch: !!servicesSearch,
+    servicesList: !!servicesList,
+    servicesControls: !!servicesControls,
+    servicesSection: !!servicesSection
+  });
+  
+  if (servicesList) {
+    console.log('📄 Services list content preview:', servicesList.innerHTML.substring(0, 200) + '...');
+  }
+  
+  // Check if services are available
+  if (state.services && state.services.length > 0) {
+    console.log('📋 Sample services (first 3):');
+    state.services.slice(0, 3).forEach((service, index) => {
+      console.log(`   ${index + 1}. ${service.name} (ID: ${service.id})`);
+    });
+  } else {
+    console.log('⚠️ No services available');
+    
+    // Try to load services
+    console.log('🔄 Attempting to load services...');
+    if (window.AssetAssociation.loadServices) {
+      window.AssetAssociation.loadServices().then(() => {
+        console.log('✅ Services load attempt completed');
+        console.log('📊 Updated services count:', window.AssetAssociation.state.services?.length || 0);
+      }).catch(error => {
+        console.error('❌ Error loading services:', error);
+      });
+    }
+  }
+  
+  // Check CacheManager
+  if (window.CacheManager) {
+    console.log('✅ CacheManager is available');
+    if (window.CacheManager.getCachedServices) {
+      window.CacheManager.getCachedServices().then(cachedServices => {
+        console.log('📦 Cached services count:', cachedServices?.length || 0);
+      }).catch(error => {
+        console.error('❌ Error getting cached services:', error);
+      });
+    }
+  } else {
+    console.error('❌ CacheManager not available');
+  }
+  
+  console.log('🏁 === END SERVICES DEBUG ===');
+};
+
+// Auto-run debug if services seem to be missing
+setTimeout(() => {
+  const servicesList = document.getElementById('services-list');
+  if (servicesList && servicesList.innerHTML.includes('Loading services')) {
+    console.log('⚠️ Services still loading after 3 seconds, running debug...');
+    window.debugServicesState();
+  }
+}, 3000);
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = AssetAssociation;

@@ -393,10 +393,18 @@ const ChangeSubmission = {
     // Note: Custom fields don't exist in this Freshservice instance
     // All additional details are included in the description instead
 
-    // Add assets if any are selected (now enabled since it's officially supported)
+    // Add assets if any are selected - try simpler format first
     if (assetIds.length > 0) {
-      changeRequestData.assets = assetIds.map(id => ({ display_id: id }));
-      console.log('🔗 Adding assets to change request:', assetIds);
+      // Try different asset formats to see which one works
+      // Format 1: Simple array of IDs
+      changeRequestData.assets = assetIds;
+      console.log('🔗 Adding assets to change request (simple format):', assetIds);
+      
+      // Log asset details for debugging
+      console.log('🔍 Asset details being sent:');
+      data.selectedAssets.forEach(asset => {
+        console.log(`   - Asset ID: ${asset.id}, Name: ${asset.name}, Display ID: ${asset.display_id || 'N/A'}`);
+      });
     }
 
     console.log('✅ Change request data prepared:', {
@@ -603,6 +611,39 @@ const ChangeSubmission = {
     console.log('📦 Change request data being sent:', changeRequestData);
 
     try {
+      const response = await this.attemptChangeRequestCreation(changeRequestData);
+      return response;
+    } catch (error) {
+      // Check if the error is related to assets
+      if (error.response && error.response.includes('"field":"assets"')) {
+        console.warn('⚠️ Asset validation failed, attempting to create change request without assets...');
+        
+        // Remove assets and try again
+        const dataWithoutAssets = { ...changeRequestData };
+        delete dataWithoutAssets.assets;
+        
+        console.log('🔄 Retrying without assets...');
+        try {
+          const response = await this.attemptChangeRequestCreation(dataWithoutAssets);
+          console.log('✅ Change request created successfully without assets');
+          console.log('ℹ️ Asset associations will be included in the description only');
+          return response;
+        } catch (retryError) {
+          console.error('❌ Failed even without assets:', retryError);
+          throw retryError;
+        }
+      } else {
+        // Re-throw the original error if it's not asset-related
+        throw error;
+      }
+    }
+  },
+
+  /**
+   * Attempt to create change request with given data
+   */
+  async attemptChangeRequestCreation(changeRequestData) {
+    try {
       const response = await window.client.request.invokeTemplate('createChangeRequest', {
         context: {},
         body: JSON.stringify(changeRequestData),
@@ -665,6 +706,39 @@ const ChangeSubmission = {
 
     } catch (error) {
       console.error('❌ Error creating change request:', error);
+      
+      // Log the full error object for debugging
+      console.error('🔍 Full error object:', {
+        message: error.message,
+        status: error.status,
+        statusText: error.statusText,
+        response: error.response,
+        headers: error.headers,
+        stack: error.stack
+      });
+      
+      // Try to parse and log the error response if it exists
+      if (error.response) {
+        try {
+          const errorData = JSON.parse(error.response);
+          console.error('🔍 Parsed API error response:', errorData);
+          
+          if (errorData.errors && Array.isArray(errorData.errors)) {
+            console.error('🔍 API validation errors:');
+            errorData.errors.forEach((err, index) => {
+              console.error(`   ${index + 1}. Field: ${err.field || 'unknown'}`);
+              console.error(`      Message: ${err.message || 'no message'}`);
+              console.error(`      Code: ${err.code || 'no code'}`);
+            });
+          }
+          
+          if (errorData.description) {
+            console.error('🔍 API error description:', errorData.description);
+          }
+        } catch (parseError) {
+          console.error('🔍 Raw API error response (could not parse as JSON):', error.response);
+        }
+      }
       
       // Provide more detailed error information
       let errorMessage = 'Unknown error occurred';
