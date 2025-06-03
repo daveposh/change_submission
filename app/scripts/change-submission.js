@@ -615,7 +615,21 @@ const ChangeSubmission = {
       return response;
     } catch (error) {
       // Check if the error is related to assets
-      if (error.response && error.response.includes('"field":"assets"')) {
+      let isAssetError = false;
+      
+      if (error.response) {
+        try {
+          const errorData = JSON.parse(error.response);
+          if (errorData.errors && Array.isArray(errorData.errors)) {
+            isAssetError = errorData.errors.some(err => err.field === 'assets');
+          }
+        } catch (parseError) {
+          // Fallback to string check if JSON parsing fails
+          isAssetError = error.response.includes('"field":"assets"');
+        }
+      }
+      
+      if (isAssetError) {
         console.warn('⚠️ Asset validation failed, attempting to create change request without assets...');
         
         // Remove assets and try again
@@ -623,6 +637,8 @@ const ChangeSubmission = {
         delete dataWithoutAssets.assets;
         
         console.log('🔄 Retrying without assets...');
+        console.log('📦 Data without assets:', dataWithoutAssets);
+        
         try {
           const response = await this.attemptChangeRequestCreation(dataWithoutAssets);
           console.log('✅ Change request created successfully without assets');
