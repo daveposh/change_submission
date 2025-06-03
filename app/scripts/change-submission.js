@@ -761,7 +761,6 @@ Submission Time: ${new Date().toISOString()}`;
             const ultraRiskSummary = this.generateRiskSummary(window.changeRequestData.riskAssessment);
             const ultraImpactedData = window.ImpactedServices?.getImpactedServicesData() || {};
             const ultraImpactSummary = this.generateImpactSummary(window.changeRequestData.riskAssessment, window.changeRequestData.selectedAssets, ultraImpactedData);
-            const ultraTechnicalOwner = await this.getTechnicalOwnerEmail(window.changeRequestData.selectedAssets);
             
             const ultraMinimalData = {
               subject: 'Change Request',
@@ -788,7 +787,7 @@ Submission Time: ${new Date().toISOString()}`;
               
               custom_fields: {
                 risks: ultraRiskSummary,
-                lf_technical_owner: ultraTechnicalOwner || 'No technical owner identified'
+                lf_technical_owner: await this.getTechnicalOwnerUserId(window.changeRequestData.selectedAssets) || null
               }
             };
             
