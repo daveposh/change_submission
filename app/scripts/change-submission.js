@@ -1219,7 +1219,7 @@ Workflow Summary:
   /**
    * Show comprehensive submission summary modal
    */
-  async showSubmissionSummary() {
+  showSubmissionSummary() {
     console.log('📋 Showing comprehensive submission summary...');
 
     // First validate all data
