@@ -500,7 +500,9 @@ const ChangeSubmission = {
     
     if (data.reasonForChange?.trim()) {
       console.log('✅ Adding reason_for_change to planning_fields');
-      changeRequestData.planning_fields.reason_for_change = data.reasonForChange;
+      changeRequestData.planning_fields.reason_for_change = {
+        description: data.reasonForChange
+      };
     } else {
       console.log('❌ Skipping reason_for_change - no content');
     }
@@ -511,7 +513,9 @@ const ChangeSubmission = {
     
     if (impactSummary?.trim()) {
       console.log('✅ Adding change_impact to planning_fields');
-      changeRequestData.planning_fields.change_impact = impactSummary;
+      changeRequestData.planning_fields.change_impact = {
+        description: impactSummary
+      };
     } else {
       console.log('❌ Skipping change_impact - no content');
     }
@@ -522,7 +526,9 @@ const ChangeSubmission = {
     
     if (data.implementationPlan?.trim()) {
       console.log('✅ Adding rollout_plan to planning_fields');
-      changeRequestData.planning_fields.rollout_plan = data.implementationPlan;
+      changeRequestData.planning_fields.rollout_plan = {
+        description: data.implementationPlan
+      };
     } else {
       console.log('❌ Skipping rollout_plan - no content');
     }
@@ -533,15 +539,24 @@ const ChangeSubmission = {
     
     if (data.backoutPlan?.trim()) {
       console.log('✅ Adding backout_plan to planning_fields');
-      changeRequestData.planning_fields.backout_plan = data.backoutPlan;
+      changeRequestData.planning_fields.backout_plan = {
+        description: data.backoutPlan
+      };
     } else {
       console.log('❌ Skipping backout_plan - no content');
     }
 
-    // 1. Validation Plan (custom planning field at root level)
+    // Initialize custom_fields if needed
+    if (!changeRequestData.planning_fields.custom_fields) {
+      changeRequestData.planning_fields.custom_fields = {};
+    }
+
+    // 1. Validation Plan (custom planning field)
     if (data.validationPlan?.trim()) {
       console.log('✅ Adding cfp_validation to planning_fields');
-      changeRequestData.planning_fields.cfp_validation = data.validationPlan;
+      changeRequestData.planning_fields.custom_fields.cfp_validation = {
+        description: data.validationPlan
+      };
     } else {
       console.log('❌ Skipping cfp_validation - no content');
     }
@@ -594,7 +609,7 @@ const ChangeSubmission = {
     console.log(`  • Change Impact: ${changeRequestData.planning_fields.change_impact ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.change_impact ? '✅' : '❌'})`);
     console.log(`  • Rollout Plan: ${changeRequestData.planning_fields.rollout_plan ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.rollout_plan ? '✅' : '❌'})`);
     console.log(`  • Backout Plan: ${changeRequestData.planning_fields.backout_plan ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.backout_plan ? '✅' : '❌'})`);
-    console.log(`  • Validation Plan: ${changeRequestData.planning_fields.cfp_validation ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.cfp_validation ? '✅' : '❌'})`);
+    console.log(`  • Validation Plan: ${changeRequestData.planning_fields.custom_fields?.cfp_validation ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.custom_fields?.cfp_validation ? '✅' : '❌'})`);
     
     // Log source data for planning fields
     console.log('📋 SOURCE DATA FOR PLANNING FIELDS:');
@@ -744,24 +759,37 @@ const ChangeSubmission = {
 
     // Add planning fields only if they have content (avoid null values)
     if (data.reasonForChange?.trim()) {
-      minimalData.planning_fields.reason_for_change = data.reasonForChange;
+      minimalData.planning_fields.reason_for_change = {
+        description: data.reasonForChange
+      };
     }
 
     if (impactSummary?.trim()) {
-      minimalData.planning_fields.change_impact = impactSummary;
+      minimalData.planning_fields.change_impact = {
+        description: impactSummary
+      };
     }
 
     if (data.implementationPlan?.trim()) {
-      minimalData.planning_fields.rollout_plan = data.implementationPlan;
+      minimalData.planning_fields.rollout_plan = {
+        description: data.implementationPlan
+      };
     }
 
     if (data.backoutPlan?.trim()) {
-      minimalData.planning_fields.backout_plan = data.backoutPlan;
+      minimalData.planning_fields.backout_plan = {
+        description: data.backoutPlan
+      };
     }
 
     // Add custom planning fields only if they have content
     if (data.validationPlan?.trim()) {
-      minimalData.planning_fields.cfp_validation = data.validationPlan;
+      if (!minimalData.planning_fields.custom_fields) {
+        minimalData.planning_fields.custom_fields = {};
+      }
+      minimalData.planning_fields.custom_fields.cfp_validation = {
+        description: data.validationPlan
+      };
     }
 
     // Add custom fields
