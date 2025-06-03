@@ -460,15 +460,30 @@ const ChangeSubmission = {
       planned_start_date: formatDateForAPI(data.plannedStart),
       planned_end_date: formatDateForAPI(data.plannedEnd),
       
-      // OPTIONAL: Default fields (based on actual schema)
-      change_reason: data.reasonForChange || null,
-      change_impact: impactSummary || data.implementationPlan || null,  // Enhanced impact summary
-      change_plan: data.implementationPlan || null,    // Rollout/Implementation Plan
-      backout_plan: data.backoutPlan || null,
-      
-      // OPTIONAL: Planning fields structure (only cfp_validation based on schema)
+      // OPTIONAL: Planning fields structure (matching actual API structure)
       planning_fields: {
-        cfp_validation: data.validationPlan || null
+        reason_for_change: data.reasonForChange ? {
+          description_text: data.reasonForChange,
+          description_html: `<div dir="ltr">${data.reasonForChange}</div>`
+        } : null,
+        change_impact: impactSummary ? {
+          description_text: impactSummary,
+          description_html: `<div dir="ltr">${impactSummary.replace(/\n/g, '<br>')}</div>`
+        } : null,
+        rollout_plan: data.implementationPlan ? {
+          description_text: data.implementationPlan,
+          description_html: `<div dir="ltr">${data.implementationPlan.replace(/\n/g, '<br>')}</div>`
+        } : null,
+        backout_plan: data.backoutPlan ? {
+          description_text: data.backoutPlan,
+          description_html: `<div dir="ltr">${data.backoutPlan.replace(/\n/g, '<br>')}</div>`
+        } : null,
+        custom_fields: {
+          cfp_validation: data.validationPlan ? {
+            description_text: data.validationPlan,
+            description_html: `<div dir="ltr">${data.validationPlan.replace(/\n/g, '<br>')}</div>`
+          } : null
+        }
       }
     };
 
@@ -483,7 +498,7 @@ const ChangeSubmission = {
     // Add custom fields structure to match the expected format (based on actual schema)
     changeRequestData.custom_fields = {
       risks: riskSummary,
-      lf_technical_owner: technicalOwner || 'No technical owner identified'
+      lf_technical_owner: await this.getTechnicalOwnerUserId(data.selectedAssets)
     };
 
     console.log('✅ Change request data prepared:', {
@@ -523,20 +538,21 @@ const ChangeSubmission = {
 
     // Log custom fields details
     console.log('📋 CUSTOM FIELDS:');
-    console.log(`  • Technical Owner: ${technicalOwner || 'NULL'} (${technicalOwner ? '✅' : '❌'})`);
+    const technicalOwnerUserId = await this.getTechnicalOwnerUserId(data.selectedAssets);
+    console.log(`  • Technical Owner: ${technicalOwnerUserId || 'NULL'} (${technicalOwnerUserId ? '✅' : '❌'})`);
     console.log(`  • Risk Summary: ${changeRequestData.custom_fields.risks ? 'Present' : 'NULL'} (${changeRequestData.custom_fields.risks ? '✅' : '❌'})`);
     
     // Log technical owner identification process
-    if (!technicalOwner) {
-      console.warn('⚠️ TECHNICAL OWNER WARNING: No technical owner email identified');
+    if (!technicalOwnerUserId) {
+      console.warn('⚠️ TECHNICAL OWNER WARNING: No technical owner user ID identified');
       console.warn('   This will result in lf_technical_owner being set to null in the change request');
       console.warn('   Reasons this might happen:');
       console.warn('   1. Selected assets have no managed_by, agent_id, or user_id fields populated');
-      console.warn('   2. Asset managers exist but have no email addresses in their profiles');
+      console.warn('   2. Asset manager user IDs exist but users don\'t exist in the system');
       console.warn('   3. User lookup failed for asset manager IDs');
-      console.warn('   4. No assigned agent or requester email available as fallback');
+      console.warn('   4. No assigned agent or requester ID available as fallback');
     } else {
-      console.log(`✅ Technical owner successfully identified: ${technicalOwner}`);
+      console.log(`✅ Technical owner user ID successfully identified: ${technicalOwnerUserId}`);
     }
 
     console.log('📦 Final change request data structure:', JSON.stringify(changeRequestData, null, 2));
@@ -662,21 +678,36 @@ Submission Time: ${new Date().toISOString()}`;
       // OPTIONAL: Agent assignment
       agent_id: data.selectedAgent?.id,
       
-      // OPTIONAL: Default fields (based on actual schema)
-      change_reason: data.reasonForChange || null,
-      change_impact: impactSummary || data.implementationPlan || null,
-      change_plan: data.implementationPlan || null,
-      backout_plan: data.backoutPlan || null,
-      
-      // OPTIONAL: Planning fields (only cfp_validation based on schema)
+      // OPTIONAL: Planning fields (matching actual API structure)
       planning_fields: {
-        cfp_validation: data.validationPlan || null
+        reason_for_change: data.reasonForChange ? {
+          description_text: data.reasonForChange,
+          description_html: `<div dir="ltr">${data.reasonForChange}</div>`
+        } : null,
+        change_impact: impactSummary ? {
+          description_text: impactSummary,
+          description_html: `<div dir="ltr">${impactSummary.replace(/\n/g, '<br>')}</div>`
+        } : null,
+        rollout_plan: data.implementationPlan ? {
+          description_text: data.implementationPlan,
+          description_html: `<div dir="ltr">${data.implementationPlan.replace(/\n/g, '<br>')}</div>`
+        } : null,
+        backout_plan: data.backoutPlan ? {
+          description_text: data.backoutPlan,
+          description_html: `<div dir="ltr">${data.backoutPlan.replace(/\n/g, '<br>')}</div>`
+        } : null,
+        custom_fields: {
+          cfp_validation: data.validationPlan ? {
+            description_text: data.validationPlan,
+            description_html: `<div dir="ltr">${data.validationPlan.replace(/\n/g, '<br>')}</div>`
+          } : null
+        }
       },
       
       // OPTIONAL: Custom fields
       custom_fields: {
         risks: riskSummary,
-        lf_technical_owner: technicalOwner || 'No technical owner identified'
+        lf_technical_owner: await this.getTechnicalOwnerUserId(data.selectedAssets)
       }
     };
 
@@ -2421,6 +2452,146 @@ Workflow Summary:
       return null;
     } catch (error) {
       console.error(`❌ Error getting user details for ID ${userId}:`, error);
+      return null;
+    }
+  },
+
+  /**
+   * Get technical owner user ID from asset managers (for lf_technical_owner field)
+   * @param {Array} selectedAssets - Selected assets to find managers for
+   * @returns {number|null} Technical owner user ID
+   */
+  async getTechnicalOwnerUserId(selectedAssets = []) {
+    console.log('👤 Identifying technical owner user ID from asset managers...');
+    
+    if (!selectedAssets || selectedAssets.length === 0) {
+      console.log('ℹ️ No assets selected, cannot determine technical owner');
+      return null;
+    }
+
+    try {
+      // Debug: Log asset structure to understand available fields
+      console.log('🔍 Analyzing asset structure for manager fields...');
+      selectedAssets.forEach((asset, index) => {
+        console.log(`Asset ${index + 1} (${asset.name}):`, {
+          id: asset.id,
+          managed_by: asset.managed_by,
+          agent_id: asset.agent_id,
+          user_id: asset.user_id,
+          requester_id: asset.requester_id,
+          created_by: asset.created_by,
+          updated_by: asset.updated_by,
+          hasManagerInfo: !!(asset.managed_by || asset.agent_id || asset.user_id)
+        });
+      });
+
+      // Collect all potential manager/owner IDs from multiple fields
+      const managerIds = new Set();
+      const ownerSources = [];
+
+      selectedAssets.forEach(asset => {
+        // Check multiple potential fields for asset ownership/management
+        if (asset.managed_by) {
+          managerIds.add(asset.managed_by);
+          ownerSources.push({ assetName: asset.name, source: 'managed_by', userId: asset.managed_by });
+        }
+        if (asset.agent_id && asset.agent_id !== asset.managed_by) {
+          managerIds.add(asset.agent_id);
+          ownerSources.push({ assetName: asset.name, source: 'agent_id', userId: asset.agent_id });
+        }
+        if (asset.user_id && asset.user_id !== asset.managed_by && asset.user_id !== asset.agent_id) {
+          managerIds.add(asset.user_id);
+          ownerSources.push({ assetName: asset.name, source: 'user_id', userId: asset.user_id });
+        }
+      });
+
+      if (managerIds.size === 0) {
+        console.log('ℹ️ No managers/owners found in selected assets - checking alternative sources...');
+        
+        // Fallback: Try to get the assigned agent from the change request
+        if (window.changeRequestData?.selectedAgent?.id) {
+          console.log(`🔄 Using assigned agent as technical owner: ${window.changeRequestData.selectedAgent.id}`);
+          return window.changeRequestData.selectedAgent.id;
+        }
+        
+        // Fallback: Try to get the requester ID
+        if (window.changeRequestData?.selectedRequester?.id) {
+          console.log(`🔄 Using requester as technical owner: ${window.changeRequestData.selectedRequester.id}`);
+          return window.changeRequestData.selectedRequester.id;
+        }
+        
+        console.log('⚠️ No technical owner could be determined from any source');
+        return null;
+      }
+
+      console.log(`🔍 Found ${managerIds.size} unique owner(s) from ${selectedAssets.length} assets`);
+      console.log('📋 Owner sources:', ownerSources);
+
+      // Return the first valid manager ID (they're all valid user IDs)
+      const primaryManagerId = Array.from(managerIds)[0];
+      const sourceInfo = ownerSources.find(s => s.userId === primaryManagerId);
+      
+      // Verify the user exists to make sure the ID is valid
+      try {
+        const managerDetails = await this.getUserDetails(primaryManagerId);
+        if (managerDetails && managerDetails.id) {
+          console.log(`✅ Technical owner user ID identified: ${primaryManagerId} (${managerDetails.name || 'Unknown name'}) - Source: ${sourceInfo?.source || 'unknown'} from ${sourceInfo?.assetName || 'unknown asset'}`);
+          return primaryManagerId;
+        } else {
+          console.warn(`⚠️ Manager ID ${primaryManagerId} found but user doesn't exist:`, managerDetails);
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error validating manager ID ${primaryManagerId}:`, error);
+      }
+
+      // If primary manager ID is invalid, try other manager IDs
+      for (const managerId of managerIds) {
+        if (managerId === primaryManagerId) continue; // Skip already tried one
+        
+        try {
+          const managerDetails = await this.getUserDetails(managerId);
+          if (managerDetails && managerDetails.id) {
+            const sourceInfo = ownerSources.find(s => s.userId === managerId);
+            console.log(`✅ Technical owner user ID identified (fallback): ${managerId} (${managerDetails.name || 'Unknown name'}) - Source: ${sourceInfo?.source || 'unknown'} from ${sourceInfo?.assetName || 'unknown asset'}`);
+            return managerId;
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error validating manager ID ${managerId}:`, error);
+        }
+      }
+
+      // If we reach here, none of the manager IDs were valid
+      console.log('⚠️ No valid user ID found for any asset managers - trying fallbacks...');
+      
+      // Fallback: Use assigned agent
+      if (window.changeRequestData?.selectedAgent?.id) {
+        console.log(`🔄 Fallback: Using assigned agent as technical owner: ${window.changeRequestData.selectedAgent.id}`);
+        return window.changeRequestData.selectedAgent.id;
+      }
+      
+      // Final fallback: Use requester
+      if (window.changeRequestData?.selectedRequester?.id) {
+        console.log(`🔄 Final fallback: Using requester as technical owner: ${window.changeRequestData.selectedRequester.id}`);
+        return window.changeRequestData.selectedRequester.id;
+      }
+
+      console.log('❌ Could not determine technical owner user ID from any source');
+      return null;
+
+    } catch (error) {
+      console.error('❌ Error getting technical owner user ID:', error);
+      
+      // Error fallback: Use assigned agent or requester
+      if (window.changeRequestData?.selectedAgent?.id) {
+        console.log(`🔄 Error fallback: Using assigned agent: ${window.changeRequestData.selectedAgent.id}`);
+        return window.changeRequestData.selectedAgent.id;
+      }
+      
+      if (window.changeRequestData?.selectedRequester?.id) {
+        console.log(`🔄 Error fallback: Using requester: ${window.changeRequestData.selectedRequester.id}`);
+        return window.changeRequestData.selectedRequester.id;
+      }
+      
       return null;
     }
   },
