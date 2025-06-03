@@ -361,6 +361,12 @@ const ChangeSubmission = {
     // Generate risk summary based on questionnaire responses
     const riskSummary = this.generateRiskSummary(data.riskAssessment);
 
+    // Generate impact summary based on questionnaire and assets
+    const impactSummary = this.generateImpactSummary(data.riskAssessment, data.selectedAssets, impactedData);
+
+    // Get technical owner from asset managers
+    const technicalOwner = await this.getTechnicalOwnerEmail(data.selectedAssets);
+
     // Map impact based on risk level and affected assets count
     let impact = 2; // Default to Medium impact
     const assetCount = data.selectedAssets?.length || 0;
@@ -405,7 +411,7 @@ const ChangeSubmission = {
       
       // Default fields (based on actual schema)
       change_reason: data.reasonForChange || null,
-      change_impact: data.implementationPlan || null,  // Implementation plan describes the impact
+      change_impact: impactSummary || data.implementationPlan || null,  // Enhanced impact summary
       change_plan: data.implementationPlan || null,    // Rollout/Implementation Plan
       backout_plan: data.backoutPlan || null,
       
@@ -426,7 +432,7 @@ const ChangeSubmission = {
     // Add custom fields structure to match the expected format (based on actual schema)
     changeRequestData.custom_fields = {
       risks: riskSummary,
-      lf_technical_owner: null
+      lf_technical_owner: technicalOwner
     };
 
     console.log('✅ Change request data prepared:', {
@@ -437,7 +443,7 @@ const ChangeSubmission = {
       risk: changeRequestData.risk,
       impact: changeRequestData.impact,
       workspace_id: changeRequestData.workspace_id,
-      assetCount: 0, // Not including assets in initial request to avoid 500 errors
+      assetCount: data.selectedAssets?.length || 0,
       approverCount: impactedData.approvers?.length || 0,
       hasDepartment: !!changeRequestData.department_id,
       hasDefaultFields: !!(changeRequestData.change_reason || changeRequestData.change_impact || changeRequestData.change_plan || changeRequestData.backout_plan),
@@ -445,7 +451,11 @@ const ChangeSubmission = {
       planningFieldsCount: changeRequestData.planning_fields ? Object.keys(changeRequestData.planning_fields).filter(key => changeRequestData.planning_fields[key] !== null).length : 0,
       hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0,
       hasRiskSummary: !!changeRequestData.custom_fields.risks,
-      riskSummaryLength: changeRequestData.custom_fields.risks ? changeRequestData.custom_fields.risks.length : 0
+      riskSummaryLength: changeRequestData.custom_fields.risks ? changeRequestData.custom_fields.risks.length : 0,
+      hasImpactSummary: !!impactSummary,
+      impactSummaryLength: impactSummary ? impactSummary.length : 0,
+      hasTechnicalOwner: !!technicalOwner,
+      technicalOwnerEmail: technicalOwner || 'None identified'
     });
 
     console.log('📦 Final change request data structure:', JSON.stringify(changeRequestData, null, 2));
@@ -522,7 +532,7 @@ Submission Time: ${new Date().toISOString()}`;
   /**
    * Create change request with minimal required fields only
    */
-  createMinimalChangeRequest(data) {
+  async createMinimalChangeRequest(data) {
     console.log('📦 Creating minimal change request with only required fields...');
     
     // Calculate priority based on change type and risk level
@@ -530,6 +540,13 @@ Submission Time: ${new Date().toISOString()}`;
     
     // Generate risk summary based on questionnaire responses
     const riskSummary = this.generateRiskSummary(data.riskAssessment);
+    
+    // Generate impact summary (simplified for minimal request)
+    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+    const impactSummary = this.generateImpactSummary(data.riskAssessment, data.selectedAssets, impactedData);
+    
+    // Get technical owner from asset managers
+    const technicalOwner = await this.getTechnicalOwnerEmail(data.selectedAssets);
     
     // Only include the absolute minimum required fields
     const minimalData = {
@@ -546,7 +563,7 @@ Submission Time: ${new Date().toISOString()}`;
       
       // Default fields (based on actual schema)
       change_reason: data.reasonForChange || null,
-      change_impact: data.implementationPlan || null,
+      change_impact: impactSummary || data.implementationPlan || null,
       change_plan: data.implementationPlan || null,
       backout_plan: data.backoutPlan || null,
       
@@ -557,7 +574,7 @@ Submission Time: ${new Date().toISOString()}`;
       
       custom_fields: {
         risks: riskSummary,
-        lf_technical_owner: null
+        lf_technical_owner: technicalOwner
       }
     };
 
@@ -600,7 +617,7 @@ Submission Time: ${new Date().toISOString()}`;
         console.warn('⚠️ Server error (500) detected - attempting with minimal required fields only...');
         
         try {
-          const minimalData = this.createMinimalChangeRequest(window.changeRequestData);
+          const minimalData = await this.createMinimalChangeRequest(window.changeRequestData);
           const response = await this.attemptChangeRequestCreation(minimalData);
           console.log('✅ Change request created successfully with minimal fields');
           console.log('ℹ️ You may need to update the change request manually with additional details');
@@ -614,6 +631,9 @@ Submission Time: ${new Date().toISOString()}`;
             // Calculate priority and risk summary for ultra-minimal as well
             const ultraPriority = this.calculatePriority(window.changeRequestData.changeType, window.changeRequestData.riskAssessment?.riskLevel);
             const ultraRiskSummary = this.generateRiskSummary(window.changeRequestData.riskAssessment);
+            const ultraImpactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+            const ultraImpactSummary = this.generateImpactSummary(window.changeRequestData.riskAssessment, window.changeRequestData.selectedAssets, ultraImpactedData);
+            const ultraTechnicalOwner = await this.getTechnicalOwnerEmail(window.changeRequestData.selectedAssets);
             
             const ultraMinimalData = {
               subject: 'Change Request',
@@ -629,7 +649,7 @@ Submission Time: ${new Date().toISOString()}`;
               
               // Default fields (based on actual schema)
               change_reason: window.changeRequestData.reasonForChange || null,
-              change_impact: null,
+              change_impact: ultraImpactSummary || null,
               change_plan: null,
               backout_plan: null,
               
@@ -640,7 +660,7 @@ Submission Time: ${new Date().toISOString()}`;
               
               custom_fields: {
                 risks: ultraRiskSummary,
-                lf_technical_owner: null
+                lf_technical_owner: ultraTechnicalOwner
               }
             };
             
@@ -1976,8 +1996,252 @@ Workflow Summary:
     return summary;
   },
 
-  // Add any new methods or properties needed for the new implementation
-  // ...
+  /**
+   * Generate comprehensive impact summary based on questionnaire and assets
+   * @param {Object} riskAssessment - Risk assessment data from questionnaire
+   * @param {Array} selectedAssets - Selected assets that will be impacted
+   * @param {Object} impactedData - Impacted services data (approvers/stakeholders)
+   * @returns {string} Formatted impact summary
+   */
+  generateImpactSummary(riskAssessment, selectedAssets = [], impactedData = {}) {
+    console.log('📊 Generating impact summary from questionnaire and asset data...');
+    
+    if (!riskAssessment || !riskAssessment.riskLevel) {
+      console.warn('⚠️ No risk assessment data available for impact summary');
+      return 'Impact assessment not completed.';
+    }
+
+    let summary = `CHANGE IMPACT ASSESSMENT\n\n`;
+    
+    // Business Impact Section
+    summary += `BUSINESS IMPACT:\n`;
+    const businessImpactScore = riskAssessment.businessImpact || 0;
+    switch (businessImpactScore) {
+      case 1:
+        summary += `• Limited impact on business operations\n`;
+        summary += `• Minimal disruption expected during implementation\n`;
+        summary += `• Standard business hours implementation acceptable\n`;
+        break;
+      case 2:
+        summary += `• Noticeable impact on some business operations\n`;
+        summary += `• Some operational disruption during implementation\n`;
+        summary += `• Consider off-hours implementation window\n`;
+        break;
+      case 3:
+        summary += `• Significant impact on business operations\n`;
+        summary += `• Major operational disruption expected\n`;
+        summary += `• Mandatory off-hours or maintenance window implementation\n`;
+        break;
+      default:
+        summary += `• Business impact level not assessed\n`;
+    }
+    summary += `\n`;
+
+    // User Impact Section  
+    summary += `USER IMPACT:\n`;
+    const userImpactScore = riskAssessment.affectedUsers || 0;
+    switch (userImpactScore) {
+      case 1:
+        summary += `• Few users affected (<50 users)\n`;
+        summary += `• Limited user communication required\n`;
+        summary += `• Direct notification to affected users sufficient\n`;
+        break;
+      case 2:
+        summary += `• Some users affected (50-200 users)\n`;
+        summary += `• Moderate user communication required\n`;
+        summary += `• Department-level notifications recommended\n`;
+        break;
+      case 3:
+        summary += `• Many users affected (>200 users)\n`;
+        summary += `• Extensive user communication required\n`;
+        summary += `• Organization-wide notifications mandatory\n`;
+        break;
+      default:
+        summary += `• User impact level not assessed\n`;
+    }
+    summary += `\n`;
+
+    // Technical Impact Section
+    summary += `TECHNICAL IMPACT:\n`;
+    const complexityScore = riskAssessment.complexity || 0;
+    switch (complexityScore) {
+      case 1:
+        summary += `• Simple change with established procedures\n`;
+        summary += `• Standard technical implementation\n`;
+        summary += `• Minimal technical coordination required\n`;
+        break;
+      case 2:
+        summary += `• Moderate complexity with some coordination needed\n`;
+        summary += `• Multiple technical components involved\n`;
+        summary += `• Cross-team coordination recommended\n`;
+        break;
+      case 3:
+        summary += `• Complex change affecting multiple systems\n`;
+        summary += `• Extensive technical coordination required\n`;
+        summary += `• Multiple technical teams must be involved\n`;
+        break;
+      default:
+        summary += `• Technical complexity not assessed\n`;
+    }
+    summary += `\n`;
+
+    // Asset Impact Section
+    if (selectedAssets && selectedAssets.length > 0) {
+      summary += `ASSET IMPACT:\n`;
+      summary += `• ${selectedAssets.length} asset(s) directly affected\n`;
+      
+      // Group assets by type or show top assets
+      const assetNames = selectedAssets.slice(0, 5).map(asset => asset.name).join(', ');
+      summary += `• Primary assets: ${assetNames}`;
+      if (selectedAssets.length > 5) {
+        summary += ` and ${selectedAssets.length - 5} more`;
+      }
+      summary += `\n`;
+      
+      // Estimate cascade impact
+      const totalStakeholders = (impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0);
+      if (totalStakeholders > 0) {
+        summary += `• ${totalStakeholders} stakeholder(s) identified through asset relationships\n`;
+        summary += `• Potential cascade effects on related systems\n`;
+      }
+      summary += `\n`;
+    }
+
+    // Rollback Impact Section
+    summary += `ROLLBACK CONSIDERATIONS:\n`;
+    const rollbackScore = riskAssessment.rollback || 0;
+    switch (rollbackScore) {
+      case 1:
+        summary += `• Detailed rollback plan available\n`;
+        summary += `• Quick recovery possible if issues occur\n`;
+        summary += `• Minimal downtime for rollback operations\n`;
+        break;
+      case 2:
+        summary += `• Basic rollback steps identified\n`;
+        summary += `• Moderate recovery time if rollback needed\n`;
+        summary += `• Some manual intervention may be required\n`;
+        break;
+      case 3:
+        summary += `• Limited or no rollback capability\n`;
+        summary += `• Extended recovery time if issues occur\n`;
+        summary += `• Forward-fix strategy required\n`;
+        break;
+      default:
+        summary += `• Rollback capability not assessed\n`;
+    }
+    summary += `\n`;
+
+    // Impact Level Summary
+    const totalScore = riskAssessment.totalScore || 0;
+    summary += `OVERALL IMPACT ASSESSMENT:\n`;
+    if (totalScore <= 7) {
+      summary += `• LOW IMPACT: Routine change with minimal business disruption\n`;
+      summary += `• Standard implementation procedures apply\n`;
+    } else if (totalScore <= 11) {
+      summary += `• MEDIUM IMPACT: Moderate business disruption expected\n`;
+      summary += `• Enhanced coordination and communication required\n`;
+    } else {
+      summary += `• HIGH IMPACT: Significant business disruption expected\n`;
+      summary += `• Extensive planning, coordination, and communication mandatory\n`;
+    }
+
+    summary += `\nGenerated automatically from risk questionnaire and asset analysis.`;
+    
+    console.log('📋 Impact summary generated:', summary.substring(0, 200) + '...');
+    return summary;
+  },
+
+  /**
+   * Get technical owner email from asset managers (managed_by field)
+   * @param {Array} selectedAssets - Selected assets to find managers for
+   * @returns {string|null} Technical owner email address
+   */
+  async getTechnicalOwnerEmail(selectedAssets = []) {
+    console.log('👤 Identifying technical owner from asset managers...');
+    
+    if (!selectedAssets || selectedAssets.length === 0) {
+      console.log('ℹ️ No assets selected, cannot determine technical owner');
+      return null;
+    }
+
+    try {
+      // Collect all unique manager IDs from assets
+      const managerIds = new Set();
+      selectedAssets.forEach(asset => {
+        if (asset.managed_by) {
+          managerIds.add(asset.managed_by);
+        }
+      });
+
+      if (managerIds.size === 0) {
+        console.log('ℹ️ No managers found in selected assets');
+        return null;
+      }
+
+      console.log(`🔍 Found ${managerIds.size} unique manager(s) from ${selectedAssets.length} assets`);
+
+      // If multiple managers, get the first one (could be enhanced to choose primary)
+      const primaryManagerId = Array.from(managerIds)[0];
+      console.log(`👤 Using primary manager ID: ${primaryManagerId}`);
+
+      // Get manager details from user cache or API
+      const managerDetails = await this.getUserDetails(primaryManagerId);
+      
+      if (managerDetails && managerDetails.email) {
+        console.log(`✅ Technical owner identified: ${managerDetails.name} (${managerDetails.email})`);
+        return managerDetails.email;
+      } else {
+        console.warn(`⚠️ Could not get email for manager ID: ${primaryManagerId}`);
+        return null;
+      }
+
+    } catch (error) {
+      console.error('❌ Error getting technical owner email:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Get user details by ID (uses existing user cache or API)
+   * @param {number} userId - User ID to look up
+   * @returns {Object|null} User details with name and email
+   */
+  async getUserDetails(userId) {
+    try {
+      // Try to get from existing user cache first
+      if (window.getUserDetails && typeof window.getUserDetails === 'function') {
+        return await window.getUserDetails(userId);
+      }
+
+      // Fallback: Try to get from global user cache
+      if (window.getCachedUsers && typeof window.getCachedUsers === 'function') {
+        const cachedUsers = await window.getCachedUsers();
+        const user = cachedUsers.find(u => u.id === userId);
+        if (user) {
+          return user;
+        }
+      }
+
+      // Last resort: Make direct API call
+      const response = await window.client.request.invokeTemplate('getUser', {
+        context: { user_id: userId },
+        cache: true,
+        ttl: 300000 // 5 minutes cache
+      });
+
+      if (response && response.response) {
+        const userData = JSON.parse(response.response);
+        return userData.user || userData;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`❌ Error getting user details for ID ${userId}:`, error);
+      return null;
+    }
+  },
+
+  // ... [rest of the original file content remains unchanged]
 };
 
 // Initialize the module when the script loads
