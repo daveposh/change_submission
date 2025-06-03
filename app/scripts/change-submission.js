@@ -396,9 +396,6 @@ const ChangeSubmission = {
     // Generate impact summary based on questionnaire and assets
     const impactSummary = this.generateImpactSummary(data.riskAssessment, data.selectedAssets, impactedData);
 
-    // Get technical owner from asset managers
-    const technicalOwner = await this.getTechnicalOwnerEmail(data.selectedAssets);
-
     // Map impact based on risk level and affected assets count
     let impact = 2; // Default to Medium impact
     const assetCount = data.selectedAssets?.length || 0;
@@ -520,8 +517,8 @@ const ChangeSubmission = {
       riskSummaryLength: changeRequestData.custom_fields.risks ? changeRequestData.custom_fields.risks.length : 0,
       hasImpactSummary: !!impactSummary,
       impactSummaryLength: impactSummary ? impactSummary.length : 0,
-      hasTechnicalOwner: !!technicalOwner,
-      technicalOwnerEmail: technicalOwner || 'None identified'
+      hasTechnicalOwner: !!(await this.getTechnicalOwnerUserId(data.selectedAssets)),
+      technicalOwnerUserId: await this.getTechnicalOwnerUserId(data.selectedAssets) || 'None identified'
     });
 
     // Log detailed mapping of all REQUIRED fields
@@ -644,8 +641,6 @@ Submission Time: ${new Date().toISOString()}`;
     const impactSummary = this.generateImpactSummary(data.riskAssessment, data.selectedAssets, impactedData);
     
     // Get technical owner from asset managers
-    const technicalOwner = await this.getTechnicalOwnerEmail(data.selectedAssets);
-    
     // Only include the absolute minimum required fields
     const minimalData = {
       // REQUIRED: Subject (Title)
