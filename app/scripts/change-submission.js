@@ -404,11 +404,15 @@ const ChangeSubmission = {
       planned_start_date: formatDateForAPI(data.plannedStart),
       planned_end_date: formatDateForAPI(data.plannedEnd),
       workspace_id: workspaceId, // Always include workspace_id (required field)
-      // Include the standard planning fields that exist in this instance
-      change_reason: data.reasonForChange,
-      change_impact: data.implementationPlan, // Using implementation plan for impact description
-      change_plan: data.implementationPlan,   // Rollout Plan field
-      backout_plan: data.backoutPlan
+      
+      // Planning fields structure - this is where the planning details should go
+      planning_fields: {
+        change_reason: data.reasonForChange || null,
+        change_impact: data.implementationPlan || null,  // Implementation plan describes the impact
+        change_plan: data.implementationPlan || null,    // Rollout/Implementation Plan
+        backout_plan: data.backoutPlan || null,
+        validation_plan: data.validationPlan || null
+      }
     };
 
     // Add department_id if configured
@@ -436,7 +440,8 @@ const ChangeSubmission = {
       assetCount: 0, // Not including assets in initial request to avoid 500 errors
       approverCount: impactedData.approvers?.length || 0,
       hasDepartment: !!changeRequestData.department_id,
-      hasStandardFields: !!(changeRequestData.change_reason && changeRequestData.backout_plan),
+      hasPlanningFields: !!changeRequestData.planning_fields,
+      planningFieldsCount: changeRequestData.planning_fields ? Object.keys(changeRequestData.planning_fields).filter(key => changeRequestData.planning_fields[key] !== null).length : 0,
       hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0
     });
 
@@ -529,6 +534,16 @@ Submission Time: ${new Date().toISOString()}`;
       workspace_id: 2, // Required field - "CXI Change Management" workspace
       requester_id: data.selectedRequester?.id,
       agent_id: data.selectedAgent?.id,
+      
+      // Planning fields structure for minimal request
+      planning_fields: {
+        change_reason: data.reasonForChange || null,
+        change_impact: data.implementationPlan || null,
+        change_plan: data.implementationPlan || null,
+        backout_plan: data.backoutPlan || null,
+        validation_plan: data.validationPlan || null
+      },
+      
       custom_fields: {
         risks: null,
         lf_technical_owner: null
@@ -596,6 +611,16 @@ Submission Time: ${new Date().toISOString()}`;
               workspace_id: 2, // Required field - "CXI Change Management" workspace
               requester_id: window.changeRequestData.selectedRequester?.id,
               agent_id: window.changeRequestData.selectedAgent?.id,
+              
+              // Even in ultra-minimal, include planning_fields structure
+              planning_fields: {
+                change_reason: window.changeRequestData.reasonForChange || null,
+                change_impact: null,
+                change_plan: null,
+                backout_plan: null,
+                validation_plan: null
+              },
+              
               custom_fields: {
                 risks: null,
                 lf_technical_owner: null
