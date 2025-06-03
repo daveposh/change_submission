@@ -443,8 +443,8 @@ const ChangeSubmission = {
       // REQUIRED: Subject (Title)
       subject: data.changeTitle || 'Untitled Change Request',
       
-      // REQUIRED: Description - Use the new description field, fallback to reason
-      description: data.changeDescription || data.reasonForChange || 'No description provided',
+      // REQUIRED: Description - Enhanced with rich formatted information
+      description: this.createEnhancedDescription(data, impactedData, data.riskAssessment),
       
       // REQUIRED: Workspace - Always required field
       workspace_id: workspaceId, // Default to workspace 2 ("CXI Change Management")
@@ -550,17 +550,12 @@ const ChangeSubmission = {
       console.log('❌ Skipping backout_plan - no content');
     }
 
-    // Add custom planning fields only if they have content
-    console.log(`  Raw data.validationPlan: "${data.validationPlan}"`);
-    console.log(`  Trimmed data.validationPlan: "${data.validationPlan?.trim()}"`);
-    console.log(`  Boolean check: ${!!data.validationPlan?.trim()}`);
-    
     // Initialize custom_fields if needed
     if (!changeRequestData.planning_fields.custom_fields) {
       changeRequestData.planning_fields.custom_fields = {};
     }
     
-    // 1. Validation Plan (existing)
+    // 1. Validation Plan (only custom planning field)
     if (data.validationPlan?.trim()) {
       console.log('✅ Adding cfp_validation to planning_fields');
       changeRequestData.planning_fields.custom_fields.cfp_validation = {
@@ -668,6 +663,47 @@ const ChangeSubmission = {
   },
 
   /**
+   * Create enhanced description with rich formatting for change request
+   * Incorporates risk assessment and service impact information
+   */
+  createEnhancedDescription(data, impactedData, riskAssessment) {
+    console.log('📝 Creating enhanced description with risk and impact information...');
+    
+    // Start with user-provided description
+    let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
+    
+    // Main description section
+    description += `<div style="margin-bottom: 20px;">`;
+    description += `<h3 style="color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 5px; margin-bottom: 15px;">📋 Change Description</h3>`;
+    description += `<p><strong>${data.changeDescription || data.reasonForChange || 'No description provided'}</strong></p>`;
+    if (data.changeDescription && data.reasonForChange && data.changeDescription !== data.reasonForChange) {
+      description += `<p><em>Reason for Change:</em> ${data.reasonForChange}</p>`;
+    }
+    description += `</div>`;
+
+    // Risk Assessment Section (if available)
+    if (riskAssessment && riskAssessment.riskLevel) {
+      const riskColor = {
+        'Low': '#28a745',
+        'Medium': '#ffc107', 
+        'High': '#dc3545'
+      }[riskAssessment.riskLevel] || '#6c757d';
+      
+      description += `<div style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid ${riskColor};">`;
+      description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 15px;">⚠️ Risk Assessment</h3>`;
+      description += `<div style="display: flex; align-items: center; margin-bottom: 10px;">`;
+      description += `<span style="background-color: ${riskColor}; color: white; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 14px;">${riskAssessment.riskLevel?.toUpperCase()} RISK</span>`;
+      description += `<span style="margin-left: 15px; color: #666;">Score: ${riskAssessment.totalScore || 0}/15</span>`;
+      description += `</div>`;
+      
+      // Risk factors breakdown
+      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 15px;">`;
+      
+      const riskFactors = [
+        { key: 'businessImpact', label: 'Business Impact', value: riskAssessment.businessImpact },
+        { key: 'affectedUsers', label: 'User Impact', value: riskAssessment.affectedUsers },
+        { key: 'complexity', label: 'Complexity', value: riskAssessment.complexity },
+        { key: 'testing', label: 'Testing Level', value: riskAssessment.testing },
    * Create a simplified description for change request
    */
   createSimplifiedDescription(data, impactedData) {
