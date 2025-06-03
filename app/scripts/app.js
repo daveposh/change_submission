@@ -2359,6 +2359,14 @@ function setupEventListeners() {
     console.log('✅ Reason for change field listener added');
   }
   
+  const changeDescriptionField = document.getElementById('change-description');
+  if (changeDescriptionField) {
+    changeDescriptionField.addEventListener('input', (e) => {
+      changeRequestData.changeDescription = e.target.value.trim();
+    });
+    console.log('✅ Change description field listener added');
+  }
+  
   const implementationPlanField = document.getElementById('implementation-plan');
   if (implementationPlanField) {
     implementationPlanField.addEventListener('input', (e) => {
@@ -4771,6 +4779,7 @@ function prepareChangeRequestDataForSubmission() {
   
   // Collect all form data
   const changeTitle = document.getElementById('change-title')?.value?.trim() || '';
+  const changeDescription = document.getElementById('change-description')?.value?.trim() || '';
   const reasonForChange = document.getElementById('reason-for-change')?.value?.trim() || '';
   const implementationPlan = document.getElementById('implementation-plan')?.value?.trim() || '';
   const backoutPlan = document.getElementById('backout-plan')?.value?.trim() || '';
@@ -4785,6 +4794,7 @@ function prepareChangeRequestDataForSubmission() {
   // Create consolidated data object
   window.changeRequestData = {
     changeTitle,
+    changeDescription,
     reasonForChange,
     implementationPlan,
     backoutPlan,
@@ -5028,6 +5038,7 @@ function showSubmissionSummary() {
   
   // Collect change details
   const changeTitle = document.getElementById('change-title');
+  const changeDescription = document.getElementById('change-description');
   const changeType = document.getElementById('change-type');
   const reasonForChange = document.getElementById('reason-for-change');
   const plannedStart = document.getElementById('planned-start');
@@ -5039,6 +5050,7 @@ function showSubmissionSummary() {
   // Store all change details
   window.formData.changeDetails = {
     title: changeTitle ? changeTitle.value.trim() : '',
+    description: changeDescription ? changeDescription.value.trim() : '',
     changeType: changeType ? changeType.value : '',
     reasonForChange: reasonForChange ? reasonForChange.value.trim() : '',
     plannedStart: plannedStart ? plannedStart.value : '',

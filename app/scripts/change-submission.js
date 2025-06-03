@@ -255,23 +255,58 @@ const ChangeSubmission = {
 
     const errors = [];
 
-    // Validate basic form fields
+    // REQUIRED FIELD VALIDATION - All fields specified as required
+
+    // 1. Subject (Title) - REQUIRED
     if (!window.changeRequestData.changeTitle?.trim()) {
-      errors.push('Change title is required');
+      errors.push('Subject (Change title) is required');
     }
 
-    if (!window.changeRequestData.reasonForChange?.trim()) {
-      errors.push('Reason for change is required');
+    // 2. Description - REQUIRED (use new description field or fallback to reason)
+    if (!window.changeRequestData.changeDescription?.trim() && !window.changeRequestData.reasonForChange?.trim()) {
+      errors.push('Description is required (either in Description field or Reason for Change)');
     }
 
+    // 3. Workspace - REQUIRED (handled automatically via configuration)
+    // Note: workspace_id is set automatically from configuration, no validation needed
+
+    // 4. Requester - REQUIRED
+    if (!window.changeRequestData.selectedRequester?.id) {
+      errors.push('Requester must be selected');
+    }
+
+    // 5. Change Type - REQUIRED
+    if (!window.changeRequestData.changeType) {
+      errors.push('Change Type must be selected');
+    }
+
+    // 6. Status - REQUIRED (handled automatically - defaults to Open)
+    // Note: Status is set automatically to Open (1), no validation needed
+
+    // 7. Priority - REQUIRED (calculated automatically from change type and risk)
+    // Note: Priority is calculated automatically, but we need risk assessment for calculation
+
+    // 8. Impact - REQUIRED (calculated automatically from risk assessment)
+    // Note: Impact is calculated automatically, but we need risk assessment for calculation
+
+    // 9. Risk - REQUIRED (from risk assessment)
+    if (!window.changeRequestData.riskAssessment?.riskLevel) {
+      errors.push('Risk assessment must be completed (required for Priority, Impact, and Risk fields)');
+    }
+
+    // ADDITIONAL REQUIRED FIELDS FOR BUSINESS LOGIC
+
+    // Implementation plan - Business requirement
     if (!window.changeRequestData.implementationPlan?.trim()) {
       errors.push('Implementation plan is required');
     }
 
+    // Backout plan - Business requirement
     if (!window.changeRequestData.backoutPlan?.trim()) {
       errors.push('Backout plan is required');
     }
 
+    // Planned dates - Business requirement
     if (!window.changeRequestData.plannedStart) {
       errors.push('Planned start date is required');
     }
@@ -280,27 +315,17 @@ const ChangeSubmission = {
       errors.push('Planned end date is required');
     }
 
-    // Validate requester
-    if (!window.changeRequestData.selectedRequester?.id) {
-      errors.push('Requester must be selected');
-    }
-
-    // Validate assigned agent
+    // Agent assignment - Business requirement
     if (!window.changeRequestData.selectedAgent?.id) {
       errors.push('Assigned agent must be selected');
     }
 
-    // Validate risk assessment - check for riskLevel property
-    if (!window.changeRequestData.riskAssessment?.riskLevel) {
-      errors.push('Risk assessment must be completed');
-    }
-
-    // Validate assets
+    // Asset association - Business requirement
     if (!window.changeRequestData.selectedAssets?.length) {
       errors.push('At least one asset must be associated');
     }
 
-    // Validate impacted services
+    // Impacted services analysis - Business requirement
     if (window.ImpactedServices) {
       const impactedData = window.ImpactedServices.getImpactedServicesData();
       if (!impactedData.analysisComplete) {
@@ -309,6 +334,13 @@ const ChangeSubmission = {
     }
 
     const isValid = errors.length === 0;
+    
+    console.log('🔍 Validation result:', {
+      isValid,
+      errorCount: errors.length,
+      errors: errors
+    });
+
     return {
       isValid,
       message: errors.join(', '),
@@ -395,27 +427,49 @@ const ChangeSubmission = {
     const description = this.createSimplifiedDescription(data, impactedData);
 
     // Prepare the change request data according to Freshservice API v2 format
+    // Mapping all REQUIRED fields as specified:
     const changeRequestData = {
-      subject: data.changeTitle,
-      description: description,
-      change_type: change_type,
-      priority: priority,
-      status: 1, // Open status
-      risk: risk,
-      impact: impact,
-      requester_id: data.selectedRequester.id,
-      agent_id: data.selectedAgent.id,
+      // REQUIRED: Subject (Title)
+      subject: data.changeTitle || 'Untitled Change Request',
+      
+      // REQUIRED: Description - Use the new description field, fallback to reason
+      description: data.changeDescription || data.reasonForChange || 'No description provided',
+      
+      // REQUIRED: Workspace - Always required field
+      workspace_id: workspaceId, // Default to workspace 2 ("CXI Change Management")
+      
+      // REQUIRED: Requester
+      requester_id: data.selectedRequester?.id,
+      
+      // REQUIRED: Change Type - Map to Freshservice values
+      change_type: change_type, // 4=Emergency, 6=Normal Change
+      
+      // REQUIRED: Status - Default to Open
+      status: 1, // 1 = Open (required default)
+      
+      // REQUIRED: Priority - Calculated based on change type and risk
+      priority: priority, // 1=Low, 2=Medium, 3=High, 4=Urgent
+      
+      // REQUIRED: Impact - Calculated based on risk and scope
+      impact: impact, // 1=Low, 2=Medium, 3=High
+      
+      // REQUIRED: Risk - Based on risk assessment
+      risk: risk, // 1=Low, 2=Medium, 3=High, 4=Very High
+      
+      // OPTIONAL: Agent assignment
+      agent_id: data.selectedAgent?.id,
+      
+      // OPTIONAL: Dates
       planned_start_date: formatDateForAPI(data.plannedStart),
       planned_end_date: formatDateForAPI(data.plannedEnd),
-      workspace_id: workspaceId, // Always include workspace_id (required field)
       
-      // Default fields (based on actual schema)
+      // OPTIONAL: Default fields (based on actual schema)
       change_reason: data.reasonForChange || null,
       change_impact: impactSummary || data.implementationPlan || null,  // Enhanced impact summary
       change_plan: data.implementationPlan || null,    // Rollout/Implementation Plan
       backout_plan: data.backoutPlan || null,
       
-      // Planning fields structure (only cfp_validation based on schema)
+      // OPTIONAL: Planning fields structure (only cfp_validation based on schema)
       planning_fields: {
         cfp_validation: data.validationPlan || null
       }
@@ -432,7 +486,7 @@ const ChangeSubmission = {
     // Add custom fields structure to match the expected format (based on actual schema)
     changeRequestData.custom_fields = {
       risks: riskSummary,
-      lf_technical_owner: technicalOwner
+      lf_technical_owner: technicalOwner || 'No technical owner identified'
     };
 
     console.log('✅ Change request data prepared:', {
@@ -458,6 +512,36 @@ const ChangeSubmission = {
       technicalOwnerEmail: technicalOwner || 'None identified'
     });
 
+    // Log detailed mapping of all REQUIRED fields
+    console.log('📋 REQUIRED FIELDS MAPPING:');
+    console.log(`  1. Workspace: ${changeRequestData.workspace_id} (${changeRequestData.workspace_id ? '✅' : '❌'})`);
+    console.log(`  2. Requester: ${changeRequestData.requester_id} (${changeRequestData.requester_id ? '✅' : '❌'})`);
+    console.log(`  3. Subject: "${changeRequestData.subject}" (${changeRequestData.subject ? '✅' : '❌'})`);
+    console.log(`  4. Change Type: ${changeRequestData.change_type} (${changeRequestData.change_type ? '✅' : '❌'})`);
+    console.log(`  5. Status: ${changeRequestData.status} (${changeRequestData.status ? '✅' : '❌'})`);
+    console.log(`  6. Priority: ${changeRequestData.priority} (${changeRequestData.priority ? '✅' : '❌'})`);
+    console.log(`  7. Impact: ${changeRequestData.impact} (${changeRequestData.impact ? '✅' : '❌'})`);
+    console.log(`  8. Risk: ${changeRequestData.risk} (${changeRequestData.risk ? '✅' : '❌'})`);
+    console.log(`  9. Description: "${changeRequestData.description?.substring(0, 100)}..." (${changeRequestData.description ? '✅' : '❌'})`);
+
+    // Log custom fields details
+    console.log('📋 CUSTOM FIELDS:');
+    console.log(`  • Technical Owner: ${technicalOwner || 'NULL'} (${technicalOwner ? '✅' : '❌'})`);
+    console.log(`  • Risk Summary: ${changeRequestData.custom_fields.risks ? 'Present' : 'NULL'} (${changeRequestData.custom_fields.risks ? '✅' : '❌'})`);
+    
+    // Log technical owner identification process
+    if (!technicalOwner) {
+      console.warn('⚠️ TECHNICAL OWNER WARNING: No technical owner email identified');
+      console.warn('   This will result in lf_technical_owner being set to null in the change request');
+      console.warn('   Reasons this might happen:');
+      console.warn('   1. Selected assets have no managed_by, agent_id, or user_id fields populated');
+      console.warn('   2. Asset managers exist but have no email addresses in their profiles');
+      console.warn('   3. User lookup failed for asset manager IDs');
+      console.warn('   4. No assigned agent or requester email available as fallback');
+    } else {
+      console.log(`✅ Technical owner successfully identified: ${technicalOwner}`);
+    }
+
     console.log('📦 Final change request data structure:', JSON.stringify(changeRequestData, null, 2));
 
     return changeRequestData;
@@ -468,9 +552,10 @@ const ChangeSubmission = {
    */
   createSimplifiedDescription(data, impactedData) {
     // Create a very simple, text-only description for maximum compatibility
-    let description = `${data.reasonForChange || 'No reason specified'}
+    let description = `${data.changeDescription || data.reasonForChange || 'No description specified'}
 
 CHANGE DETAILS:
+Description: ${data.changeDescription || 'Not specified'}
 Reason for Change: ${data.reasonForChange || 'Not specified'}
 Implementation Plan: ${data.implementationPlan || 'Not specified'}
 Backout Plan: ${data.backoutPlan || 'Not specified'}
@@ -550,31 +635,51 @@ Submission Time: ${new Date().toISOString()}`;
     
     // Only include the absolute minimum required fields
     const minimalData = {
-      subject: data.changeTitle || 'Test Change Request',
-      description: data.reasonForChange || 'Change request created via app',
-      change_type: 6, // Normal Change (based on actual field choices)
-      priority: priority,    // Calculated priority based on change type and risk
-      status: 1,      // Open
-      risk: 2,        // Medium risk
-      impact: 2,      // Medium impact
+      // REQUIRED: Subject (Title)
+      subject: data.changeTitle || 'Untitled Change Request',
+      
+      // REQUIRED: Description
+      description: data.changeDescription || data.reasonForChange || 'Change request created via app',
+      
+      // REQUIRED: Workspace
       workspace_id: 2, // Required field - "CXI Change Management" workspace
+      
+      // REQUIRED: Requester
       requester_id: data.selectedRequester?.id,
+      
+      // REQUIRED: Change Type
+      change_type: 6, // Normal Change (based on actual field choices)
+      
+      // REQUIRED: Status
+      status: 1,      // Open
+      
+      // REQUIRED: Priority (calculated)
+      priority: priority,    // Calculated priority based on change type and risk
+      
+      // REQUIRED: Impact
+      impact: 2,      // Medium impact
+      
+      // REQUIRED: Risk
+      risk: 2,        // Medium risk
+      
+      // OPTIONAL: Agent assignment
       agent_id: data.selectedAgent?.id,
       
-      // Default fields (based on actual schema)
+      // OPTIONAL: Default fields (based on actual schema)
       change_reason: data.reasonForChange || null,
       change_impact: impactSummary || data.implementationPlan || null,
       change_plan: data.implementationPlan || null,
       backout_plan: data.backoutPlan || null,
       
-      // Planning fields (only cfp_validation based on schema)
+      // OPTIONAL: Planning fields (only cfp_validation based on schema)
       planning_fields: {
         cfp_validation: data.validationPlan || null
       },
       
+      // OPTIONAL: Custom fields
       custom_fields: {
         risks: riskSummary,
-        lf_technical_owner: technicalOwner
+        lf_technical_owner: technicalOwner || 'No technical owner identified'
       }
     };
 
@@ -660,7 +765,7 @@ Submission Time: ${new Date().toISOString()}`;
               
               custom_fields: {
                 risks: ultraRiskSummary,
-                lf_technical_owner: ultraTechnicalOwner
+                lf_technical_owner: ultraTechnicalOwner || 'No technical owner identified'
               }
             };
             
@@ -1459,7 +1564,13 @@ Workflow Summary:
               <div class="card-body">
                 <div class="row">
                   <div class="col-md-8">
-                    <p class="card-text">${data.reasonForChange || 'No reason specified'}</p>
+                    ${data.changeDescription ? `
+                      <p class="card-text">${data.changeDescription}</p>
+                      <hr class="my-2">
+                      <p class="text-muted"><strong>Reason:</strong> ${data.reasonForChange || 'No reason specified'}</p>
+                    ` : `
+                      <p class="card-text">${data.reasonForChange || 'No reason specified'}</p>
+                    `}
                   </div>
                   <div class="col-md-4 text-end">
                     <div class="mb-2">
@@ -2165,38 +2276,114 @@ Workflow Summary:
     }
 
     try {
-      // Collect all unique manager IDs from assets
+      // Debug: Log asset structure to understand available fields
+      console.log('🔍 Analyzing asset structure for manager fields...');
+      selectedAssets.forEach((asset, index) => {
+        console.log(`Asset ${index + 1} (${asset.name}):`, {
+          id: asset.id,
+          managed_by: asset.managed_by,
+          agent_id: asset.agent_id,
+          user_id: asset.user_id,
+          requester_id: asset.requester_id,
+          created_by: asset.created_by,
+          updated_by: asset.updated_by,
+          hasManagerInfo: !!(asset.managed_by || asset.agent_id || asset.user_id)
+        });
+      });
+
+      // Collect all potential manager/owner IDs from multiple fields
       const managerIds = new Set();
+      const ownerSources = [];
+
       selectedAssets.forEach(asset => {
+        // Check multiple potential fields for asset ownership/management
         if (asset.managed_by) {
           managerIds.add(asset.managed_by);
+          ownerSources.push({ assetName: asset.name, source: 'managed_by', userId: asset.managed_by });
+        }
+        if (asset.agent_id && asset.agent_id !== asset.managed_by) {
+          managerIds.add(asset.agent_id);
+          ownerSources.push({ assetName: asset.name, source: 'agent_id', userId: asset.agent_id });
+        }
+        if (asset.user_id && asset.user_id !== asset.managed_by && asset.user_id !== asset.agent_id) {
+          managerIds.add(asset.user_id);
+          ownerSources.push({ assetName: asset.name, source: 'user_id', userId: asset.user_id });
         }
       });
 
       if (managerIds.size === 0) {
-        console.log('ℹ️ No managers found in selected assets');
+        console.log('ℹ️ No managers/owners found in selected assets - checking alternative sources...');
+        
+        // Fallback: Try to get the assigned agent from the change request
+        if (window.changeRequestData?.selectedAgent?.email) {
+          console.log(`🔄 Using assigned agent as technical owner: ${window.changeRequestData.selectedAgent.email}`);
+          return window.changeRequestData.selectedAgent.email;
+        }
+        
+        // Fallback: Try to get the requester email
+        if (window.changeRequestData?.selectedRequester?.email) {
+          console.log(`🔄 Using requester as technical owner: ${window.changeRequestData.selectedRequester.email}`);
+          return window.changeRequestData.selectedRequester.email;
+        }
+        
+        console.log('⚠️ No technical owner could be determined from any source');
         return null;
       }
 
-      console.log(`🔍 Found ${managerIds.size} unique manager(s) from ${selectedAssets.length} assets`);
+      console.log(`🔍 Found ${managerIds.size} unique owner(s) from ${selectedAssets.length} assets`);
+      console.log('📋 Owner sources:', ownerSources);
 
-      // If multiple managers, get the first one (could be enhanced to choose primary)
-      const primaryManagerId = Array.from(managerIds)[0];
-      console.log(`👤 Using primary manager ID: ${primaryManagerId}`);
+      // Try to get email from each manager ID until we find one with an email
+      for (const managerId of managerIds) {
+        console.log(`👤 Checking manager/owner ID: ${managerId}`);
 
-      // Get manager details from user cache or API
-      const managerDetails = await this.getUserDetails(primaryManagerId);
+        try {
+          const managerDetails = await this.getUserDetails(managerId);
+          
+          if (managerDetails && managerDetails.email) {
+            const sourceInfo = ownerSources.find(s => s.userId === managerId);
+            console.log(`✅ Technical owner identified: ${managerDetails.name} (${managerDetails.email}) - Source: ${sourceInfo?.source || 'unknown'} from ${sourceInfo?.assetName || 'unknown asset'}`);
+            return managerDetails.email;
+          } else {
+            console.warn(`⚠️ Manager ID ${managerId} found but no email available:`, managerDetails);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error getting details for manager ID ${managerId}:`, error);
+        }
+      }
+
+      // If we reach here, none of the manager IDs had valid email addresses
+      console.log('⚠️ No valid email found for any asset managers - trying fallbacks...');
       
-      if (managerDetails && managerDetails.email) {
-        console.log(`✅ Technical owner identified: ${managerDetails.name} (${managerDetails.email})`);
-        return managerDetails.email;
-      } else {
-        console.warn(`⚠️ Could not get email for manager ID: ${primaryManagerId}`);
-        return null;
+      // Fallback: Use assigned agent
+      if (window.changeRequestData?.selectedAgent?.email) {
+        console.log(`🔄 Fallback: Using assigned agent as technical owner: ${window.changeRequestData.selectedAgent.email}`);
+        return window.changeRequestData.selectedAgent.email;
       }
+      
+      // Final fallback: Use requester
+      if (window.changeRequestData?.selectedRequester?.email) {
+        console.log(`🔄 Final fallback: Using requester as technical owner: ${window.changeRequestData.selectedRequester.email}`);
+        return window.changeRequestData.selectedRequester.email;
+      }
+
+      console.log('❌ Could not determine technical owner from any source');
+      return null;
 
     } catch (error) {
       console.error('❌ Error getting technical owner email:', error);
+      
+      // Error fallback: Use assigned agent or requester
+      if (window.changeRequestData?.selectedAgent?.email) {
+        console.log(`🔄 Error fallback: Using assigned agent: ${window.changeRequestData.selectedAgent.email}`);
+        return window.changeRequestData.selectedAgent.email;
+      }
+      
+      if (window.changeRequestData?.selectedRequester?.email) {
+        console.log(`🔄 Error fallback: Using requester: ${window.changeRequestData.selectedRequester.email}`);
+        return window.changeRequestData.selectedRequester.email;
+      }
+      
       return null;
     }
   },
