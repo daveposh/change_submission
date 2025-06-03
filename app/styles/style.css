@@ -950,8 +950,19 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   background: var(--bs-primary);
 }
 
-/* Modal backdrop blur effect */
-.modal-backdrop-blur {
+/* Modal backdrop blur effect - only blur background content, not the modal */
+body.modal-backdrop-blur .fw-widget-wrapper {
   filter: blur(3px);
   transition: filter 0.3s ease;
+}
+
+/* Ensure modal and its content are never blurred */
+body.modal-backdrop-blur .modal,
+body.modal-backdrop-blur .modal *,
+body.modal-backdrop-blur .modal-dialog,
+body.modal-backdrop-blur .modal-content,
+body.modal-backdrop-blur .modal-header,
+body.modal-backdrop-blur .modal-body,
+body.modal-backdrop-blur .modal-footer {
+  filter: none !important;
 }

@@ -1059,7 +1059,8 @@ Workflow Summary:
   showSubmissionSuccess(changeRequest) {
     console.log('🎉 Showing submission success...');
 
-    // Hide submission status
+    // Remove backdrop blur and hide submission status
+    this.removeBackdropBlur();
     this.showSubmissionStatus(false);
 
     // Show success notification
@@ -1096,7 +1097,8 @@ Workflow Summary:
   showSubmissionError(error) {
     console.error('❌ Showing submission error:', error);
 
-    // Hide submission status
+    // Remove backdrop blur and hide submission status
+    this.removeBackdropBlur();
     this.showSubmissionStatus(false);
 
     // Show error notification
@@ -1243,10 +1245,6 @@ Workflow Summary:
       modalBody.innerHTML = summaryContent;
     }
 
-    // Add backdrop blur effect
-    const body = document.body;
-    body.classList.add('modal-backdrop-blur');
-
     // Show the modal
     const modal = document.getElementById('confirmation-modal');
     if (modal) {
@@ -1258,9 +1256,15 @@ Workflow Summary:
 
       // Show modal using Bootstrap
       const bootstrapModal = new bootstrap.Modal(modal);
+      
+      // Apply blur effect to background after modal is shown
+      modal.addEventListener('shown.bs.modal', () => {
+        document.body.classList.add('modal-backdrop-blur');
+      }, { once: true });
+
       bootstrapModal.show();
 
-      // Add event listener for confirm button if not already added
+      // Handle confirm submission button
       const confirmBtn = document.getElementById('confirm-submit');
       if (confirmBtn) {
         // Remove any existing listeners
@@ -1268,18 +1272,37 @@ Workflow Summary:
         // Add new listener
         this.handleSubmissionBound = (e) => {
           e.preventDefault();
+          this.removeBackdropBlur();
           bootstrapModal.hide();
           setTimeout(() => {
-            body.classList.remove('modal-backdrop-blur');
             this.handleSubmission();
           }, 300);
         };
         confirmBtn.addEventListener('click', this.handleSubmissionBound);
       }
 
+      // Handle edit button
+      const editBtn = document.getElementById('edit-request');
+      if (editBtn) {
+        // Remove any existing listeners
+        editBtn.removeEventListener('click', this.handleEditBound);
+        // Add new listener
+        this.handleEditBound = (e) => {
+          e.preventDefault();
+          this.removeBackdropBlur();
+          bootstrapModal.hide();
+        };
+        editBtn.addEventListener('click', this.handleEditBound);
+      }
+
       // Add event listener for modal close to remove blur
       modal.addEventListener('hidden.bs.modal', () => {
-        body.classList.remove('modal-backdrop-blur');
+        this.removeBackdropBlur();
+      }, { once: true });
+
+      // Handle ESC key and close button
+      modal.addEventListener('hide.bs.modal', () => {
+        this.removeBackdropBlur();
       }, { once: true });
 
       console.log('✅ Submission summary modal displayed');
@@ -1288,6 +1311,14 @@ Workflow Summary:
       // Fallback to direct submission
       this.handleSubmission();
     }
+  },
+
+  /**
+   * Remove backdrop blur effect
+   */
+  removeBackdropBlur() {
+    document.body.classList.remove('modal-backdrop-blur');
+    console.log('✅ Backdrop blur removed');
   },
 
   /**
