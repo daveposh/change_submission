@@ -622,8 +622,9 @@ const ChangeSubmission = {
       const response = await this.attemptChangeRequestCreation(changeRequestData);
       return response;
     } catch (error) {
-      // Check if the error is related to assets
+      // Check if the error is related to assets OR if it's a 500 server error
       let isAssetError = false;
+      let isServerError = false;
       
       if (error.response) {
         try {
@@ -637,8 +638,14 @@ const ChangeSubmission = {
         }
       }
       
-      if (isAssetError) {
-        console.warn('⚠️ Asset validation failed, attempting to create change request without assets...');
+      // Check for 500 server errors which might be related to asset processing
+      if (error.status === 500) {
+        isServerError = true;
+        console.warn('⚠️ Server error (500) detected - this might be related to asset processing');
+      }
+      
+      if (isAssetError || (isServerError && changeRequestData.assets)) {
+        console.warn('⚠️ Asset-related error detected, attempting to create change request without assets...');
         
         // Remove assets and try again
         const dataWithoutAssets = { ...changeRequestData };
@@ -654,7 +661,26 @@ const ChangeSubmission = {
           return response;
         } catch (retryError) {
           console.error('❌ Failed even without assets:', retryError);
-          throw retryError;
+          
+          // If it's still a 500 error, try with a simplified description
+          if (retryError.status === 500) {
+            console.warn('⚠️ Still getting 500 error, trying with simplified description...');
+            
+            const dataWithSimpleDescription = { ...dataWithoutAssets };
+            dataWithSimpleDescription.description = this.createSimplifiedDescription(window.changeRequestData, window.ImpactedServices?.getImpactedServicesData() || {});
+            
+            try {
+              const response = await this.attemptChangeRequestCreation(dataWithSimpleDescription);
+              console.log('✅ Change request created successfully with simplified description');
+              console.log('ℹ️ Full details were simplified due to server limitations');
+              return response;
+            } catch (finalError) {
+              console.error('❌ Failed even with simplified description:', finalError);
+              throw finalError;
+            }
+          } else {
+            throw retryError;
+          }
         }
       } else {
         // Re-throw the original error if it's not asset-related
@@ -1201,6 +1227,189 @@ Workflow Summary:
       console.warn('⚠️ Error formatting date:', dateString, error);
       return dateString;
     }
+  },
+
+  /**
+   * Create a simplified description for change request
+   */
+  createSimplifiedDescription(data, impactedData) {
+    let description = `
+<div style="font-family: Arial, sans-serif; line-height: 1.6;">
+
+<h2 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">📋 Change Request Details</h2>
+
+<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;">
+  <h3 style="color: #2980b9; margin-top: 0;">📊 Change Information</h3>
+  <table style="width: 100%; border-collapse: collapse;">
+    <tr><td style="padding: 5px; font-weight: bold; width: 30%;">Change Type:</td><td style="padding: 5px;">${data.changeType || 'Normal'}</td></tr>
+    <tr><td style="padding: 5px; font-weight: bold;">Risk Level:</td><td style="padding: 5px; color: ${data.riskAssessment?.riskLevel === 'High' ? '#e74c3c' : data.riskAssessment?.riskLevel === 'Medium' ? '#f39c12' : '#27ae60'}; font-weight: bold;">${data.riskAssessment?.riskLevel?.toUpperCase() || 'NOT ASSESSED'}</td></tr>
+    <tr><td style="padding: 5px; font-weight: bold;">Risk Score:</td><td style="padding: 5px;">${data.riskAssessment?.totalScore || 0}/15</td></tr>
+    <tr><td style="padding: 5px; font-weight: bold;">Priority:</td><td style="padding: 5px;">${data.riskAssessment?.riskLevel === 'High' ? 'High' : data.riskAssessment?.riskLevel === 'Low' ? 'Low' : 'Medium'}</td></tr>
+  </table>
+</div>
+
+<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #ffc107;">
+  <h3 style="color: #856404; margin-top: 0;">🎯 Reason for Change</h3>
+  <p style="margin: 0;">${data.reasonForChange}</p>
+</div>
+
+<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #17a2b8;">
+  <h3 style="color: #0c5460; margin-top: 0;">🔧 Implementation Plan</h3>
+  <p style="margin: 0;">${data.implementationPlan}</p>
+</div>
+
+<div style="background-color: #f8d7da; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #dc3545;">
+  <h3 style="color: #721c24; margin-top: 0;">🔄 Backout Plan</h3>
+  <p style="margin: 0;">${data.backoutPlan}</p>
+</div>
+
+<div style="background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #28a745;">
+  <h3 style="color: #155724; margin-top: 0;">✅ Validation Plan</h3>
+  <p style="margin: 0;">${data.validationPlan || 'Not specified'}</p>
+</div>
+
+<div style="background-color: #e2e3e5; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #6c757d;">
+  <h3 style="color: #383d41; margin-top: 0;">⚠️ Risk Assessment Details</h3>
+  <table style="width: 100%; border-collapse: collapse;">
+    <tr><td style="padding: 5px; font-weight: bold; width: 30%;">Overall Risk Level:</td><td style="padding: 5px; color: ${data.riskAssessment?.riskLevel === 'High' ? '#e74c3c' : data.riskAssessment?.riskLevel === 'Medium' ? '#f39c12' : '#27ae60'}; font-weight: bold;">${data.riskAssessment?.riskLevel?.toUpperCase() || 'Not assessed'}</td></tr>
+    <tr><td style="padding: 5px; font-weight: bold;">Total Risk Score:</td><td style="padding: 5px;">${data.riskAssessment?.totalScore || 0}/15</td></tr>
+  </table>
+</div>
+`;
+
+    // Add associated assets with enhanced formatting
+    if (data.selectedAssets?.length > 0) {
+      description += `
+<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #dee2e6;">
+  <h3 style="color: #495057; margin-top: 0;">🖥️ Associated Assets (${data.selectedAssets.length})</h3>
+  <table style="width: 100%; border-collapse: collapse; border: 1px solid #dee2e6;">
+    <thead>
+      <tr style="background-color: #f8f9fa;">
+        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Name</th>
+        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Tag</th>
+        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Type</th>
+        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset ID</th>
+      </tr>
+    </thead>
+    <tbody>`;
+      
+      data.selectedAssets.forEach(asset => {
+        description += `
+      <tr>
+        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${asset.name}</strong></td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_tag || 'No tag'}</td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_type_name || 'Unknown type'}</td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.id}</td>
+      </tr>`;
+      });
+      
+      description += `
+    </tbody>
+  </table>
+</div>`;
+    }
+
+    // Add approvers with enhanced formatting
+    if (impactedData.approvers?.length > 0) {
+      description += `
+<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #28a745;">
+  <h3 style="color: #155724; margin-top: 0;">✅ Identified Approvers (${impactedData.approvers.length})</h3>
+  <table style="width: 100%; border-collapse: collapse; border: 1px solid #28a745;">
+    <thead>
+      <tr style="background-color: #d4edda;">
+        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Name</th>
+        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Email</th>
+        <th style="padding: 10px; border: 1px solid #28a745; text-align: left;">Source</th>
+      </tr>
+    </thead>
+    <tbody>`;
+      
+      impactedData.approvers.forEach(approver => {
+        description += `
+      <tr>
+        <td style="padding: 10px; border: 1px solid #28a745;"><strong>${approver.name}</strong></td>
+        <td style="padding: 10px; border: 1px solid #28a745;">${approver.email}</td>
+        <td style="padding: 10px; border: 1px solid #28a745;">${approver.source}</td>
+      </tr>`;
+      });
+      
+      description += `
+    </tbody>
+  </table>
+</div>`;
+    }
+
+    // Add stakeholders with enhanced formatting
+    if (impactedData.stakeholders?.length > 0) {
+      description += `
+<div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #17a2b8;">
+  <h3 style="color: #0c5460; margin-top: 0;">👥 Identified Stakeholders (${impactedData.stakeholders.length})</h3>
+  <table style="width: 100%; border-collapse: collapse; border: 1px solid #17a2b8;">
+    <thead>
+      <tr style="background-color: #d1ecf1;">
+        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Name</th>
+        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Email</th>
+        <th style="padding: 10px; border: 1px solid #17a2b8; text-align: left;">Source</th>
+      </tr>
+    </thead>
+    <tbody>`;
+      
+      impactedData.stakeholders.forEach(stakeholder => {
+        description += `
+      <tr>
+        <td style="padding: 10px; border: 1px solid #17a2b8;"><strong>${stakeholder.name}</strong></td>
+        <td style="padding: 10px; border: 1px solid #17a2b8;">${stakeholder.email}</td>
+        <td style="padding: 10px; border: 1px solid #17a2b8;">${stakeholder.source}</td>
+      </tr>`;
+      });
+      
+      description += `
+    </tbody>
+  </table>
+</div>`;
+    }
+
+    // Add summary statistics with enhanced formatting
+    description += `
+<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #6c757d;">
+  <h3 style="color: #495057; margin-top: 0;">📈 Change Summary</h3>
+  <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+    <div style="flex: 1; min-width: 200px;">
+      <div style="background-color: #007bff; color: white; padding: 10px; border-radius: 5px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold;">${data.selectedAssets?.length || 0}</div>
+        <div>Assets Affected</div>
+      </div>
+    </div>
+    <div style="flex: 1; min-width: 200px;">
+      <div style="background-color: #28a745; color: white; padding: 10px; border-radius: 5px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold;">${impactedData.approvers?.length || 0}</div>
+        <div>Approvers Required</div>
+      </div>
+    </div>
+    <div style="flex: 1; min-width: 200px;">
+      <div style="background-color: #17a2b8; color: white; padding: 10px; border-radius: 5px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold;">${impactedData.stakeholders?.length || 0}</div>
+        <div>Stakeholders to Notify</div>
+      </div>
+    </div>
+    <div style="flex: 1; min-width: 200px;">
+      <div style="background-color: #6c757d; color: white; padding: 10px; border-radius: 5px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold;">${data.changeType || 'Normal'}</div>
+        <div>Change Category</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr style="margin: 20px 0; border: none; border-top: 2px solid #dee2e6;">
+<p style="text-align: center; color: #6c757d; font-style: italic; margin: 0;">
+  <em>This change request was created using the Freshworks Change Management App.</em>
+</p>
+
+</div>
+`;
+
+    return description;
   }
 };
 
