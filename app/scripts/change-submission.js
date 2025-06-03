@@ -821,20 +821,24 @@ const ChangeSubmission = {
         }
       }
       
-      // Provide more detailed error information
-      let errorMessage = 'Unknown error occurred';
-      
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.status) {
-        errorMessage = `HTTP ${error.status}: ${error.statusText || 'API request failed'}`;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
+      // Preserve the original error properties for retry logic
+      if (error.status || error.response) {
+        // This is likely an HTTP error from the API call - preserve it as-is
+        throw error;
       } else {
-        errorMessage = `Unexpected error type: ${JSON.stringify(error)}`;
+        // This is a processing error - create a new error with detailed message
+        let errorMessage = 'Unknown error occurred';
+        
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        } else {
+          errorMessage = `Unexpected error type: ${JSON.stringify(error)}`;
+        }
+        
+        throw new Error(`Failed to create change request: ${errorMessage}`);
       }
-      
-      throw new Error(`Failed to create change request: ${errorMessage}`);
     }
   },
 
