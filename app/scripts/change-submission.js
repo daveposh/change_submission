@@ -351,8 +351,17 @@ const ChangeSubmission = {
     // Map impact (assuming medium impact for now, can be enhanced later)
     const impact = 2; // Medium impact
 
-    // Prepare asset associations
-    const assetIds = data.selectedAssets?.map(asset => asset.id) || [];
+    // Prepare asset associations using display_id (not internal ID)
+    const assetDisplayIds = [];
+    if (data.selectedAssets?.length > 0) {
+      data.selectedAssets.forEach(asset => {
+        // Use display_id if available, otherwise fall back to ID
+        const displayId = asset.display_id || asset.id;
+        if (displayId) {
+          assetDisplayIds.push(displayId);
+        }
+      });
+    }
 
     // Format description with all relevant details
     const description = this.formatChangeDescription(data, impactedData);
@@ -396,17 +405,21 @@ const ChangeSubmission = {
     // All additional details are included in the description instead
 
     // Add assets if any are selected - try simpler format first
-    if (assetIds.length > 0) {
+    if (assetDisplayIds.length > 0) {
       // Try different asset formats to see which one works
       // Format 1: Simple array of IDs
-      changeRequestData.assets = assetIds;
-      console.log('🔗 Adding assets to change request (simple format):', assetIds);
+      changeRequestData.assets = assetDisplayIds;
+      console.log('🔗 Adding assets to change request (simple format):', assetDisplayIds);
       
       // Log asset details for debugging
       console.log('🔍 Asset details being sent:');
       data.selectedAssets.forEach(asset => {
-        console.log(`   - Asset ID: ${asset.id}, Name: ${asset.name}, Display ID: ${asset.display_id || 'N/A'}`);
+        const displayId = asset.display_id || asset.id;
+        console.log(`   - Asset: ${asset.name}, Internal ID: ${asset.id}, Display ID: ${displayId}, Tag: ${asset.asset_tag || 'N/A'}`);
       });
+      
+      // Log the display IDs that will be sent to the API
+      console.log('🔗 Display IDs being sent to API:', assetDisplayIds);
     } else {
       console.log('🔗 No assets selected, skipping asset association');
     }
@@ -417,7 +430,7 @@ const ChangeSubmission = {
       priority: changeRequestData.priority,
       risk: changeRequestData.risk,
       impact: changeRequestData.impact,
-      assetCount: assetIds.length,
+      assetCount: assetDisplayIds.length,
       approverCount: impactedData.approvers?.length || 0,
       hasWorkspace: !!changeRequestData.workspace_id,
       hasAssets: !!changeRequestData.assets
@@ -485,20 +498,21 @@ const ChangeSubmission = {
     <thead>
       <tr style="background-color: #f8f9fa;">
         <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Name</th>
+        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Display ID</th>
         <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Tag</th>
         <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Type</th>
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset ID</th>
       </tr>
     </thead>
     <tbody>`;
       
       data.selectedAssets.forEach(asset => {
+        const displayId = asset.display_id || asset.id;
         description += `
       <tr>
         <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${asset.name}</strong></td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${displayId}</strong></td>
         <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_tag || 'No tag'}</td>
         <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_type_name || 'Unknown type'}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.id}</td>
       </tr>`;
       });
       
@@ -1286,20 +1300,21 @@ Workflow Summary:
     <thead>
       <tr style="background-color: #f8f9fa;">
         <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Name</th>
+        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Display ID</th>
         <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset Tag</th>
         <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Type</th>
-        <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Asset ID</th>
       </tr>
     </thead>
     <tbody>`;
       
       data.selectedAssets.forEach(asset => {
+        const displayId = asset.display_id || asset.id;
         description += `
       <tr>
         <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${asset.name}</strong></td>
+        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>${displayId}</strong></td>
         <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_tag || 'No tag'}</td>
         <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.asset_type_name || 'Unknown type'}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6;">${asset.id}</td>
       </tr>`;
       });
       

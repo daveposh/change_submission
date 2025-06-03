@@ -483,6 +483,7 @@ const CacheManager = {
         .filter(asset => asset && asset.id && asset.name)
         .map(asset => ({
           id: asset.id,
+          display_id: asset.display_id || asset.id, // Ensure display_id is set for change associations
           name: asset.display_name || asset.name,
           description: asset.description || '',
           category: asset.asset_type_id,

@@ -1054,8 +1054,9 @@ const AssetAssociation = {
             </div>
             <div class="asset-meta">
               <small class="text-muted">
-                <i class="fas fa-hashtag me-1"></i>Asset ID: ${asset.id}
-                ${asset.display_id ? ` | Display ID: ${asset.display_id}` : ''}
+                <i class="fas fa-hashtag me-1"></i>Internal ID: ${asset.id}
+                ${asset.display_id ? ` | <strong>Display ID: ${asset.display_id}</strong>` : ''}
+                ${asset.asset_tag ? ` | Tag: ${asset.asset_tag}` : ''}
               </small>
             </div>
           </div>
@@ -1286,8 +1287,9 @@ const AssetAssociation = {
             </div>
             <div class="asset-card-meta">
               <small class="text-muted">
-                <i class="fas fa-hashtag me-1"></i>Asset ID: ${asset.id}
-                ${asset.display_id ? ` | Display ID: ${asset.display_id}` : ''}
+                <i class="fas fa-hashtag me-1"></i>Internal ID: ${asset.id}
+                ${asset.display_id ? ` | <strong>Display ID: ${asset.display_id}</strong>` : ''}
+                ${asset.asset_tag ? ` | Tag: ${asset.asset_tag}` : ''}
               </small>
             </div>
           </div>
@@ -2103,8 +2105,14 @@ const AssetAssociation = {
                 <div class="service-item-details">
                   <div class="service-item-detail">
                     <i class="fas fa-hashtag"></i>
-                    ID: ${service.id}
+                    Internal ID: ${service.id}
                   </div>
+                  ${service.display_id ? `
+                    <div class="service-item-detail">
+                      <i class="fas fa-tag"></i>
+                      <strong>Display ID: ${service.display_id}</strong>
+                    </div>
+                  ` : ''}
                   ${service.original_asset ? `
                     <div class="service-item-detail">
                       <i class="fas fa-layer-group"></i>
@@ -2415,8 +2423,17 @@ const AssetAssociation = {
    * @returns {Object} - Asset-like service object
    */
   convertServiceToAsset(serviceData) {
+    // For services, we need to ensure they have a display_id for change associations
+    // Services might use their ID as display_id, or have a specific display_id field
+    // For asset-based services, prefer the original asset's display_id
+    let displayId = serviceData.display_id || serviceData.id;
+    if (serviceData.original_asset?.display_id) {
+      displayId = serviceData.original_asset.display_id;
+    }
+    
     return {
       id: serviceData.id,
+      display_id: displayId, // Ensure display_id is set for change associations
       name: serviceData.name,
       description: serviceData.description || '',
       display_name: serviceData.name,
@@ -2424,7 +2441,7 @@ const AssetAssociation = {
       location_id: serviceData.original_asset?.location_id || null, // Get from original asset
       agent_id: serviceData.original_asset?.agent_id || null, // Get from original asset
       user_id: serviceData.original_asset?.user_id || null, // Get from original asset
-      asset_tag: serviceData.original_asset?.asset_tag || 'SERVICE', // Get from original or mark as service
+      asset_tag: serviceData.original_asset?.asset_tag || `SERVICE-${serviceData.id}`, // Get from original or create service tag
       serial_number: serviceData.original_asset?.serial_number || null,
       impact: serviceData.original_asset?.impact || 'unknown', // Get from original asset
       environment: serviceData.original_asset?.environment || null, // Get from original asset
