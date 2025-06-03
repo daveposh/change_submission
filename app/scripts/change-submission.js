@@ -139,8 +139,20 @@ const ChangeSubmission = {
    */
   init() {
     console.log('🚀 Initializing Change Submission Module...');
-    this.setupEventListeners();
-    console.log('✅ Change Submission Module initialized');
+    
+    try {
+      this.setupEventListeners();
+      console.log('✅ Change Submission Module initialized successfully');
+      
+      // Verify module is accessible
+      if (window.ChangeSubmission) {
+        console.log('✅ ChangeSubmission module is accessible via window.ChangeSubmission');
+      } else {
+        console.error('❌ ChangeSubmission module is NOT accessible via window.ChangeSubmission');
+      }
+    } catch (error) {
+      console.error('❌ Error initializing Change Submission Module:', error);
+    }
   },
 
   /**
@@ -212,7 +224,7 @@ const ChangeSubmission = {
 
       // Step 8: Show success and redirect
       console.log('🎉 Step 8: Submission completed successfully!');
-      await this.showSubmissionSuccess(changeRequest);
+      this.showSubmissionSuccess(changeRequest);
 
     } catch (error) {
       console.error('❌ Error during change request submission:', error);
@@ -780,5 +792,337 @@ const ChangeSubmission = {
         console.warn(`⚠️ Error sending approval notification to ${approver.name} (${approver.email}):`, error);
       }
     }
+  },
+
+  /**
+   * Send stakeholder notifications
+   */
+  async sendStakeholderNotifications(changeRequest) {
+    console.log('📧 Sending stakeholder notifications...');
+
+    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+    const stakeholders = impactedData.stakeholders || [];
+
+    if (stakeholders.length === 0) {
+      console.log('ℹ️ No stakeholders identified, skipping notifications');
+      return;
+    }
+
+    const changeUrl = await this.getChangeRequestUrl(changeRequest.id);
+    const impactedAssetsList = window.changeRequestData.selectedAssets
+      ?.map(asset => `<li>${asset.name} (${asset.asset_tag || 'No tag'})</li>`)
+      .join('') || '<li>No assets specified</li>';
+
+    for (const stakeholder of stakeholders) {
+      try {
+        const emailContent = this.renderEmailTemplate('stakeholderNotification', {
+          stakeholder_name: stakeholder.name,
+          change_title: changeRequest.subject,
+          requester_name: window.changeRequestData.selectedRequester.name,
+          risk_level: window.changeRequestData.riskAssessment?.riskLevel?.toUpperCase() || 'MEDIUM',
+          planned_start: this.formatDate(changeRequest.planned_start_date),
+          planned_end: this.formatDate(changeRequest.planned_end_date),
+          impacted_assets_list: impactedAssetsList,
+          reason_for_change: window.changeRequestData.reasonForChange,
+          change_url: changeUrl
+        });
+
+        await this.sendEmail(stakeholder.email, emailContent.subject, emailContent.body);
+        
+        this.state.sentNotifications.push({
+          type: 'stakeholder',
+          recipient: stakeholder.email,
+          timestamp: new Date().toISOString()
+        });
+
+        console.log(`✅ Stakeholder notification sent to ${stakeholder.name} (${stakeholder.email})`);
+
+      } catch (error) {
+        console.warn(`⚠️ Error sending stakeholder notification to ${stakeholder.name} (${stakeholder.email}):`, error);
+      }
+    }
+  },
+
+  /**
+   * Create peer review tasks for assigned agents
+   */
+  async createPeerReviewTasks(changeRequest) {
+    console.log('👥 Creating peer review tasks...');
+
+    const riskLevel = window.changeRequestData.riskAssessment?.riskLevel || 'Medium';
+    
+    // Only create peer review tasks for Medium and High risk changes
+    if (riskLevel === 'Low') {
+      console.log('ℹ️ Low risk change - skipping peer review tasks');
+      return;
+    }
+
+    try {
+      const changeUrl = await this.getChangeRequestUrl(changeRequest.id);
+      
+      // Create a peer review task for the assigned agent
+      const taskData = {
+        subject: `Peer Review: ${changeRequest.subject}`,
+        description: this.renderEmailTemplate('peerReviewTask', {
+          change_title: changeRequest.subject,
+          requester_name: window.changeRequestData.selectedRequester.name,
+          risk_level: riskLevel.toUpperCase(),
+          planned_start: this.formatDate(changeRequest.planned_start_date),
+          planned_end: this.formatDate(changeRequest.planned_end_date),
+          implementation_plan: window.changeRequestData.implementationPlan,
+          validation_plan: window.changeRequestData.validationPlan || 'Not specified',
+          change_url: changeUrl
+        }).body,
+        requester_id: window.changeRequestData.selectedRequester.id,
+        agent_id: window.changeRequestData.selectedAgent.id,
+        priority: riskLevel === 'High' ? 3 : 2, // High or Medium priority
+        status: 2, // Open status
+        task_type: 'peer_review',
+        due_by: new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString() // Due in 24 hours
+      };
+
+      const taskResponse = await window.client.request.invokeTemplate('createTask', {
+        context: {},
+        body: JSON.stringify(taskData),
+        cache: false
+      });
+
+      if (taskResponse && taskResponse.response) {
+        const taskResult = JSON.parse(taskResponse.response);
+        this.state.createdTasks.push({
+          id: taskResult.task?.id || taskResult.id,
+          type: 'peer_review',
+          assignee: window.changeRequestData.selectedAgent.name,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`✅ Peer review task created for ${window.changeRequestData.selectedAgent.name}`);
+      }
+
+    } catch (error) {
+      console.warn('⚠️ Error creating peer review tasks:', error);
+      // Don't fail the entire submission for task creation issues
+      console.log('ℹ️ Continuing submission without peer review tasks');
+    }
+  },
+
+  /**
+   * Update change request with additional metadata
+   */
+  async updateChangeRequestMetadata(changeRequest) {
+    console.log('🔄 Updating change request with workflow metadata...');
+
+    try {
+      const updateData = {
+        // Add any additional metadata here
+        notes: `Change request submitted via Freshworks Change Management App.
+        
+Workflow Summary:
+- Approval Workflow ID: ${this.state.approvalWorkflowId || 'Not created'}
+- Notifications Sent: ${this.state.sentNotifications.length}
+- Tasks Created: ${this.state.createdTasks.length}
+- Submission Timestamp: ${new Date().toISOString()}`
+      };
+
+      const updateResponse = await window.client.request.invokeTemplate('updateChangeRequest', {
+        context: {
+          change_id: changeRequest.id
+        },
+        body: JSON.stringify(updateData),
+        cache: false
+      });
+
+      if (updateResponse && updateResponse.response) {
+        console.log('✅ Change request metadata updated successfully');
+      }
+
+    } catch (error) {
+      console.warn('⚠️ Error updating change request metadata:', error);
+      // Don't fail the entire submission for metadata update issues
+      console.log('ℹ️ Continuing submission without metadata update');
+    }
+  },
+
+  /**
+   * Show submission success and redirect
+   */
+  showSubmissionSuccess(changeRequest) {
+    console.log('🎉 Showing submission success...');
+
+    // Hide submission status
+    this.showSubmissionStatus(false);
+
+    // Show success notification
+    const successMessage = `
+      <div class="alert alert-success" role="alert">
+        <h4 class="alert-heading">✅ Change Request Submitted Successfully!</h4>
+        <p><strong>Change Request ID:</strong> CR-${changeRequest.id}</p>
+        <p><strong>Title:</strong> ${changeRequest.subject}</p>
+        <hr>
+        <p class="mb-0">
+          <strong>Summary:</strong><br>
+          • ${this.state.sentNotifications.length} notifications sent<br>
+          • ${this.state.createdTasks.length} tasks created<br>
+          • ${window.changeRequestData.selectedAssets?.length || 0} assets associated
+        </p>
+      </div>
+    `;
+
+    // Show success message in a modal or replace page content
+    const container = document.querySelector('.container-fluid') || document.body;
+    container.innerHTML = successMessage + `
+      <div class="text-center mt-4">
+        <button class="btn btn-primary" onclick="window.location.reload()">Create Another Change Request</button>
+        <a href="/helpdesk/changes/${changeRequest.id}" class="btn btn-outline-primary ms-2">View Change Request</a>
+      </div>
+    `;
+
+    console.log('✅ Submission success displayed');
+  },
+
+  /**
+   * Show submission error
+   */
+  showSubmissionError(error) {
+    console.error('❌ Showing submission error:', error);
+
+    // Hide submission status
+    this.showSubmissionStatus(false);
+
+    // Show error notification
+    const errorMessage = `
+      <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">❌ Change Request Submission Failed</h4>
+        <p><strong>Error:</strong> ${error.message || 'Unknown error occurred'}</p>
+        <hr>
+        <p class="mb-0">Please check the details and try again. If the problem persists, contact your system administrator.</p>
+      </div>
+    `;
+
+    // Show error message
+    const statusElement = document.getElementById('submission-status');
+    if (statusElement) {
+      statusElement.innerHTML = errorMessage;
+      statusElement.className = 'alert alert-danger';
+      statusElement.style.display = 'block';
+    }
+
+    console.log('❌ Submission error displayed');
+  },
+
+  /**
+   * Show/hide submission status
+   */
+  showSubmissionStatus(show) {
+    const statusElement = document.getElementById('submission-status');
+    if (statusElement) {
+      statusElement.style.display = show ? 'block' : 'none';
+    }
+  },
+
+  /**
+   * Get change request URL for notifications
+   */
+  async getChangeRequestUrl(changeId) {
+    try {
+      const params = await window.client.iparams.get();
+      const domain = params.freshservice_domain;
+      return `https://${domain}/helpdesk/changes/${changeId}`;
+    } catch (error) {
+      console.warn('⚠️ Could not get domain for change URL:', error);
+      return `#change-${changeId}`;
+    }
+  },
+
+  /**
+   * Render email template with variables
+   */
+  renderEmailTemplate(templateName, variables) {
+    const template = this.config.emailTemplates[templateName];
+    if (!template) {
+      console.warn(`⚠️ Email template '${templateName}' not found`);
+      return { subject: 'Change Request Notification', body: 'A change request notification.' };
+    }
+
+    let subject = template.subject;
+    let body = template.body;
+
+    // Replace variables in subject and body
+    Object.keys(variables).forEach(key => {
+      const placeholder = `{{${key}}}`;
+      const value = variables[key] || '';
+      subject = subject.replace(new RegExp(placeholder, 'g'), value);
+      body = body.replace(new RegExp(placeholder, 'g'), value);
+    });
+
+    return { subject, body };
+  },
+
+  /**
+   * Send email notification
+   */
+  async sendEmail(to, subject, body) {
+    console.log(`📧 Sending email to ${to}: ${subject}`);
+
+    try {
+      const emailData = {
+        to: to,
+        subject: subject,
+        body: body,
+        body_type: 'html'
+      };
+
+      const response = await window.client.request.invokeTemplate('sendEmail', {
+        context: {},
+        body: JSON.stringify(emailData),
+        cache: false
+      });
+
+      if (response && response.response) {
+        console.log(`✅ Email sent successfully to ${to}`);
+        return true;
+      } else {
+        console.warn(`⚠️ Email sending failed for ${to}`);
+        return false;
+      }
+
+    } catch (error) {
+      console.warn(`⚠️ Error sending email to ${to}:`, error);
+      return false;
+    }
+  },
+
+  /**
+   * Format date for display
+   */
+  formatDate(dateString) {
+    if (!dateString) return 'Not specified';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch (error) {
+      console.warn('⚠️ Error formatting date:', dateString, error);
+      return dateString;
+    }
   }
 };
+
+// Initialize the module when the script loads
+if (typeof window !== 'undefined') {
+  console.log('🔧 ChangeSubmission: Script loaded, initializing module...');
+  window.ChangeSubmission = ChangeSubmission;
+  console.log('🔧 ChangeSubmission: Module attached to window object');
+  
+  // Auto-initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    console.log('🔧 ChangeSubmission: DOM still loading, adding event listener...');
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🔧 ChangeSubmission: DOM loaded, initializing...');
+      ChangeSubmission.init();
+    });
+  } else {
+    console.log('🔧 ChangeSubmission: DOM already loaded, initializing immediately...');
+    ChangeSubmission.init();
+  }
+} else {
+  console.error('❌ ChangeSubmission: Window object not available');
+}

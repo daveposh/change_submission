@@ -4745,11 +4745,23 @@ function validateRiskAndNext() {
   // Prepare consolidated change request data for submission
   prepareChangeRequestDataForSubmission();
   
+  // Debug: Check if ChangeSubmission module is available
+  console.log('🔍 Checking ChangeSubmission module availability...');
+  console.log('window.ChangeSubmission exists:', !!window.ChangeSubmission);
+  console.log('window.ChangeSubmission type:', typeof window.ChangeSubmission);
+  
+  if (window.ChangeSubmission) {
+    console.log('ChangeSubmission methods available:', Object.keys(window.ChangeSubmission));
+    console.log('handleSubmission method exists:', typeof window.ChangeSubmission.handleSubmission);
+  }
+  
   // Use the change submission module to handle the submission
   if (window.ChangeSubmission) {
+    console.log('✅ ChangeSubmission module found, calling handleSubmission...');
     window.ChangeSubmission.handleSubmission();
   } else {
     console.error('❌ Change Submission module not available');
+    console.error('Available window properties:', Object.keys(window).filter(key => key.includes('Change') || key.includes('Submission')));
     showNotification('error', 'Change submission module not loaded. Please refresh the page.');
   }
   
