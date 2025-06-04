@@ -1537,39 +1537,25 @@ const ChangeSubmission = {
         taskPriority = 3; // High priority for high-risk changes
       }
       
-      // Prepare task data with minimal required fields
+      // Prepare task data for change task creation (using Freshservice API v2 change task endpoint)
       const taskData = {
-        // Essential fields for ticket creation
+        // Essential fields for change task creation
         subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
         description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
-        requester_id: changeRequest.requester_id,
         priority: taskPriority,
-        status: 2, // Open status
-        source: 2, // Portal
-        tags: [
-          'peer-review-coordination',
-          'change-management',
-          `change-${changeRequest.id}`,
-          'sme-task',
-          `risk-${riskAssessment.riskLevel.toLowerCase()}`
-        ]
-      };
-      
-      // Add responder_id only if we have a valid SME ID
-      if (agentSME.id) {
-        taskData.responder_id = agentSME.id;
-      }
-      
-      // Add due date if supported
-      if (dueDate) {
-        taskData.fr_due_by = dueDate.toISOString();
-      }
-      
-      // Add custom fields to link to change request (if supported)
-      taskData.custom_fields = {
-        related_change_request: `CR-${changeRequest.id}`,
-        peer_review_required: true,
-        sme_coordination: true
+        status: 1, // Open status for change tasks
+        agent_id: agentSME.id, // Assign to the SME
+        due_date: dueDate.toISOString(),
+        
+        // Change task specific fields
+        task_type: "peer_review_coordination",
+        
+        // Custom fields to link to change request
+        custom_fields: {
+          related_change_request: `CR-${changeRequest.id}`,
+          peer_review_required: true,
+          sme_coordination: true
+        }
       };
       
       console.log('📋 Peer review coordination task data prepared:', {
@@ -1579,41 +1565,44 @@ const ChangeSubmission = {
         priority: taskPriority,
         riskLevel: riskAssessment.riskLevel,
         dueDate: dueDate.toISOString(),
-        fullTaskData: taskData
+        changeId: changeRequest.id
       });
       
-      // Create the task using the FDK request method
-      console.log('📡 Sending task creation request...');
-      const response = await window.client.request.invokeTemplate('createTask', {
+      // Create the change task using the FDK request method with the correct change task endpoint
+      console.log('📡 Sending change task creation request...');
+      const response = await window.client.request.invokeTemplate('createChangeTask', {
+        context: {
+          change_id: changeRequest.id
+        },
         body: JSON.stringify(taskData)
       });
       
-      console.log('📡 Raw task creation response:', response);
+      console.log('📡 Raw change task creation response:', response);
       
       if (!response || !response.response) {
-        throw new Error('No response received from task creation API');
+        throw new Error('No response received from change task creation API');
       }
       
       let createdTask;
       try {
         createdTask = JSON.parse(response.response);
-        console.log('📋 Parsed task response:', createdTask);
+        console.log('📋 Parsed change task response:', createdTask);
       } catch (parseError) {
-        console.error('❌ Failed to parse task response JSON:', response.response);
+        console.error('❌ Failed to parse change task response JSON:', response.response);
         throw new Error(`Invalid JSON response: ${parseError.message}`);
       }
       
-      // Handle different response structures
-      if (createdTask.ticket) {
-        // Standard ticket response structure
-        console.log(`✅ Peer review coordination task created successfully: ${createdTask.ticket.id}`);
-        return createdTask.ticket;
+      // Handle different response structures for change tasks
+      if (createdTask.task) {
+        // Standard change task response structure
+        console.log(`✅ Peer review coordination task created successfully: ${createdTask.task.id}`);
+        return createdTask.task;
       } else if (createdTask.id) {
         // Direct response structure
         console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
         return createdTask;
       } else {
-        console.error('❌ Unexpected task response structure:', createdTask);
+        console.error('❌ Unexpected change task response structure:', createdTask);
         throw new Error(`Unexpected response structure: ${JSON.stringify(createdTask)}`);
       }
       
