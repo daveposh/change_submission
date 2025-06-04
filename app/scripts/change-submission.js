@@ -1883,6 +1883,16 @@ const ChangeSubmission = {
     const riskAssessment = data?.riskAssessment;
     const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
     
+    // Helper function to format user name
+    const formatUserName = (user) => {
+      if (!user) return 'Unknown';
+      if (user.name) return user.name;
+      if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`;
+      if (user.first_name) return user.first_name;
+      if (user.email) return user.email;
+      return 'Unknown';
+    };
+    
     let summaryHtml = `<div class="submission-summary">`;
     
     // Header with change overview
@@ -1909,8 +1919,12 @@ const ChangeSubmission = {
               </div>
               <div class="col-md-4 text-end">
                 <div class="text-muted small">
-                  <div><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</div>
-                  <div><strong>Agent:</strong> ${data.selectedAgent?.name || 'Unassigned'}</div>`;
+                  <div><strong>Requester:</strong> ${formatUserName(data.selectedRequester)}</div>
+                  <div><strong>Agent:</strong> ${formatUserName(data.selectedAgent) || 'Unassigned'}</div>`;
+    
+    if (data.selectedRequester?.email) {
+      summaryHtml += `<div class="text-truncate" title="${data.selectedRequester.email}"><i class="fas fa-envelope me-1"></i>${data.selectedRequester.email}</div>`;
+    }
     
     if (data.plannedStart) {
       summaryHtml += `<div><strong>Start:</strong> ${new Date(data.plannedStart).toLocaleString()}</div>`;
@@ -1969,6 +1983,39 @@ const ChangeSubmission = {
     
     // Risk assessment details
     if (riskAssessment) {
+      // Helper function to get risk criteria explanation
+      const getRiskCriteriaExplanation = (criteria, score) => {
+        const explanations = {
+          businessImpact: {
+            1: "Limited - Minor impact on business operations",
+            2: "Noticeable - Moderate impact on business operations", 
+            3: "Significant - Major impact on business operations"
+          },
+          affectedUsers: {
+            1: "Less than 50 users affected",
+            2: "50-200 users affected",
+            3: "More than 200 users affected"
+          },
+          complexity: {
+            1: "Simple - Low technical complexity",
+            2: "Moderate - Medium technical complexity",
+            3: "Complex - High technical complexity"
+          },
+          testing: {
+            1: "Comprehensive - Thorough testing completed",
+            2: "Adequate - Standard testing completed",
+            3: "Limited - Minimal testing completed"
+          },
+          rollback: {
+            1: "Detailed rollback plan available",
+            2: "Basic rollback steps defined",
+            3: "No clear rollback procedure"
+          }
+        };
+        return explanations[criteria]?.[score] || `Score: ${score}/3`;
+      };
+
+      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
       summaryHtml += `<div class="row mb-4">
         <div class="col-12">
           <div class="card border-warning">
@@ -1976,33 +2023,68 @@ const ChangeSubmission = {
               <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Risk Assessment Details</h6>
             </div>
             <div class="card-body">
+              <div class="row mb-3">
+                <div class="col-12 text-center">
+                  <h5 class="mb-2">
+                    <span class="badge fs-6" style="background-color: ${riskColor};">
+                      ${riskAssessment.riskLevel?.toUpperCase()} RISK
+                    </span>
+                  </h5>
+                  <p class="text-muted mb-0">Total Score: <strong>${riskAssessment.totalScore || 0}/15</strong></p>
+                </div>
+              </div>
+              
               <div class="row">
                 <div class="col-md-6">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>Business Impact:</span>
-                    <span class="badge bg-secondary">${riskAssessment.businessImpact || 0}/3</span>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-semibold">Business Impact:</span>
+                      <span class="badge bg-secondary">${riskAssessment.businessImpact || 0}/3</span>
+                    </div>
+                    <small class="text-muted">${getRiskCriteriaExplanation('businessImpact', riskAssessment.businessImpact)}</small>
                   </div>
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>Affected Users:</span>
-                    <span class="badge bg-secondary">${riskAssessment.affectedUsers || 0}/3</span>
+                  
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-semibold">Affected Users:</span>
+                      <span class="badge bg-secondary">${riskAssessment.affectedUsers || 0}/3</span>
+                    </div>
+                    <small class="text-muted">${getRiskCriteriaExplanation('affectedUsers', riskAssessment.affectedUsers)}</small>
                   </div>
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>Complexity:</span>
-                    <span class="badge bg-secondary">${riskAssessment.complexity || 0}/3</span>
+                  
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-semibold">Complexity:</span>
+                      <span class="badge bg-secondary">${riskAssessment.complexity || 0}/3</span>
+                    </div>
+                    <small class="text-muted">${getRiskCriteriaExplanation('complexity', riskAssessment.complexity)}</small>
                   </div>
                 </div>
+                
                 <div class="col-md-6">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>Testing Level:</span>
-                    <span class="badge bg-secondary">${riskAssessment.testing || 0}/3</span>
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-semibold">Testing Level:</span>
+                      <span class="badge bg-secondary">${riskAssessment.testing || 0}/3</span>
+                    </div>
+                    <small class="text-muted">${getRiskCriteriaExplanation('testing', riskAssessment.testing)}</small>
                   </div>
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>Rollback Capability:</span>
-                    <span class="badge bg-secondary">${riskAssessment.rollback || 0}/3</span>
+                  
+                  <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-semibold">Rollback Capability:</span>
+                      <span class="badge bg-secondary">${riskAssessment.rollback || 0}/3</span>
+                    </div>
+                    <small class="text-muted">${getRiskCriteriaExplanation('rollback', riskAssessment.rollback)}</small>
                   </div>
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span><strong>Total Score:</strong></span>
-                    <span class="badge" style="background-color: ${this.getRiskColor(riskAssessment.riskLevel)};">${riskAssessment.totalScore || 0}/15</span>
+                  
+                  <div class="alert alert-info mb-0">
+                    <small>
+                      <strong>Risk Policy:</strong><br>
+                      ${riskAssessment.totalScore >= 12 ? 'High Risk requires extensive review + mandatory 24hr peer review' :
+                        riskAssessment.totalScore >= 8 ? 'Medium Risk requires additional review + 24hr peer review' :
+                        'Low Risk follows standard approval process'}
+                    </small>
                   </div>
                 </div>
               </div>
@@ -2012,30 +2094,123 @@ const ChangeSubmission = {
       </div>`;
     }
     
-    // Assets and services section
+    // Assets and impact analysis section
     summaryHtml += `<div class="row mb-4">
-      <div class="col-md-6">
-        <div class="card h-100">
+      <div class="col-12">
+        <div class="card">
           <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-server me-2"></i>Associated Assets (${data.selectedAssets?.length || 0})</h6>
+            <h6 class="mb-0"><i class="fas fa-network-wired me-2"></i>Asset Impact Analysis</h6>
           </div>
-          <div class="card-body">`;
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6 class="text-primary mb-3"><i class="fas fa-server me-2"></i>Direct Assets (${data.selectedAssets?.length || 0})</h6>`;
     
     if (data.selectedAssets && data.selectedAssets.length > 0) {
       summaryHtml += `<div class="list-group list-group-flush">`;
-      data.selectedAssets.slice(0, 5).forEach(asset => {
-        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
-          <small><strong>${asset.name}</strong> (${asset.asset_type_name || 'Unknown Type'})</small>
+      data.selectedAssets.slice(0, 3).forEach(asset => {
+        // Get additional asset details
+        const environment = asset.environment || 'Unknown';
+        const location = asset.location_name || 'Unknown Location';
+        const managedBy = asset.managed_by_name || asset.user_name || 'Unassigned';
+        
+        summaryHtml += `<div class="list-group-item px-0 py-2 border-0">
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <div class="fw-semibold">${asset.name}</div>
+              <small class="text-muted d-block">${asset.asset_type_name || 'Unknown Type'}</small>
+              <div class="d-flex flex-wrap gap-1 mt-1">
+                <span class="badge bg-secondary">${environment}</span>
+                <span class="badge bg-info">${location}</span>
+                ${managedBy !== 'Unassigned' ? `<span class="badge bg-success" title="Managed By">${managedBy}</span>` : ''}
+              </div>
+            </div>
+          </div>
         </div>`;
       });
-      if (data.selectedAssets.length > 5) {
+      if (data.selectedAssets.length > 3) {
         summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
-          <small class="text-muted">... and ${data.selectedAssets.length - 5} more assets</small>
+          <small class="text-muted">... and ${data.selectedAssets.length - 3} more direct assets</small>
         </div>`;
       }
       summaryHtml += `</div>`;
     } else {
-      summaryHtml += `<p class="text-muted small">No assets selected</p>`;
+      summaryHtml += `<p class="text-muted small">No direct assets selected</p>`;
+    }
+    
+    summaryHtml += `</div>
+              <div class="col-md-6">
+                <h6 class="text-success mb-3"><i class="fas fa-sitemap me-2"></i>Related Assets (${impactedData.relatedAssets?.length || 0})</h6>`;
+    
+    if (impactedData.relatedAssets && impactedData.relatedAssets.length > 0) {
+      summaryHtml += `<div class="list-group list-group-flush">`;
+      impactedData.relatedAssets.slice(0, 3).forEach(asset => {
+        const environment = asset.environment || 'Unknown';
+        const relationship = asset.relationship_type || 'Related';
+        
+        summaryHtml += `<div class="list-group-item px-0 py-2 border-0">
+          <div class="fw-semibold">${asset.name}</div>
+          <small class="text-muted d-block">${asset.asset_type_name || 'Unknown Type'}</small>
+          <div class="d-flex flex-wrap gap-1 mt-1">
+            <span class="badge bg-outline-secondary">${environment}</span>
+            <span class="badge bg-warning text-dark" title="Relationship">${relationship}</span>
+          </div>
+        </div>`;
+      });
+      if (impactedData.relatedAssets.length > 3) {
+        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
+          <small class="text-muted">... and ${impactedData.relatedAssets.length - 3} more related assets</small>
+        </div>`;
+      }
+      summaryHtml += `</div>`;
+    } else {
+      summaryHtml += `<p class="text-muted small">No related assets found</p>`;
+    }
+    
+    summaryHtml += `</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+    // Stakeholders and approvers section
+    const totalStakeholders = (impactedData.stakeholders?.length || 0) + (impactedData.approvers?.length || 0);
+    summaryHtml += `<div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-user-check me-2"></i>Approvers (${impactedData.approvers?.length || 0})</h6>
+          </div>
+          <div class="card-body">`;
+    
+    if (impactedData.approvers && impactedData.approvers.length > 0) {
+      summaryHtml += `<div class="list-group list-group-flush">`;
+      impactedData.approvers.slice(0, 4).forEach(approver => {
+        const source = approver.source || 'Manual';
+        const role = approver.role || 'Approver';
+        
+        summaryHtml += `<div class="list-group-item px-0 py-2 border-0">
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <div class="fw-semibold">${approver.name}</div>
+              <small class="text-muted d-block">${approver.email}</small>
+              <div class="d-flex flex-wrap gap-1 mt-1">
+                <span class="badge bg-primary">${role}</span>
+                <span class="badge bg-secondary" title="Source">${source}</span>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      });
+      if (impactedData.approvers.length > 4) {
+        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
+          <small class="text-muted">... and ${impactedData.approvers.length - 4} more approvers</small>
+        </div>`;
+      }
+      summaryHtml += `</div>`;
+    } else {
+      summaryHtml += `<p class="text-muted small">No approvers identified</p>`;
     }
     
     summaryHtml += `</div>
@@ -2044,25 +2219,73 @@ const ChangeSubmission = {
       <div class="col-md-6">
         <div class="card h-100">
           <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-users me-2"></i>Stakeholders & Approvers</h6>
+            <h6 class="mb-0"><i class="fas fa-users me-2"></i>Stakeholders (${impactedData.stakeholders?.length || 0})</h6>
           </div>
           <div class="card-body">`;
     
-    const totalStakeholders = (impactedData.stakeholders?.length || 0) + (impactedData.approvers?.length || 0);
-    if (totalStakeholders > 0) {
-      summaryHtml += `<div class="small">
-        <div class="mb-2"><strong>Approvers:</strong> ${impactedData.approvers?.length || 0}</div>
-        <div class="mb-2"><strong>Stakeholders:</strong> ${impactedData.stakeholders?.length || 0}</div>
-        <div class="text-muted">Notifications and approvals will be sent automatically</div>
-      </div>`;
+    if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
+      summaryHtml += `<div class="list-group list-group-flush">`;
+      impactedData.stakeholders.slice(0, 4).forEach(stakeholder => {
+        const source = stakeholder.source || 'Manual';
+        const role = stakeholder.role || 'Stakeholder';
+        
+        summaryHtml += `<div class="list-group-item px-0 py-2 border-0">
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <div class="fw-semibold">${stakeholder.name}</div>
+              <small class="text-muted d-block">${stakeholder.email}</small>
+              <div class="d-flex flex-wrap gap-1 mt-1">
+                <span class="badge bg-info">${role}</span>
+                <span class="badge bg-secondary" title="Source">${source}</span>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      });
+      if (impactedData.stakeholders.length > 4) {
+        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
+          <small class="text-muted">... and ${impactedData.stakeholders.length - 4} more stakeholders</small>
+        </div>`;
+      }
+      summaryHtml += `</div>`;
     } else {
-      summaryHtml += `<p class="text-muted small">No stakeholders or approvers identified</p>`;
+      summaryHtml += `<p class="text-muted small">No stakeholders identified</p>`;
     }
     
     summaryHtml += `</div>
         </div>
       </div>
     </div>`;
+    
+    // Summary of automated processes
+    if (totalStakeholders > 0 || (data.selectedAssets && data.selectedAssets.length > 0)) {
+      summaryHtml += `<div class="row mb-4">
+        <div class="col-12">
+          <div class="alert alert-info">
+            <h6 class="alert-heading"><i class="fas fa-robot me-2"></i>Automated Processes</h6>
+            <ul class="mb-0">`;
+              
+      if (impactedData.approvers && impactedData.approvers.length > 0) {
+        summaryHtml += `<li>Approval workflow will be created with ${impactedData.approvers.length} approver(s)</li>`;
+      }
+      
+      if (totalStakeholders > 0) {
+        summaryHtml += `<li>Email notifications will be sent to ${totalStakeholders} stakeholder(s) and approver(s)</li>`;
+      }
+      
+      if (data.selectedAssets && data.selectedAssets.length > 0) {
+        summaryHtml += `<li>Assets will be automatically associated with the change request</li>`;
+      }
+              
+      if (riskAssessment && (riskAssessment.riskLevel === 'Medium' || riskAssessment.riskLevel === 'High')) {
+        summaryHtml += `<li>Peer review coordination task will be created (${riskAssessment.riskLevel} risk requires peer review)</li>`;
+      }
+      
+      summaryHtml += `</ul>
+          </div>
+        </div>
+      </div>`;
+    }
     
     // Workflow summary
     summaryHtml += `<div class="row mb-4">
