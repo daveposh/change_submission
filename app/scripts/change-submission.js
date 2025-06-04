@@ -219,17 +219,17 @@ const ChangeSubmission = {
       const changeRequest = await this.createChangeRequest(changeRequestData);
       this.state.submissionId = changeRequest.id;
 
-      // Step 4: Create approval workflow
-      console.log('✅ Step 4: Setting up approval workflow...');
+      // Step 4: Create peer review task if needed (immediately after change creation)
+      console.log('👥 Step 4: Creating peer review task if needed...');
+      await this.createPeerReviewTasks(changeRequest);
+
+      // Step 5: Create approval workflow
+      console.log('✅ Step 5: Setting up approval workflow...');
       await this.createApprovalWorkflow(changeRequest);
 
-      // Step 5: Send stakeholder notifications
-      console.log('📧 Step 5: Sending stakeholder notifications...');
+      // Step 6: Send stakeholder notifications
+      console.log('📧 Step 6: Sending stakeholder notifications...');
       await this.sendStakeholderNotifications(changeRequest);
-
-      // Step 6: Create peer review tasks
-      console.log('👥 Step 6: Creating peer review tasks...');
-      await this.createPeerReviewTasks(changeRequest);
 
       // Step 7: Associate assets with the change request
       console.log('🔗 Step 7: Associating assets with change request...');
@@ -1545,7 +1545,14 @@ const ChangeSubmission = {
         requester_id: changeRequest.requester_id,
         priority: taskPriority,
         status: 2, // Open status
-        source: 2  // Portal
+        source: 2, // Portal
+        tags: [
+          'peer-review-coordination',
+          'change-management',
+          `change-${changeRequest.id}`,
+          'sme-task',
+          `risk-${riskAssessment.riskLevel.toLowerCase()}`
+        ]
       };
       
       // Add responder_id only if we have a valid SME ID
@@ -1557,6 +1564,13 @@ const ChangeSubmission = {
       if (dueDate) {
         taskData.fr_due_by = dueDate.toISOString();
       }
+      
+      // Add custom fields to link to change request (if supported)
+      taskData.custom_fields = {
+        related_change_request: `CR-${changeRequest.id}`,
+        peer_review_required: true,
+        sme_coordination: true
+      };
       
       console.log('📋 Peer review coordination task data prepared:', {
         subject: taskData.subject,
