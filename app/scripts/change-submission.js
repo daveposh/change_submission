@@ -661,7 +661,61 @@ const ChangeSubmission = {
     }
     description += `</div>`;
 
-    // Comprehensive Review Section - NEW ADDITION
+    // PROMINENT SCHEDULE SECTION - NEW ADDITION
+    if (data.plannedStart || data.plannedEnd) {
+      const startDate = data.plannedStart ? new Date(data.plannedStart) : null;
+      const endDate = data.plannedEnd ? new Date(data.plannedEnd) : null;
+      const isUrgent = data.changeType === 'emergency' || (startDate && startDate <= new Date(Date.now() + 48 * 60 * 60 * 1000));
+      const scheduleColor = isUrgent ? '#dc3545' : '#28a745';
+      
+      description += `<div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, ${scheduleColor}15 0%, ${scheduleColor}25 100%); border-radius: 8px; border: 2px solid ${scheduleColor}; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">`;
+      description += `<h3 style="color: ${scheduleColor}; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center; font-size: 18px;">`;
+      description += `<span style="margin-right: 10px;">${isUrgent ? '⚡' : '📅'}</span>${isUrgent ? 'URGENT SCHEDULE' : 'CHANGE SCHEDULE'}`;
+      description += `</h3>`;
+      
+      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">`;
+      
+      if (startDate) {
+        const timeToStart = Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24));
+        description += `<div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${scheduleColor};">`;
+        description += `<h4 style="margin: 0 0 8px 0; color: ${scheduleColor}; font-size: 14px;">🚀 START TIME</h4>`;
+        description += `<div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 5px;">${startDate.toLocaleDateString()}</div>`;
+        description += `<div style="font-size: 14px; color: #666;">${startDate.toLocaleTimeString()}</div>`;
+        if (timeToStart >= 0) {
+          description += `<div style="font-size: 12px; color: ${isUrgent ? '#dc3545' : '#28a745'}; font-weight: bold; margin-top: 5px;">`;
+          description += `${timeToStart === 0 ? 'TODAY' : timeToStart === 1 ? 'TOMORROW' : `In ${timeToStart} days`}`;
+          description += `</div>`;
+        }
+        description += `</div>`;
+      }
+      
+      if (endDate) {
+        const duration = startDate && endDate ? Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) : null;
+        description += `<div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${scheduleColor};">`;
+        description += `<h4 style="margin: 0 0 8px 0; color: ${scheduleColor}; font-size: 14px;">🏁 END TIME</h4>`;
+        description += `<div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 5px;">${endDate.toLocaleDateString()}</div>`;
+        description += `<div style="font-size: 14px; color: #666;">${endDate.toLocaleTimeString()}</div>`;
+        if (duration) {
+          description += `<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">`;
+          description += `Duration: ${duration} day${duration !== 1 ? 's' : ''}`;
+          description += `</div>`;
+        }
+        description += `</div>`;
+      }
+      
+      if (isUrgent) {
+        description += `<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffc107;">`;
+        description += `<h4 style="margin: 0 0 8px 0; color: #856404; font-size: 14px;">⚠️ URGENT NOTICE</h4>`;
+        description += `<div style="font-size: 13px; color: #856404; line-height: 1.4;">`;
+        description += `This change is scheduled to begin ${timeToStart <= 2 ? 'very soon' : 'within the next few days'}. `;
+        description += `Please review and approve promptly to avoid delays.`;
+        description += `</div></div>`;
+      }
+      
+      description += `</div></div>`;
+    }
+
+    // Comprehensive Review Section
     description += `<div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6;">`;
     description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center;">`;
     description += `<span style="margin-right: 10px;">🔍</span>Comprehensive Change Review`;
@@ -732,7 +786,7 @@ const ChangeSubmission = {
     
     description += `</div>`; // End comprehensive review section
 
-    // Risk Assessment Section (Enhanced with better visuals)
+    // Risk Assessment Section (Enhanced with detailed text descriptions)
     if (riskAssessment && riskAssessment.riskLevel) {
       const riskColor = {
         'Low': '#28a745',
@@ -749,7 +803,27 @@ const ChangeSubmission = {
       description += `<span style="margin-left: 20px; padding: 8px 15px; background: #f8f9fa; border-radius: 20px; color: #495057; font-weight: bold;">Score: ${riskAssessment.totalScore || 0}/15</span>`;
       description += `</div>`;
       
-      // Risk factors breakdown with enhanced visuals
+      // Add detailed risk level explanation
+      description += `<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid ${riskColor};">`;
+      description += `<h4 style="margin: 0 0 10px 0; color: ${riskColor}; font-size: 14px;">📝 RISK LEVEL EXPLANATION</h4>`;
+      description += `<div style="font-size: 13px; line-height: 1.5; color: #495057;">`;
+      
+      if (riskAssessment.riskLevel === 'High') {
+        description += `<strong>High Risk Change:</strong> This change has significant potential for business disruption and requires enhanced oversight. `;
+        description += `Extended approval workflows, mandatory peer review periods, and additional stakeholder validation are required. `;
+        description += `Implementation should be carefully planned with comprehensive rollback procedures.`;
+      } else if (riskAssessment.riskLevel === 'Medium') {
+        description += `<strong>Medium Risk Change:</strong> This change has moderate potential for impact and requires standard approval processes. `;
+        description += `Peer review coordination will be initiated, and stakeholders will be notified for additional oversight. `;
+        description += `Proper testing and rollback planning should be completed before implementation.`;
+      } else {
+        description += `<strong>Low Risk Change:</strong> This change has minimal potential for business disruption and follows standard approval processes. `;
+        description += `While the risk is low, proper change management procedures will still be followed to ensure successful implementation.`;
+      }
+      
+      description += `</div></div>`;
+      
+      // Risk factors breakdown with enhanced visuals and descriptions
       description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 20px;">`;
       
       const riskFactors = [
@@ -768,12 +842,28 @@ const ChangeSubmission = {
         description += `<span style="font-size: 16px; margin-right: 8px;">${factor.icon}</span>`;
         description += `<div style="font-size: 13px; color: #495057; font-weight: 600;">${factor.label}</div>`;
         description += `</div>`;
-        description += `<div style="display: flex; align-items: center;">`;
+        description += `<div style="display: flex; align-items: center; margin-bottom: 8px;">`;
         description += `<div style="flex: 1; background: #e9ecef; height: 8px; border-radius: 4px; margin-right: 10px; overflow: hidden;">`;
         description += `<div style="height: 100%; background: linear-gradient(90deg, ${barColor} 0%, ${barColor}cc 100%); width: ${(score/3)*100}%; border-radius: 4px; transition: width 0.3s ease;"></div>`;
         description += `</div>`;
         description += `<span style="font-size: 14px; font-weight: bold; color: ${barColor}; min-width: 30px;">${score}/3</span>`;
-        description += `</div></div>`;
+        description += `</div>`;
+        
+        // Add text description for each factor
+        description += `<div style="font-size: 12px; color: #6c757d; line-height: 1.3;">`;
+        if (factor.key === 'businessImpact') {
+          description += this.getBusinessImpactDescription(score);
+        } else if (factor.key === 'affectedUsers') {
+          description += this.getUserImpactDescription(score);
+        } else if (factor.key === 'complexity') {
+          description += this.getComplexityDescription(score);
+        } else if (factor.key === 'testing') {
+          description += this.getTestingDescription(score);
+        } else if (factor.key === 'rollback') {
+          description += this.getRollbackDescription(score);
+        }
+        description += `</div>`;
+        description += `</div>`;
       });
       
       description += `</div></div>`;
@@ -782,7 +872,7 @@ const ChangeSubmission = {
     // Service Impact Section with comprehensive risk and impact information
     description += `</div>`;
     
-    console.log('✅ Enhanced description created with comprehensive review and rich formatting');
+    console.log('✅ Enhanced description created with comprehensive review, detailed risk descriptions, and prominent scheduling');
     return description;
   },
 
@@ -1059,64 +1149,56 @@ const ChangeSubmission = {
       return 'Impact assessment not completed. Please complete the risk questionnaire for detailed impact analysis.';
     }
 
-    // Create a structured, visually appealing impact summary
-    let summary = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 CHANGE IMPACT ASSESSMENT SUMMARY
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // Create a clean, readable impact summary without complex ASCII
+    let summary = `CHANGE IMPACT ASSESSMENT SUMMARY
+===========================================
 
-🎯 OVERALL IMPACT LEVEL: ${riskAssessment.riskLevel?.toUpperCase() || 'MEDIUM'}
-📈 Risk Score: ${riskAssessment.totalScore || 0}/15 Points
+OVERALL IMPACT LEVEL: ${riskAssessment.riskLevel?.toUpperCase() || 'MEDIUM'}
+Risk Score: ${riskAssessment.totalScore || 0}/15 Points
 
-┌─────────────────────────────────────────────────┐
-│                IMPACT CATEGORIES                │
-└─────────────────────────────────────────────────┘
+IMPACT CATEGORIES:
+------------------
 
-💼 BUSINESS IMPACT.............. ${this.formatImpactLevel(riskAssessment.businessImpact)}/3
+💼 BUSINESS IMPACT: ${this.formatImpactLevel(riskAssessment.businessImpact)}/3
    ${this.getBusinessImpactDescription(riskAssessment.businessImpact)}
 
-👥 USER IMPACT.................. ${this.formatImpactLevel(riskAssessment.affectedUsers)}/3
+👥 USER IMPACT: ${this.formatImpactLevel(riskAssessment.affectedUsers)}/3
    ${this.getUserImpactDescription(riskAssessment.affectedUsers)}
 
-⚙️  TECHNICAL COMPLEXITY........ ${this.formatImpactLevel(riskAssessment.complexity)}/3
+⚙️ TECHNICAL COMPLEXITY: ${this.formatImpactLevel(riskAssessment.complexity)}/3
    ${this.getComplexityDescription(riskAssessment.complexity)}
 
-🧪 TESTING REQUIREMENTS......... ${this.formatImpactLevel(riskAssessment.testing)}/3
+🧪 TESTING REQUIREMENTS: ${this.formatImpactLevel(riskAssessment.testing)}/3
    ${this.getTestingDescription(riskAssessment.testing)}
 
-↩️  ROLLBACK COMPLEXITY......... ${this.formatImpactLevel(riskAssessment.rollback)}/3
+↩️ ROLLBACK COMPLEXITY: ${this.formatImpactLevel(riskAssessment.rollback)}/3
    ${this.getRollbackDescription(riskAssessment.rollback)}
 
-┌─────────────────────────────────────────────────┐
-│              SCOPE & STAKEHOLDERS               │
-└─────────────────────────────────────────────────┘
+SCOPE & STAKEHOLDERS:
+--------------------
 
-🏢 ASSETS AFFECTED.............. ${selectedAssets.length || 0} System(s)
-👤 TECHNICAL APPROVERS.......... ${impactedData.approvers?.length || 0} Required
-👥 STAKEHOLDERS................. ${impactedData.stakeholders?.length || 0} Notified
-📧 TOTAL NOTIFICATIONS.......... ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)} People
+🏢 Assets Affected: ${selectedAssets.length || 0} System(s)
+👤 Technical Approvers: ${impactedData.approvers?.length || 0} Required
+👥 Stakeholders: ${impactedData.stakeholders?.length || 0} Notified
+📧 Total Notifications: ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)} People
 
-┌─────────────────────────────────────────────────┐
-│            RECOMMENDED ACTIONS                  │
-└─────────────────────────────────────────────────┘
+RECOMMENDED ACTIONS:
+-------------------
 
 ${this.getRecommendedActions(riskAssessment)}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🤖 Generated automatically from risk questionnaire
-   and asset analysis on ${new Date().toLocaleDateString()}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+Generated automatically from risk questionnaire and asset analysis on ${new Date().toLocaleDateString()}`;
     
     console.log('📋 Enhanced impact summary generated:', summary.substring(0, 200) + '...');
     return summary;
   },
 
   /**
-   * Format impact level with visual indicator
+   * Format impact level with simple visual indicator
    */
   formatImpactLevel(level) {
     const score = level || 0;
-    const indicators = ['●○○', '●●○', '●●●'];
-    return `${score} ${indicators[score - 1] || '○○○'}`;
+    return `${score}`;
   },
 
   /**
@@ -1520,24 +1602,86 @@ ${this.getRecommendedActions(riskAssessment)}
     body += `<p>Dear ${recipient.name},</p>`;
     body += `<p>A new change request has been submitted that may impact systems you manage or are responsible for.</p>`;
     
+    // PROMINENT SCHEDULE SECTION - NEW ADDITION
+    if (data.plannedStart || data.plannedEnd) {
+      const startDate = data.plannedStart ? new Date(data.plannedStart) : null;
+      const endDate = data.plannedEnd ? new Date(data.plannedEnd) : null;
+      const isUrgent = data.changeType === 'emergency' || (startDate && startDate <= new Date(Date.now() + 48 * 60 * 60 * 1000));
+      const scheduleColor = isUrgent ? '#dc3545' : '#28a745';
+      const timeToStart = startDate ? Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
+      
+      body += `<div style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, ${scheduleColor}15 0%, ${scheduleColor}25 100%); border-radius: 8px; border: 2px solid ${scheduleColor};">`;
+      body += `<h4 style="color: ${scheduleColor}; margin-top: 0; margin-bottom: 15px; font-size: 16px;">`;
+      body += `${isUrgent ? '⚡ URGENT SCHEDULE NOTICE' : '📅 CHANGE SCHEDULE'}`;
+      body += `</h4>`;
+      
+      body += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">`;
+      
+      if (startDate) {
+        body += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${scheduleColor};">`;
+        body += `<div style="font-weight: bold; color: ${scheduleColor}; margin-bottom: 5px;">🚀 START TIME</div>`;
+        body += `<div style="font-size: 16px; font-weight: bold; color: #333;">${startDate.toLocaleDateString()}</div>`;
+        body += `<div style="font-size: 14px; color: #666;">${startDate.toLocaleTimeString()}</div>`;
+        if (timeToStart !== null && timeToStart >= 0) {
+          body += `<div style="font-size: 12px; color: ${isUrgent ? '#dc3545' : '#28a745'}; font-weight: bold; margin-top: 5px;">`;
+          body += `${timeToStart === 0 ? 'TODAY' : timeToStart === 1 ? 'TOMORROW' : `In ${timeToStart} days`}`;
+          body += `</div>`;
+        }
+        body += `</div>`;
+      }
+      
+      if (endDate) {
+        const duration = startDate && endDate ? Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) : null;
+        body += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${scheduleColor};">`;
+        body += `<div style="font-weight: bold; color: ${scheduleColor}; margin-bottom: 5px;">🏁 END TIME</div>`;
+        body += `<div style="font-size: 16px; font-weight: bold; color: #333;">${endDate.toLocaleDateString()}</div>`;
+        body += `<div style="font-size: 14px; color: #666;">${endDate.toLocaleTimeString()}</div>`;
+        if (duration) {
+          body += `<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">`;
+          body += `Duration: ${duration} day${duration !== 1 ? 's' : ''}`;
+          body += `</div>`;
+        }
+        body += `</div>`;
+      }
+      
+      body += `</div>`;
+      
+      if (isUrgent) {
+        body += `<div style="background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffc107; margin-top: 15px;">`;
+        body += `<div style="color: #856404; font-weight: bold; font-size: 14px;">⚠️ URGENT ATTENTION REQUIRED</div>`;
+        body += `<div style="color: #856404; font-size: 13px; margin-top: 5px;">`;
+        body += `This change is scheduled to begin ${timeToStart <= 2 ? 'very soon' : 'within the next few days'}. `;
+        body += `${recipient.type === 'approver' ? 'Please review and approve promptly to avoid delays.' : 'Please be prepared for potential service impacts.'}`;
+        body += `</div></div>`;
+      }
+      
+      body += `</div>`;
+    }
+    
     // Change details
     body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">`;
     body += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
     body += `<p><strong>Change ID:</strong> CR-${changeRequest.id}</p>`;
     body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
-    body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</p>`;
+    body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'}</p>`;
     
     if (riskAssessment) {
       const riskColor = this.getRiskColor(riskAssessment.riskLevel);
       body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
+      
+      // Add risk level explanation in notifications
+      body += `<div style="background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid ${riskColor}; margin-top: 10px;">`;
+      body += `<div style="font-size: 13px; color: #495057;">`;
+      if (riskAssessment.riskLevel === 'High') {
+        body += `<strong>High Risk:</strong> This change requires enhanced oversight with extended approval workflows and mandatory peer review.`;
+      } else if (riskAssessment.riskLevel === 'Medium') {
+        body += `<strong>Medium Risk:</strong> This change follows standard approval processes with peer review coordination.`;
+      } else {
+        body += `<strong>Low Risk:</strong> This change has minimal business disruption potential but follows standard procedures.`;
+      }
+      body += `</div></div>`;
     }
     
-    if (data.plannedStartDate) {
-      body += `<p><strong>Planned Start:</strong> ${new Date(data.plannedStartDate).toLocaleString()}</p>`;
-    }
-    if (data.plannedEndDate) {
-      body += `<p><strong>Planned End:</strong> ${new Date(data.plannedEndDate).toLocaleString()}</p>`;
-    }
     body += `</div>`;
     
     // Implementation details
@@ -1573,6 +1717,12 @@ ${this.getRecommendedActions(riskAssessment)}
       body += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;">`;
       body += `<h4 style="margin-top: 0; color: #856404;">Action Required</h4>`;
       body += `<p>As an identified approver, you will receive a separate approval request that requires your review and approval.</p>`;
+      if (data.plannedStart) {
+        const timeToStart = Math.ceil((new Date(data.plannedStart) - new Date()) / (1000 * 60 * 60 * 24));
+        if (timeToStart <= 3) {
+          body += `<p style="color: #dc3545; font-weight: bold;">⚠️ Please note the urgent timeline - approval needed promptly!</p>`;
+        }
+      }
       body += `</div>`;
     } else {
       body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">`;
