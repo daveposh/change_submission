@@ -1156,57 +1156,122 @@ const ChangeSubmission = {
   },
 
   /**
-   * Generate enhanced impact summary based on questionnaire and assets
+   * Generate enhanced impact summary based on questionnaire and assets (HTML formatted)
    */
   generateImpactSummary(riskAssessment, selectedAssets = [], impactedData = {}) {
-    console.log('📊 Generating enhanced impact summary from questionnaire and asset data...');
+    console.log('📊 Generating enhanced HTML impact summary from questionnaire and asset data...');
     
     if (!riskAssessment || !riskAssessment.riskLevel) {
       console.warn('⚠️ No risk assessment data available for impact summary');
-      return 'Impact assessment not completed. Please complete the risk questionnaire for detailed impact analysis.';
+      return '<p><strong>Impact assessment not completed.</strong> Please complete the risk questionnaire for detailed impact analysis.</p>';
     }
 
-    // Create a clean, readable impact summary without complex ASCII
-    let summary = `CHANGE IMPACT ASSESSMENT SUMMARY
-===========================================
+    // Create an HTML-formatted impact summary for better readability
+    const riskColor = {
+      'Low': '#28a745',
+      'Medium': '#ffc107', 
+      'High': '#dc3545'
+    }[riskAssessment.riskLevel] || '#6c757d';
 
-OVERALL IMPACT LEVEL: ${riskAssessment.riskLevel?.toUpperCase() || 'MEDIUM'}
-Risk Score: ${riskAssessment.totalScore || 0}/15 Points
-
-IMPACT CATEGORIES:
-------------------
-
-💼 BUSINESS IMPACT: ${this.formatImpactLevel(riskAssessment.businessImpact)}/3
-   ${this.getBusinessImpactDescription(riskAssessment.businessImpact)}
-
-👥 USER IMPACT: ${this.formatImpactLevel(riskAssessment.affectedUsers)}/3
-   ${this.getUserImpactDescription(riskAssessment.affectedUsers)}
-
-⚙️ TECHNICAL COMPLEXITY: ${this.formatImpactLevel(riskAssessment.complexity)}/3
-   ${this.getComplexityDescription(riskAssessment.complexity)}
-
-🧪 TESTING REQUIREMENTS: ${this.formatImpactLevel(riskAssessment.testing)}/3
-   ${this.getTestingDescription(riskAssessment.testing)}
-
-↩️ ROLLBACK COMPLEXITY: ${this.formatImpactLevel(riskAssessment.rollback)}/3
-   ${this.getRollbackDescription(riskAssessment.rollback)}
-
-SCOPE & STAKEHOLDERS:
---------------------
-
-🏢 Assets Affected: ${selectedAssets.length || 0} System(s)
-👤 Technical Approvers: ${impactedData.approvers?.length || 0} Required
-👥 Stakeholders: ${impactedData.stakeholders?.length || 0} Notified
-📧 Total Notifications: ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)} People
-
-RECOMMENDED ACTIONS:
--------------------
-
-${this.getRecommendedActions(riskAssessment)}
-
-Generated automatically from risk questionnaire and asset analysis on ${new Date().toLocaleDateString()}`;
+    let summary = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333;">
+  
+  <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 8px; border-left: 4px solid ${riskColor}; margin-bottom: 20px;">
+    <h3 style="margin: 0 0 15px 0; color: #0066cc; font-size: 18px;">📊 Change Impact Assessment Summary</h3>
     
-    console.log('📋 Enhanced impact summary generated:', summary.substring(0, 200) + '...');
+    <div style="display: grid; grid-template-columns: auto 1fr; gap: 15px; align-items: center; margin-bottom: 15px;">
+      <div style="background: ${riskColor}; color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; text-align: center;">
+        ${riskAssessment.riskLevel?.toUpperCase()} RISK
+      </div>
+      <div style="font-size: 16px; font-weight: 600;">
+        Risk Score: <span style="color: ${riskColor};">${riskAssessment.totalScore || 0}/15 Points</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 20px;">
+    
+    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+      <h4 style="margin: 0 0 8px 0; color: #007bff; font-size: 14px; display: flex; align-items: center;">
+        💼 BUSINESS IMPACT
+        <span style="margin-left: auto; background: #f8f9fa; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${this.formatImpactLevel(riskAssessment.businessImpact)}/3</span>
+      </h4>
+      <p style="margin: 0; font-size: 13px; color: #666;">${this.getBusinessImpactDescription(riskAssessment.businessImpact)}</p>
+    </div>
+
+    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+      <h4 style="margin: 0 0 8px 0; color: #28a745; font-size: 14px; display: flex; align-items: center;">
+        👥 USER IMPACT
+        <span style="margin-left: auto; background: #f8f9fa; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${this.formatImpactLevel(riskAssessment.affectedUsers)}/3</span>
+      </h4>
+      <p style="margin: 0; font-size: 13px; color: #666;">${this.getUserImpactDescription(riskAssessment.affectedUsers)}</p>
+    </div>
+
+    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #17a2b8; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+      <h4 style="margin: 0 0 8px 0; color: #17a2b8; font-size: 14px; display: flex; align-items: center;">
+        ⚙️ COMPLEXITY
+        <span style="margin-left: auto; background: #f8f9fa; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${this.formatImpactLevel(riskAssessment.complexity)}/3</span>
+      </h4>
+      <p style="margin: 0; font-size: 13px; color: #666;">${this.getComplexityDescription(riskAssessment.complexity)}</p>
+    </div>
+
+    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+      <h4 style="margin: 0 0 8px 0; color: #e69500; font-size: 14px; display: flex; align-items: center;">
+        🧪 TESTING
+        <span style="margin-left: auto; background: #f8f9fa; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${this.formatImpactLevel(riskAssessment.testing)}/3</span>
+      </h4>
+      <p style="margin: 0; font-size: 13px; color: #666;">${this.getTestingDescription(riskAssessment.testing)}</p>
+    </div>
+
+    <div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #dc3545; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+      <h4 style="margin: 0 0 8px 0; color: #dc3545; font-size: 14px; display: flex; align-items: center;">
+        ↩️ ROLLBACK
+        <span style="margin-left: auto; background: #f8f9fa; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${this.formatImpactLevel(riskAssessment.rollback)}/3</span>
+      </h4>
+      <p style="margin: 0; font-size: 13px; color: #666;">${this.getRollbackDescription(riskAssessment.rollback)}</p>
+    </div>
+
+  </div>
+
+  <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 20px;">
+    <h4 style="margin: 0 0 15px 0; color: #495057; font-size: 16px; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">📋 Scope & Stakeholders</h4>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+      <div style="text-align: center; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+        <div style="font-size: 24px; font-weight: bold; color: #007bff;">${selectedAssets.length || 0}</div>
+        <div style="font-size: 12px; color: #666;">🏢 Assets Affected</div>
+      </div>
+      <div style="text-align: center; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+        <div style="font-size: 24px; font-weight: bold; color: #28a745;">${impactedData.approvers?.length || 0}</div>
+        <div style="font-size: 12px; color: #666;">👤 Technical Approvers</div>
+      </div>
+      <div style="text-align: center; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+        <div style="font-size: 24px; font-weight: bold; color: #17a2b8;">${impactedData.stakeholders?.length || 0}</div>
+        <div style="font-size: 12px; color: #666;">👥 Stakeholders</div>
+      </div>
+      <div style="text-align: center; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+        <div style="font-size: 24px; font-weight: bold; color: #ffc107;">${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)}</div>
+        <div style="font-size: 12px; color: #666;">📧 Total Notifications</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6;">
+    <h4 style="margin: 0 0 15px 0; color: #495057; font-size: 16px; border-bottom: 2px solid #dee2e6; padding-bottom: 8px;">⚡ Recommended Actions</h4>
+    <div style="font-size: 14px; line-height: 1.8;">
+      ${this.getRecommendedActionsHTML(riskAssessment)}
+    </div>
+  </div>
+
+  <div style="text-align: center; margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+    <small style="color: #6c757d; font-style: italic;">
+      Generated automatically from risk questionnaire and asset analysis on ${new Date().toLocaleDateString()}
+    </small>
+  </div>
+
+</div>`;
+    
+    console.log('📋 Enhanced HTML impact summary generated');
     return summary;
   },
 
@@ -1309,6 +1374,80 @@ Generated automatically from risk questionnaire and asset analysis on ${new Date
     }
     
     return actions.map(action => `• ${action}`).join('\n');
+  },
+
+  /**
+   * Get recommended actions as HTML formatted list
+   */
+  getRecommendedActionsHTML(riskAssessment) {
+    const actions = [];
+    const riskLevel = riskAssessment.riskLevel?.toLowerCase();
+    
+    if (riskLevel === 'high') {
+      actions.push({
+        icon: '🔴',
+        text: 'HIGH RISK - Extended approval workflow required',
+        color: '#dc3545'
+      });
+      actions.push({
+        icon: '⏰',
+        text: 'Mandatory 24-hour peer review period',
+        color: '#fd7e14'
+      });
+      actions.push({
+        icon: '📋',
+        text: 'Additional stakeholder review recommended',
+        color: '#6f42c1'
+      });
+    } else if (riskLevel === 'medium') {
+      actions.push({
+        icon: '🟡',
+        text: 'MEDIUM RISK - Standard approval workflow',
+        color: '#ffc107'
+      });
+      actions.push({
+        icon: '👥',
+        text: 'Peer review coordination will be initiated',
+        color: '#17a2b8'
+      });
+    } else {
+      actions.push({
+        icon: '🟢',
+        text: 'LOW RISK - Standard approval process',
+        color: '#28a745'
+      });
+    }
+    
+    if (riskAssessment.testing >= 3) {
+      actions.push({
+        icon: '🧪',
+        text: 'Enhanced testing validation recommended',
+        color: '#20c997'
+      });
+    }
+    
+    if (riskAssessment.rollback >= 3) {
+      actions.push({
+        icon: '↩️',
+        text: 'Rollback plan development required',
+        color: '#e83e8c'
+      });
+    }
+    
+    if (riskAssessment.complexity >= 3) {
+      actions.push({
+        icon: '⚙️',
+        text: 'Technical architecture review suggested',
+        color: '#6c757d'
+      });
+    }
+    
+    return actions.map(action => 
+      `<div style="display: flex; align-items: center; margin-bottom: 8px; padding: 8px 12px; background: ${action.color}15; border-left: 3px solid ${action.color}; border-radius: 4px;">
+        <span style="margin-right: 10px; font-size: 16px;">${action.icon}</span>
+        <span style="color: ${action.color}; font-weight: 500;">${action.text}</span>
+      </div>`
+    ).join('');
   },
 
   /**
