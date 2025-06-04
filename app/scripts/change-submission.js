@@ -1056,9 +1056,282 @@ const ChangeSubmission = {
   /**
    * Create peer review tasks for assigned agents
    */
-  createPeerReviewTasks() {
+  async createPeerReviewTasks(changeRequest) {
     console.log('👥 Creating peer review tasks...');
-    // Implementation would go here
+    
+    try {
+      // Get the risk assessment data
+      const data = window.changeRequestData;
+      const riskAssessment = data?.riskAssessment;
+      
+      console.log('🔍 Risk assessment data:', {
+        hasRiskAssessment: !!riskAssessment,
+        totalScore: riskAssessment?.totalScore,
+        riskLevel: riskAssessment?.riskLevel,
+        businessImpact: riskAssessment?.businessImpact,
+        affectedUsers: riskAssessment?.affectedUsers,
+        complexity: riskAssessment?.complexity,
+        testing: riskAssessment?.testing,
+        rollback: riskAssessment?.rollback
+      });
+      
+      if (!riskAssessment || !riskAssessment.totalScore) {
+        console.log('ℹ️ No risk assessment data available, skipping peer review task creation');
+        return;
+      }
+      
+      // Check if risk level requires peer review (score 7+ = Medium/High risk)
+      // Risk scoring: 5-7 = Low, 8-11 = Medium, 12-15 = High
+      // Peer review required for score 7+ (Medium and High risk changes)
+      const requiresPeerReview = riskAssessment.totalScore >= 7;
+      
+      console.log(`📊 Risk threshold analysis:`, {
+        totalScore: riskAssessment.totalScore,
+        riskLevel: riskAssessment.riskLevel,
+        threshold: 7,
+        requiresPeerReview: requiresPeerReview,
+        reasoning: requiresPeerReview 
+          ? `Score ${riskAssessment.totalScore} >= 7 (${riskAssessment.riskLevel} risk) - Peer review required`
+          : `Score ${riskAssessment.totalScore} < 7 (${riskAssessment.riskLevel} risk) - No peer review needed`
+      });
+      
+      if (!requiresPeerReview) {
+        console.log(`ℹ️ Risk score ${riskAssessment.totalScore} is below threshold (7+), no peer review required`);
+        return;
+      }
+      
+      console.log(`🎯 Risk score ${riskAssessment.totalScore} requires peer review task creation`);
+      
+      // Determine who should perform the peer review
+      const reviewerIds = this.identifyPeerReviewers(data, changeRequest);
+      
+      if (!reviewerIds || reviewerIds.length === 0) {
+        console.warn('⚠️ No peer reviewers identified, skipping task creation');
+        return;
+      }
+      
+      // Create peer review tasks for each reviewer
+      const createdTasks = [];
+      for (const reviewerId of reviewerIds) {
+        try {
+          const task = await this.createPeerReviewTask(changeRequest, reviewerId, riskAssessment);
+          if (task) {
+            createdTasks.push(task);
+            this.state.createdTasks.push(task);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to create peer review task for reviewer ${reviewerId}:`, error);
+        }
+      }
+      
+      console.log(`✅ Created ${createdTasks.length} peer review tasks for change ${changeRequest.id}`);
+      return createdTasks;
+      
+    } catch (error) {
+      console.error('❌ Error creating peer review tasks:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Identify who should perform peer review
+   */
+  identifyPeerReviewers(data, changeRequest) {
+    console.log('🔍 Identifying peer reviewers...');
+    
+    const reviewers = new Set();
+    
+    try {
+      // Option 1: Use assigned agent if available
+      if (data.selectedAgent?.id && data.selectedAgent.id !== changeRequest.requester_id) {
+        reviewers.add(data.selectedAgent.id);
+        console.log(`✅ Added assigned agent as peer reviewer: ${data.selectedAgent.id}`);
+      }
+      
+      // Option 2: Use technical owners from impacted services
+      const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+      if (impactedData.approvers && impactedData.approvers.length > 0) {
+        impactedData.approvers.forEach(approver => {
+          if (approver.id && approver.id !== changeRequest.requester_id) {
+            reviewers.add(approver.id);
+            console.log(`✅ Added technical owner as peer reviewer: ${approver.id}`);
+          }
+        });
+      }
+      
+      // Option 3: Use asset managers/owners
+      if (data.selectedAssets && data.selectedAssets.length > 0) {
+        data.selectedAssets.forEach(asset => {
+          if (asset.managed_by && asset.managed_by !== changeRequest.requester_id) {
+            reviewers.add(asset.managed_by);
+            console.log(`✅ Added asset manager as peer reviewer: ${asset.managed_by}`);
+          }
+          if (asset.agent_id && asset.agent_id !== changeRequest.requester_id && asset.agent_id !== asset.managed_by) {
+            reviewers.add(asset.agent_id);
+            console.log(`✅ Added asset agent as peer reviewer: ${asset.agent_id}`);
+          }
+        });
+      }
+      
+      const reviewerArray = Array.from(reviewers);
+      console.log(`🎯 Identified ${reviewerArray.length} peer reviewers:`, reviewerArray);
+      
+      return reviewerArray;
+      
+    } catch (error) {
+      console.error('❌ Error identifying peer reviewers:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Create a single peer review task
+   */
+  async createPeerReviewTask(changeRequest, reviewerId, riskAssessment) {
+    console.log(`📝 Creating peer review task for reviewer ${reviewerId}...`);
+    
+    try {
+      // Calculate due date (24 hours from now for peer review)
+      const dueDate = new Date();
+      dueDate.setHours(dueDate.getHours() + 24);
+      
+      // Determine priority based on risk level
+      let taskPriority = 2; // Medium priority default
+      if (riskAssessment.riskLevel === 'High') {
+        taskPriority = 3; // High priority for high-risk changes
+      }
+      
+      // Prepare task data
+      const taskData = {
+        // Required fields for ticket/task creation
+        subject: `Peer Review Required: ${changeRequest.subject}`,
+        description: this.generatePeerReviewTaskDescription(changeRequest, riskAssessment),
+        requester_id: changeRequest.requester_id,
+        responder_id: reviewerId,
+        priority: taskPriority,
+        status: 2, // Open status
+        type: 'Incident', // Task type
+        source: 2, // Portal
+        
+        // Due date
+        fr_due_by: dueDate.toISOString(),
+        
+        // Custom fields to link to change request
+        custom_fields: {
+          // Link to the change request if custom field exists
+          related_change_id: changeRequest.id
+        },
+        
+        // Tags to identify as peer review task
+        tags: ['peer-review', 'change-management', `change-${changeRequest.id}`]
+      };
+      
+      console.log('📋 Peer review task data prepared:', {
+        subject: taskData.subject,
+        reviewerId: reviewerId,
+        priority: taskPriority,
+        riskLevel: riskAssessment.riskLevel,
+        dueDate: dueDate.toISOString()
+      });
+      
+      // Create the task using the FDK request method
+      const response = await window.client.request.invokeTemplate('createTask', {
+        body: JSON.stringify(taskData)
+      });
+      
+      if (!response || !response.response) {
+        throw new Error('No response received from task creation API');
+      }
+      
+      const createdTask = JSON.parse(response.response);
+      console.log(`✅ Peer review task created successfully: ${createdTask.id}`);
+      
+      return createdTask;
+      
+    } catch (error) {
+      console.error(`❌ Failed to create peer review task for reviewer ${reviewerId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Generate peer review task description
+   */
+  generatePeerReviewTaskDescription(changeRequest, riskAssessment) {
+    const data = window.changeRequestData;
+    
+    let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6;">`;
+    
+    // Header
+    description += `<h3 style="color: #0066cc; margin-bottom: 20px;">🔍 Peer Review Required</h3>`;
+    
+    // Change request details
+    description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">`;
+    description += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
+    description += `<p><strong>Change ID:</strong> CR-${changeRequest.id}</p>`;
+    description += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
+    description += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</p>`;
+    description += `<p><strong>Risk Level:</strong> <span style="background-color: ${this.getRiskColor(riskAssessment.riskLevel)}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
+    
+    if (data.plannedStartDate) {
+      description += `<p><strong>Planned Start:</strong> ${new Date(data.plannedStartDate).toLocaleString()}</p>`;
+    }
+    if (data.plannedEndDate) {
+      description += `<p><strong>Planned End:</strong> ${new Date(data.plannedEndDate).toLocaleString()}</p>`;
+    }
+    description += `</div>`;
+    
+    // Implementation details
+    if (data.implementationPlan) {
+      description += `<div style="margin-bottom: 20px;">`;
+      description += `<h4 style="color: #333;">Implementation Plan</h4>`;
+      description += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #0066cc;">${data.implementationPlan}</div>`;
+      description += `</div>`;
+    }
+    
+    // Validation plan
+    if (data.validationPlan) {
+      description += `<div style="margin-bottom: 20px;">`;
+      description += `<h4 style="color: #333;">Validation Plan</h4>`;
+      description += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #28a745;">${data.validationPlan}</div>`;
+      description += `</div>`;
+    }
+    
+    // Review checklist
+    description += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">`;
+    description += `<h4 style="margin-top: 0; color: #856404;">Peer Review Checklist</h4>`;
+    description += `<p>Please review the technical implementation details and provide feedback on:</p>`;
+    description += `<ul style="margin-bottom: 0;">`;
+    description += `<li><strong>Technical Feasibility:</strong> Can this change be implemented as described?</li>`;
+    description += `<li><strong>Risk Assessment:</strong> Are there additional risks or issues not considered?</li>`;
+    description += `<li><strong>Alternative Approaches:</strong> Are there better or safer ways to achieve the same outcome?</li>`;
+    description += `<li><strong>Testing Strategy:</strong> Is the testing approach adequate for the risk level?</li>`;
+    description += `<li><strong>Rollback Plan:</strong> Is the rollback strategy sufficient and tested?</li>`;
+    description += `</ul>`;
+    description += `</div>`;
+    
+    // Instructions
+    description += `<div style="margin-top: 20px; padding: 15px; background-color: #d1ecf1; border-radius: 5px;">`;
+    description += `<h4 style="margin-top: 0; color: #0c5460;">Review Instructions</h4>`;
+    description += `<p>Please complete your peer review within <strong>24 hours</strong> and update this task with your findings.</p>`;
+    description += `<p>If you identify any concerns, please coordinate with the change requester before the implementation window.</p>`;
+    description += `</div>`;
+    
+    description += `</div>`;
+    
+    return description;
+  },
+
+  /**
+   * Get color for risk level badge
+   */
+  getRiskColor(riskLevel) {
+    const colors = {
+      'Low': '#28a745',
+      'Medium': '#ffc107',
+      'High': '#dc3545'
+    };
+    return colors[riskLevel] || '#6c757d';
   },
 
   /**
@@ -1075,13 +1348,69 @@ const ChangeSubmission = {
   showSubmissionSuccess(changeRequest) {
     console.log('🎉 Showing submission success...');
     
-    const successMessage = `
+    // Get risk assessment and peer review task information
+    const data = window.changeRequestData;
+    const riskAssessment = data?.riskAssessment;
+    const createdTasksCount = this.state.createdTasks?.length || 0;
+    
+    let successMessage = `
       <div class="alert alert-success" role="alert">
         <h4 class="alert-heading">✅ Change Request Submitted Successfully!</h4>
         <p><strong>Change Request ID:</strong> CR-${changeRequest.id}</p>
         <p><strong>Title:</strong> ${changeRequest.subject}</p>
-      </div>
     `;
+    
+    // Add risk level information
+    if (riskAssessment) {
+      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
+      successMessage += `
+        <p><strong>Risk Level:</strong> 
+          <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+            ${riskAssessment.riskLevel?.toUpperCase()}
+          </span> 
+          (Score: ${riskAssessment.totalScore}/15)
+        </p>
+      `;
+      
+      // Add peer review information
+      if (riskAssessment.totalScore >= 7) {
+        if (createdTasksCount > 0) {
+          successMessage += `
+            <div class="mt-3 p-3" style="background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+              <h6 style="color: #856404; margin-bottom: 8px;">
+                <i class="fas fa-users me-2"></i>Peer Review Required
+              </h6>
+              <p style="margin-bottom: 0; color: #856404;">
+                Due to the ${riskAssessment.riskLevel} risk level, <strong>${createdTasksCount} peer review task(s)</strong> 
+                have been created and assigned to technical reviewers. They have 24 hours to complete their review.
+              </p>
+            </div>
+          `;
+        } else {
+          successMessage += `
+            <div class="mt-3 p-3" style="background-color: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px;">
+              <h6 style="color: #721c24; margin-bottom: 8px;">
+                <i class="fas fa-exclamation-triangle me-2"></i>Peer Review Required
+              </h6>
+              <p style="margin-bottom: 0; color: #721c24;">
+                Due to the ${riskAssessment.riskLevel} risk level, peer review is required but no reviewers could be automatically identified. 
+                Please manually assign peer reviewers.
+              </p>
+            </div>
+          `;
+        }
+      } else {
+        successMessage += `
+          <div class="mt-3 p-3" style="background-color: #d1ecf1; border-left: 4px solid #0dcaf0; border-radius: 4px;">
+            <p style="margin-bottom: 0; color: #055160;">
+              <i class="fas fa-info-circle me-2"></i>No peer review required for ${riskAssessment.riskLevel} risk changes.
+            </p>
+          </div>
+        `;
+      }
+    }
+    
+    successMessage += `</div>`;
 
     const container = document.querySelector('.container-fluid') || document.body;
     container.innerHTML = successMessage + `
