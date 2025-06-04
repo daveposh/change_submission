@@ -493,9 +493,23 @@ const ChangeSubmission = {
 
     // Add custom fields structure to match the expected format (based on actual schema)
     changeRequestData.custom_fields = {
-      risks: riskSummary,
-      lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets)
+      risks: riskSummary,                                      // Text summary of risk assessment
+      lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets), // Primary technical owner
+      risk_level: data.riskAssessment?.totalScore || null      // Numerical risk score from questionnaire (5-15)
     };
+
+    // Debug: Log risk assessment values being added to custom fields
+    console.log('🎯 RISK ASSESSMENT VALUES BEING ADDED:');
+    console.log(`  Risk Level (Standard Field): ${risk} (${data.riskAssessment?.riskLevel})`);
+    console.log(`  Risk Score (Custom Field): ${data.riskAssessment?.totalScore}`);
+    console.log(`  Risk Summary Length: ${riskSummary?.length || 0} characters`);
+    console.log(`  Individual Risk Factors:`, {
+      businessImpact: data.riskAssessment?.businessImpact,
+      affectedUsers: data.riskAssessment?.affectedUsers,
+      complexity: data.riskAssessment?.complexity,
+      testing: data.riskAssessment?.testing,
+      rollback: data.riskAssessment?.rollback
+    });
 
     // Add planning fields only if they have content (avoid null values)
     console.log('🔍 DEBUGGING PLANNING FIELDS POPULATION:');
@@ -968,7 +982,8 @@ const ChangeSubmission = {
     // Add custom fields
     minimalData.custom_fields = {
       risks: riskSummary,
-      lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets)
+      lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets),
+      risk_level: data.riskAssessment?.totalScore || null
     };
 
     // Add dates if available
