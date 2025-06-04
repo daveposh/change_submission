@@ -1136,13 +1136,22 @@ const ChangeSubmission = {
     console.log('🔍 Identifying agent SME for peer review coordination...');
     
     try {
+      // Debug: Log the selectedAgent data structure
+      console.log('🔍 DEBUG: selectedAgent data:', {
+        selectedAgent: data.selectedAgent,
+        hasId: !!data.selectedAgent?.id,
+        hasName: !!data.selectedAgent?.name,
+        hasEmail: !!data.selectedAgent?.email,
+        requesterId: changeRequest.requester_id
+      });
+      
       // Primary option: Use the assigned agent as the SME
       if (data.selectedAgent?.id && data.selectedAgent.id !== changeRequest.requester_id) {
-        console.log(`✅ Using assigned agent as SME: ${data.selectedAgent.id} (${data.selectedAgent.name})`);
+        console.log(`✅ Using assigned agent as SME: ${data.selectedAgent.id} (${data.selectedAgent.name || data.selectedAgent.email || 'Name not available'})`);
         return {
           id: data.selectedAgent.id,
-          name: data.selectedAgent.name,
-          email: data.selectedAgent.email,
+          name: data.selectedAgent.name || data.selectedAgent.email || `Agent ${data.selectedAgent.id}`,
+          email: data.selectedAgent.email || null,
           source: 'Assigned Agent'
         };
       }
@@ -1152,11 +1161,11 @@ const ChangeSubmission = {
       if (impactedData.approvers && impactedData.approvers.length > 0) {
         const primaryApprover = impactedData.approvers[0];
         if (primaryApprover.id && primaryApprover.id !== changeRequest.requester_id) {
-          console.log(`✅ Using primary technical owner as SME: ${primaryApprover.id} (${primaryApprover.name})`);
+          console.log(`✅ Using primary technical owner as SME: ${primaryApprover.id} (${primaryApprover.name || 'Name not available'})`);
           return {
             id: primaryApprover.id,
-            name: primaryApprover.name,
-            email: primaryApprover.email,
+            name: primaryApprover.name || primaryApprover.email || `User ${primaryApprover.id}`,
+            email: primaryApprover.email || null,
             source: 'Primary Technical Owner'
           };
         }
@@ -1203,30 +1212,26 @@ const ChangeSubmission = {
         taskPriority = 3; // High priority for high-risk changes
       }
       
-      // Prepare task data
+      // Prepare task data with minimal required fields
       const taskData = {
-        // Required fields for ticket/task creation
+        // Essential fields for ticket creation
         subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
         description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
         requester_id: changeRequest.requester_id,
-        responder_id: agentSME.id,
         priority: taskPriority,
         status: 2, // Open status
-        type: 'Incident', // Task type
-        source: 2, // Portal
-        
-        // Due date
-        fr_due_by: dueDate.toISOString(),
-        
-        // Custom fields to link to change request
-        custom_fields: {
-          // Link to the change request if custom field exists
-          related_change_id: changeRequest.id
-        },
-        
-        // Tags to identify as peer review coordination task
-        tags: ['peer-review-coordination', 'change-management', `change-${changeRequest.id}`, 'sme-task']
+        source: 2  // Portal
       };
+      
+      // Add responder_id only if we have a valid SME ID
+      if (agentSME.id) {
+        taskData.responder_id = agentSME.id;
+      }
+      
+      // Add due date if supported
+      if (dueDate) {
+        taskData.fr_due_by = dueDate.toISOString();
+      }
       
       console.log('📋 Peer review coordination task data prepared:', {
         subject: taskData.subject,
@@ -1234,22 +1239,44 @@ const ChangeSubmission = {
         agentSMEName: agentSME.name,
         priority: taskPriority,
         riskLevel: riskAssessment.riskLevel,
-        dueDate: dueDate.toISOString()
+        dueDate: dueDate.toISOString(),
+        fullTaskData: taskData
       });
       
       // Create the task using the FDK request method
+      console.log('📡 Sending task creation request...');
       const response = await window.client.request.invokeTemplate('createTask', {
         body: JSON.stringify(taskData)
       });
+      
+      console.log('📡 Raw task creation response:', response);
       
       if (!response || !response.response) {
         throw new Error('No response received from task creation API');
       }
       
-      const createdTask = JSON.parse(response.response);
-      console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
+      let createdTask;
+      try {
+        createdTask = JSON.parse(response.response);
+        console.log('📋 Parsed task response:', createdTask);
+      } catch (parseError) {
+        console.error('❌ Failed to parse task response JSON:', response.response);
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
       
-      return createdTask;
+      // Handle different response structures
+      if (createdTask.ticket) {
+        // Standard ticket response structure
+        console.log(`✅ Peer review coordination task created successfully: ${createdTask.ticket.id}`);
+        return createdTask.ticket;
+      } else if (createdTask.id) {
+        // Direct response structure
+        console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
+        return createdTask;
+      } else {
+        console.error('❌ Unexpected task response structure:', createdTask);
+        throw new Error(`Unexpected response structure: ${JSON.stringify(createdTask)}`);
+      }
       
     } catch (error) {
       console.error(`❌ Failed to create peer review coordination task for agent SME ${agentSME.id}:`, error);
