@@ -15,7 +15,8 @@ const ChangeSubmission = {
     submissionId: null,
     approvalWorkflowId: null,
     createdTasks: [],
-    sentNotifications: []
+    sentNotifications: [],
+    associatedAssets: []
   },
 
   // Configuration
@@ -230,12 +231,16 @@ const ChangeSubmission = {
       console.log('👥 Step 6: Creating peer review tasks...');
       await this.createPeerReviewTasks(changeRequest);
 
-      // Step 7: Update change request with additional metadata
-      console.log('🔄 Step 7: Updating change request with workflow data...');
+      // Step 7: Associate assets with the change request
+      console.log('🔗 Step 7: Associating assets with change request...');
+      await this.associateAssets(changeRequest);
+
+      // Step 8: Update change request with additional metadata
+      console.log('🔄 Step 8: Updating change request with workflow data...');
       await this.updateChangeRequestMetadata(changeRequest);
 
-      // Step 8: Show success and redirect
-      console.log('🎉 Step 8: Submission completed successfully!');
+      // Step 9: Show success and redirect
+      console.log('🎉 Step 9: Submission completed successfully!');
       this.showSubmissionSuccess(changeRequest);
 
     } catch (error) {
@@ -1040,17 +1045,337 @@ const ChangeSubmission = {
   /**
    * Create approval workflow for the change request
    */
-  createApprovalWorkflow() {
+  async createApprovalWorkflow(changeRequest) {
     console.log('✅ Setting up approval workflow...');
-    // Implementation would go here
+    
+    try {
+      // Get impacted services data which contains approvers
+      const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+      
+      console.log('🔍 Impacted services data for approvals:', {
+        hasApprovers: !!(impactedData.approvers && impactedData.approvers.length > 0),
+        approverCount: impactedData.approvers?.length || 0,
+        approvers: impactedData.approvers?.map(a => ({ id: a.id, name: a.name, source: a.source })) || []
+      });
+      
+      if (!impactedData.approvers || impactedData.approvers.length === 0) {
+        console.log('ℹ️ No approvers identified from impacted services analysis, skipping approval workflow creation');
+        return;
+      }
+      
+      // Create approval workflow with identified approvers
+      const approvalData = this.prepareApprovalWorkflowData(changeRequest, impactedData.approvers);
+      
+      console.log('📋 Creating approval workflow with data:', approvalData);
+      
+      const response = await window.client.request.invokeTemplate('createApprovalWorkflow', {
+        context: {
+          change_id: changeRequest.id
+        },
+        body: JSON.stringify(approvalData)
+      });
+      
+      console.log('📡 Raw approval workflow response:', response);
+      
+      if (!response || !response.response) {
+        throw new Error('No response received from approval workflow creation API');
+      }
+      
+      let approvalWorkflow;
+      try {
+        approvalWorkflow = JSON.parse(response.response);
+        console.log('📋 Parsed approval workflow response:', approvalWorkflow);
+      } catch (parseError) {
+        console.error('❌ Failed to parse approval workflow response JSON:', response.response);
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+      
+      // Handle different response structures
+      if (approvalWorkflow.approval) {
+        this.state.approvalWorkflowId = approvalWorkflow.approval.id;
+        console.log(`✅ Approval workflow created successfully: ${approvalWorkflow.approval.id}`);
+        return approvalWorkflow.approval;
+      } else if (approvalWorkflow.id) {
+        this.state.approvalWorkflowId = approvalWorkflow.id;
+        console.log(`✅ Approval workflow created successfully: ${approvalWorkflow.id}`);
+        return approvalWorkflow;
+      } else {
+        console.error('❌ Unexpected approval workflow response structure:', approvalWorkflow);
+        throw new Error(`Unexpected response structure: ${JSON.stringify(approvalWorkflow)}`);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error creating approval workflow:', error);
+      // Don't throw error - approval workflow creation failure shouldn't stop the entire submission
+      console.warn('⚠️ Continuing with submission despite approval workflow creation failure');
+    }
+  },
+
+  /**
+   * Prepare approval workflow data
+   */
+  prepareApprovalWorkflowData(changeRequest, approvers) {
+    console.log('📦 Preparing approval workflow data...');
+    
+    const data = window.changeRequestData;
+    const riskAssessment = data?.riskAssessment;
+    
+    // Determine approval type based on risk level and number of approvers
+    let approvalType = 'parallel'; // Default to parallel approval
+    if (riskAssessment?.riskLevel === 'High' || approvers.length > 3) {
+      approvalType = 'sequential'; // Use sequential for high-risk or complex changes
+    }
+    
+    // Prepare approvers list
+    const approversList = approvers.map(approver => ({
+      approver_id: approver.id,
+      approver_name: approver.name || approver.email || `User ${approver.id}`,
+      level: 1 // All approvers at the same level for parallel, or increment for sequential
+    }));
+    
+    // For sequential approval, set different levels
+    if (approvalType === 'sequential') {
+      approversList.forEach((approver, index) => {
+        approver.level = index + 1;
+      });
+    }
+    
+    const approvalWorkflowData = {
+      approval_type: approvalType,
+      approvers: approversList,
+      approval_mode: approvalType === 'sequential' ? 'sequential' : 'parallel',
+      notify_before: 24, // Notify 24 hours before due date
+      escalate_after: 48, // Escalate after 48 hours
+      description: `Approval required for ${riskAssessment?.riskLevel || 'Medium'} risk change: ${changeRequest.subject}`
+    };
+    
+    console.log('📋 Approval workflow data prepared:', {
+      approvalType,
+      approverCount: approversList.length,
+      approvers: approversList.map(a => ({ id: a.approver_id, name: a.approver_name, level: a.level }))
+    });
+    
+    return approvalWorkflowData;
   },
 
   /**
    * Send stakeholder notifications
    */
-  sendStakeholderNotifications() {
+  async sendStakeholderNotifications(changeRequest) {
     console.log('📧 Sending stakeholder notifications...');
-    // Implementation would go here
+    
+    try {
+      // Get impacted services data which contains stakeholders
+      const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+      
+      console.log('🔍 Impacted services data for notifications:', {
+        hasStakeholders: !!(impactedData.stakeholders && impactedData.stakeholders.length > 0),
+        stakeholderCount: impactedData.stakeholders?.length || 0,
+        hasApprovers: !!(impactedData.approvers && impactedData.approvers.length > 0),
+        approverCount: impactedData.approvers?.length || 0
+      });
+      
+      // Combine stakeholders and approvers for notifications
+      const notificationRecipients = [];
+      
+      // Add stakeholders
+      if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
+        impactedData.stakeholders.forEach(stakeholder => {
+          if (stakeholder.email) {
+            notificationRecipients.push({
+              email: stakeholder.email,
+              name: stakeholder.name || stakeholder.email,
+              type: 'stakeholder',
+              source: stakeholder.source || 'Impacted Services'
+            });
+          }
+        });
+      }
+      
+      // Add approvers
+      if (impactedData.approvers && impactedData.approvers.length > 0) {
+        impactedData.approvers.forEach(approver => {
+          if (approver.email && !notificationRecipients.find(r => r.email === approver.email)) {
+            notificationRecipients.push({
+              email: approver.email,
+              name: approver.name || approver.email,
+              type: 'approver',
+              source: approver.source || 'Technical Owner'
+            });
+          }
+        });
+      }
+      
+      if (notificationRecipients.length === 0) {
+        console.log('ℹ️ No stakeholders or approvers with email addresses found, skipping notifications');
+        return;
+      }
+      
+      console.log(`📧 Sending notifications to ${notificationRecipients.length} recipients...`);
+      
+      // Send notifications to each recipient
+      const sentNotifications = [];
+      for (const recipient of notificationRecipients) {
+        try {
+          const notification = await this.sendStakeholderNotification(changeRequest, recipient);
+          if (notification) {
+            sentNotifications.push(notification);
+            this.state.sentNotifications.push(notification);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to send notification to ${recipient.email}:`, error);
+          // Continue with other notifications even if one fails
+        }
+      }
+      
+      console.log(`✅ Sent ${sentNotifications.length} stakeholder notifications for change ${changeRequest.id}`);
+      return sentNotifications;
+      
+    } catch (error) {
+      console.error('❌ Error sending stakeholder notifications:', error);
+      // Don't throw error - notification failure shouldn't stop the entire submission
+      console.warn('⚠️ Continuing with submission despite notification failure');
+    }
+  },
+
+  /**
+   * Send individual stakeholder notification
+   */
+  async sendStakeholderNotification(changeRequest, recipient) {
+    console.log(`📧 Sending notification to ${recipient.email} (${recipient.type})...`);
+    
+    try {
+      const data = window.changeRequestData;
+      const riskAssessment = data?.riskAssessment;
+      
+      // Prepare email content
+      const emailData = {
+        to: [recipient.email],
+        subject: `Change Request Notification: ${changeRequest.subject}`,
+        body: this.generateStakeholderNotificationBody(changeRequest, recipient, riskAssessment),
+        body_type: 'html'
+      };
+      
+      console.log('📋 Email notification data prepared:', {
+        to: emailData.to,
+        subject: emailData.subject,
+        recipientType: recipient.type
+      });
+      
+      const response = await window.client.request.invokeTemplate('sendEmail', {
+        body: JSON.stringify(emailData)
+      });
+      
+      console.log('📡 Raw email notification response:', response);
+      
+      if (!response || !response.response) {
+        throw new Error('No response received from email notification API');
+      }
+      
+      let emailResponse;
+      try {
+        emailResponse = JSON.parse(response.response);
+        console.log('📋 Parsed email response:', emailResponse);
+      } catch (parseError) {
+        console.error('❌ Failed to parse email response JSON:', response.response);
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+      
+      console.log(`✅ Notification sent successfully to ${recipient.email}`);
+      return {
+        recipient: recipient,
+        response: emailResponse,
+        sentAt: new Date().toISOString()
+      };
+      
+    } catch (error) {
+      console.error(`❌ Failed to send notification to ${recipient.email}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Generate stakeholder notification email body
+   */
+  generateStakeholderNotificationBody(changeRequest, recipient, riskAssessment) {
+    const data = window.changeRequestData;
+    
+    let body = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
+    
+    // Header
+    body += `<h3 style="color: #0066cc; margin-bottom: 20px;">📋 Change Request Notification</h3>`;
+    
+    // Greeting
+    body += `<p>Dear ${recipient.name},</p>`;
+    body += `<p>A new change request has been submitted that may impact systems you manage or are responsible for.</p>`;
+    
+    // Change details
+    body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">`;
+    body += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
+    body += `<p><strong>Change ID:</strong> CR-${changeRequest.id}</p>`;
+    body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
+    body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</p>`;
+    
+    if (riskAssessment) {
+      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
+      body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
+    }
+    
+    if (data.plannedStartDate) {
+      body += `<p><strong>Planned Start:</strong> ${new Date(data.plannedStartDate).toLocaleString()}</p>`;
+    }
+    if (data.plannedEndDate) {
+      body += `<p><strong>Planned End:</strong> ${new Date(data.plannedEndDate).toLocaleString()}</p>`;
+    }
+    body += `</div>`;
+    
+    // Implementation details
+    if (data.implementationPlan) {
+      body += `<div style="margin: 20px 0;">`;
+      body += `<h4 style="color: #333;">Implementation Plan</h4>`;
+      body += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #0066cc;">${data.implementationPlan}</div>`;
+      body += `</div>`;
+    }
+    
+    // Reason for change
+    if (data.reasonForChange) {
+      body += `<div style="margin: 20px 0;">`;
+      body += `<h4 style="color: #333;">Reason for Change</h4>`;
+      body += `<p>${data.reasonForChange}</p>`;
+      body += `</div>`;
+    }
+    
+    // Impacted assets
+    if (data.selectedAssets && data.selectedAssets.length > 0) {
+      body += `<div style="margin: 20px 0;">`;
+      body += `<h4 style="color: #333;">Impacted Assets</h4>`;
+      body += `<ul>`;
+      data.selectedAssets.forEach(asset => {
+        body += `<li>${asset.name} (${asset.asset_type_name || 'Unknown Type'})</li>`;
+      });
+      body += `</ul>`;
+      body += `</div>`;
+    }
+    
+    // Action required based on recipient type
+    if (recipient.type === 'approver') {
+      body += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;">`;
+      body += `<h4 style="margin-top: 0; color: #856404;">Action Required</h4>`;
+      body += `<p>As an identified approver, you will receive a separate approval request that requires your review and approval.</p>`;
+      body += `</div>`;
+    } else {
+      body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">`;
+      body += `<h4 style="margin-top: 0; color: #0c5460;">For Your Information</h4>`;
+      body += `<p>Please review this change request and provide any feedback or concerns to the change requester.</p>`;
+      body += `</div>`;
+    }
+    
+    // Footer
+    body += `<p>If you have any questions or concerns about this change, please contact the change requester directly.</p>`;
+    body += `<p>Best regards,<br>IT Change Management</p>`;
+    body += `</div>`;
+    
+    return body;
   },
 
   /**
@@ -1521,9 +1846,307 @@ const ChangeSubmission = {
       return;
     }
 
-    // For now, just proceed directly to submission
-    // TODO: Implement modal summary
-    this.handleSubmission();
+    // Generate and show the summary modal
+    this.generateSubmissionSummary();
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('confirmation-modal'));
+    modal.show();
+    
+    // Setup modal event listeners
+    this.setupModalEventListeners();
+  },
+
+  /**
+   * Generate comprehensive submission summary content
+   */
+  generateSubmissionSummary() {
+    console.log('📝 Generating submission summary content...');
+    
+    const data = window.changeRequestData;
+    const riskAssessment = data?.riskAssessment;
+    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+    
+    let summaryHtml = `<div class="submission-summary">`;
+    
+    // Header with change overview
+    summaryHtml += `<div class="row mb-4">
+      <div class="col-12">
+        <div class="card border-primary">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Change Request Overview</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-8">
+                <h6 class="fw-bold">${data.changeTitle || 'Untitled Change Request'}</h6>
+                <p class="text-muted mb-2">${data.changeDescription || data.reasonForChange || 'No description provided'}</p>
+                <div class="d-flex flex-wrap gap-2">
+                  <span class="badge bg-secondary">${data.changeType?.toUpperCase() || 'NORMAL'} CHANGE</span>`;
+    
+    if (riskAssessment) {
+      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
+      summaryHtml += `<span class="badge" style="background-color: ${riskColor};">${riskAssessment.riskLevel?.toUpperCase()} RISK</span>`;
+    }
+    
+    summaryHtml += `</div>
+              </div>
+              <div class="col-md-4 text-end">
+                <div class="text-muted small">
+                  <div><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</div>
+                  <div><strong>Agent:</strong> ${data.selectedAgent?.name || 'Unassigned'}</div>`;
+    
+    if (data.plannedStart) {
+      summaryHtml += `<div><strong>Start:</strong> ${new Date(data.plannedStart).toLocaleString()}</div>`;
+    }
+    if (data.plannedEnd) {
+      summaryHtml += `<div><strong>End:</strong> ${new Date(data.plannedEnd).toLocaleString()}</div>`;
+    }
+    
+    summaryHtml += `</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    
+    // Implementation details section
+    summaryHtml += `<div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Implementation Plan</h6>
+          </div>
+          <div class="card-body">
+            <p class="small">${data.implementationPlan || 'No implementation plan provided'}</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-undo me-2"></i>Backout Plan</h6>
+          </div>
+          <div class="card-body">
+            <p class="small">${data.backoutPlan || 'No backout plan provided'}</p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    
+    // Validation plan if available
+    if (data.validationPlan) {
+      summaryHtml += `<div class="row mb-4">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header">
+              <h6 class="mb-0"><i class="fas fa-check-circle me-2"></i>Validation Plan</h6>
+            </div>
+            <div class="card-body">
+              <p class="small">${data.validationPlan}</p>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+    
+    // Risk assessment details
+    if (riskAssessment) {
+      summaryHtml += `<div class="row mb-4">
+        <div class="col-12">
+          <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+              <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Risk Assessment Details</h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Business Impact:</span>
+                    <span class="badge bg-secondary">${riskAssessment.businessImpact || 0}/3</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Affected Users:</span>
+                    <span class="badge bg-secondary">${riskAssessment.affectedUsers || 0}/3</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Complexity:</span>
+                    <span class="badge bg-secondary">${riskAssessment.complexity || 0}/3</span>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Testing Level:</span>
+                    <span class="badge bg-secondary">${riskAssessment.testing || 0}/3</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Rollback Capability:</span>
+                    <span class="badge bg-secondary">${riskAssessment.rollback || 0}/3</span>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span><strong>Total Score:</strong></span>
+                    <span class="badge" style="background-color: ${this.getRiskColor(riskAssessment.riskLevel)};">${riskAssessment.totalScore || 0}/15</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+    
+    // Assets and services section
+    summaryHtml += `<div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-server me-2"></i>Associated Assets (${data.selectedAssets?.length || 0})</h6>
+          </div>
+          <div class="card-body">`;
+    
+    if (data.selectedAssets && data.selectedAssets.length > 0) {
+      summaryHtml += `<div class="list-group list-group-flush">`;
+      data.selectedAssets.slice(0, 5).forEach(asset => {
+        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
+          <small><strong>${asset.name}</strong> (${asset.asset_type_name || 'Unknown Type'})</small>
+        </div>`;
+      });
+      if (data.selectedAssets.length > 5) {
+        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
+          <small class="text-muted">... and ${data.selectedAssets.length - 5} more assets</small>
+        </div>`;
+      }
+      summaryHtml += `</div>`;
+    } else {
+      summaryHtml += `<p class="text-muted small">No assets selected</p>`;
+    }
+    
+    summaryHtml += `</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <h6 class="mb-0"><i class="fas fa-users me-2"></i>Stakeholders & Approvers</h6>
+          </div>
+          <div class="card-body">`;
+    
+    const totalStakeholders = (impactedData.stakeholders?.length || 0) + (impactedData.approvers?.length || 0);
+    if (totalStakeholders > 0) {
+      summaryHtml += `<div class="small">
+        <div class="mb-2"><strong>Approvers:</strong> ${impactedData.approvers?.length || 0}</div>
+        <div class="mb-2"><strong>Stakeholders:</strong> ${impactedData.stakeholders?.length || 0}</div>
+        <div class="text-muted">Notifications and approvals will be sent automatically</div>
+      </div>`;
+    } else {
+      summaryHtml += `<p class="text-muted small">No stakeholders or approvers identified</p>`;
+    }
+    
+    summaryHtml += `</div>
+        </div>
+      </div>
+    </div>`;
+    
+    // Workflow summary
+    summaryHtml += `<div class="row mb-4">
+      <div class="col-12">
+        <div class="card border-info">
+          <div class="card-header bg-info text-white">
+            <h6 class="mb-0"><i class="fas fa-workflow me-2"></i>What Will Happen After Submission</h6>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Change request will be created in Freshservice</li>
+                  <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Assets will be associated with the change</li>`;
+    
+    if (impactedData.approvers && impactedData.approvers.length > 0) {
+      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Approval workflow will be created for ${impactedData.approvers.length} approver(s)</li>`;
+    }
+    
+    summaryHtml += `</ul>
+              </div>
+              <div class="col-md-6">
+                <ul class="list-unstyled mb-0">`;
+    
+    if (totalStakeholders > 0) {
+      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Stakeholder notifications will be sent to ${totalStakeholders} recipient(s)</li>`;
+    }
+    
+    if (riskAssessment && riskAssessment.totalScore >= 7) {
+      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Peer review coordination task will be assigned to SME</li>`;
+    }
+    
+    summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>You will receive confirmation and tracking information</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    
+    // Important notes
+    summaryHtml += `<div class="row">
+      <div class="col-12">
+        <div class="alert alert-warning">
+          <h6><i class="fas fa-exclamation-circle me-2"></i>Important Notes</h6>
+          <ul class="mb-0">
+            <li>Once submitted, this change request cannot be edited directly</li>
+            <li>Any modifications will require creating a new change request or working with your assigned agent</li>
+            <li>You will receive email notifications as the change progresses through the approval workflow</li>`;
+    
+    if (riskAssessment && riskAssessment.totalScore >= 7) {
+      summaryHtml += `<li>This ${riskAssessment.riskLevel} risk change requires peer review coordination by the assigned SME</li>`;
+    }
+    
+    summaryHtml += `</ul>
+        </div>
+      </div>
+    </div>`;
+    
+    summaryHtml += `</div>`;
+    
+    // Update the modal content
+    const summaryContent = document.getElementById('summary-content');
+    if (summaryContent) {
+      summaryContent.innerHTML = summaryHtml;
+    }
+    
+    console.log('✅ Submission summary content generated and populated');
+  },
+
+  /**
+   * Setup modal event listeners
+   */
+  setupModalEventListeners() {
+    console.log('🔧 Setting up modal event listeners...');
+    
+    // Edit request button
+    const editBtn = document.getElementById('edit-request');
+    if (editBtn) {
+      editBtn.onclick = () => {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
+        modal.hide();
+        console.log('📝 User chose to edit request - modal closed');
+      };
+    }
+    
+    // Confirm submit button
+    const confirmBtn = document.getElementById('confirm-submit');
+    if (confirmBtn) {
+      confirmBtn.onclick = (e) => {
+        e.preventDefault();
+        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
+        modal.hide();
+        console.log('✅ User confirmed submission - proceeding with submission');
+        this.handleSubmission();
+      };
+    }
+    
+    console.log('✅ Modal event listeners setup complete');
   },
 
   /**
@@ -1550,6 +2173,91 @@ const ChangeSubmission = {
         statusElement.style.display = 'none';
       }, 10000);
     }
+  },
+
+  /**
+   * Associate assets with the change request
+   */
+  async associateAssets(changeRequest) {
+    console.log('🔗 Associating assets with change request...');
+    
+    try {
+      const data = window.changeRequestData;
+      
+      if (!data.selectedAssets || data.selectedAssets.length === 0) {
+        console.log('ℹ️ No assets selected for association, skipping asset association');
+        return;
+      }
+      
+      console.log(`🔍 Found ${data.selectedAssets.length} assets to associate:`, 
+        data.selectedAssets.map(asset => ({ id: asset.id, name: asset.name, display_id: asset.display_id })));
+      
+      // Prepare asset association data
+      const assetAssociationData = this.prepareAssetAssociationData(data.selectedAssets);
+      
+      console.log('📋 Asset association data prepared:', assetAssociationData);
+      
+      const response = await window.client.request.invokeTemplate('updateChange', {
+        context: {
+          change_id: changeRequest.id
+        },
+        body: JSON.stringify(assetAssociationData)
+      });
+      
+      console.log('📡 Raw asset association response:', response);
+      
+      if (!response || !response.response) {
+        throw new Error('No response received from asset association API');
+      }
+      
+      let associationResponse;
+      try {
+        associationResponse = JSON.parse(response.response);
+        console.log('📋 Parsed asset association response:', associationResponse);
+      } catch (parseError) {
+        console.error('❌ Failed to parse asset association response JSON:', response.response);
+        throw new Error(`Invalid JSON response: ${parseError.message}`);
+      }
+      
+      // Track associated assets
+      this.state.associatedAssets = data.selectedAssets.map(asset => ({
+        id: asset.id,
+        display_id: asset.display_id,
+        name: asset.name,
+        asset_type_name: asset.asset_type_name
+      }));
+      
+      console.log(`✅ Successfully associated ${data.selectedAssets.length} assets with change ${changeRequest.id}`);
+      return associationResponse;
+      
+    } catch (error) {
+      console.error('❌ Error associating assets with change request:', error);
+      // Don't throw error - asset association failure shouldn't stop the entire submission
+      console.warn('⚠️ Continuing with submission despite asset association failure');
+    }
+  },
+
+  /**
+   * Prepare asset association data for API call
+   */
+  prepareAssetAssociationData(selectedAssets) {
+    console.log('📦 Preparing asset association data...');
+    
+    // For Freshservice API v2, we use the assets array with display_id
+    const assetsData = selectedAssets.map(asset => ({
+      display_id: asset.display_id || asset.id
+    }));
+    
+    const associationData = {
+      assets: assetsData
+    };
+    
+    console.log('📋 Asset association data prepared:', {
+      assetCount: assetsData.length,
+      assets: assetsData
+    });
+    
+    return associationData;
   }
 };
 

@@ -176,6 +176,21 @@
       "isOAuth": false
     }
   },
+  "updateChange": {
+    "schema": {
+      "method": "PUT",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/changes/<%= context.change_id %>",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
+    }
+  },
   "createApprovalWorkflow": {
     "schema": {
       "method": "POST",
