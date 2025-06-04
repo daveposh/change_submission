@@ -1975,27 +1975,27 @@ const ChangeSubmission = {
         return;
       }
       
-      // Check if risk level requires peer review (score 7+ = Medium/High risk)
+      // Check if risk level requires peer review (score 8+ = Medium/High risk)
       // Risk scoring: 5-7 = Low, 8-11 = Medium, 12-15 = High
-      // Peer review required for score 7+ (Medium and High risk changes)
-      const requiresPeerReview = riskAssessment.totalScore >= 7;
+      // Peer review required for score 8+ (Medium and High risk changes)
+      const requiresPeerReview = riskAssessment.totalScore >= 8;
       
-      console.log(`📊 Risk threshold analysis:`, {
-        totalScore: riskAssessment.totalScore,
-        riskLevel: riskAssessment.riskLevel,
-        threshold: 7,
-        requiresPeerReview: requiresPeerReview,
-        reasoning: requiresPeerReview 
-          ? `Score ${riskAssessment.totalScore} >= 7 (${riskAssessment.riskLevel} risk) - Peer review required`
-          : `Score ${riskAssessment.totalScore} < 7 (${riskAssessment.riskLevel} risk) - No peer review needed`
-      });
+              console.log(`📊 Risk threshold analysis:`, {
+          totalScore: riskAssessment.totalScore,
+          riskLevel: riskAssessment.riskLevel,
+          threshold: 8,
+          requiresPeerReview: requiresPeerReview,
+          reasoning: requiresPeerReview 
+            ? `Score ${riskAssessment.totalScore} >= 8 (${riskAssessment.riskLevel} risk) - Peer review required`
+            : `Score ${riskAssessment.totalScore} < 8 (${riskAssessment.riskLevel} risk) - No peer review needed`
+        });
       
-      if (!requiresPeerReview) {
-        console.log(`ℹ️ Risk score ${riskAssessment.totalScore} is below threshold (7+), no peer review required`);
-        return;
-      }
-      
-      console.log(`🎯 Risk score ${riskAssessment.totalScore} requires peer review task creation`);
+              if (!requiresPeerReview) {
+          console.log(`ℹ️ Risk score ${riskAssessment.totalScore} is below threshold (8+), no peer review required`);
+          return;
+        }
+        
+        console.log(`🎯 Risk score ${riskAssessment.totalScore} requires peer review task creation`);
       
       // Identify the agent SME who will coordinate peer review
       const agentSME = this.identifyAgentSME(data, changeRequest);
