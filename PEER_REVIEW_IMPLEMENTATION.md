@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Freshworks FDK Change Management Application now automatically creates peer review tasks for change requests with risk scores of 7 or higher (Medium and High risk changes).
+The Freshworks FDK Change Management Application now automatically creates peer review coordination tasks for change requests with risk scores of 7 or higher (Medium and High risk changes). The task is assigned to an agent SME (Subject Matter Expert) who is responsible for coordinating the peer review process.
 
 ## Risk Threshold Logic
 
@@ -20,26 +20,36 @@ The Freshworks FDK Change Management Application now automatically creates peer 
 
 ## Implementation Details
 
-### Automatic Task Creation
+### SME Coordination Approach
 When a change request is submitted with risk score ≥ 7:
 
-1. **Reviewer Identification**: System automatically identifies peer reviewers from:
-   - Assigned agent (if different from requester)
-   - Technical owners from impacted services analysis
-   - Asset managers/owners from selected assets
+1. **SME Identification**: System automatically identifies an agent SME from:
+   - **Primary**: Assigned agent (if different from requester)
+   - **Fallback**: Primary technical owner from impacted services analysis
+   - **Last Resort**: Asset manager from selected assets
 
-2. **Task Creation**: Creates individual peer review tasks for each identified reviewer
+2. **Single Task Creation**: Creates one peer review coordination task assigned to the identified SME
 
-3. **Task Properties**:
-   - **Subject**: "Peer Review Required: [Change Title]"
-   - **Priority**: Medium (High for High-risk changes)
-   - **Due Date**: 24 hours from creation
-   - **Type**: Incident/Task
-   - **Tags**: `peer-review`, `change-management`, `change-[ID]`
+3. **SME Responsibilities**: The SME must choose one of three options:
+   - **Self-Review**: Conduct the peer review themselves if they have expertise
+   - **Reassignment**: Reassign the task to a qualified technical peer
+   - **External Coordination**: Obtain peer review through other means and attach evidence
+
+### Task Properties
+- **Subject**: "Peer Review Coordination Required: [Change Title]"
+- **Assigned To**: Agent SME (not individual peer reviewers)
+- **Priority**: Medium (High for High-risk changes)
+- **Due Date**: 24 hours from creation
+- **Type**: Incident/Task
+- **Tags**: `peer-review-coordination`, `change-management`, `change-[ID]`, `sme-task`
 
 ### Task Content
 
-Each peer review task includes:
+Each peer review coordination task includes:
+
+#### SME Assignment Section
+- Clear identification of assigned SME and their source (Assigned Agent, Technical Owner, etc.)
+- Explanation of SME responsibility for coordinating peer review
 
 #### Change Details Section
 - Change Request ID and title
@@ -52,41 +62,51 @@ Each peer review task includes:
 - Validation plan (if provided)
 - Risk assessment breakdown
 
-#### Review Checklist
-Reviewers are asked to evaluate:
-- **Technical Feasibility**: Can this change be implemented as described?
-- **Risk Assessment**: Are there additional risks not considered?
-- **Alternative Approaches**: Better or safer implementation methods?
-- **Testing Strategy**: Adequacy of testing for the risk level
-- **Rollback Plan**: Sufficiency of rollback procedures
+#### SME Responsibilities
+Clear instructions for the SME with three coordination options:
+1. **Conduct Review Yourself**: If SME has expertise
+2. **Reassign to Peer**: Transfer task to qualified reviewer
+3. **Coordinate External Review**: Obtain review externally and attach evidence
 
-#### Instructions
-- 24-hour completion deadline
-- Coordination requirements with change requester
+#### Review Checklist
+Standard evaluation criteria for the peer review:
+- **Technical Feasibility**: Implementation viability
+- **Risk Assessment**: Additional risks identification
+- **Alternative Approaches**: Better implementation methods
+- **Testing Strategy**: Adequacy for risk level
+- **Rollback Plan**: Sufficiency of procedures
+- **Implementation Timeline**: Realistic scheduling
+
+#### Completion Instructions
+- 24-hour deadline for coordination
+- Required evidence attachment
 - Task update requirements
+- Coordination with requester if issues found
 
 ## User Experience
 
 ### Submission Feedback
 After successful change submission, users see:
 
-#### For Risk Score ≥ 7 (with reviewers identified):
+#### For Risk Score ≥ 7 (with SME identified):
 ```
 ✅ Change Request Submitted Successfully!
 Change Request ID: CR-12345
 Title: Database Schema Update
 Risk Level: MEDIUM (Score: 9/15)
 
-👥 Peer Review Required
-Due to the Medium risk level, 2 peer review task(s) have been created 
-and assigned to technical reviewers. They have 24 hours to complete their review.
+🎯 Peer Review Coordination Required
+Due to the Medium risk level, a peer review coordination task has been assigned 
+to the agent SME. They are responsible for obtaining peer review within 24 hours 
+by either conducting the review themselves, reassigning to a peer, or coordinating external review.
 ```
 
-#### For Risk Score ≥ 7 (no reviewers identified):
+#### For Risk Score ≥ 7 (no SME identified):
 ```
 ⚠️ Peer Review Required
-Due to the Medium risk level, peer review is required but no reviewers 
-could be automatically identified. Please manually assign peer reviewers.
+Due to the Medium risk level, peer review is required but no agent SME could be 
+automatically identified. Please manually assign a Subject Matter Expert to 
+coordinate the peer review process.
 ```
 
 #### For Risk Score < 7:
@@ -95,6 +115,21 @@ could be automatically identified. Please manually assign peer reviewers.
 ```
 
 ## Technical Implementation
+
+### SME Identification Logic
+The system identifies the agent SME using this priority order:
+
+1. **Assigned Agent** (Primary choice)
+   - Must be different from the change requester
+   - Has direct responsibility for the change
+
+2. **Primary Technical Owner** (Fallback)
+   - First approver from impacted services analysis
+   - Technical expertise for affected systems
+
+3. **Asset Manager** (Last resort)
+   - Manager of the first selected asset
+   - Domain knowledge of affected infrastructure
 
 ### FDK Request Method
 Uses the standard Freshworks FDK request template pattern:
@@ -107,9 +142,9 @@ const response = await window.client.request.invokeTemplate('createTask', {
 ```
 
 ### Error Handling
-- Individual task creation failures don't stop the overall submission
+- Graceful degradation when no SME is identified
 - Detailed logging for troubleshooting
-- Graceful degradation when no reviewers are identified
+- Single point of failure vs. multiple task creation
 
 ### Integration Points
 - **Risk Assessment Module**: Reads risk scores and levels
@@ -137,12 +172,17 @@ To modify peer review behavior:
    dueDate.setHours(dueDate.getHours() + 24); // Change hours value
    ```
 
-3. **Task Priority**: Adjust priority logic in `createPeerReviewTask()`:
+3. **Task Priority**: Adjust priority logic in `createPeerReviewCoordinationTask()`:
    ```javascript
    let taskPriority = 2; // Medium priority default
    if (riskAssessment.riskLevel === 'High') {
      taskPriority = 3; // High priority for high-risk changes
    }
+   ```
+
+4. **SME Selection**: Modify the priority order in `identifyAgentSME()`:
+   ```javascript
+   // Adjust the order: Assigned Agent → Technical Owner → Asset Manager
    ```
 
 ## Monitoring and Reporting
@@ -151,25 +191,39 @@ To modify peer review behavior:
 Comprehensive logging includes:
 - Risk assessment data analysis
 - Threshold evaluation reasoning
-- Reviewer identification process
+- SME identification process
 - Task creation success/failure
-- Final task count summary
+- SME source tracking (Assigned Agent, Technical Owner, Asset Manager)
 
 ### State Tracking
-Created tasks are tracked in the submission module state:
+Created coordination tasks are tracked in the submission module state:
 ```javascript
 this.state.createdTasks.push(task);
 ```
 
+## Advantages of SME Coordination Approach
+
+### Benefits
+1. **Single Point of Responsibility**: One SME coordinates the entire process
+2. **Flexibility**: SME can choose the most appropriate review method
+3. **Expertise Matching**: SME can select the best-qualified peer reviewer
+4. **Reduced Task Overhead**: One task instead of multiple reviewer tasks
+5. **Clear Accountability**: SME is responsible for ensuring review completion
+
+### SME Options
+1. **Self-Review**: SME conducts review if they have sufficient expertise
+2. **Peer Assignment**: SME reassigns to most qualified technical peer
+3. **External Coordination**: SME obtains review through other channels
+
 ## Future Enhancements
 
 Potential improvements:
-1. **Custom Fields**: Link tasks to change requests via custom fields
-2. **Escalation**: Automatic escalation for overdue reviews
-3. **Templates**: Configurable task templates per risk level
-4. **Notifications**: Email notifications to reviewers
-5. **Dashboard**: Peer review workload dashboard
-6. **Metrics**: Review completion time analytics
+1. **SME Pool Management**: Configurable SME assignment rules
+2. **Escalation Workflows**: Automatic escalation for overdue coordination
+3. **Review Templates**: Standardized review forms and checklists
+4. **Peer Reviewer Directory**: Searchable database of qualified reviewers
+5. **Review Metrics**: Track coordination effectiveness and completion times
+6. **Integration**: Link with external review tools and systems
 
 ## Compliance
 
@@ -178,4 +232,5 @@ This implementation supports:
 - **Risk-based approval workflows**
 - **Audit trail requirements**
 - **Segregation of duties**
-- **Technical review standards** 
+- **Technical review standards**
+- **SME accountability frameworks** 

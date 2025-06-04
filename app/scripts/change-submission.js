@@ -1102,30 +1102,26 @@ const ChangeSubmission = {
       
       console.log(`🎯 Risk score ${riskAssessment.totalScore} requires peer review task creation`);
       
-      // Determine who should perform the peer review
-      const reviewerIds = this.identifyPeerReviewers(data, changeRequest);
+      // Identify the agent SME who will coordinate peer review
+      const agentSME = this.identifyAgentSME(data, changeRequest);
       
-      if (!reviewerIds || reviewerIds.length === 0) {
-        console.warn('⚠️ No peer reviewers identified, skipping task creation');
+      if (!agentSME) {
+        console.warn('⚠️ No agent SME identified, skipping peer review task creation');
         return;
       }
       
-      // Create peer review tasks for each reviewer
-      const createdTasks = [];
-      for (const reviewerId of reviewerIds) {
-        try {
-          const task = await this.createPeerReviewTask(changeRequest, reviewerId, riskAssessment);
-          if (task) {
-            createdTasks.push(task);
-            this.state.createdTasks.push(task);
-          }
-        } catch (error) {
-          console.error(`❌ Failed to create peer review task for reviewer ${reviewerId}:`, error);
+      // Create a single peer review coordination task for the agent SME
+      try {
+        const task = await this.createPeerReviewCoordinationTask(changeRequest, agentSME, riskAssessment);
+        if (task) {
+          this.state.createdTasks.push(task);
+          console.log(`✅ Created peer review coordination task for agent SME ${agentSME.id}: Task ${task.id}`);
+          return [task];
         }
+      } catch (error) {
+        console.error(`❌ Failed to create peer review coordination task for agent SME ${agentSME.id}:`, error);
+        throw error;
       }
-      
-      console.log(`✅ Created ${createdTasks.length} peer review tasks for change ${changeRequest.id}`);
-      return createdTasks;
       
     } catch (error) {
       console.error('❌ Error creating peer review tasks:', error);
@@ -1134,64 +1130,70 @@ const ChangeSubmission = {
   },
 
   /**
-   * Identify who should perform peer review
+   * Identify the agent SME who will coordinate peer review
    */
-  identifyPeerReviewers(data, changeRequest) {
-    console.log('🔍 Identifying peer reviewers...');
-    
-    const reviewers = new Set();
+  identifyAgentSME(data, changeRequest) {
+    console.log('🔍 Identifying agent SME for peer review coordination...');
     
     try {
-      // Option 1: Use assigned agent if available
+      // Primary option: Use the assigned agent as the SME
       if (data.selectedAgent?.id && data.selectedAgent.id !== changeRequest.requester_id) {
-        reviewers.add(data.selectedAgent.id);
-        console.log(`✅ Added assigned agent as peer reviewer: ${data.selectedAgent.id}`);
+        console.log(`✅ Using assigned agent as SME: ${data.selectedAgent.id} (${data.selectedAgent.name})`);
+        return {
+          id: data.selectedAgent.id,
+          name: data.selectedAgent.name,
+          email: data.selectedAgent.email,
+          source: 'Assigned Agent'
+        };
       }
       
-      // Option 2: Use technical owners from impacted services
+      // Fallback option: Use primary technical owner from impacted services
       const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
       if (impactedData.approvers && impactedData.approvers.length > 0) {
-        impactedData.approvers.forEach(approver => {
-          if (approver.id && approver.id !== changeRequest.requester_id) {
-            reviewers.add(approver.id);
-            console.log(`✅ Added technical owner as peer reviewer: ${approver.id}`);
-          }
-        });
+        const primaryApprover = impactedData.approvers[0];
+        if (primaryApprover.id && primaryApprover.id !== changeRequest.requester_id) {
+          console.log(`✅ Using primary technical owner as SME: ${primaryApprover.id} (${primaryApprover.name})`);
+          return {
+            id: primaryApprover.id,
+            name: primaryApprover.name,
+            email: primaryApprover.email,
+            source: 'Primary Technical Owner'
+          };
+        }
       }
       
-      // Option 3: Use asset managers/owners
+      // Last resort: Use asset manager as SME
       if (data.selectedAssets && data.selectedAssets.length > 0) {
-        data.selectedAssets.forEach(asset => {
+        for (const asset of data.selectedAssets) {
           if (asset.managed_by && asset.managed_by !== changeRequest.requester_id) {
-            reviewers.add(asset.managed_by);
-            console.log(`✅ Added asset manager as peer reviewer: ${asset.managed_by}`);
+            console.log(`✅ Using asset manager as SME: ${asset.managed_by} (from asset: ${asset.name})`);
+            return {
+              id: asset.managed_by,
+              name: `Asset Manager (${asset.name})`,
+              email: null,
+              source: 'Asset Manager'
+            };
           }
-          if (asset.agent_id && asset.agent_id !== changeRequest.requester_id && asset.agent_id !== asset.managed_by) {
-            reviewers.add(asset.agent_id);
-            console.log(`✅ Added asset agent as peer reviewer: ${asset.agent_id}`);
-          }
-        });
+        }
       }
       
-      const reviewerArray = Array.from(reviewers);
-      console.log(`🎯 Identified ${reviewerArray.length} peer reviewers:`, reviewerArray);
-      
-      return reviewerArray;
+      console.warn('⚠️ No suitable agent SME identified for peer review coordination');
+      return null;
       
     } catch (error) {
-      console.error('❌ Error identifying peer reviewers:', error);
-      return [];
+      console.error('❌ Error identifying agent SME:', error);
+      return null;
     }
   },
 
   /**
-   * Create a single peer review task
+   * Create a peer review coordination task for the agent SME
    */
-  async createPeerReviewTask(changeRequest, reviewerId, riskAssessment) {
-    console.log(`📝 Creating peer review task for reviewer ${reviewerId}...`);
+  async createPeerReviewCoordinationTask(changeRequest, agentSME, riskAssessment) {
+    console.log(`📝 Creating peer review coordination task for agent SME ${agentSME.id}...`);
     
     try {
-      // Calculate due date (24 hours from now for peer review)
+      // Calculate due date (24 hours from now for peer review coordination)
       const dueDate = new Date();
       dueDate.setHours(dueDate.getHours() + 24);
       
@@ -1204,10 +1206,10 @@ const ChangeSubmission = {
       // Prepare task data
       const taskData = {
         // Required fields for ticket/task creation
-        subject: `Peer Review Required: ${changeRequest.subject}`,
-        description: this.generatePeerReviewTaskDescription(changeRequest, riskAssessment),
+        subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
+        description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
         requester_id: changeRequest.requester_id,
-        responder_id: reviewerId,
+        responder_id: agentSME.id,
         priority: taskPriority,
         status: 2, // Open status
         type: 'Incident', // Task type
@@ -1222,13 +1224,14 @@ const ChangeSubmission = {
           related_change_id: changeRequest.id
         },
         
-        // Tags to identify as peer review task
-        tags: ['peer-review', 'change-management', `change-${changeRequest.id}`]
+        // Tags to identify as peer review coordination task
+        tags: ['peer-review-coordination', 'change-management', `change-${changeRequest.id}`, 'sme-task']
       };
       
-      console.log('📋 Peer review task data prepared:', {
+      console.log('📋 Peer review coordination task data prepared:', {
         subject: taskData.subject,
-        reviewerId: reviewerId,
+        agentSMEId: agentSME.id,
+        agentSMEName: agentSME.name,
         priority: taskPriority,
         riskLevel: riskAssessment.riskLevel,
         dueDate: dueDate.toISOString()
@@ -1244,26 +1247,33 @@ const ChangeSubmission = {
       }
       
       const createdTask = JSON.parse(response.response);
-      console.log(`✅ Peer review task created successfully: ${createdTask.id}`);
+      console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
       
       return createdTask;
       
     } catch (error) {
-      console.error(`❌ Failed to create peer review task for reviewer ${reviewerId}:`, error);
+      console.error(`❌ Failed to create peer review coordination task for agent SME ${agentSME.id}:`, error);
       throw error;
     }
   },
 
   /**
-   * Generate peer review task description
+   * Generate peer review coordination task description for agent SME
    */
-  generatePeerReviewTaskDescription(changeRequest, riskAssessment) {
+  generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
     const data = window.changeRequestData;
     
     let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6;">`;
     
     // Header
-    description += `<h3 style="color: #0066cc; margin-bottom: 20px;">🔍 Peer Review Required</h3>`;
+    description += `<h3 style="color: #0066cc; margin-bottom: 20px;">🎯 Peer Review Coordination Required</h3>`;
+    
+    // SME Assignment Notice
+    description += `<div style="background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #0066cc;">`;
+    description += `<h4 style="margin-top: 0; color: #0066cc;">📋 SME Assignment</h4>`;
+    description += `<p><strong>Assigned SME:</strong> ${agentSME.name} (${agentSME.source})</p>`;
+    description += `<p><strong>Responsibility:</strong> You are responsible for coordinating the peer review process for this ${riskAssessment.riskLevel} risk change.</p>`;
+    description += `</div>`;
     
     // Change request details
     description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">`;
@@ -1297,24 +1307,43 @@ const ChangeSubmission = {
       description += `</div>`;
     }
     
+    // SME Responsibilities
+    description += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin-bottom: 20px;">`;
+    description += `<h4 style="margin-top: 0; color: #856404;">🎯 Your Responsibilities as SME</h4>`;
+    description += `<p>As the assigned Subject Matter Expert, you must coordinate the peer review process by choosing <strong>ONE</strong> of the following options:</p>`;
+    description += `<ol style="margin-bottom: 0;">`;
+    description += `<li><strong>Conduct Peer Review Yourself:</strong> If you have the expertise, perform the technical review and attach your findings to this task.</li>`;
+    description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform the review.</li>`;
+    description += `<li><strong>Coordinate External Review:</strong> Obtain peer review through other means and attach evidence of the completed review.</li>`;
+    description += `</ol>`;
+    description += `</div>`;
+    
     // Review checklist
-    description += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">`;
-    description += `<h4 style="margin-top: 0; color: #856404;">Peer Review Checklist</h4>`;
-    description += `<p>Please review the technical implementation details and provide feedback on:</p>`;
+    description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #6c757d; margin-bottom: 20px;">`;
+    description += `<h4 style="margin-top: 0; color: #495057;">📝 Peer Review Checklist</h4>`;
+    description += `<p>The peer review (whether conducted by you or a peer) should evaluate:</p>`;
     description += `<ul style="margin-bottom: 0;">`;
     description += `<li><strong>Technical Feasibility:</strong> Can this change be implemented as described?</li>`;
     description += `<li><strong>Risk Assessment:</strong> Are there additional risks or issues not considered?</li>`;
     description += `<li><strong>Alternative Approaches:</strong> Are there better or safer ways to achieve the same outcome?</li>`;
     description += `<li><strong>Testing Strategy:</strong> Is the testing approach adequate for the risk level?</li>`;
     description += `<li><strong>Rollback Plan:</strong> Is the rollback strategy sufficient and tested?</li>`;
+    description += `<li><strong>Implementation Timeline:</strong> Is the proposed timeline realistic and appropriate?</li>`;
     description += `</ul>`;
     description += `</div>`;
     
     // Instructions
     description += `<div style="margin-top: 20px; padding: 15px; background-color: #d1ecf1; border-radius: 5px;">`;
-    description += `<h4 style="margin-top: 0; color: #0c5460;">Review Instructions</h4>`;
-    description += `<p>Please complete your peer review within <strong>24 hours</strong> and update this task with your findings.</p>`;
-    description += `<p>If you identify any concerns, please coordinate with the change requester before the implementation window.</p>`;
+    description += `<h4 style="margin-top: 0; color: #0c5460;">📋 Completion Instructions</h4>`;
+    description += `<p><strong>Deadline:</strong> Complete peer review coordination within <strong>24 hours</strong>.</p>`;
+    description += `<p><strong>Required Actions:</strong></p>`;
+    description += `<ul>`;
+    description += `<li>Either conduct the peer review yourself OR reassign to a qualified peer reviewer</li>`;
+    description += `<li>Attach evidence of completed peer review (review notes, findings, recommendations)</li>`;
+    description += `<li>Update this task with review results and any concerns identified</li>`;
+    description += `<li>Coordinate with the change requester if issues are found</li>`;
+    description += `</ul>`;
+    description += `<p><strong>Note:</strong> If you identify any concerns during the review, please coordinate with the change requester before the implementation window.</p>`;
     description += `</div>`;
     
     description += `</div>`;
@@ -1378,11 +1407,12 @@ const ChangeSubmission = {
           successMessage += `
             <div class="mt-3 p-3" style="background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
               <h6 style="color: #856404; margin-bottom: 8px;">
-                <i class="fas fa-users me-2"></i>Peer Review Required
+                <i class="fas fa-user-cog me-2"></i>Peer Review Coordination Required
               </h6>
               <p style="margin-bottom: 0; color: #856404;">
-                Due to the ${riskAssessment.riskLevel} risk level, <strong>${createdTasksCount} peer review task(s)</strong> 
-                have been created and assigned to technical reviewers. They have 24 hours to complete their review.
+                Due to the ${riskAssessment.riskLevel} risk level, a <strong>peer review coordination task</strong> 
+                has been assigned to the agent SME. They are responsible for obtaining peer review within 24 hours 
+                by either conducting the review themselves, reassigning to a peer, or coordinating external review.
               </p>
             </div>
           `;
@@ -1393,8 +1423,8 @@ const ChangeSubmission = {
                 <i class="fas fa-exclamation-triangle me-2"></i>Peer Review Required
               </h6>
               <p style="margin-bottom: 0; color: #721c24;">
-                Due to the ${riskAssessment.riskLevel} risk level, peer review is required but no reviewers could be automatically identified. 
-                Please manually assign peer reviewers.
+                Due to the ${riskAssessment.riskLevel} risk level, peer review is required but no agent SME could be automatically identified. 
+                Please manually assign a Subject Matter Expert to coordinate the peer review process.
               </p>
             </div>
           `;
