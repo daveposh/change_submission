@@ -2031,37 +2031,61 @@ const ChangeSubmission = {
     console.log('🔍 Identifying agent SME for peer review coordination...');
     
     try {
-      // Debug: Log the selectedAgent data structure
-      console.log('🔍 DEBUG: selectedAgent data:', {
+      // Debug: Log both the change request agent and form data
+      console.log('🔍 DEBUG: Agent identification data:', {
+        changeRequestAgentId: changeRequest.agent_id,
         selectedAgent: data.selectedAgent,
-        hasId: !!data.selectedAgent?.id,
-        hasName: !!data.selectedAgent?.name,
-        hasEmail: !!data.selectedAgent?.email,
+        hasSelectedAgentId: !!data.selectedAgent?.id,
+        hasSelectedAgentName: !!data.selectedAgent?.name,
+        hasSelectedAgentEmail: !!data.selectedAgent?.email,
         requesterId: changeRequest.requester_id
       });
       
-      // Primary option: Use the assigned agent as the SME
+      // Primary option: Use the agent from the created change request (most reliable)
+      if (changeRequest.agent_id && changeRequest.agent_id !== changeRequest.requester_id) {
+        console.log(`✅ Using change request agent as SME: ${changeRequest.agent_id}`);
+        
+        // Try to get agent details from form data if available
+        if (data.selectedAgent?.id === changeRequest.agent_id) {
+          return {
+            id: changeRequest.agent_id,
+            name: data.selectedAgent.name || data.selectedAgent.email || `Agent ${changeRequest.agent_id}`,
+            email: data.selectedAgent.email || null,
+            source: 'Assigned Agent (Change Request)'
+          };
+        } else {
+          // Agent ID exists but no details available
+          return {
+            id: changeRequest.agent_id,
+            name: `Agent ${changeRequest.agent_id}`,
+            email: null,
+            source: 'Assigned Agent (Change Request)'
+          };
+        }
+      }
+      
+      // Fallback: Use the assigned agent from form data
       if (data.selectedAgent?.id && data.selectedAgent.id !== changeRequest.requester_id) {
-        console.log(`✅ Using assigned agent as SME: ${data.selectedAgent.id} (${data.selectedAgent.name || data.selectedAgent.email || 'Name not available'})`);
+        console.log(`✅ Using form data agent as SME: ${data.selectedAgent.id} (${data.selectedAgent.name || data.selectedAgent.email || 'Name not available'})`);
         return {
           id: data.selectedAgent.id,
           name: data.selectedAgent.name || data.selectedAgent.email || `Agent ${data.selectedAgent.id}`,
           email: data.selectedAgent.email || null,
-          source: 'Assigned Agent'
+          source: 'Assigned Agent (Form Data)'
         };
       }
       
-      // Fallback option: Use primary technical owner from impacted services
+      // Secondary fallback: Use primary technical owner from impacted services
       const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
       if (impactedData.approvers && impactedData.approvers.length > 0) {
         const primaryApprover = impactedData.approvers[0];
         if (primaryApprover.id && primaryApprover.id !== changeRequest.requester_id) {
-          console.log(`✅ Using primary technical owner as SME: ${primaryApprover.id} (${primaryApprover.name || 'Name not available'})`);
+          console.log(`⚠️ No assigned agent found, using primary technical owner as SME: ${primaryApprover.id} (${primaryApprover.name || 'Name not available'})`);
           return {
             id: primaryApprover.id,
             name: primaryApprover.name || primaryApprover.email || `User ${primaryApprover.id}`,
             email: primaryApprover.email || null,
-            source: 'Primary Technical Owner'
+            source: 'Primary Technical Owner (Fallback)'
           };
         }
       }
@@ -2070,18 +2094,18 @@ const ChangeSubmission = {
       if (data.selectedAssets && data.selectedAssets.length > 0) {
         for (const asset of data.selectedAssets) {
           if (asset.managed_by && asset.managed_by !== changeRequest.requester_id) {
-            console.log(`✅ Using asset manager as SME: ${asset.managed_by} (from asset: ${asset.name})`);
+            console.log(`⚠️ No assigned agent or technical owner found, using asset manager as SME: ${asset.managed_by} (from asset: ${asset.name})`);
             return {
               id: asset.managed_by,
               name: `Asset Manager (${asset.name})`,
               email: null,
-              source: 'Asset Manager'
+              source: 'Asset Manager (Last Resort)'
             };
           }
         }
       }
       
-      console.warn('⚠️ No suitable agent SME identified for peer review coordination');
+      console.warn('⚠️ No suitable agent SME identified for peer review coordination - no assigned agent, technical owners, or asset managers available');
       return null;
       
     } catch (error) {
