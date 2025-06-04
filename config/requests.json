@@ -276,7 +276,7 @@
       "method": "POST",
       "protocol": "https",
       "host": "<%=iparam.freshservice_domain%>",
-      "path": "/api/v2/tasks",
+      "path": "/api/v2/changes/<%= context.change_id %>/tasks",
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
