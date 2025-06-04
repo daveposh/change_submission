@@ -241,7 +241,7 @@ const ChangeSubmission = {
 
       // Step 9: Show success and redirect
       console.log('🎉 Step 9: Submission completed successfully!');
-      this.showSubmissionSuccess(changeRequest);
+      await this.showSubmissionSuccess(changeRequest);
 
     } catch (error) {
       console.error('❌ Error during change request submission:', error);
@@ -2120,7 +2120,7 @@ Generated automatically from risk questionnaire and asset analysis on ${new Date
   /**
    * Show submission success in modal
    */
-  showSubmissionSuccess(changeRequest) {
+  async showSubmissionSuccess(changeRequest) {
     console.log('🎉 Showing submission success modal...');
     
     // Get risk assessment and peer review task information
@@ -2129,28 +2129,27 @@ Generated automatically from risk questionnaire and asset analysis on ${new Date
     const createdTasksCount = this.state.createdTasks?.length || 0;
     
     // Get Freshservice domain from installation parameters
-    const getFreshserviceDomain = () => {
+    const getFreshserviceDomain = async () => {
       try {
-        // First try to get from installation parameters
-        if (window.client && typeof window.client.iparams === 'object' && window.client.iparams.freshservice_domain) {
-          return window.client.iparams.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        // Get installation parameters using the client API
+        const params = await window.client.iparams.get();
+        console.log('🔍 Retrieved iparams:', params);
+        
+        if (params && params.freshservice_domain) {
+          const domain = params.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+          console.log('✅ Using domain from iparams:', domain);
+          return domain;
         }
         
-        // Fallback: try to extract from current URL
-        const currentHost = window.location.hostname;
-        if (currentHost.includes('freshservice.com')) {
-          return currentHost;
-        }
-        
-        // Last resort: generic placeholder
+        console.warn('⚠️ No freshservice_domain found in iparams');
         return 'your-domain.freshservice.com';
       } catch (error) {
-        console.warn('Could not determine Freshservice domain:', error);
+        console.error('❌ Could not retrieve installation parameters:', error);
         return 'your-domain.freshservice.com';
       }
     };
 
-    const freshserviceDomain = getFreshserviceDomain();
+    const freshserviceDomain = await getFreshserviceDomain();
     const changeUrl = `https://${freshserviceDomain}/changes/${changeRequest.id}`;
     
     // Build success content
@@ -2263,6 +2262,16 @@ Generated automatically from risk questionnaire and asset analysis on ${new Date
     // Show success modal with delay to ensure confirmation modal is hidden
     setTimeout(() => {
       const successModal = new bootstrap.Modal(document.getElementById('success-modal'));
+      
+      // Add event listener for when modal is hidden
+      const successModalElement = document.getElementById('success-modal');
+      if (successModalElement) {
+        successModalElement.addEventListener('hidden.bs.modal', () => {
+          console.log('🔧 Success modal hidden event triggered - ensuring page is enabled');
+          this.ensurePageEnabled();
+        }, { once: true }); // Only run once since we create new modal instances
+      }
+      
       successModal.show();
     }, 300);
   },
@@ -2271,30 +2280,104 @@ Generated automatically from risk questionnaire and asset analysis on ${new Date
    * Setup event listeners for success modal buttons
    */
   setupSuccessModalEventListeners() {
+    console.log('🔧 Setting up success modal event listeners...');
+    
     // New change button
     const newChangeBtn = document.getElementById('new-change-btn');
     if (newChangeBtn) {
       newChangeBtn.onclick = () => {
+        console.log('🔄 User clicked "Create Another Change" - reloading page');
         const successModal = bootstrap.Modal.getInstance(document.getElementById('success-modal'));
         if (successModal) {
           successModal.hide();
         }
-        window.location.reload();
+        
+        // Ensure page is enabled before reload (in case reload is delayed)
+        this.ensurePageEnabled();
+        
+        // Small delay to ensure modal closes before reload
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
       };
+      console.log('✅ New change button event listener set');
+    } else {
+      console.warn('⚠️ New change button not found');
     }
     
     // Close button - just closes modal to show the underlying page with details
     const closeBtn = document.getElementById('close-success-btn');
     if (closeBtn) {
       closeBtn.onclick = () => {
+        console.log('❌ User clicked "Close & View Details" - closing modal');
         const successModal = bootstrap.Modal.getInstance(document.getElementById('success-modal'));
         if (successModal) {
           successModal.hide();
         }
+        
+        // Ensure page is re-enabled after modal closes
+        this.ensurePageEnabled();
+        
         // Optional: Show a brief notification that they can still access the change
         this.showBriefSuccessNotification();
       };
+      console.log('✅ Close button event listener set');
+    } else {
+      console.warn('⚠️ Close button not found');
     }
+    
+    // View Change button is already set up with the correct href in showSubmissionSuccess
+    const viewChangeBtn = document.getElementById('view-change-btn');
+    if (viewChangeBtn) {
+      console.log('✅ View change button found with href:', viewChangeBtn.href);
+    } else {
+      console.warn('⚠️ View change button not found');
+    }
+  },
+
+  /**
+   * Ensure the page is properly enabled and not dark/disabled
+   */
+  ensurePageEnabled() {
+    console.log('🔧 Ensuring page is properly enabled...');
+    
+    // Remove any lingering modal backdrops
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => {
+      console.log('🗑️ Removing modal backdrop:', backdrop);
+      backdrop.remove();
+    });
+    
+    // Ensure body doesn't have modal-open class
+    if (document.body.classList.contains('modal-open')) {
+      console.log('🔧 Removing modal-open class from body');
+      document.body.classList.remove('modal-open');
+    }
+    
+    // Restore body overflow
+    if (document.body.style.overflow === 'hidden') {
+      console.log('🔧 Restoring body overflow');
+      document.body.style.overflow = '';
+    }
+    
+    // Ensure app content is enabled
+    const appContent = document.getElementById('app-content');
+    if (appContent) {
+      appContent.classList.remove('app-initializing');
+      appContent.classList.add('app-ready');
+      appContent.style.pointerEvents = 'auto';
+      appContent.style.filter = 'none';
+      console.log('✅ App content re-enabled');
+    }
+    
+    // Check for any initialization overlay that might still be showing
+    const initOverlay = document.getElementById('initialization-overlay');
+    if (initOverlay && initOverlay.style.display !== 'none') {
+      console.log('🔧 Hiding any lingering initialization overlay');
+      initOverlay.style.display = 'none';
+    }
+    
+    console.log('✅ Page enablement check complete');
   },
 
   /**
