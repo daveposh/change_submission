@@ -2344,7 +2344,7 @@ const ChangeSubmission = {
     };
 
     const freshserviceDomain = await getFreshserviceDomain();
-    const changeUrl = `https://${freshserviceDomain}/changes/${changeRequest.id}`;
+    const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
     
     // Build success content
     let successContent = `
