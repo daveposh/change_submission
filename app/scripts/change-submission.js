@@ -706,14 +706,14 @@ const ChangeSubmission = {
       }
       
       if (endDate) {
-        const duration = startDate && endDate ? Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) : null;
+        const durationText = startDate && endDate ? this.calculateDuration(startDate, endDate) : null;
         description += `<div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${scheduleColor};">`;
         description += `<h4 style="margin: 0 0 8px 0; color: ${scheduleColor}; font-size: 14px;">🏁 END TIME</h4>`;
         description += `<div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 5px;">${endDate.toLocaleDateString()}</div>`;
         description += `<div style="font-size: 14px; color: #666;">${endDate.toLocaleTimeString()}</div>`;
-        if (duration) {
+        if (durationText) {
           description += `<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">`;
-          description += `Duration: ${duration} day${duration !== 1 ? 's' : ''}`;
+          description += `Duration: ${durationText}`;
           description += `</div>`;
         }
         description += `</div>`;
@@ -748,7 +748,7 @@ const ChangeSubmission = {
     description += `<strong>Scope:</strong> ${data.selectedAssets?.length || 0} Asset(s) Affected<br>`;
     description += `<strong>Timing:</strong> ${data.plannedStart ? new Date(data.plannedStart).toLocaleDateString() : 'TBD'}<br>`;
     description += `<strong>Duration:</strong> ${data.plannedStart && data.plannedEnd ? 
-      Math.ceil((new Date(data.plannedEnd) - new Date(data.plannedStart)) / (1000 * 60 * 60 * 24)) + ' day(s)' : 'TBD'}`;
+      this.calculateDuration(new Date(data.plannedStart), new Date(data.plannedEnd)) : 'TBD'}`;
     description += `</div></div>`;
     
     // Stakeholder Impact Card
@@ -1095,6 +1095,60 @@ const ChangeSubmission = {
     } catch (error) {
       console.error('❌ Error creating change request:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Calculate duration between two dates with appropriate units
+   */
+  calculateDuration(startDate, endDate) {
+    if (!startDate || !endDate) return 'TBD';
+    
+    const diffMs = endDate - startDate;
+    
+    if (diffMs < 0) return 'Invalid duration';
+    
+    const diffMinutes = Math.round(diffMs / (1000 * 60));
+    const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const diffWeeks = Math.round(diffMs / (1000 * 60 * 60 * 24 * 7));
+    
+    // Less than 1 hour
+    if (diffMinutes < 60) {
+      return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''}`;
+    }
+    // Less than 24 hours
+    else if (diffHours < 24) {
+      const hours = Math.floor(diffMs / (1000 * 60 * 60));
+      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (minutes === 0) {
+        return `${hours} hour${hours !== 1 ? 's' : ''}`;
+      } else {
+        return `${hours}h ${minutes}m`;
+      }
+    }
+    // Less than 7 days
+    else if (diffDays < 7) {
+      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      
+      if (hours === 0) {
+        return `${days} day${days !== 1 ? 's' : ''}`;
+      } else {
+        return `${days}d ${hours}h`;
+      }
+    }
+    // 7 days or more
+    else {
+      const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
+      const days = Math.floor((diffMs % (1000 * 60 * 60 * 24 * 7)) / (1000 * 60 * 60 * 24));
+      
+      if (days === 0) {
+        return `${weeks} week${weeks !== 1 ? 's' : ''}`;
+      } else {
+        return `${weeks}w ${days}d`;
+      }
     }
   },
 
@@ -2194,13 +2248,14 @@ const ChangeSubmission = {
     
     // SME Responsibilities
     description += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin-bottom: 20px;">`;
-    description += `<h4 style="margin-top: 0; color: #856404;">🎯 Your Responsibilities as SME</h4>`;
-    description += `<p>As the assigned Subject Matter Expert, you must coordinate the peer review process by choosing <strong>ONE</strong> of the following options:</p>`;
+    description += `<h4 style="margin-top: 0; color: #856404;">🎯 Your Responsibilities as SME Coordinator</h4>`;
+    description += `<p>As the assigned Subject Matter Expert, you must coordinate an <strong>independent peer review</strong> by choosing <strong>ONE</strong> of the following options:</p>`;
     description += `<ol style="margin-bottom: 0;">`;
-    description += `<li><strong>Conduct Peer Review Yourself:</strong> If you have the expertise, perform the technical review and attach your findings to this task.</li>`;
-    description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform the review.</li>`;
-    description += `<li><strong>Coordinate External Review:</strong> Obtain peer review through other means and attach evidence of the completed review.</li>`;
+    description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review.</li>`;
+    description += `<li><strong>Coordinate External Review:</strong> Obtain peer review through other team members and attach evidence of the completed review.</li>`;
+    description += `<li><strong>Escalate for Review Assignment:</strong> If unsure who should review, escalate to management to identify an appropriate peer reviewer.</li>`;
     description += `</ol>`;
+    description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Note:</strong> As the SME, you should not review your own work or work you were directly involved in planning. The goal is independent technical validation.</p>`;
     description += `</div>`;
     
     // Review checklist
@@ -2223,12 +2278,13 @@ const ChangeSubmission = {
     description += `<p><strong>Deadline:</strong> Complete peer review coordination within <strong>24 hours</strong>.</p>`;
     description += `<p><strong>Required Actions:</strong></p>`;
     description += `<ul>`;
-    description += `<li>Either conduct the peer review yourself OR reassign to a qualified peer reviewer</li>`;
-    description += `<li>Attach evidence of completed peer review (review notes, findings, recommendations)</li>`;
+    description += `<li>Identify and assign a qualified peer reviewer (not yourself) to perform independent technical review</li>`;
+    description += `<li>Ensure the peer reviewer has access to all relevant documentation and plans</li>`;
+    description += `<li>Collect and attach evidence of completed peer review (review notes, findings, recommendations)</li>`;
     description += `<li>Update this task with review results and any concerns identified</li>`;
-    description += `<li>Coordinate with the change requester if issues are found</li>`;
+    description += `<li>Coordinate with the change requester if issues are found that need resolution</li>`;
     description += `</ul>`;
-    description += `<p><strong>Note:</strong> If you identify any concerns during the review, please coordinate with the change requester before the implementation window.</p>`;
+    description += `<p><strong>Important:</strong> The peer review must be conducted by someone other than the original SME or change requester to ensure independent validation of the technical approach.</p>`;
     description += `</div>`;
     
     description += `</div>`;
