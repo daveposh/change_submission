@@ -25,7 +25,7 @@
         "createChangeRequest": {},
         "updateChangeRequest": {},
         "updateChange": {},
-        "createApprovalWorkflow": {},
+        "createChangeApproval": {},
         "sendEmail": {},
         "createChangeTask": {},
         "createTicket": {}

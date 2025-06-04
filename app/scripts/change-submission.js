@@ -13,7 +13,7 @@ const ChangeSubmission = {
   state: {
     isSubmitting: false,
     submissionId: null,
-    approvalWorkflowId: null,
+    createdApprovals: [],
     createdTasks: [],
     sentNotifications: [],
     associatedAssets: []
@@ -1046,7 +1046,7 @@ const ChangeSubmission = {
    * Create approval workflow for the change request
    */
   async createApprovalWorkflow(changeRequest) {
-    console.log('✅ Setting up approval workflow...');
+    console.log('✅ Setting up change approvals...');
     
     try {
       // Get impacted services data which contains approvers
@@ -1059,103 +1059,98 @@ const ChangeSubmission = {
       });
       
       if (!impactedData.approvers || impactedData.approvers.length === 0) {
-        console.log('ℹ️ No approvers identified from impacted services analysis, skipping approval workflow creation');
+        console.log('ℹ️ No approvers identified from impacted services analysis, skipping approval creation');
         return;
       }
+
+      const data = window.changeRequestData;
+      const riskAssessment = data?.riskAssessment;
       
-      // Create approval workflow with identified approvers
-      const approvalData = this.prepareApprovalWorkflowData(changeRequest, impactedData.approvers);
+      // Create individual approvals for each approver
+      const createdApprovals = [];
       
-      console.log('📋 Creating approval workflow with data:', approvalData);
-      
-      const response = await window.client.request.invokeTemplate('createApprovalWorkflow', {
-        context: {
-          change_id: changeRequest.id
-        },
-        body: JSON.stringify(approvalData)
-      });
-      
-      console.log('📡 Raw approval workflow response:', response);
-      
-      if (!response || !response.response) {
-        throw new Error('No response received from approval workflow creation API');
+      for (const approver of impactedData.approvers) {
+        try {
+          console.log(`📝 Creating approval for approver: ${approver.name} (${approver.id})`);
+          
+          // Prepare approval data according to Freshservice API docs
+          const approvalData = {
+            approver_id: approver.id,
+            approval_type: 2, // Change approval type (1=Ticket, 2=Change)
+            email_content: `
+              <h3>Change Request Approval Required</h3>
+              <p>A <strong>${riskAssessment?.riskLevel || 'Medium'} risk</strong> change request requires your approval:</p>
+              <p><strong>Change:</strong> ${changeRequest.subject}</p>
+              <p><strong>Description:</strong> ${changeRequest.description_text || 'No description provided'}</p>
+              <p><strong>Risk Level:</strong> ${riskAssessment?.riskLevel || 'Medium'} (Score: ${riskAssessment?.totalScore || 'N/A'}/15)</p>
+              <p><strong>Requester:</strong> ${data.selectedRequester?.first_name} ${data.selectedRequester?.last_name} (${data.selectedRequester?.email})</p>
+              <p><strong>Planned Start:</strong> ${data.plannedStart ? new Date(data.plannedStart).toLocaleString() : 'TBD'}</p>
+              <p><strong>Planned End:</strong> ${data.plannedEnd ? new Date(data.plannedEnd).toLocaleString() : 'TBD'}</p>
+              <p>Your approval is required based on your role as a technical owner or stakeholder for the impacted assets.</p>
+              <p>Please review and approve/reject this change request in Freshservice.</p>
+            `
+          };
+          
+          console.log('📋 Approval data prepared:', {
+            approver_id: approver.id,
+            approval_type: approvalData.approval_type,
+            hasEmailContent: !!approvalData.email_content
+          });
+          
+          const response = await window.client.request.invokeTemplate('createChangeApproval', {
+            context: {
+              change_id: changeRequest.id
+            },
+            body: JSON.stringify(approvalData)
+          });
+          
+          console.log(`📡 Raw approval response for ${approver.name}:`, response);
+          
+          if (!response || !response.response) {
+            throw new Error(`No response received from approval creation API for approver ${approver.id}`);
+          }
+          
+          let approval;
+          try {
+            approval = JSON.parse(response.response);
+            console.log(`📋 Parsed approval response for ${approver.name}:`, approval);
+          } catch (parseError) {
+            console.error(`❌ Failed to parse approval response JSON for ${approver.name}:`, response.response);
+            throw new Error(`Invalid JSON response for approver ${approver.id}: ${parseError.message}`);
+          }
+          
+          // Handle different response structures
+          if (approval.approvals && approval.approvals.length > 0) {
+            const createdApproval = approval.approvals[0];
+            createdApprovals.push(createdApproval);
+            console.log(`✅ Approval created successfully for ${approver.name}: ${createdApproval.id}`);
+          } else if (approval.id) {
+            createdApprovals.push(approval);
+            console.log(`✅ Approval created successfully for ${approver.name}: ${approval.id}`);
+          } else {
+            console.error(`❌ Unexpected approval response structure for ${approver.name}:`, approval);
+            console.warn(`⚠️ Continuing with other approvers despite failure for ${approver.name}`);
+          }
+          
+        } catch (error) {
+          console.error(`❌ Error creating approval for ${approver.name} (${approver.id}):`, error);
+          // Continue with other approvers even if one fails
+          console.warn(`⚠️ Continuing with other approvers despite failure for ${approver.name}`);
+        }
       }
       
-      let approvalWorkflow;
-      try {
-        approvalWorkflow = JSON.parse(response.response);
-        console.log('📋 Parsed approval workflow response:', approvalWorkflow);
-      } catch (parseError) {
-        console.error('❌ Failed to parse approval workflow response JSON:', response.response);
-        throw new Error(`Invalid JSON response: ${parseError.message}`);
-      }
+      console.log(`✅ Created ${createdApprovals.length} out of ${impactedData.approvers.length} approvals`);
       
-      // Handle different response structures
-      if (approvalWorkflow.approval) {
-        this.state.approvalWorkflowId = approvalWorkflow.approval.id;
-        console.log(`✅ Approval workflow created successfully: ${approvalWorkflow.approval.id}`);
-        return approvalWorkflow.approval;
-      } else if (approvalWorkflow.id) {
-        this.state.approvalWorkflowId = approvalWorkflow.id;
-        console.log(`✅ Approval workflow created successfully: ${approvalWorkflow.id}`);
-        return approvalWorkflow;
-      } else {
-        console.error('❌ Unexpected approval workflow response structure:', approvalWorkflow);
-        throw new Error(`Unexpected response structure: ${JSON.stringify(approvalWorkflow)}`);
-      }
+      // Store created approvals in state
+      this.state.createdApprovals = createdApprovals;
+      
+      return createdApprovals;
       
     } catch (error) {
-      console.error('❌ Error creating approval workflow:', error);
-      // Don't throw error - approval workflow creation failure shouldn't stop the entire submission
-      console.warn('⚠️ Continuing with submission despite approval workflow creation failure');
+      console.error('❌ Error in approval creation process:', error);
+      // Don't throw error - approval creation failure shouldn't stop the entire submission
+      console.warn('⚠️ Continuing with submission despite approval creation failure');
     }
-  },
-
-  /**
-   * Prepare approval workflow data
-   */
-  prepareApprovalWorkflowData(changeRequest, approvers) {
-    console.log('📦 Preparing approval workflow data...');
-    
-    const data = window.changeRequestData;
-    const riskAssessment = data?.riskAssessment;
-    
-    // Determine approval type based on risk level and number of approvers
-    let approvalType = 'parallel'; // Default to parallel approval
-    if (riskAssessment?.riskLevel === 'High' || approvers.length > 3) {
-      approvalType = 'sequential'; // Use sequential for high-risk or complex changes
-    }
-    
-    // Prepare approvers list
-    const approversList = approvers.map(approver => ({
-      approver_id: approver.id,
-      approver_name: approver.name || approver.email || `User ${approver.id}`,
-      level: 1 // All approvers at the same level for parallel, or increment for sequential
-    }));
-    
-    // For sequential approval, set different levels
-    if (approvalType === 'sequential') {
-      approversList.forEach((approver, index) => {
-        approver.level = index + 1;
-      });
-    }
-    
-    const approvalWorkflowData = {
-      approval_type: approvalType,
-      approvers: approversList,
-      approval_mode: approvalType === 'sequential' ? 'sequential' : 'parallel',
-      notify_before: 24, // Notify 24 hours before due date
-      escalate_after: 48, // Escalate after 48 hours
-      description: `Approval required for ${riskAssessment?.riskLevel || 'Medium'} risk change: ${changeRequest.subject}`
-    };
-    
-    console.log('📋 Approval workflow data prepared:', {
-      approvalType,
-      approverCount: approversList.length,
-      approvers: approversList.map(a => ({ id: a.approver_id, name: a.approver_name, level: a.level }))
-    });
-    
-    return approvalWorkflowData;
   },
 
   /**

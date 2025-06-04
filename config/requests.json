@@ -191,7 +191,7 @@
       "isOAuth": false
     }
   },
-  "createApprovalWorkflow": {
+  "createChangeApproval": {
     "schema": {
       "method": "POST",
       "protocol": "https",
