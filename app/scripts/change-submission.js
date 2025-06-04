@@ -1111,7 +1111,6 @@ const ChangeSubmission = {
     const diffMinutes = Math.round(diffMs / (1000 * 60));
     const diffHours = Math.round(diffMs / (1000 * 60 * 60));
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-    const diffWeeks = Math.round(diffMs / (1000 * 60 * 60 * 24 * 7));
     
     // Less than 1 hour
     if (diffMinutes < 60) {
