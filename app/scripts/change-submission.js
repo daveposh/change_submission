@@ -1532,18 +1532,16 @@ const ChangeSubmission = {
       dueDate.setHours(dueDate.getHours() + 24);
       
       // Prepare task data following Freshservice API v2 change task schema
+      // Based on official documentation: /api/v2/changes/[id]/tasks
       const taskData = {
-        // Essential fields for change task creation (as per API documentation)
+        // Essential fields for change task creation (as per v2 API documentation)
         title: `Peer Review Coordination Required: ${changeRequest.subject}`,
         description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
         status: 1, // Status: 1-Open, 2-In Progress, 3-Completed
         agent_id: agentSME.id, // ID of the agent to whom the task is assigned
         due_date: dueDate.toISOString(), // Due date of the task
         notify_before: 3600, // Notify 1 hour before due date (in seconds)
-        
-        // Optional fields
-        group_id: agentSME.group_id || null, // Group assignment if available
-        workspace_id: 2 // CXI Change Management workspace (if applicable)
+        workspace_id: 2 // CXI Change Management workspace
       };
       
       console.log('📋 Peer review coordination task data prepared:', {
@@ -1554,11 +1552,12 @@ const ChangeSubmission = {
         riskLevel: riskAssessment.riskLevel,
         dueDate: dueDate.toISOString(),
         changeId: changeRequest.id,
+        apiVersion: 'v2',
         workspaceId: taskData.workspace_id,
         notifyBefore: taskData.notify_before
       });
       
-      // Create the task using the FDK request method with the change-specific tasks endpoint
+      // Create the task using the FDK request method with the change tasks endpoint (v2 API)
       console.log('📡 Sending change task creation request...');
       const response = await window.client.request.invokeTemplate('createChangeTask', {
         context: {
@@ -1583,9 +1582,9 @@ const ChangeSubmission = {
         throw new Error(`Invalid JSON response: ${parseError.message}`);
       }
       
-      // Handle different response structures for change tasks
+      // Handle v2 API response structure for change tasks
       if (createdTask.task) {
-        // Standard change task response structure
+        // Standard v2 change task response structure (documented format)
         console.log(`✅ Peer review coordination task created successfully: ${createdTask.task.id}`);
         return createdTask.task;
       } else if (createdTask.id) {
@@ -1599,7 +1598,30 @@ const ChangeSubmission = {
       
     } catch (error) {
       console.error(`❌ Failed to create peer review coordination task for agent SME ${agentSME.id}:`, error);
-      throw error;
+      
+      // Enhanced error logging for debugging
+      if (error.status === 500 && error.response) {
+        console.error('📋 500 Error Details:', {
+          status: error.status,
+          response: error.response,
+          headers: error.headers,
+          attempts: error.attempts,
+          changeId: changeRequest.id,
+          agentId: agentSME.id
+        });
+        
+        // Try to parse error response for more details
+        try {
+          const errorData = JSON.parse(error.response);
+          console.error('📋 Parsed error response:', errorData);
+        } catch (parseErr) {
+          console.error('📋 Could not parse error response as JSON');
+        }
+      }
+      
+      // For now, don't throw to prevent blocking submission
+      console.warn('⚠️ Continuing submission despite task creation failure...');
+      return null;
     }
   },
 

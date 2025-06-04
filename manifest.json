@@ -27,9 +27,8 @@
         "updateChange": {},
         "createApprovalWorkflow": {},
         "sendEmail": {},
-        "createTask": {},
-        "createTicket": {},
-        "createChangeTask": {}
+        "createChangeTask": {},
+        "createTicket": {}
       },
       "storage": {
         "data_storage": {
