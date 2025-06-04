@@ -3156,6 +3156,12 @@ const ChangeSubmission = {
         const modal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
         modal.hide();
         console.log('📝 User chose to edit request - modal closed');
+        
+        // Re-enable the page so user can edit
+        setTimeout(() => {
+          this.ensurePageEnabled();
+          console.log('✅ Page re-enabled for editing');
+        }, 300); // Small delay to ensure modal closes properly
       };
     }
     
