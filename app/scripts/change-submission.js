@@ -675,13 +675,15 @@ const ChangeSubmission = {
       
       description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">`;
       
+      // Calculate timeToStart outside the conditional block so it's available throughout
+      const timeToStart = startDate ? Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
+      
       if (startDate) {
-        const timeToStart = Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24));
         description += `<div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${scheduleColor};">`;
         description += `<h4 style="margin: 0 0 8px 0; color: ${scheduleColor}; font-size: 14px;">🚀 START TIME</h4>`;
         description += `<div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 5px;">${startDate.toLocaleDateString()}</div>`;
         description += `<div style="font-size: 14px; color: #666;">${startDate.toLocaleTimeString()}</div>`;
-        if (timeToStart >= 0) {
+        if (timeToStart !== null && timeToStart >= 0) {
           description += `<div style="font-size: 12px; color: ${isUrgent ? '#dc3545' : '#28a745'}; font-weight: bold; margin-top: 5px;">`;
           description += `${timeToStart === 0 ? 'TODAY' : timeToStart === 1 ? 'TOMORROW' : `In ${timeToStart} days`}`;
           description += `</div>`;
@@ -707,7 +709,7 @@ const ChangeSubmission = {
         description += `<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffc107;">`;
         description += `<h4 style="margin: 0 0 8px 0; color: #856404; font-size: 14px;">⚠️ URGENT NOTICE</h4>`;
         description += `<div style="font-size: 13px; color: #856404; line-height: 1.4;">`;
-        description += `This change is scheduled to begin ${timeToStart <= 2 ? 'very soon' : 'within the next few days'}. `;
+        description += `This change is scheduled to begin ${timeToStart !== null && timeToStart <= 2 ? 'very soon' : 'within the next few days'}. `;
         description += `Please review and approve promptly to avoid delays.`;
         description += `</div></div>`;
       }

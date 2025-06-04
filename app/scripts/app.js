@@ -2115,10 +2115,31 @@ function displayInitError(message) {
   const body = document.body;
   const errorDiv = document.createElement('div');
   errorDiv.className = 'alert alert-danger';
+  errorDiv.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    max-width: 600px;
+    min-width: 400px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+  `;
   errorDiv.innerHTML = `
-    <h4>Initialization Error</h4>
-    <p>${message}</p>
-    <button class="btn btn-primary" onclick="location.reload()">Retry</button>
+    <div style="text-align: center;">
+      <div style="font-size: 3rem; margin-bottom: 1rem;">💥</div>
+      <h4 style="margin-bottom: 1rem;">🚨 Initialization Error</h4>
+      <p style="margin-bottom: 1.5rem; color: #721c24;">${message}</p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button class="btn btn-primary" onclick="location.reload()" style="display: flex; align-items: center; gap: 8px;">
+          <span>🔄</span> Retry Initialization
+        </button>
+        <button class="btn btn-outline-secondary" onclick="this.parentElement.parentElement.parentElement.remove()" style="display: flex; align-items: center; gap: 8px;">
+          <span>❌</span> Dismiss
+        </button>
+      </div>
+    </div>
   `;
   body.insertBefore(errorDiv, body.firstChild);
 }
@@ -5815,36 +5836,44 @@ async function initializeAppWithProgress() {
   try {
     console.log('🚀 Starting app initialization with progress tracking...');
     
-    updateInitializationProgress(10, 'Loading FontAwesome...');
+    updateInitializationProgress(5, '🎨 Loading FontAwesome styles...');
     loadFontAwesome();
+    await new Promise(resolve => setTimeout(resolve, 200)); // Brief pause for visual effect
     
-    updateInitializationProgress(20, 'Initializing cache manager...');
+    updateInitializationProgress(15, '⚡ Initializing cache systems...');
     // Initialize cache manager if available
     if (window.CacheManager) {
       await window.CacheManager.initializeAllCaches();
     }
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    updateInitializationProgress(30, 'Loading asset types...');
+    updateInitializationProgress(25, '🏗️ Loading asset type definitions...');
     // Try to load asset types, but don't fail if it doesn't work
     try {
       await fetchAndCacheAssetTypes();
+      updateInitializationProgress(35, '✅ Asset types loaded successfully');
     } catch (error) {
       console.log('⚠️ Asset types loading failed, initializing caches...');
       // Initialize empty caches as fallback
       await cacheAssetTypes({});
+      updateInitializationProgress(35, '⚠️ Asset types initialized with fallback');
     }
+    await new Promise(resolve => setTimeout(resolve, 200));
     
-    updateInitializationProgress(60, 'Loading locations...');
+    updateInitializationProgress(45, '🌍 Loading location data...');
     // Try to load locations, but don't fail if it doesn't work
     try {
       await fetchAllLocations();
+      updateInitializationProgress(55, '🎯 Locations loaded successfully');
     } catch (error) {
       console.log('⚠️ Locations loading failed, using fallback...');
       // Initialize empty cache as fallback
       await cacheLocations({});
+      updateInitializationProgress(55, '⚠️ Locations initialized with fallback');
     }
+    await new Promise(resolve => setTimeout(resolve, 200));
     
-    updateInitializationProgress(80, 'Setting up form components...');
+    updateInitializationProgress(65, '⚙️ Setting up form components...');
     
     // Initialize Impacted Services module - removed from here as it should initialize when tab is shown
     // The module will be initialized when the impacted services tab is first accessed
@@ -5853,33 +5882,41 @@ async function initializeAppWithProgress() {
     if (window.ChangeSubmission) {
       window.ChangeSubmission.init();
       console.log('✅ Change Submission module initialized');
+      updateInitializationProgress(75, '📝 Change submission module ready');
     } else {
       console.warn('⚠️ Change Submission module not available');
+      updateInitializationProgress(75, '⚠️ Change submission module unavailable');
     }
+    await new Promise(resolve => setTimeout(resolve, 200));
     
+    updateInitializationProgress(80, '🔧 Configuring form components...');
     // Setup form components
     populateFormFields();
     setupEventListeners();
     initializeChangeTypeDefaults();
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    updateInitializationProgress(90, 'Finalizing setup...');
-    
+    updateInitializationProgress(90, '👥 Preloading user cache...');
     // Preload user cache in background (don't wait for it)
     preloadUserCache().catch(error => {
       console.warn('⚠️ User cache preload failed:', error);
     });
+    await new Promise(resolve => setTimeout(resolve, 400));
     
-    updateInitializationProgress(100, 'Ready to use!');
+    updateInitializationProgress(95, '🎉 Finalizing initialization...');
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Small delay before hiding overlay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    updateInitializationProgress(100, '🚀 Ready to create change requests!');
+    
+    // Small delay before hiding overlay for final message visibility
+    await new Promise(resolve => setTimeout(resolve, 800));
     
     console.log('✅ App initialization completed successfully');
     hideInitializationOverlay();
     
   } catch (error) {
     console.error('❌ Error in app initialization:', error);
-    updateInitializationProgress(0, 'Initialization failed. Please refresh the page.');
+    updateInitializationProgress(0, '💥 Initialization failed. Please refresh the page.');
     displayInitError('Failed to initialize application: ' + error.message);
   }
 }
