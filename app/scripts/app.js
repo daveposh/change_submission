@@ -5412,7 +5412,7 @@ function clearAgent() {
 }
 
 /**
- * Display search results in a container
+ * Display search results in a container with keyboard navigation support
  * @param {string} containerId - ID of the container to display results
  * @param {Array} results - Array of search results
  * @param {Function} selectCallback - Callback function when item is selected
@@ -5468,7 +5468,11 @@ function displaySearchResults(containerId, results, selectCallback) {
     }
     
     return `
-      <div class="list-group-item list-group-item-action" onclick="window.selectCallback_${storageKey}(window.searchResults_${storageKey}[${index}])">
+      <div class="list-group-item list-group-item-action keyboard-nav-item" 
+           data-index="${index}" 
+           tabindex="0"
+           onclick="window.selectCallback_${storageKey}(window.searchResults_${storageKey}[${index}])"
+           onkeydown="handleResultItemKeydown(event, '${storageKey}', ${index})">
         <div class="d-flex justify-content-between align-items-start">
           <div class="flex-grow-1">
             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -5486,6 +5490,139 @@ function displaySearchResults(containerId, results, selectCallback) {
   
   container.innerHTML = resultItems;
   container.style.display = 'block';
+  
+  // Add keyboard navigation support
+  setupKeyboardNavigation(containerId, storageKey);
+}
+
+/**
+ * Setup keyboard navigation for search results
+ * @param {string} containerId - Container ID
+ * @param {string} storageKey - Storage key for results
+ */
+function setupKeyboardNavigation(containerId, storageKey) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  const items = container.querySelectorAll('.keyboard-nav-item');
+  let selectedIndex = -1;
+  
+  // Find the associated search input
+  const searchInput = getSearchInputForContainer(containerId);
+  
+  if (searchInput) {
+    // Remove any existing keyboard listeners for this input
+    const oldHandler = searchInput._keyboardHandler;
+    if (oldHandler) {
+      searchInput.removeEventListener('keydown', oldHandler);
+    }
+    
+    // Add new keyboard navigation handler
+    const keyboardHandler = (e) => {
+      // Only handle arrow keys and Escape if dropdown is visible
+      const isDropdownVisible = container.style.display !== 'none' && items.length > 0;
+      
+      switch (e.key) {
+        case 'ArrowDown':
+          if (isDropdownVisible) {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+            updateSelection(items, selectedIndex);
+          }
+          break;
+          
+        case 'ArrowUp':
+          if (isDropdownVisible) {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, -1);
+            updateSelection(items, selectedIndex);
+          }
+          break;
+          
+        case 'Enter':
+          // Only intercept Enter if dropdown is visible and an item is selected
+          if (isDropdownVisible && selectedIndex >= 0 && selectedIndex < items.length) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Select the highlighted item
+            const callback = window[`selectCallback_${storageKey}`];
+            const results = window[`searchResults_${storageKey}`];
+            if (callback && results && results[selectedIndex]) {
+              callback(results[selectedIndex]);
+            }
+          }
+          // Otherwise, let the existing Enter handler for search work
+          break;
+          
+        case 'Escape':
+          if (isDropdownVisible) {
+            e.preventDefault();
+            // Hide the results dropdown
+            container.style.display = 'none';
+            selectedIndex = -1;
+            // Reset selection when hiding
+            updateSelection(items, -1);
+          }
+          break;
+      }
+    };
+    
+    searchInput.addEventListener('keydown', keyboardHandler);
+    searchInput._keyboardHandler = keyboardHandler; // Store reference for cleanup
+  }
+  
+  // Function to update visual selection
+  function updateSelection(items, index) {
+    // Remove previous selection
+    items.forEach(item => {
+      item.classList.remove('active');
+      item.style.backgroundColor = '';
+    });
+    
+    // Add selection to current item
+    if (index >= 0 && index < items.length) {
+      const selectedItem = items[index];
+      selectedItem.classList.add('active');
+      selectedItem.style.backgroundColor = '#e3f2fd';
+      
+      // Scroll item into view if needed
+      selectedItem.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest'
+      });
+    }
+  }
+}
+
+/**
+ * Get the search input associated with a results container
+ * @param {string} containerId - Results container ID
+ * @returns {HTMLElement|null} - Associated search input element
+ */
+function getSearchInputForContainer(containerId) {
+  if (containerId.includes('requester')) {
+    return document.getElementById('requester-search');
+  } else if (containerId.includes('agent')) {
+    return document.getElementById('agent-search');
+  }
+  return null;
+}
+
+/**
+ * Handle keydown events on individual result items
+ * @param {KeyboardEvent} event - The keyboard event
+ * @param {string} storageKey - Storage key for results
+ * @param {number} index - Index of the item
+ */
+function handleResultItemKeydown(event, storageKey, index) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    const callback = window[`selectCallback_${storageKey}`];
+    const results = window[`searchResults_${storageKey}`];
+    if (callback && results && results[index]) {
+      callback(results[index]);
+    }
+  }
 }
 
 /**

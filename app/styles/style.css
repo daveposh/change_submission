@@ -1009,3 +1009,63 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   background-color: #5c636a;
   border-color: #565e64;
 }
+
+/* Keyboard Navigation Styles */
+.keyboard-nav-item {
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  outline: none;
+}
+
+.keyboard-nav-item:focus {
+  outline: 2px solid #0d6efd;
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.keyboard-nav-item.active {
+  background-color: #e3f2fd !important;
+  border-color: #0d6efd !important;
+  box-shadow: 0 0 0 1px #0d6efd;
+}
+
+.search-results .keyboard-nav-item:hover {
+  background-color: #f8f9fa;
+  cursor: pointer;
+}
+
+.search-results .keyboard-nav-item.active:hover {
+  background-color: #e3f2fd !important;
+}
+
+/* Dark mode keyboard navigation */
+[data-bs-theme="dark"] .keyboard-nav-item.active {
+  background-color: #1e3a5f !important;
+  border-color: #0d6efd !important;
+}
+
+[data-bs-theme="dark"] .keyboard-nav-item:focus {
+  outline-color: #6ea8fe;
+}
+
+[data-bs-theme="dark"] .search-results .keyboard-nav-item:hover {
+  background-color: #343a40;
+}
+
+[data-bs-theme="dark"] .search-results .keyboard-nav-item.active:hover {
+  background-color: #1e3a5f !important;
+}
+
+/* Enhanced search help text styling */
+.search-help-text {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.search-help-text i {
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.search-help-text strong {
+  font-weight: 600;
+}
