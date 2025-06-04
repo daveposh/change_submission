@@ -5789,8 +5789,8 @@ function generateUserBadges(user, containerId = '') {
  * @param {string} message - Progress message
  */
 function updateInitializationProgress(progress, message) {
-  const progressBar = document.querySelector('.init-progress-bar');
-  const progressMessage = document.querySelector('.init-message');
+  const progressBar = document.getElementById('initialization-progress-bar');
+  const progressMessage = document.getElementById('initialization-message');
   
   if (progressBar) {
     progressBar.style.width = `${progress}%`;

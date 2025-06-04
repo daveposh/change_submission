@@ -2103,57 +2103,108 @@ Generated automatically from risk questionnaire and asset analysis on ${new Date
   },
 
   /**
-   * Show submission success and redirect
+   * Show submission success in modal
    */
   showSubmissionSuccess(changeRequest) {
-    console.log('🎉 Showing submission success...');
+    console.log('🎉 Showing submission success modal...');
     
     // Get risk assessment and peer review task information
     const data = window.changeRequestData;
     const riskAssessment = data?.riskAssessment;
     const createdTasksCount = this.state.createdTasks?.length || 0;
     
-    let successMessage = `
-      <div class="alert alert-success" role="alert">
-        <h4 class="alert-heading">✅ Change Request Submitted Successfully!</h4>
-        <p><strong>Change Request ID:</strong> CR-${changeRequest.id}</p>
-        <p><strong>Title:</strong> ${changeRequest.subject}</p>
+    // Get Freshservice domain from installation parameters
+    const getFreshserviceDomain = () => {
+      try {
+        // First try to get from installation parameters
+        if (window.client && typeof window.client.iparams === 'object' && window.client.iparams.freshservice_domain) {
+          return window.client.iparams.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        }
+        
+        // Fallback: try to extract from current URL
+        const currentHost = window.location.hostname;
+        if (currentHost.includes('freshservice.com')) {
+          return currentHost;
+        }
+        
+        // Last resort: generic placeholder
+        return 'your-domain.freshservice.com';
+      } catch (error) {
+        console.warn('Could not determine Freshservice domain:', error);
+        return 'your-domain.freshservice.com';
+      }
+    };
+
+    const freshserviceDomain = getFreshserviceDomain();
+    const changeUrl = `https://${freshserviceDomain}/changes/${changeRequest.id}`;
+    
+    // Build success content
+    let successContent = `
+      <div class="text-center mb-4">
+        <div class="display-4 mb-3">🎉</div>
+        <h4 class="text-success mb-3">Change Request Created Successfully!</h4>
+        <div class="card">
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <p><strong>Change Request ID:</strong></p>
+                <p class="h5 text-primary">CR-${changeRequest.id}</p>
+              </div>
+              <div class="col-md-6">
+                <p><strong>Title:</strong></p>
+                <p class="h6">${changeRequest.subject}</p>
+              </div>
+            </div>
+            
+            <div class="mt-3">
+              <small class="text-muted">
+                <i class="fas fa-link me-1"></i>
+                Direct link: <a href="${changeUrl}" target="_blank" class="text-decoration-none">${changeUrl}</a>
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
     `;
     
     // Add risk level information
     if (riskAssessment) {
       const riskColor = this.getRiskColor(riskAssessment.riskLevel);
-      successMessage += `
-        <p><strong>Risk Level:</strong> 
-          <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
-            ${riskAssessment.riskLevel?.toUpperCase()}
-          </span> 
-          (Score: ${riskAssessment.totalScore}/15)
-        </p>
+      successContent += `
+        <div class="card mb-3">
+          <div class="card-body">
+            <h6 class="card-title">
+              <i class="fas fa-shield-alt me-2"></i>Risk Assessment
+            </h6>
+            <div class="d-flex align-items-center mb-3">
+              <span class="badge me-3" style="background-color: ${riskColor}; font-size: 14px; padding: 8px 12px;">
+                ${riskAssessment.riskLevel?.toUpperCase()} RISK
+              </span>
+              <span class="text-muted">Score: ${riskAssessment.totalScore}/15</span>
+            </div>
       `;
       
       // Add peer review information
       if (riskAssessment.totalScore >= 7) {
         if (createdTasksCount > 0) {
-          successMessage += `
-            <div class="mt-3 p-3" style="background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
-              <h6 style="color: #856404; margin-bottom: 8px;">
+          successContent += `
+            <div class="alert alert-warning mb-0">
+              <h6 class="alert-heading">
                 <i class="fas fa-user-cog me-2"></i>Peer Review Coordination Required
               </h6>
-              <p style="margin-bottom: 0; color: #856404;">
+              <p class="mb-0">
                 Due to the ${riskAssessment.riskLevel} risk level, a <strong>peer review coordination task</strong> 
-                has been assigned to the agent SME. They are responsible for obtaining peer review within 24 hours 
-                by either conducting the review themselves, reassigning to a peer, or coordinating external review.
+                has been assigned to the agent SME. They are responsible for obtaining peer review within 24 hours.
               </p>
             </div>
           `;
         } else {
-          successMessage += `
-            <div class="mt-3 p-3" style="background-color: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px;">
-              <h6 style="color: #721c24; margin-bottom: 8px;">
+          successContent += `
+            <div class="alert alert-danger mb-0">
+              <h6 class="alert-heading">
                 <i class="fas fa-exclamation-triangle me-2"></i>Peer Review Required
               </h6>
-              <p style="margin-bottom: 0; color: #721c24;">
+              <p class="mb-0">
                 Due to the ${riskAssessment.riskLevel} risk level, peer review is required but no agent SME could be automatically identified. 
                 Please manually assign a Subject Matter Expert to coordinate the peer review process.
               </p>
@@ -2161,24 +2212,104 @@ Generated automatically from risk questionnaire and asset analysis on ${new Date
           `;
         }
       } else {
-        successMessage += `
-          <div class="mt-3 p-3" style="background-color: #d1ecf1; border-left: 4px solid #0dcaf0; border-radius: 4px;">
-            <p style="margin-bottom: 0; color: #055160;">
+        successContent += `
+          <div class="alert alert-info mb-0">
+            <p class="mb-0">
               <i class="fas fa-info-circle me-2"></i>No peer review required for ${riskAssessment.riskLevel} risk changes.
             </p>
           </div>
         `;
       }
+      
+      successContent += `</div></div>`;
     }
     
-    successMessage += `</div>`;
+    // Update the success modal content
+    const successContentDiv = document.getElementById('success-content');
+    if (successContentDiv) {
+      successContentDiv.innerHTML = successContent;
+    }
+    
+    // Update the View Change button link
+    const viewChangeBtn = document.getElementById('view-change-btn');
+    if (viewChangeBtn) {
+      viewChangeBtn.href = changeUrl;
+    }
+    
+    // Setup event listeners for modal buttons
+    this.setupSuccessModalEventListeners();
+    
+    // Hide any existing modals and show success modal
+    const confirmationModal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
+    if (confirmationModal) {
+      confirmationModal.hide();
+    }
+    
+    // Show success modal with delay to ensure confirmation modal is hidden
+    setTimeout(() => {
+      const successModal = new bootstrap.Modal(document.getElementById('success-modal'));
+      successModal.show();
+    }, 300);
+  },
 
-    const container = document.querySelector('.container-fluid') || document.body;
-    container.innerHTML = successMessage + `
-      <div class="text-center mt-4">
-        <button class="btn btn-primary" onclick="window.location.reload()">Create Another Change Request</button>
-      </div>
+  /**
+   * Setup event listeners for success modal buttons
+   */
+  setupSuccessModalEventListeners() {
+    // New change button
+    const newChangeBtn = document.getElementById('new-change-btn');
+    if (newChangeBtn) {
+      newChangeBtn.onclick = () => {
+        const successModal = bootstrap.Modal.getInstance(document.getElementById('success-modal'));
+        if (successModal) {
+          successModal.hide();
+        }
+        window.location.reload();
+      };
+    }
+    
+    // Close button - just closes modal to show the underlying page with details
+    const closeBtn = document.getElementById('close-success-btn');
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        const successModal = bootstrap.Modal.getInstance(document.getElementById('success-modal'));
+        if (successModal) {
+          successModal.hide();
+        }
+        // Optional: Show a brief notification that they can still access the change
+        this.showBriefSuccessNotification();
+      };
+    }
+  },
+
+  /**
+   * Show a brief success notification when modal is closed
+   */
+  showBriefSuccessNotification() {
+    const notification = document.createElement('div');
+    notification.className = 'alert alert-success alert-dismissible fade show';
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1055;
+      max-width: 350px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     `;
+    notification.innerHTML = `
+      <strong>✅ Change Request Submitted!</strong>
+      <br>You can create another change or continue working with the form.
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 5000);
   },
 
   /**
