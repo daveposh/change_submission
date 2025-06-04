@@ -2393,7 +2393,7 @@ const ChangeSubmission = {
       `;
       
       // Add peer review information
-      if (riskAssessment.totalScore >= 7) {
+      if (riskAssessment.totalScore >= 8) {
         if (createdTasksCount > 0) {
           successContent += `
             <div class="alert alert-warning mb-0">
@@ -3100,7 +3100,7 @@ const ChangeSubmission = {
       summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Stakeholder notifications will be sent to ${totalStakeholders} recipient(s)</li>`;
     }
     
-    if (riskAssessment && riskAssessment.totalScore >= 7) {
+    if (riskAssessment && riskAssessment.totalScore >= 8) {
       summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Peer review coordination task will be assigned to SME</li>`;
     }
     
@@ -3123,7 +3123,7 @@ const ChangeSubmission = {
             <li>Any modifications will require creating a new change request or working with your assigned agent</li>
             <li>You will receive email notifications as the change progresses through the approval workflow</li>`;
     
-    if (riskAssessment && riskAssessment.totalScore >= 7) {
+    if (riskAssessment && riskAssessment.totalScore >= 8) {
       summaryHtml += `<li>This ${riskAssessment.riskLevel} risk change requires peer review coordination by the assigned SME</li>`;
     }
     

@@ -164,7 +164,7 @@ To modify peer review behavior:
 
 1. **Risk Threshold**: Change the threshold in `createPeerReviewTasks()`:
    ```javascript
-   const requiresPeerReview = riskAssessment.totalScore >= 7; // Modify this value
+   const requiresPeerReview = riskAssessment.totalScore >= 8; // Modify this value
    ```
 
 2. **Due Date**: Modify the 24-hour deadline:
