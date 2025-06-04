@@ -393,7 +393,7 @@ const ChangeSubmission = {
     }
 
     // Calculate priority based on change type and risk level
-    let priority = this.calculatePriority(data.changeType, data.riskAssessment?.riskLevel);
+    const priority = this.calculatePriority(data.changeType, data.riskAssessment?.riskLevel);
 
     // Map change type to Freshservice values (this instance supports 4=Emergency, 6=Normal Change)
     const changeTypeMapping = {
@@ -1530,12 +1530,6 @@ const ChangeSubmission = {
       // Calculate due date (24 hours from now for peer review coordination)
       const dueDate = new Date();
       dueDate.setHours(dueDate.getHours() + 24);
-      
-      // Determine priority based on risk level
-      let taskPriority = 2; // Medium priority default
-      if (riskAssessment.riskLevel === 'High') {
-        taskPriority = 3; // High priority for high-risk changes
-      }
       
       // Prepare task data following Freshservice API v2 change task schema
       const taskData = {
