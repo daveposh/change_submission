@@ -661,7 +661,78 @@ const ChangeSubmission = {
     }
     description += `</div>`;
 
-    // Risk Assessment Section (if available)
+    // Comprehensive Review Section - NEW ADDITION
+    description += `<div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6;">`;
+    description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center;">`;
+    description += `<span style="margin-right: 10px;">🔍</span>Comprehensive Change Review`;
+    description += `</h3>`;
+    
+    // Change Summary Grid
+    description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">`;
+    
+    // Change Details Card
+    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff;">`;
+    description += `<h4 style="margin: 0 0 10px 0; color: #007bff; font-size: 14px;">📝 CHANGE DETAILS</h4>`;
+    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += `<strong>Type:</strong> ${data.changeType?.charAt(0).toUpperCase() + data.changeType?.slice(1) || 'Normal'}<br>`;
+    description += `<strong>Scope:</strong> ${data.selectedAssets?.length || 0} Asset(s) Affected<br>`;
+    description += `<strong>Timing:</strong> ${data.plannedStart ? new Date(data.plannedStart).toLocaleDateString() : 'TBD'}<br>`;
+    description += `<strong>Duration:</strong> ${data.plannedStart && data.plannedEnd ? 
+      Math.ceil((new Date(data.plannedEnd) - new Date(data.plannedStart)) / (1000 * 60 * 60 * 24)) + ' day(s)' : 'TBD'}`;
+    description += `</div></div>`;
+    
+    // Stakeholder Impact Card
+    const approverCount = impactedData.approvers?.length || 0;
+    const stakeholderCount = impactedData.stakeholders?.length || 0;
+    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">`;
+    description += `<h4 style="margin: 0 0 10px 0; color: #28a745; font-size: 14px;">👥 STAKEHOLDER IMPACT</h4>`;
+    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += `<strong>Technical Approvers:</strong> ${approverCount}<br>`;
+    description += `<strong>Stakeholders:</strong> ${stakeholderCount}<br>`;
+    description += `<strong>Requester:</strong> ${data.selectedRequester?.first_name || ''} ${data.selectedRequester?.last_name || ''}<br>`;
+    description += `<strong>Agent:</strong> ${data.selectedAgent?.first_name || 'Unassigned'} ${data.selectedAgent?.last_name || ''}`;
+    description += `</div></div>`;
+    
+    // Planning Overview Card
+    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107;">`;
+    description += `<h4 style="margin: 0 0 10px 0; color: #e69500; font-size: 14px;">📋 PLANNING STATUS</h4>`;
+    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += `<strong>Implementation Plan:</strong> ${data.implementationPlan ? '✅ Complete' : '❌ Pending'}<br>`;
+    description += `<strong>Validation Plan:</strong> ${data.validationPlan ? '✅ Complete' : '❌ Pending'}<br>`;
+    description += `<strong>Backout Plan:</strong> ${data.backoutPlan ? '✅ Complete' : '❌ Pending'}<br>`;
+    description += `<strong>Risk Assessment:</strong> ${riskAssessment?.riskLevel ? '✅ Complete' : '❌ Pending'}`;
+    description += `</div></div>`;
+    
+    description += `</div>`; // End grid
+    
+    // Implementation Readiness Assessment
+    const readinessScore = [
+      data.implementationPlan ? 1 : 0,
+      data.validationPlan ? 1 : 0,
+      data.backoutPlan ? 1 : 0,
+      riskAssessment?.riskLevel ? 1 : 0,
+      (approverCount > 0) ? 1 : 0
+    ].reduce((a, b) => a + b, 0);
+    
+    const readinessPercent = (readinessScore / 5) * 100;
+    const readinessColor = readinessPercent >= 80 ? '#28a745' : readinessPercent >= 60 ? '#ffc107' : '#dc3545';
+    
+    description += `<div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">`;
+    description += `<h4 style="margin: 0 0 15px 0; color: #495057; font-size: 14px;">📊 IMPLEMENTATION READINESS</h4>`;
+    description += `<div style="display: flex; align-items: center; margin-bottom: 10px;">`;
+    description += `<div style="flex: 1; background: #e9ecef; height: 20px; border-radius: 10px; overflow: hidden; margin-right: 15px;">`;
+    description += `<div style="height: 100%; background: ${readinessColor}; width: ${readinessPercent}%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">`;
+    description += `${Math.round(readinessPercent)}%`;
+    description += `</div></div>`;
+    description += `<span style="font-weight: bold; color: ${readinessColor};">${readinessScore}/5 Complete</span>`;
+    description += `</div>`;
+    description += `<div style="font-size: 12px; color: #6c757d; font-style: italic;">`;
+    description += `Assessment based on: Implementation Plan, Validation Plan, Backout Plan, Risk Assessment, and Stakeholder Identification`;
+    description += `</div></div>`;
+    
+    description += `</div>`; // End comprehensive review section
+
+    // Risk Assessment Section (Enhanced with better visuals)
     if (riskAssessment && riskAssessment.riskLevel) {
       const riskColor = {
         'Low': '#28a745',
@@ -669,34 +740,39 @@ const ChangeSubmission = {
         'High': '#dc3545'
       }[riskAssessment.riskLevel] || '#6c757d';
       
-      description += `<div style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid ${riskColor};">`;
-      description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 15px;">⚠️ Risk Assessment</h3>`;
-      description += `<div style="display: flex; align-items: center; margin-bottom: 10px;">`;
-      description += `<span style="background-color: ${riskColor}; color: white; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 14px;">${riskAssessment.riskLevel?.toUpperCase()} RISK</span>`;
-      description += `<span style="margin-left: 15px; color: #666;">Score: ${riskAssessment.totalScore || 0}/15</span>`;
+      description += `<div style="margin-bottom: 20px; padding: 20px; background: white; border-radius: 8px; border: 1px solid ${riskColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
+      description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
+      description += `<span style="margin-right: 10px;">⚠️</span>Risk Assessment`;
+      description += `</h3>`;
+      description += `<div style="display: flex; align-items: center; margin-bottom: 20px;">`;
+      description += `<span style="background: linear-gradient(135deg, ${riskColor} 0%, ${riskColor}dd 100%); color: white; padding: 8px 20px; border-radius: 25px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${riskAssessment.riskLevel?.toUpperCase()} RISK</span>`;
+      description += `<span style="margin-left: 20px; padding: 8px 15px; background: #f8f9fa; border-radius: 20px; color: #495057; font-weight: bold;">Score: ${riskAssessment.totalScore || 0}/15</span>`;
       description += `</div>`;
       
-      // Risk factors breakdown
-      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 15px;">`;
+      // Risk factors breakdown with enhanced visuals
+      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 20px;">`;
       
       const riskFactors = [
-        { key: 'businessImpact', label: 'Business Impact', value: riskAssessment.businessImpact },
-        { key: 'affectedUsers', label: 'User Impact', value: riskAssessment.affectedUsers },
-        { key: 'complexity', label: 'Complexity', value: riskAssessment.complexity },
-        { key: 'testing', label: 'Testing Level', value: riskAssessment.testing },
-        { key: 'rollback', label: 'Rollback Risk', value: riskAssessment.rollback }
+        { key: 'businessImpact', label: 'Business Impact', value: riskAssessment.businessImpact, icon: '💼' },
+        { key: 'affectedUsers', label: 'User Impact', value: riskAssessment.affectedUsers, icon: '👥' },
+        { key: 'complexity', label: 'Complexity', value: riskAssessment.complexity, icon: '⚙️' },
+        { key: 'testing', label: 'Testing Level', value: riskAssessment.testing, icon: '🧪' },
+        { key: 'rollback', label: 'Rollback Risk', value: riskAssessment.rollback, icon: '↩️' }
       ];
       
       riskFactors.forEach(factor => {
         const score = factor.value || 0;
         const barColor = score >= 3 ? '#dc3545' : score >= 2 ? '#ffc107' : '#28a745';
-        description += `<div style="background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">`;
-        description += `<div style="font-size: 12px; color: #666; margin-bottom: 4px;">${factor.label}</div>`;
-        description += `<div style="display: flex; align-items: center;">`;
-        description += `<div style="flex: 1; background: #e9ecef; height: 6px; border-radius: 3px; margin-right: 8px;">`;
-        description += `<div style="height: 100%; background: ${barColor}; width: ${(score/3)*100}%; border-radius: 3px;"></div>`;
+        description += `<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; transition: transform 0.2s ease;">`;
+        description += `<div style="display: flex; align-items: center; margin-bottom: 10px;">`;
+        description += `<span style="font-size: 16px; margin-right: 8px;">${factor.icon}</span>`;
+        description += `<div style="font-size: 13px; color: #495057; font-weight: 600;">${factor.label}</div>`;
         description += `</div>`;
-        description += `<span style="font-size: 12px; font-weight: bold;">${score}/3</span>`;
+        description += `<div style="display: flex; align-items: center;">`;
+        description += `<div style="flex: 1; background: #e9ecef; height: 8px; border-radius: 4px; margin-right: 10px; overflow: hidden;">`;
+        description += `<div style="height: 100%; background: linear-gradient(90deg, ${barColor} 0%, ${barColor}cc 100%); width: ${(score/3)*100}%; border-radius: 4px; transition: width 0.3s ease;"></div>`;
+        description += `</div>`;
+        description += `<span style="font-size: 14px; font-weight: bold; color: ${barColor}; min-width: 30px;">${score}/3</span>`;
         description += `</div></div>`;
       });
       
@@ -706,7 +782,7 @@ const ChangeSubmission = {
     // Service Impact Section with comprehensive risk and impact information
     description += `</div>`;
     
-    console.log('✅ Enhanced description created with rich formatting');
+    console.log('✅ Enhanced description created with comprehensive review and rich formatting');
     return description;
   },
 
@@ -973,27 +1049,167 @@ const ChangeSubmission = {
   },
 
   /**
-   * Generate comprehensive impact summary based on questionnaire and assets
+   * Generate enhanced impact summary based on questionnaire and assets
    */
   generateImpactSummary(riskAssessment, selectedAssets = [], impactedData = {}) {
-    console.log('📊 Generating impact summary from questionnaire and asset data...');
+    console.log('📊 Generating enhanced impact summary from questionnaire and asset data...');
     
     if (!riskAssessment || !riskAssessment.riskLevel) {
       console.warn('⚠️ No risk assessment data available for impact summary');
-      return 'Impact assessment not completed.';
+      return 'Impact assessment not completed. Please complete the risk questionnaire for detailed impact analysis.';
     }
 
-    let summary = `CHANGE IMPACT ASSESSMENT\n\n`;
-    summary += `Business Impact: ${riskAssessment.businessImpact || 'N/A'}/3\n`;
-    summary += `User Impact: ${riskAssessment.affectedUsers || 'N/A'}/3\n`;
-    summary += `Technical Complexity: ${riskAssessment.complexity || 'N/A'}/3\n`;
-    summary += `Assets Affected: ${selectedAssets.length || 0}\n`;
-    summary += `Stakeholders: ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)}\n\n`;
+    // Create a structured, visually appealing impact summary
+    let summary = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 CHANGE IMPACT ASSESSMENT SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 OVERALL IMPACT LEVEL: ${riskAssessment.riskLevel?.toUpperCase() || 'MEDIUM'}
+📈 Risk Score: ${riskAssessment.totalScore || 0}/15 Points
+
+┌─────────────────────────────────────────────────┐
+│                IMPACT CATEGORIES                │
+└─────────────────────────────────────────────────┘
+
+💼 BUSINESS IMPACT.............. ${this.formatImpactLevel(riskAssessment.businessImpact)}/3
+   ${this.getBusinessImpactDescription(riskAssessment.businessImpact)}
+
+👥 USER IMPACT.................. ${this.formatImpactLevel(riskAssessment.affectedUsers)}/3
+   ${this.getUserImpactDescription(riskAssessment.affectedUsers)}
+
+⚙️  TECHNICAL COMPLEXITY........ ${this.formatImpactLevel(riskAssessment.complexity)}/3
+   ${this.getComplexityDescription(riskAssessment.complexity)}
+
+🧪 TESTING REQUIREMENTS......... ${this.formatImpactLevel(riskAssessment.testing)}/3
+   ${this.getTestingDescription(riskAssessment.testing)}
+
+↩️  ROLLBACK COMPLEXITY......... ${this.formatImpactLevel(riskAssessment.rollback)}/3
+   ${this.getRollbackDescription(riskAssessment.rollback)}
+
+┌─────────────────────────────────────────────────┐
+│              SCOPE & STAKEHOLDERS               │
+└─────────────────────────────────────────────────┘
+
+🏢 ASSETS AFFECTED.............. ${selectedAssets.length || 0} System(s)
+👤 TECHNICAL APPROVERS.......... ${impactedData.approvers?.length || 0} Required
+👥 STAKEHOLDERS................. ${impactedData.stakeholders?.length || 0} Notified
+📧 TOTAL NOTIFICATIONS.......... ${(impactedData.approvers?.length || 0) + (impactedData.stakeholders?.length || 0)} People
+
+┌─────────────────────────────────────────────────┐
+│            RECOMMENDED ACTIONS                  │
+└─────────────────────────────────────────────────┘
+
+${this.getRecommendedActions(riskAssessment)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤖 Generated automatically from risk questionnaire
+   and asset analysis on ${new Date().toLocaleDateString()}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
     
-    summary += `Generated automatically from risk questionnaire and asset analysis.`;
-    
-    console.log('📋 Impact summary generated:', summary.substring(0, 200) + '...');
+    console.log('📋 Enhanced impact summary generated:', summary.substring(0, 200) + '...');
     return summary;
+  },
+
+  /**
+   * Format impact level with visual indicator
+   */
+  formatImpactLevel(level) {
+    const score = level || 0;
+    const indicators = ['●○○', '●●○', '●●●'];
+    return `${score} ${indicators[score - 1] || '○○○'}`;
+  },
+
+  /**
+   * Get business impact description based on level
+   */
+  getBusinessImpactDescription(level) {
+    switch (level) {
+      case 1: return 'Limited business disruption expected';
+      case 2: return 'Noticeable impact on business operations';
+      case 3: return 'Significant business impact anticipated';
+      default: return 'Business impact level not assessed';
+    }
+  },
+
+  /**
+   * Get user impact description based on level
+   */
+  getUserImpactDescription(level) {
+    switch (level) {
+      case 1: return 'Minimal user disruption (< 50 users)';
+      case 2: return 'Moderate user impact (50-200 users)';
+      case 3: return 'Widespread user impact (> 200 users)';
+      default: return 'User impact level not assessed';
+    }
+  },
+
+  /**
+   * Get complexity description based on level
+   */
+  getComplexityDescription(level) {
+    switch (level) {
+      case 1: return 'Simple change with straightforward implementation';
+      case 2: return 'Moderate complexity requiring coordination';
+      case 3: return 'Complex change with multiple dependencies';
+      default: return 'Complexity level not assessed';
+    }
+  },
+
+  /**
+   * Get testing description based on level
+   */
+  getTestingDescription(level) {
+    switch (level) {
+      case 1: return 'Comprehensive testing completed';
+      case 2: return 'Adequate testing performed';
+      case 3: return 'Limited testing due to constraints';
+      default: return 'Testing level not assessed';
+    }
+  },
+
+  /**
+   * Get rollback description based on level
+   */
+  getRollbackDescription(level) {
+    switch (level) {
+      case 1: return 'Detailed rollback plan with tested procedures';
+      case 2: return 'Basic rollback steps documented';
+      case 3: return 'No rollback plan available';
+      default: return 'Rollback capability not assessed';
+    }
+  },
+
+  /**
+   * Get recommended actions based on risk assessment
+   */
+  getRecommendedActions(riskAssessment) {
+    const actions = [];
+    const riskLevel = riskAssessment.riskLevel?.toLowerCase();
+    
+    if (riskLevel === 'high') {
+      actions.push('🔴 HIGH RISK - Extended approval workflow required');
+      actions.push('⏰ Mandatory 24-hour peer review period');
+      actions.push('📋 Additional stakeholder review recommended');
+    } else if (riskLevel === 'medium') {
+      actions.push('🟡 MEDIUM RISK - Standard approval workflow');
+      actions.push('👥 Peer review coordination will be initiated');
+    } else {
+      actions.push('🟢 LOW RISK - Standard approval process');
+    }
+    
+    if (riskAssessment.testing >= 3) {
+      actions.push('🧪 Enhanced testing validation recommended');
+    }
+    
+    if (riskAssessment.rollback >= 3) {
+      actions.push('↩️  Rollback plan development required');
+    }
+    
+    if (riskAssessment.complexity >= 3) {
+      actions.push('⚙️  Technical architecture review suggested');
+    }
+    
+    return actions.map(action => `• ${action}`).join('\n');
   },
 
   /**
