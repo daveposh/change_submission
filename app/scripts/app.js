@@ -2163,13 +2163,14 @@ function populateFormFields() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
-  // Set default planned start time (tomorrow at 9 AM)
-  const plannedStart = new Date(tomorrow);
+  // Set default planned start time (2 days from now at 9 AM for normal changes)
+  const plannedStart = new Date(now);
+  plannedStart.setDate(plannedStart.getDate() + 2); // 2-day lead time
   plannedStart.setHours(9, 0, 0, 0);
   
-  // Set default planned end time (tomorrow at 10 AM)
-  const plannedEnd = new Date(tomorrow);
-  plannedEnd.setHours(10, 0, 0, 0);
+  // Set default planned end time (1 hour after start time)
+  const plannedEnd = new Date(plannedStart);
+  plannedEnd.setHours(plannedStart.getHours() + 1); // 1 hour duration
 
   // Populate form fields with defaults
   const plannedStartField = document.getElementById('planned-start');
@@ -2413,6 +2414,7 @@ function setupEventListeners() {
   if (plannedStartField) {
     plannedStartField.addEventListener('change', (e) => {
       changeRequestData.plannedStart = e.target.value;
+      validateDateTimes();
     });
   }
   
@@ -2420,10 +2422,58 @@ function setupEventListeners() {
   if (plannedEndField) {
     plannedEndField.addEventListener('change', (e) => {
       changeRequestData.plannedEnd = e.target.value;
+      validateDateTimes();
     });
   }
 
   console.log('✅ All event listeners setup complete');
+}
+
+/**
+ * Validate that start time is not after end time
+ */
+function validateDateTimes() {
+  const plannedStartField = document.getElementById('planned-start');
+  const plannedEndField = document.getElementById('planned-end');
+  
+  if (!plannedStartField || !plannedEndField) {
+    return true;
+  }
+  
+  const startValue = plannedStartField.value;
+  const endValue = plannedEndField.value;
+  
+  // Clear previous validation states
+  plannedStartField.classList.remove('is-invalid');
+  plannedEndField.classList.remove('is-invalid');
+  
+  // Remove previous error messages
+  const startFeedback = plannedStartField.parentNode.querySelector('.invalid-feedback');
+  const endFeedback = plannedEndField.parentNode.querySelector('.invalid-feedback');
+  if (startFeedback) startFeedback.remove();
+  if (endFeedback) endFeedback.remove();
+  
+  // Only validate if both fields have values
+  if (startValue && endValue) {
+    const startDate = new Date(startValue);
+    const endDate = new Date(endValue);
+    
+    if (startDate >= endDate) {
+      // Start time is after or equal to end time - show error
+      plannedEndField.classList.add('is-invalid');
+      
+      const feedback = document.createElement('div');
+      feedback.className = 'invalid-feedback';
+      feedback.textContent = 'End time must be after start time';
+      plannedEndField.parentNode.appendChild(feedback);
+      
+      console.log('❌ Date validation failed: Start time is after or equal to end time');
+      return false;
+    }
+  }
+  
+  console.log('✅ Date validation passed');
+  return true;
 }
 
 /**
@@ -4892,6 +4942,14 @@ function validateDetailsAndNext() {
     highlightInvalidField('planned-end', 'Planned end date is required');
     isValid = false;
     if (!firstErrorField) firstErrorField = 'planned-end';
+  }
+  
+  // Validate that start time is not after end time
+  if (plannedStart.value && plannedEnd.value) {
+    if (!validateDateTimes()) {
+      isValid = false;
+      if (!firstErrorField) firstErrorField = 'planned-end';
+    }
   }
   
   // Validate implementation plan
