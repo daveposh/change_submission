@@ -5,7 +5,7 @@
       "location": {
         "full_page_app": {
           "url": "index.html",
-          "icon": "app/styles/images/icon.svg",
+          "icon": "styles/images/icon.svg",
           "name": "Change Request"
         }
       },
