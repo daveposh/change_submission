@@ -2515,8 +2515,7 @@ const ChangeSubmission = {
         source: 2, // Portal
         responder_id: agentSME.id,
         due_by: dueDate.toISOString(),
-        fr_due_by: dueDate.toISOString(), // First response due by - required when due_by is provided
-        change_id: changeRequest.id // Reference the change request
+        fr_due_by: dueDate.toISOString() // First response due by - required when due_by is provided
       };
       
       console.log('📋 Peer review coordination task data prepared:', {
