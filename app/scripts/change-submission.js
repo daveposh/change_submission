@@ -2271,36 +2271,39 @@ const ChangeSubmission = {
       });
       
       // Primary option: Use the agent from the created change request (most reliable)
-      if (changeRequest.agent_id && changeRequest.agent_id !== changeRequest.requester_id) {
+      if (changeRequest.agent_id) {
         console.log(`✅ Using change request agent as SME: ${changeRequest.agent_id}`);
         
         // Try to get agent details from form data if available
         if (data.selectedAgent?.id === changeRequest.agent_id) {
+          const isRequester = changeRequest.agent_id === changeRequest.requester_id;
           return {
             id: changeRequest.agent_id,
             name: data.selectedAgent.name || data.selectedAgent.email || `Agent ${changeRequest.agent_id}`,
             email: data.selectedAgent.email || null,
-            source: 'Assigned Agent (Change Request)'
+            source: isRequester ? 'Assigned Agent (Self-Requested)' : 'Assigned Agent (Change Request)'
           };
         } else {
           // Agent ID exists but no details available
+          const isRequester = changeRequest.agent_id === changeRequest.requester_id;
           return {
             id: changeRequest.agent_id,
             name: `Agent ${changeRequest.agent_id}`,
             email: null,
-            source: 'Assigned Agent (Change Request)'
+            source: isRequester ? 'Assigned Agent (Self-Requested)' : 'Assigned Agent (Change Request)'
           };
         }
       }
       
       // Fallback: Use the assigned agent from form data
-      if (data.selectedAgent?.id && data.selectedAgent.id !== changeRequest.requester_id) {
+      if (data.selectedAgent?.id) {
         console.log(`✅ Using form data agent as SME: ${data.selectedAgent.id} (${data.selectedAgent.name || data.selectedAgent.email || 'Name not available'})`);
+        const isRequester = data.selectedAgent.id === changeRequest.requester_id;
         return {
           id: data.selectedAgent.id,
           name: data.selectedAgent.name || data.selectedAgent.email || `Agent ${data.selectedAgent.id}`,
           email: data.selectedAgent.email || null,
-          source: 'Assigned Agent (Form Data)'
+          source: isRequester ? 'Assigned Agent (Self-Requested)' : 'Assigned Agent (Form Data)'
         };
       }
       
@@ -2308,13 +2311,14 @@ const ChangeSubmission = {
       const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
       if (impactedData.approvers && impactedData.approvers.length > 0) {
         const primaryApprover = impactedData.approvers[0];
-        if (primaryApprover.id && primaryApprover.id !== changeRequest.requester_id) {
+        if (primaryApprover.id) {
           console.log(`⚠️ No assigned agent found, using primary technical owner as SME: ${primaryApprover.id} (${primaryApprover.name || 'Name not available'})`);
+          const isRequester = primaryApprover.id === changeRequest.requester_id;
           return {
             id: primaryApprover.id,
             name: primaryApprover.name || primaryApprover.email || `User ${primaryApprover.id}`,
             email: primaryApprover.email || null,
-            source: 'Primary Technical Owner (Fallback)'
+            source: isRequester ? 'Primary Technical Owner (Self)' : 'Primary Technical Owner (Fallback)'
           };
         }
       }
@@ -2322,13 +2326,14 @@ const ChangeSubmission = {
       // Last resort: Use asset manager as SME
       if (data.selectedAssets && data.selectedAssets.length > 0) {
         for (const asset of data.selectedAssets) {
-          if (asset.managed_by && asset.managed_by !== changeRequest.requester_id) {
+          if (asset.managed_by) {
             console.log(`⚠️ No assigned agent or technical owner found, using asset manager as SME: ${asset.managed_by} (from asset: ${asset.name})`);
+            const isRequester = asset.managed_by === changeRequest.requester_id;
             return {
               id: asset.managed_by,
               name: `Asset Manager (${asset.name})`,
               email: null,
-              source: 'Asset Manager (Last Resort)'
+              source: isRequester ? 'Asset Manager (Self)' : 'Asset Manager (Last Resort)'
             };
           }
         }
@@ -2503,16 +2508,30 @@ const ChangeSubmission = {
       description += `</div>`;
     }
     
-    // SME Responsibilities
+    // SME Responsibilities - Different instructions for self-requested vs. assigned agent
+    const isSelfRequested = agentSME.source?.includes('Self') || agentSME.source?.includes('Self-Requested');
+    
     description += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin-bottom: 20px;">`;
     description += `<h4 style="margin-top: 0; color: #856404;">🎯 Your Responsibilities as SME Coordinator</h4>`;
-    description += `<p>As the assigned Subject Matter Expert, you must coordinate an <strong>independent peer review</strong> by choosing <strong>ONE</strong> of the following options:</p>`;
-    description += `<ol style="margin-bottom: 0;">`;
-    description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review.</li>`;
-    description += `<li><strong>Coordinate External Review:</strong> Obtain peer review through other team members and attach evidence of the completed review.</li>`;
-    description += `<li><strong>Escalate for Review Assignment:</strong> If unsure who should review, escalate to management to identify an appropriate peer reviewer.</li>`;
-    description += `</ol>`;
-    description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Note:</strong> As the SME, you should not review your own work or work you were directly involved in planning. The goal is independent technical validation.</p>`;
+    
+    if (isSelfRequested) {
+      description += `<p>As the <strong>requester and assigned SME</strong>, you must obtain an <strong>independent peer review</strong> since you cannot review your own work. Choose <strong>ONE</strong> of the following options:</p>`;
+      description += `<ol style="margin-bottom: 0;">`;
+      description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review of your change plan.</li>`;
+      description += `<li><strong>Coordinate External Review:</strong> Ask a colleague to review your change and attach evidence of their completed review to this task.</li>`;
+      description += `<li><strong>Escalate for Review Assignment:</strong> Contact your manager to assign an appropriate independent peer reviewer.</li>`;
+      description += `</ol>`;
+      description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Important:</strong> Since you are both the requester and SME, independent review is mandatory. You cannot approve your own work.</p>`;
+    } else {
+      description += `<p>As the assigned Subject Matter Expert, you must coordinate an <strong>independent peer review</strong> by choosing <strong>ONE</strong> of the following options:</p>`;
+      description += `<ol style="margin-bottom: 0;">`;
+      description += `<li><strong>Conduct Review Yourself:</strong> If you have the expertise and were not involved in planning this change, you may perform the peer review yourself.</li>`;
+      description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review.</li>`;
+      description += `<li><strong>Coordinate External Review:</strong> Obtain peer review through other team members and attach evidence of the completed review.</li>`;
+      description += `<li><strong>Escalate for Review Assignment:</strong> If unsure who should review, escalate to management to identify an appropriate peer reviewer.</li>`;
+      description += `</ol>`;
+      description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Note:</strong> The goal is independent technical validation. If you were involved in planning this change, assign it to someone else for review.</p>`;
+    }
     description += `</div>`;
     
     // Review checklist
