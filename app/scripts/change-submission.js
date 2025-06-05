@@ -2071,8 +2071,7 @@ const ChangeSubmission = {
     body += `<h4 style="margin-top: 0; color: #0c5460;">🎯 Why You're Receiving This Notification</h4>`;
     body += `<p>You have been identified as a stakeholder for this change because you may be impacted by or have responsibility for systems affected by this change.</p>`;
     
-    // Group recipients by source/type and explain why they're notified (avoid repetition)
-    const stakeholdersBySource = {};
+    // Check recipient types to avoid repeating explanations
     const hasAssetStakeholders = recipients.some(r => r.source?.includes('Asset'));
     const hasServiceStakeholders = recipients.some(r => r.source?.includes('Service'));
     const hasTechnicalStakeholders = recipients.some(r => r.source?.includes('Technical') || r.type === 'approver');
