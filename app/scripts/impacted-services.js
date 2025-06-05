@@ -1193,6 +1193,18 @@ const ImpactedServices = {
     const summarySection = document.getElementById('impact-summary');
     if (summarySection) {
       summarySection.style.display = 'block';
+      
+      // Initialize popovers for the summary section
+      setTimeout(() => {
+        const popoverElements = summarySection.querySelectorAll('[data-bs-toggle="popover"]');
+        popoverElements.forEach(element => {
+          new bootstrap.Popover(element, {
+            trigger: 'hover focus',
+            delay: { show: 300, hide: 100 }
+          });
+        });
+        console.log(`✅ Initialized ${popoverElements.length} impact summary popovers`);
+      }, 100);
     }
   },
 

@@ -436,23 +436,55 @@
                     <div class="card-body">
                       <div class="row">
                         <div class="col-md-6">
-                          <div class="summary-item">
+                          <div class="summary-item d-flex align-items-center">
                             <span class="summary-label">Direct Assets:</span>
-                            <span class="summary-value" id="direct-assets-count">0</span>
+                            <span class="summary-value me-2" id="direct-assets-count">0</span>
+                            <button type="button" class="btn btn-link btn-sm p-0" 
+                                    data-bs-toggle="popover" 
+                                    data-bs-placement="top"
+                                    data-bs-html="true"
+                                    data-bs-content="<div>Assets selected in the <strong>Asset Association</strong> step that will be directly modified or impacted by this change.</div>"
+                                    title="Direct Assets">
+                              <i class="fas fa-info-circle text-info"></i>
+                            </button>
                           </div>
-                          <div class="summary-item">
+                          <div class="summary-item d-flex align-items-center">
                             <span class="summary-label">Related Assets:</span>
-                            <span class="summary-value" id="related-assets-count">0</span>
+                            <span class="summary-value me-2" id="related-assets-count">0</span>
+                            <button type="button" class="btn btn-link btn-sm p-0" 
+                                    data-bs-toggle="popover" 
+                                    data-bs-placement="top"
+                                    data-bs-html="true"
+                                    data-bs-content="<div>Additional assets discovered through relationship analysis that may be indirectly affected by changes to the direct assets.</div>"
+                                    title="Related Assets">
+                              <i class="fas fa-info-circle text-info"></i>
+                            </button>
                           </div>
                         </div>
                         <div class="col-md-6">
-                          <div class="summary-item">
+                          <div class="summary-item d-flex align-items-center">
                             <span class="summary-label">Total Approvers:</span>
-                            <span class="summary-value" id="total-approvers-count">0</span>
+                            <span class="summary-value me-2" id="total-approvers-count">0</span>
+                            <button type="button" class="btn btn-link btn-sm p-0" 
+                                    data-bs-toggle="popover" 
+                                    data-bs-placement="top"
+                                    data-bs-html="true"
+                                    data-bs-content="<div>Technical owners and managers who must review and approve this change before implementation. These individuals have management responsibility for the affected assets.</div>"
+                                    title="Technical Approvers">
+                              <i class="fas fa-info-circle text-info"></i>
+                            </button>
                           </div>
-                          <div class="summary-item">
+                          <div class="summary-item d-flex align-items-center">
                             <span class="summary-label">Total Stakeholders:</span>
-                            <span class="summary-value" id="total-stakeholders-count">0</span>
+                            <span class="summary-value me-2" id="total-stakeholders-count">0</span>
+                            <button type="button" class="btn btn-link btn-sm p-0" 
+                                    data-bs-toggle="popover" 
+                                    data-bs-placement="top"
+                                    data-bs-html="true"
+                                    data-bs-content="<div>Users and team members who will be notified about this change for awareness. They don't need to approve but should be informed of potential impacts to their work.</div>"
+                                    title="Stakeholders">
+                              <i class="fas fa-info-circle text-info"></i>
+                            </button>
                           </div>
                         </div>
                       </div>

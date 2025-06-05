@@ -1108,18 +1108,18 @@ const ChangeSubmission = {
     
     if (diffMs < 0) return 'Invalid duration';
     
-    const diffMinutes = Math.round(diffMs / (1000 * 60));
-    const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    // Round to nearest 5 minutes
+    const totalMinutes = Math.round(diffMs / (1000 * 60));
+    const roundedMinutes = Math.round(totalMinutes / 5) * 5;
     
-    // Less than 1 hour
-    if (diffMinutes < 60) {
-      return `${diffMinutes} minute${diffMinutes !== 1 ? 's' : ''}`;
+    // Less than 1 hour (show as minutes)
+    if (roundedMinutes < 60) {
+      return `${roundedMinutes} minute${roundedMinutes !== 1 ? 's' : ''}`;
     }
-    // Less than 24 hours
-    else if (diffHours < 24) {
-      const hours = Math.floor(diffMs / (1000 * 60 * 60));
-      const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    // Less than 24 hours (show as hours and minutes)
+    else if (roundedMinutes < 24 * 60) {
+      const hours = Math.floor(roundedMinutes / 60);
+      const minutes = roundedMinutes % 60;
       
       if (minutes === 0) {
         return `${hours} hour${hours !== 1 ? 's' : ''}`;
@@ -1127,26 +1127,16 @@ const ChangeSubmission = {
         return `${hours}h ${minutes}m`;
       }
     }
-    // Less than 7 days
-    else if (diffDays < 7) {
-      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    // 24 hours or more (show as days and hours)
+    else {
+      const totalHours = Math.round(roundedMinutes / 60);
+      const days = Math.floor(totalHours / 24);
+      const hours = totalHours % 24;
       
       if (hours === 0) {
         return `${days} day${days !== 1 ? 's' : ''}`;
       } else {
         return `${days}d ${hours}h`;
-      }
-    }
-    // 7 days or more
-    else {
-      const weeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
-      const days = Math.floor((diffMs % (1000 * 60 * 60 * 24 * 7)) / (1000 * 60 * 60 * 24));
-      
-      if (days === 0) {
-        return `${weeks} week${weeks !== 1 ? 's' : ''}`;
-      } else {
-        return `${weeks}w ${days}d`;
       }
     }
   },
@@ -1897,10 +1887,10 @@ const ChangeSubmission = {
       }
       
       if (endDate) {
-        const duration = startDate && endDate ? Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) : null;
+        const duration = startDate && endDate ? this.calculateDuration(startDate, endDate) : null;
         body += `<p><strong>🏁 Planned End:</strong> ${endDate.toLocaleDateString()} at ${endDate.toLocaleTimeString()}`;
         if (duration) {
-          body += ` <span style="color: #0066cc; font-weight: bold;">(Duration: ${duration} day${duration !== 1 ? 's' : ''})</span>`;
+          body += ` <span style="color: #0066cc; font-weight: bold;">(Duration: ${duration})</span>`;
         }
         body += `</p>`;
       }
@@ -2079,14 +2069,14 @@ const ChangeSubmission = {
       }
       
       if (endDate) {
-        const duration = startDate && endDate ? Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) : null;
+        const duration = startDate && endDate ? this.calculateDuration(startDate, endDate) : null;
         body += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${scheduleColor};">`;
         body += `<div style="font-weight: bold; color: ${scheduleColor}; margin-bottom: 5px;">🏁 END TIME</div>`;
         body += `<div style="font-size: 16px; font-weight: bold; color: #333;">${endDate.toLocaleDateString()}</div>`;
         body += `<div style="font-size: 14px; color: #666;">${endDate.toLocaleTimeString()}</div>`;
         if (duration) {
           body += `<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">`;
-          body += `Duration: ${duration} day${duration !== 1 ? 's' : ''}`;
+          body += `Duration: ${duration}`;
           body += `</div>`;
         }
         body += `</div>`;
