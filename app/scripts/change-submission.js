@@ -3509,7 +3509,7 @@ const ChangeSubmission = {
         <div class="row">
       `;
       
-      this.state.sentNotifications.forEach((notification, index) => {
+      this.state.sentNotifications.forEach((notification) => {
         const successRate = notification.validEmails ? 
           `${notification.validEmails.length}/${notification.recipients?.length || 0}` : '0/0';
         
