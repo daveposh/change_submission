@@ -1633,7 +1633,7 @@ const ChangeSubmission = {
           });
           
           // Note: Freshservice API v2 doesn't have direct change approval creation
-          // Instead, create approval tickets - removed custom_fields as they cause validation errors
+          // Instead, create approval tickets - removed invalid fields that cause validation errors
           const approvalTicketData = {
             email: approver.email || `approver-${approver.id}@fallback.local`,
             subject: `Change Approval Required: ${changeRequest.subject}`,
@@ -1641,8 +1641,7 @@ const ChangeSubmission = {
             status: 2, // Open
             priority: 2, // Medium priority for approvals
             source: 2, // Portal
-            responder_id: approver.id,
-            ticket_type: "Incident" // Using Incident as the closest type
+            responder_id: approver.id
           };
 
           const response = await window.client.request.invokeTemplate('createChangeApproval', {
@@ -2395,7 +2394,7 @@ const ChangeSubmission = {
       dueDate.setHours(dueDate.getHours() + 24);
       
       // Create a ticket as task since change tasks API isn't available in v2
-      // Using ticket creation - removed custom_fields as they cause validation errors
+      // Using ticket creation - removed invalid fields that cause validation errors
       const taskData = {
         email: agentSME.email || `agent-${agentSME.id}@fallback.local`,
         subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
@@ -2404,8 +2403,7 @@ const ChangeSubmission = {
         priority: this.mapRiskToPriority(riskAssessment?.riskLevel || riskAssessment?.level),
         source: 2, // Portal
         responder_id: agentSME.id,
-        due_by: dueDate.toISOString(),
-        ticket_type: "Incident" // Use Incident as ticket type (Task may not be valid)
+        due_by: dueDate.toISOString()
       };
       
       console.log('📋 Peer review coordination task data prepared:', {
