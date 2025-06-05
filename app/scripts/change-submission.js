@@ -495,7 +495,11 @@ const ChangeSubmission = {
     changeRequestData.custom_fields = {
       risks: riskSummary,                                      // Text summary of risk assessment
       lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets), // Primary technical owner
-      risk_level: data.riskAssessment?.totalScore || null      // Numerical risk score from questionnaire (5-15)
+      risk_level: data.riskAssessment?.totalScore || null,     // Numerical risk score from questionnaire (5-15)
+      // Additional approver fields (custom fields from Freshservice)
+      additional_approver_1: this.getAdditionalApprover(impactedData.approvers, 0),
+      additional_approver_2: this.getAdditionalApprover(impactedData.approvers, 1),
+      additional_approver_3: this.getAdditionalApprover(impactedData.approvers, 2)
     };
 
     // Debug: Log risk assessment values being added to custom fields
@@ -621,6 +625,9 @@ const ChangeSubmission = {
     const technicalOwnerUserId = this.getTechnicalOwnerUserId(data.selectedAssets);
     console.log(`  • Technical Owner: ${technicalOwnerUserId || 'NULL'} (${technicalOwnerUserId ? '✅' : '❌'})`);
     console.log(`  • Risk Summary: ${changeRequestData.custom_fields.risks ? 'Present' : 'NULL'} (${changeRequestData.custom_fields.risks ? '✅' : '❌'})`);
+    console.log(`  • Additional Approver 1: ${changeRequestData.custom_fields.additional_approver_1 || 'NULL'} (${changeRequestData.custom_fields.additional_approver_1 ? '✅' : '❌'})`);
+    console.log(`  • Additional Approver 2: ${changeRequestData.custom_fields.additional_approver_2 || 'NULL'} (${changeRequestData.custom_fields.additional_approver_2 ? '✅' : '❌'})`);
+    console.log(`  • Additional Approver 3: ${changeRequestData.custom_fields.additional_approver_3 || 'NULL'} (${changeRequestData.custom_fields.additional_approver_3 ? '✅' : '❌'})`);
     
     // Log planning fields details
     console.log('📋 PLANNING FIELDS:');
@@ -983,7 +990,11 @@ const ChangeSubmission = {
     minimalData.custom_fields = {
       risks: riskSummary,
       lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets),
-      risk_level: data.riskAssessment?.totalScore || null
+      risk_level: data.riskAssessment?.totalScore || null,
+      // Additional approver fields (custom fields from Freshservice)
+      additional_approver_1: this.getAdditionalApprover(impactedData.approvers, 0),
+      additional_approver_2: this.getAdditionalApprover(impactedData.approvers, 1),
+      additional_approver_3: this.getAdditionalApprover(impactedData.approvers, 2)
     };
 
     // Add dates if available
@@ -1537,6 +1548,33 @@ const ChangeSubmission = {
       console.error('❌ Error getting technical owner user ID:', error);
       return null;
     }
+  },
+
+  /**
+   * Get additional approver ID based on index
+   * @param {Array} approvers - Array of approvers from impacted services
+   * @param {number} index - Index of the approver (0-based)
+   * @returns {number|null} - Approver ID or null if not available
+   */
+  getAdditionalApprover(approvers = [], index) {
+    if (!approvers || approvers.length === 0) {
+      console.log(`📋 No approvers available for additional_approver_${index + 1}`);
+      return null;
+    }
+    
+    if (index >= approvers.length) {
+      console.log(`📋 Index ${index} exceeds available approvers (${approvers.length}) for additional_approver_${index + 1}`);
+      return null;
+    }
+    
+    const approver = approvers[index];
+    if (approver && approver.id) {
+      console.log(`✅ Setting additional_approver_${index + 1}: ${approver.id} (${approver.name || 'Unknown Name'})`);
+      return approver.id;
+    }
+    
+    console.log(`⚠️ Approver at index ${index} has no valid ID for additional_approver_${index + 1}`);
+    return null;
   },
 
   /**
