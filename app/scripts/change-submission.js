@@ -223,9 +223,10 @@ const ChangeSubmission = {
       console.log('🔗 Step 4: Associating assets with change request...');
       await this.associateAssets(changeRequest);
 
-      // Step 5: Create approval workflow
-      console.log('✅ Step 5: Setting up approval workflow...');
-      await this.createApprovalWorkflow(changeRequest);
+      // Step 5: Create approval workflow (handled by workflow automator)
+      console.log('✅ Step 5: Approval workflow configured via custom fields...');
+      console.log('🤖 Workflow automator will process lf_technical_owner and lf_additional_approver_* fields');
+      // Skip API-based approval creation since workflow automator handles this
 
       // Step 6: Create stakeholder notification note (after change creation with change ID)
       console.log('📧 Step 6: Creating stakeholder notification note...');
@@ -1785,9 +1786,24 @@ const ChangeSubmission = {
       });
       
       if (!impactedData.approvers || impactedData.approvers.length === 0) {
-        console.log('ℹ️ No approvers identified from impacted services analysis, skipping approval creation');
-        return;
+        console.log('ℹ️ No approvers identified from impacted services analysis, workflow automator will handle approvals');
+        return { message: 'No approvers found - workflow automator will process custom fields' };
       }
+
+      // Skip API-based approval creation since workflow automator handles this
+      console.log('📋 Approval information stored in custom fields:');
+      console.log(`  • lf_technical_owner: Set to primary technical owner`);
+      console.log(`  • lf_additional_approver_1: ${impactedData.approvers[0]?.name || 'Not set'}`);
+      console.log(`  • lf_additional_approver_2: ${impactedData.approvers[1]?.name || 'Not set'}`);
+      console.log(`  • lf_additional_approver_3: ${impactedData.approvers[2]?.name || 'Not set'}`);
+      console.log('🤖 Workflow automator will process these fields to create approval tickets');
+      
+      return { 
+        success: true, 
+        message: 'Approval information stored in custom fields for workflow automator processing',
+        approverCount: impactedData.approvers.length,
+        storedInFields: true
+      };
 
       const data = window.changeRequestData;
       const riskAssessment = data?.riskAssessment;
@@ -2584,36 +2600,34 @@ const ChangeSubmission = {
       const dueDate = new Date();
       dueDate.setHours(dueDate.getHours() + 24);
       
-      // Create a ticket as task since change tasks API isn't available in v2
-      // Using ticket creation - removed invalid fields that cause validation errors
+      // Create a task associated with the change request
       const taskData = {
-        email: agentSME.email || `agent-${agentSME.id}@fallback.local`,
-        subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
+        title: `Peer Review Coordination Required: ${changeRequest.subject}`,
         description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
-        status: 2, // Open for tickets (2)
+        status: 1, // Open for tasks (1)
         priority: this.mapRiskToPriority(riskAssessment?.riskLevel || riskAssessment?.level),
-        source: 2, // Portal
-        responder_id: agentSME.id,
-        due_by: dueDate.toISOString(),
-        fr_due_by: dueDate.toISOString() // First response due by - required when due_by is provided
+        agent_id: agentSME.id,
+        due_date: dueDate.toISOString()
       };
       
       console.log('📋 Peer review coordination task data prepared:', {
-        subject: taskData.subject,
+        title: taskData.title,
         agentSMEId: agentSME.id,
         agentSMEName: agentSME.name,
         status: taskData.status,
         priority: taskData.priority,
         riskLevel: riskAssessment?.riskLevel || riskAssessment?.level,
-        dueDate: taskData.due_by,
+        dueDate: taskData.due_date,
         changeId: changeRequest.id,
-        email: taskData.email,
-        ticketType: taskData.ticket_type
+        agentId: taskData.agent_id
       });
       
-      // Create the task as a ticket using the ticket creation endpoint
-      console.log('📡 Sending task ticket creation request...');
+      // Create the task associated with the change request
+      console.log('📡 Sending change task creation request...');
       const response = await window.client.request.invokeTemplate('createChangeTask', {
+        context: {
+          change_id: changeRequest.id
+        },
         body: JSON.stringify(taskData),
         cache: false
       });
@@ -2633,21 +2647,17 @@ const ChangeSubmission = {
         throw new Error(`Invalid JSON response: ${parseError.message}`);
       }
       
-      // Handle ticket creation response structure
-      if (createdTask.helpdesk_ticket) {
-        // Standard ticket response structure with wrapper
-        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.helpdesk_ticket.id}`);
-        return createdTask.helpdesk_ticket;
-      } else if (createdTask.ticket) {
-        // Standard ticket response structure
-        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.ticket.id}`);
-        return createdTask.ticket;
+      // Handle task creation response structure
+      if (createdTask.task) {
+        // Standard task response structure
+        console.log(`✅ Peer review coordination task created successfully: ${createdTask.task.id}`);
+        return createdTask.task;
       } else if (createdTask.id) {
         // Direct response structure
-        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.id}`);
+        console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
         return createdTask;
       } else {
-        console.error('❌ Unexpected task ticket response structure:', createdTask);
+        console.error('❌ Unexpected task response structure:', createdTask);
         throw new Error(`Unexpected response structure: ${JSON.stringify(createdTask)}`);
       }
       
@@ -4746,7 +4756,7 @@ const ChangeSubmission = {
   },
 
   /**
-   * Associate assets with the change request
+   * Associate assets with the change request via API
    */
   async associateAssets(changeRequest) {
     console.log('🔗 Associating assets with change request...');
@@ -4762,16 +4772,18 @@ const ChangeSubmission = {
       console.log(`🔍 Found ${data.selectedAssets.length} assets to associate:`, 
         data.selectedAssets.map(asset => ({ id: asset.id, name: asset.name, display_id: asset.display_id })));
       
-      // Prepare asset association data
+      // Prepare asset association data - using correct Freshservice API v2 format
       const assetAssociationData = this.prepareAssetAssociationData(data.selectedAssets);
       
       console.log('📋 Asset association data prepared:', assetAssociationData);
       
+      // Use the correct API call format for associating assets with changes
       const response = await window.client.request.invokeTemplate('updateChange', {
         context: {
           change_id: changeRequest.id
         },
-        body: JSON.stringify(assetAssociationData)
+        body: JSON.stringify(assetAssociationData),
+        cache: false // Don't cache asset association requests
       });
       
       console.log('📡 Raw asset association response:', response);
@@ -4804,6 +4816,7 @@ const ChangeSubmission = {
       console.error('❌ Error associating assets with change request:', error);
       // Don't throw error - asset association failure shouldn't stop the entire submission
       console.warn('⚠️ Continuing with submission despite asset association failure');
+      return null;
     }
   },
 
@@ -4813,10 +4826,17 @@ const ChangeSubmission = {
   prepareAssetAssociationData(selectedAssets) {
     console.log('📦 Preparing asset association data...');
     
-    // For Freshservice API v2, we use the assets array with display_id
-    const assetsData = selectedAssets.map(asset => ({
-      display_id: asset.display_id || asset.id
-    }));
+    // For Freshservice API v2 changes, assets can be associated using display_id
+    // Let's try the correct format for the changes API
+    const assetsData = selectedAssets.map(asset => {
+      // Use display_id if available, otherwise use the asset id
+      const displayId = asset.display_id || asset.id;
+      console.log(`📋 Processing asset: ${asset.name} (ID: ${asset.id}, Display ID: ${displayId})`);
+      
+      return {
+        display_id: displayId
+      };
+    });
     
     const associationData = {
       assets: assetsData
@@ -4828,7 +4848,9 @@ const ChangeSubmission = {
     });
     
     return associationData;
-  }
+  },
+
+
 };
 
 // Initialize the module when the script loads
