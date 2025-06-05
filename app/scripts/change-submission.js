@@ -2505,69 +2505,64 @@ const ChangeSubmission = {
       const dueDate = new Date();
       dueDate.setHours(dueDate.getHours() + 24);
       
-      // Create a ticket as task since change tasks API isn't reliable
+      // Create a task associated with the change request using proper change tasks API
       const taskData = {
-        email: agentSME.email || `agent-${agentSME.id}@fallback.local`,
-        subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
-        description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
-        status: 2, // Open for tickets (2)
-        priority: this.mapRiskToPriority(riskAssessment?.riskLevel || riskAssessment?.level),
-        source: 2, // Portal
-        responder_id: agentSME.id,
-        due_by: dueDate.toISOString(),
-        fr_due_by: dueDate.toISOString() // First response due by - required when due_by is provided
+        agent_id: agentSME.id,
+        status: 1, // Open for tasks (1-Open, 2-In Progress, 3-Completed)
+        due_date: dueDate.toISOString(),
+        notify_before: 0, // No notification before due date
+        title: `Peer Review Coordination Required: ${changeRequest.subject}`,
+        description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
       };
       
       console.log('📋 Peer review coordination task data prepared:', {
-        subject: taskData.subject,
+        title: taskData.title,
         agentSMEId: agentSME.id,
         agentSMEName: agentSME.name,
         status: taskData.status,
-        priority: taskData.priority,
         riskLevel: riskAssessment?.riskLevel || riskAssessment?.level,
-        dueDate: taskData.due_by,
+        dueDate: taskData.due_date,
         changeId: changeRequest.id,
-        email: taskData.email,
-        responderId: taskData.responder_id
+        agentId: taskData.agent_id,
+        notifyBefore: taskData.notify_before
       });
       
-      // Create the task as a ticket using the ticket creation endpoint
-      console.log('📡 Sending task ticket creation request...');
+      // Create the task using the proper change tasks API endpoint
+      console.log('📡 Sending change task creation request...');
       const response = await window.client.request.invokeTemplate('createChangeTask', {
+        context: {
+          change_id: changeRequest.id
+        },
         body: JSON.stringify(taskData),
         cache: false
       });
       
-      console.log('📡 Raw task ticket creation response:', response);
+      console.log('📡 Raw change task creation response:', response);
       
       if (!response || !response.response) {
-        throw new Error('No response received from task ticket creation API');
+        throw new Error('No response received from change task creation API');
       }
       
       let createdTask;
       try {
         createdTask = JSON.parse(response.response);
-        console.log('📋 Parsed task ticket response:', createdTask);
+        console.log('📋 Parsed change task response:', createdTask);
       } catch (parseError) {
-        console.error('❌ Failed to parse task ticket response JSON:', response.response);
+        console.error('❌ Failed to parse change task response JSON:', response.response);
         throw new Error(`Invalid JSON response: ${parseError.message}`);
       }
       
-      // Handle ticket creation response structure
-      if (createdTask.helpdesk_ticket) {
-        // Standard ticket response structure with wrapper
-        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.helpdesk_ticket.id}`);
-        return createdTask.helpdesk_ticket;
-      } else if (createdTask.ticket) {
-        // Standard ticket response structure
-        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.ticket.id}`);
-        return createdTask.ticket;
+      // Handle change task creation response structure
+      if (createdTask.task) {
+        // Standard task response structure
+        console.log(`✅ Peer review coordination task created successfully: ${createdTask.task.id}`);
+        return createdTask.task;
       } else if (createdTask.id) {
         // Direct response structure
-        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.id}`);
+        console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
         return createdTask;
       } else {
-        console.error('❌ Unexpected ticket response structure:', createdTask);
+        console.error('❌ Unexpected change task response structure:', createdTask);
         throw new Error(`Unexpected response structure: ${JSON.stringify(createdTask)}`);
       }
       
