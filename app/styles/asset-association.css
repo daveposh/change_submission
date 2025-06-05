@@ -6,6 +6,8 @@
 /* Asset Association Tab Styles */
 .asset-association-container {
   padding: 1rem;
+  min-height: 0;
+  flex: 1;
 }
 
 /* Services Selection Styles */
@@ -223,6 +225,8 @@
 /* Search Results Styles */
 .asset-search-results {
   margin-top: 1.5rem;
+  position: relative;
+  z-index: 1;
 }
 
 .search-results-header {
@@ -242,10 +246,14 @@
 }
 
 .asset-results-list {
-  max-height: 400px;
+  max-height: 500px;
   overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid #dee2e6;
   border-radius: 6px;
+  scroll-behavior: smooth;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 [data-bs-theme="dark"] .asset-results-list {
@@ -263,6 +271,9 @@
   border-radius: 8px;
   margin-bottom: 1rem;
   background: #fff;
+  min-height: auto;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 [data-bs-theme="dark"] .asset-result-item {
@@ -744,12 +755,13 @@
 
 /* Scrollbar styling for search results */
 .asset-results-list::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 .asset-results-list::-webkit-scrollbar-track {
   background: #f1f1f1;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 [data-bs-theme="dark"] .asset-results-list::-webkit-scrollbar-track {
@@ -758,7 +770,7 @@
 
 .asset-results-list::-webkit-scrollbar-thumb {
   background: #c1c1c1;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 [data-bs-theme="dark"] .asset-results-list::-webkit-scrollbar-thumb {
@@ -886,8 +898,10 @@
 }
 
 .services-list {
-  max-height: 400px;
+  max-height: 500px;
   overflow-y: auto;
+  overflow-x: hidden;
+  border: none;
 }
 
 /* Service Item Card Styles */
@@ -1149,4 +1163,102 @@
   background: #f44336;
   border-radius: 50%;
   border: 2px solid white;
+}
+
+/* Additional scrolling fixes for asset association */
+
+/* Ensure scrolling containers work properly */
+.services-list,
+.asset-results-list {
+  /* Force scroll behavior */
+  scroll-behavior: smooth;
+  /* Prevent content from being cut off */
+  box-sizing: border-box;
+  /* Ensure proper width calculation */
+  width: 100%;
+}
+
+/* Fix potential z-index or positioning issues */
+.services-list-container,
+.asset-search-results {
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure service items don't break scrolling */
+.service-item,
+.asset-result-item {
+  min-height: auto;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+/* Fix for webkit browsers */
+.services-list::-webkit-scrollbar,
+.asset-results-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.services-list::-webkit-scrollbar-track,
+.asset-results-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.services-list::-webkit-scrollbar-thumb,
+.asset-results-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.services-list::-webkit-scrollbar-thumb:hover,
+.asset-results-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Dark mode scrollbar */
+[data-bs-theme="dark"] .services-list::-webkit-scrollbar-track,
+[data-bs-theme="dark"] .asset-results-list::-webkit-scrollbar-track {
+  background: #2c3e50;
+}
+
+[data-bs-theme="dark"] .services-list::-webkit-scrollbar-thumb,
+[data-bs-theme="dark"] .asset-results-list::-webkit-scrollbar-thumb {
+  background: #7f8c8d;
+}
+
+[data-bs-theme="dark"] .services-list::-webkit-scrollbar-thumb:hover,
+[data-bs-theme="dark"] .asset-results-list::-webkit-scrollbar-thumb:hover {
+  background: #95a5a6;
+}
+
+/* Ensure containers can grow/shrink properly */
+.asset-association-container {
+  min-height: 0;
+  flex: 1;
+}
+
+/* Fix for potential overflow issues */
+.tab-pane {
+  overflow: visible;
+}
+
+/* Ensure proper height calculation for scrollable areas */
+.services-list,
+.asset-results-list {
+  contain: layout style;
+}
+
+/* Additional mobile improvements */
+@media (max-width: 768px) {
+  .services-list,
+  .asset-results-list {
+    max-height: 400px;
+  }
+  
+  .services-list-container,
+  .asset-search-results {
+    margin-bottom: 1rem;
+  }
 } 
