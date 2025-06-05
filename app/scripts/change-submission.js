@@ -2510,7 +2510,6 @@ const ChangeSubmission = {
         title: `Peer Review Coordination Required: ${changeRequest.subject}`,
         description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
         status: 1, // Open for tasks (1)
-        priority: this.mapRiskToPriority(riskAssessment?.riskLevel || riskAssessment?.level),
         agent_id: agentSME.id,
         due_date: dueDate.toISOString()
       };
@@ -2520,7 +2519,6 @@ const ChangeSubmission = {
         agentSMEId: agentSME.id,
         agentSMEName: agentSME.name,
         status: taskData.status,
-        priority: taskData.priority,
         riskLevel: riskAssessment?.riskLevel || riskAssessment?.level,
         dueDate: taskData.due_date,
         changeId: changeRequest.id,
