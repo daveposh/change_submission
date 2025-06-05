@@ -892,10 +892,182 @@ const ChangeSubmission = {
       description += `</div></div>`;
     }
 
-    // Service Impact Section with comprehensive risk and impact information
+    // Impacted Assets Section with detailed information and popovers
+    if (data.selectedAssets && data.selectedAssets.length > 0) {
+      description += `<div style="margin-bottom: 25px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
+      description += `<h3 style="color: #007bff; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
+      description += `<span style="margin-right: 10px;">🎯</span>Impacted Assets & Services`;
+      description += `<span style="margin-left: auto; background: #007bff; color: white; padding: 4px 12px; border-radius: 15px; font-size: 14px; font-weight: bold;">${data.selectedAssets.length} Asset${data.selectedAssets.length !== 1 ? 's' : ''}</span>`;
+      description += `</h3>`;
+      
+      // Group assets by type for better organization
+      const assetsByType = {};
+      data.selectedAssets.forEach(asset => {
+        const type = asset.asset_type_name || 'Unknown Type';
+        if (!assetsByType[type]) {
+          assetsByType[type] = [];
+        }
+        assetsByType[type].push(asset);
+      });
+      
+      // Display assets grouped by type
+      Object.keys(assetsByType).forEach(assetType => {
+        const assets = assetsByType[assetType];
+        description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">`;
+        description += `<h4 style="margin: 0 0 15px 0; color: #007bff; font-size: 16px; display: flex; align-items: center;">`;
+        description += `<span style="margin-right: 8px;">📦</span>${assetType}`;
+        description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${assets.length} asset${assets.length !== 1 ? 's' : ''}</span>`;
+        description += `</h4>`;
+        
+        // Display each asset with enhanced information
+        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;">`;
+        assets.forEach(asset => {
+          // Get technical owner information
+          const technicalOwner = asset.managed_by_name || asset.agent_name || asset.user_name || 'Unassigned';
+          const technicalOwnerId = asset.managed_by || asset.agent_id || asset.user_id || null;
+          const ownerInfo = technicalOwnerId ? `${technicalOwner} (ID: ${technicalOwnerId})` : technicalOwner;
+          
+          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6; position: relative; cursor: pointer;" `;
+          description += `onmouseover="this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'; this.style.transform='translateY(-2px)'" `;
+          description += `onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'; this.style.transform='translateY(0)'">`;
+          
+          // Asset name with enhanced styling
+          description += `<div style="font-weight: bold; font-size: 15px; color: #007bff; margin-bottom: 8px; display: flex; align-items: center;">`;
+          description += `<span style="margin-right: 8px;">🖥️</span>${asset.name || asset.display_id || 'Unknown Asset'}`;
+          if (asset.display_id && asset.name !== asset.display_id) {
+            description += `<span style="margin-left: 8px; font-size: 12px; color: #6c757d; font-weight: normal;">(${asset.display_id})</span>`;
+          }
+          description += `</div>`;
+          
+          // Asset details grid
+          description += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 10px;">`;
+          
+          // Location
+          if (asset.location_name) {
+            description += `<div style="color: #6c757d;"><strong>📍 Location:</strong><br>${asset.location_name}</div>`;
+          }
+          
+          // Department
+          if (asset.department_name) {
+            description += `<div style="color: #6c757d;"><strong>🏢 Department:</strong><br>${asset.department_name}</div>`;
+          }
+          
+          // Status
+          if (asset.asset_state) {
+            const statusColor = asset.asset_state === 'In Use' ? '#28a745' : asset.asset_state === 'Retired' ? '#dc3545' : '#ffc107';
+            description += `<div style="color: #6c757d;"><strong>📊 Status:</strong><br><span style="color: ${statusColor}; font-weight: bold;">${asset.asset_state}</span></div>`;
+          }
+          
+          // Asset Tag
+          if (asset.asset_tag) {
+            description += `<div style="color: #6c757d;"><strong>🏷️ Asset Tag:</strong><br>${asset.asset_tag}</div>`;
+          }
+          
+          description += `</div>`;
+          
+          // Technical Owner section with enhanced visibility
+          description += `<div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 10px; border-radius: 4px; border-left: 3px solid #2196f3; margin-top: 10px;">`;
+          description += `<div style="font-size: 12px; font-weight: bold; color: #1976d2; margin-bottom: 4px; display: flex; align-items: center;">`;
+          description += `<span style="margin-right: 6px;">👤</span>Technical Owner`;
+          description += `</div>`;
+          description += `<div style="font-size: 13px; color: #1565c0; font-weight: 600;">${ownerInfo}</div>`;
+          if (asset.managed_by_email || asset.agent_email || asset.user_email) {
+            const ownerEmail = asset.managed_by_email || asset.agent_email || asset.user_email;
+            description += `<div style="font-size: 11px; color: #1976d2; margin-top: 2px;">📧 ${ownerEmail}</div>`;
+          }
+          description += `</div>`;
+          
+          // Add detailed info button that triggers popover
+          description += `<div style="position: absolute; top: 8px; right: 8px;">`;
+          description += `<span style="background: #007bff; color: white; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer;" `;
+          description += `title="Asset Details: ${asset.name || asset.display_id}&#10;Type: ${asset.asset_type_name || 'Unknown'}&#10;Owner: ${ownerInfo}&#10;Location: ${asset.location_name || 'Not specified'}&#10;Status: ${asset.asset_state || 'Unknown'}">ℹ️</span>`;
+          description += `</div>`;
+          
+          description += `</div>`;
+        });
+        description += `</div>`;
+        description += `</div>`;
+      });
+      description += `</div>`;
+    }
+
+    // Stakeholder & Approver Information with popovers
+    if ((impactedData.approvers && impactedData.approvers.length > 0) || (impactedData.stakeholders && impactedData.stakeholders.length > 0)) {
+      description += `<div style="margin-bottom: 25px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
+      description += `<h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
+      description += `<span style="margin-right: 10px;">👥</span>Stakeholders & Approvers`;
+      description += `</h3>`;
+      
+      // Approvers section
+      if (impactedData.approvers && impactedData.approvers.length > 0) {
+        description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #28a745;">`;
+        description += `<h4 style="margin: 0 0 15px 0; color: #28a745; font-size: 16px; display: flex; align-items: center;">`;
+        description += `<span style="margin-right: 8px;">✅</span>Technical Approvers`;
+        description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${impactedData.approvers.length} approver${impactedData.approvers.length !== 1 ? 's' : ''}</span>`;
+        description += `<span style="margin-left: 8px; background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer;" `;
+        description += `title="Approver Details&#10;${impactedData.approvers.map(a => `• ${a.name || 'Unknown'} (${a.source || 'Technical Owner'})`).join('&#10;')}">ℹ️ Details</span>`;
+        description += `</h4>`;
+        
+        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">`;
+        impactedData.approvers.slice(0, 6).forEach(approver => { // Limit to 6 for display
+          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6;">`;
+          description += `<div style="font-weight: bold; font-size: 14px; color: #28a745; margin-bottom: 4px;">${approver.name || 'Unknown Name'}</div>`;
+          if (approver.email) {
+            description += `<div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">📧 ${approver.email}</div>`;
+          }
+          description += `<div style="font-size: 11px; background: #e8f5e8; color: #2d5a2d; padding: 2px 6px; border-radius: 8px; display: inline-block;">${approver.source || 'Technical Owner'}</div>`;
+          description += `</div>`;
+        });
+        if (impactedData.approvers.length > 6) {
+          description += `<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px dashed #dee2e6; display: flex; align-items: center; justify-content: center; color: #6c757d; font-style: italic;">`;
+          description += `+${impactedData.approvers.length - 6} more approvers...`;
+          description += `</div>`;
+        }
+        description += `</div>`;
+        description += `</div>`;
+      }
+      
+      // Stakeholders section
+      if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
+        description += `<div style="padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #17a2b8;">`;
+        description += `<h4 style="margin: 0 0 15px 0; color: #17a2b8; font-size: 16px; display: flex; align-items: center;">`;
+        description += `<span style="margin-right: 8px;">📢</span>Additional Stakeholders`;
+        description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${impactedData.stakeholders.length} stakeholder${impactedData.stakeholders.length !== 1 ? 's' : ''}</span>`;
+        description += `<span style="margin-left: 8px; background: #17a2b8; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer;" `;
+        description += `title="Stakeholder Details&#10;${impactedData.stakeholders.map(s => `• ${s.name || 'Unknown'} (${s.source || 'Impacted Services'})`).join('&#10;')}">ℹ️ Details</span>`;
+        description += `</h4>`;
+        
+        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">`;
+        impactedData.stakeholders.slice(0, 6).forEach(stakeholder => { // Limit to 6 for display
+          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6;">`;
+          description += `<div style="font-weight: bold; font-size: 14px; color: #17a2b8; margin-bottom: 4px;">${stakeholder.name || 'Unknown Name'}</div>`;
+          if (stakeholder.email) {
+            description += `<div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">📧 ${stakeholder.email}</div>`;
+          }
+          description += `<div style="font-size: 11px; background: #e3f7f8; color: #2d5a5a; padding: 2px 6px; border-radius: 8px; display: inline-block;">${stakeholder.source || 'Impacted Services'}</div>`;
+          description += `</div>`;
+        });
+        if (impactedData.stakeholders.length > 6) {
+          description += `<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px dashed #dee2e6; display: flex; align-items: center; justify-content: center; color: #6c757d; font-style: italic;">`;
+          description += `+${impactedData.stakeholders.length - 6} more stakeholders...`;
+          description += `</div>`;
+        }
+        description += `</div>`;
+        description += `</div>`;
+      }
+      description += `</div>`;
+    }
+
+    // Footer with detailed view option
+    description += `<div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6; text-align: center;">`;
+    description += `<h4 style="color: #495057; margin: 0 0 10px 0;">📋 Additional Information Available</h4>`;
+    description += `<p style="color: #6c757d; margin: 0 0 15px 0; font-size: 14px;">Complete change details, implementation plans, risk assessments, and stakeholder information are available in the full change request.</p>`;
+    description += `<div style="font-size: 12px; color: #6c757d; font-style: italic;">This enhanced description includes comprehensive change review, detailed asset information, and stakeholder coordination details.</div>`;
+    description += `</div>`;
+
     description += `</div>`;
     
-    console.log('✅ Enhanced description created with comprehensive review, detailed risk descriptions, and prominent scheduling');
+    console.log('✅ Enhanced description created with detailed assets, stakeholder popovers, and comprehensive review information');
     return description;
   },
 
