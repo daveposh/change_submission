@@ -1550,32 +1550,51 @@ const ChangeSubmission = {
     }
   },
 
-  /**
-   * Get additional approver ID based on index
+    /**
+   * Get additional approver ID based on index, excluding technical owner
    * @param {Array} approvers - Array of approvers from impacted services
    * @param {number} index - Index of the approver (0-based)
    * @returns {number|null} - Approver ID or null if not available
    */
-     getAdditionalApprover(approvers = [], index) {
-     if (!approvers || approvers.length === 0) {
-       console.log(`📋 No approvers available for lf_additional_approver_${index + 1}`);
-       return null;
-     }
-     
-     if (index >= approvers.length) {
-       console.log(`📋 Index ${index} exceeds available approvers (${approvers.length}) for lf_additional_approver_${index + 1}`);
-       return null;
-     }
-     
-     const approver = approvers[index];
-     if (approver && approver.id) {
-       console.log(`✅ Setting lf_additional_approver_${index + 1}: ${approver.id} (${approver.name || 'Unknown Name'})`);
-       return approver.id;
-     }
-     
-     console.log(`⚠️ Approver at index ${index} has no valid ID for lf_additional_approver_${index + 1}`);
-     return null;
-   },
+  getAdditionalApprover(approvers = [], index) {
+    if (!approvers || approvers.length === 0) {
+      console.log(`📋 No approvers available for lf_additional_approver_${index + 1}`);
+      return null;
+    }
+    
+    // Get the technical owner ID to exclude from additional approvers
+    const data = window.changeRequestData;
+    const technicalOwnerUserId = this.getTechnicalOwnerUserId(data.selectedAssets);
+    
+    // Filter out approvers that match the technical owner
+    const filteredApprovers = approvers.filter(approver => {
+      if (!approver || !approver.id) return false;
+      
+      // Skip if this approver is the same as the technical owner
+      if (technicalOwnerUserId && approver.id === technicalOwnerUserId) {
+        console.log(`⚠️ Skipping approver ${approver.id} (${approver.name || 'Unknown'}) - same as technical owner`);
+        return false;
+      }
+      
+      return true;
+    });
+    
+    console.log(`📋 Filtered approvers for additional fields: ${filteredApprovers.length} (excluded technical owner: ${technicalOwnerUserId})`);
+    
+    if (index >= filteredApprovers.length) {
+      console.log(`📋 Index ${index} exceeds available filtered approvers (${filteredApprovers.length}) for lf_additional_approver_${index + 1}`);
+      return null;
+    }
+    
+    const approver = filteredApprovers[index];
+    if (approver && approver.id) {
+      console.log(`✅ Setting lf_additional_approver_${index + 1}: ${approver.id} (${approver.name || 'Unknown Name'})`);
+      return approver.id;
+    }
+    
+    console.log(`⚠️ Filtered approver at index ${index} has no valid ID for lf_additional_approver_${index + 1}`);
+    return null;
+  },
 
   /**
    * Create approval workflow for the change request
