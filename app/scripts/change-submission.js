@@ -2397,9 +2397,7 @@ const ChangeSubmission = {
       // Create the task as a ticket using the ticket creation endpoint
       console.log('📡 Sending task ticket creation request...');
       const response = await window.client.request.invokeTemplate('createChangeTask', {
-        body: JSON.stringify({
-          helpdesk_ticket: taskData
-        }),
+        body: JSON.stringify(taskData),
         cache: false
       });
       
@@ -2420,9 +2418,13 @@ const ChangeSubmission = {
       
       // Handle ticket creation response structure
       if (createdTask.helpdesk_ticket) {
-        // Standard ticket response structure
+        // Standard ticket response structure with wrapper
         console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.helpdesk_ticket.id}`);
         return createdTask.helpdesk_ticket;
+      } else if (createdTask.ticket) {
+        // Standard ticket response structure
+        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.ticket.id}`);
+        return createdTask.ticket;
       } else if (createdTask.id) {
         // Direct response structure
         console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.id}`);
