@@ -1772,7 +1772,7 @@ const ChangeSubmission = {
   /**
    * Create approval workflow for the change request
    */
-  async createApprovalWorkflow(changeRequest) {
+  createApprovalWorkflow() {
     console.log('✅ Setting up change approvals...');
     
     try {
