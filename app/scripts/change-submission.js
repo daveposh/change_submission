@@ -1633,7 +1633,7 @@ const ChangeSubmission = {
           });
           
           // Note: Freshservice API v2 doesn't have direct change approval creation
-          // Instead, create approval tickets that reference the change
+          // Instead, create approval tickets - removed custom_fields as they cause validation errors
           const approvalTicketData = {
             email: approver.email || `approver-${approver.id}@fallback.local`,
             subject: `Change Approval Required: ${changeRequest.subject}`,
@@ -1642,10 +1642,7 @@ const ChangeSubmission = {
             priority: 2, // Medium priority for approvals
             source: 2, // Portal
             responder_id: approver.id,
-            ticket_type: "Incident", // Using Incident as the closest type
-            custom_fields: {
-              related_change_id: changeRequest.id
-            }
+            ticket_type: "Incident" // Using Incident as the closest type
           };
 
           const response = await window.client.request.invokeTemplate('createChangeApproval', {
@@ -2398,7 +2395,7 @@ const ChangeSubmission = {
       dueDate.setHours(dueDate.getHours() + 24);
       
       // Create a ticket as task since change tasks API isn't available in v2
-      // Using ticket creation with custom fields to reference the change
+      // Using ticket creation - removed custom_fields as they cause validation errors
       const taskData = {
         email: agentSME.email || `agent-${agentSME.id}@fallback.local`,
         subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
@@ -2408,10 +2405,7 @@ const ChangeSubmission = {
         source: 2, // Portal
         responder_id: agentSME.id,
         due_by: dueDate.toISOString(),
-        ticket_type: "Incident", // Use Incident as ticket type (Task may not be valid)
-        custom_fields: {
-          related_change_id: changeRequest.id
-        }
+        ticket_type: "Incident" // Use Incident as ticket type (Task may not be valid)
       };
       
       console.log('📋 Peer review coordination task data prepared:', {
