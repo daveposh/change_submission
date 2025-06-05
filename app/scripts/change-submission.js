@@ -2069,33 +2069,35 @@ const ChangeSubmission = {
     // Why you're receiving this notification
     body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">`;
     body += `<h4 style="margin-top: 0; color: #0c5460;">🎯 Why You're Receiving This Notification</h4>`;
-    body += `<p>You have been identified as a stakeholder because:</p>`;
-    body += `<ul>`;
+    body += `<p>You have been identified as a stakeholder for this change because you may be impacted by or have responsibility for systems affected by this change.</p>`;
     
-    // Group recipients by source/type and explain why they're notified
+    // Group recipients by source/type and explain why they're notified (avoid repetition)
     const stakeholdersBySource = {};
-    recipients.forEach(recipient => {
-      const source = recipient.source || 'Manual Selection';
-      if (!stakeholdersBySource[source]) {
-        stakeholdersBySource[source] = [];
-      }
-      stakeholdersBySource[source].push(recipient);
-    });
+    const hasAssetStakeholders = recipients.some(r => r.source?.includes('Asset'));
+    const hasServiceStakeholders = recipients.some(r => r.source?.includes('Service'));
+    const hasTechnicalStakeholders = recipients.some(r => r.source?.includes('Technical') || r.type === 'approver');
+    const hasManualStakeholders = recipients.some(r => !r.source || r.source === 'Impacted Services' || r.source === 'Manual Selection');
     
-    Object.keys(stakeholdersBySource).forEach(source => {
-      const count = stakeholdersBySource[source].length;
-      if (source.includes('Asset')) {
-        body += `<li>You manage or are responsible for ${count > 1 ? 'assets' : 'an asset'} that will be directly impacted by this change</li>`;
-      } else if (source.includes('Service')) {
-        body += `<li>You own or manage ${count > 1 ? 'services' : 'a service'} that may be affected by this change</li>`;
-      } else if (source.includes('Technical')) {
+    if (hasAssetStakeholders || hasServiceStakeholders || hasTechnicalStakeholders || hasManualStakeholders) {
+      body += `<p><strong>You may be receiving this because:</strong></p>`;
+      body += `<ul>`;
+      
+      if (hasAssetStakeholders) {
+        body += `<li>You manage or are responsible for assets that will be directly impacted</li>`;
+      }
+      if (hasServiceStakeholders) {
+        body += `<li>You own or manage services that may be affected by this change</li>`;
+      }
+      if (hasTechnicalStakeholders) {
         body += `<li>You are a technical owner or approver for systems involved in this change</li>`;
-      } else {
-        body += `<li>You have been manually identified as a stakeholder for this change</li>`;
       }
-    });
+      if (hasManualStakeholders) {
+        body += `<li>You have been identified as having an interest in or responsibility for this change</li>`;
+      }
+      
+      body += `</ul>`;
+    }
     
-    body += `</ul>`;
     body += `<p><strong>No action is required from you</strong> - this is purely informational. However, if you have concerns or questions about this change, please contact the requester or agent SME listed above.</p>`;
     body += `</div>`;
     
