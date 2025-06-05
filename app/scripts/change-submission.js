@@ -219,21 +219,21 @@ const ChangeSubmission = {
       const changeRequest = await this.createChangeRequest(changeRequestData);
       this.state.submissionId = changeRequest.id;
 
-      // Step 4: Create peer review task if needed (immediately after change creation)
-      console.log('👥 Step 4: Creating peer review task if needed...');
-      await this.createPeerReviewTasks(changeRequest);
+      // Step 4: Associate assets with the change request (early for stakeholder identification)
+      console.log('🔗 Step 4: Associating assets with change request...');
+      await this.associateAssets(changeRequest);
 
       // Step 5: Create approval workflow
       console.log('✅ Step 5: Setting up approval workflow...');
       await this.createApprovalWorkflow(changeRequest);
 
-      // Step 6: Send stakeholder notifications
-      console.log('📧 Step 6: Sending stakeholder notifications...');
+      // Step 6: Create stakeholder notification note (after change creation with change ID)
+      console.log('📧 Step 6: Creating stakeholder notification note...');
       await this.sendStakeholderNotifications(changeRequest);
 
-      // Step 7: Associate assets with the change request
-      console.log('🔗 Step 7: Associating assets with change request...');
-      await this.associateAssets(changeRequest);
+      // Step 7: Create peer review task if needed
+      console.log('👥 Step 7: Creating peer review task if needed...');
+      await this.createPeerReviewTasks(changeRequest);
 
       // Step 8: Update change request with additional metadata
       console.log('🔄 Step 8: Updating change request with workflow data...');
@@ -1604,11 +1604,27 @@ const ChangeSubmission = {
             hasEmailContent: !!approvalData.email_content
           });
           
+          // Note: Freshservice API v2 doesn't have direct change approval creation
+          // Instead, create approval tickets that reference the change
+          const approvalTicketData = {
+            email: approver.email || `approver-${approver.id}@fallback.local`,
+            subject: `Change Approval Required: ${changeRequest.subject}`,
+            description: approvalData.email_content,
+            status: 2, // Open
+            priority: 2, // Medium priority for approvals
+            source: 2, // Portal
+            responder_id: approver.id,
+            ticket_type: "Incident", // Using Incident as the closest type
+            custom_fields: {
+              related_change_id: changeRequest.id
+            }
+          };
+
           const response = await window.client.request.invokeTemplate('createChangeApproval', {
-            context: {
-              change_id: changeRequest.id
-            },
-            body: JSON.stringify(approvalData)
+            body: JSON.stringify({
+              helpdesk_ticket: approvalTicketData
+            }),
+            cache: false
           });
           
           console.log(`📡 Raw approval response for ${approver.name}:`, response);
@@ -1626,16 +1642,16 @@ const ChangeSubmission = {
             throw new Error(`Invalid JSON response for approver ${approver.id}: ${parseError.message}`);
           }
           
-          // Handle different response structures
-          if (approval.approvals && approval.approvals.length > 0) {
-            const createdApproval = approval.approvals[0];
+          // Handle ticket response structure for approval tickets
+          if (approval.helpdesk_ticket && approval.helpdesk_ticket.id) {
+            const createdApproval = approval.helpdesk_ticket;
             createdApprovals.push(createdApproval);
-            console.log(`✅ Approval created successfully for ${approver.name}: ${createdApproval.id}`);
+            console.log(`✅ Approval ticket created successfully for ${approver.name}: ${createdApproval.id}`);
           } else if (approval.id) {
             createdApprovals.push(approval);
-            console.log(`✅ Approval created successfully for ${approver.name}: ${approval.id}`);
+            console.log(`✅ Approval ticket created successfully for ${approver.name}: ${approval.id}`);
           } else {
-            console.error(`❌ Unexpected approval response structure for ${approver.name}:`, approval);
+            console.error(`❌ Unexpected approval ticket response structure for ${approver.name}:`, approval);
             console.warn(`⚠️ Continuing with other approvers despite failure for ${approver.name}`);
           }
           
@@ -1646,7 +1662,7 @@ const ChangeSubmission = {
         }
       }
       
-      console.log(`✅ Created ${createdApprovals.length} out of ${impactedData.approvers.length} approvals`);
+      console.log(`✅ Created ${createdApprovals.length} out of ${impactedData.approvers.length} approval tickets`);
       
       // Store created approvals in state
       this.state.createdApprovals = createdApprovals;
@@ -1654,17 +1670,17 @@ const ChangeSubmission = {
       return createdApprovals;
       
     } catch (error) {
-      console.error('❌ Error in approval creation process:', error);
+      console.error('❌ Error in approval ticket creation process:', error);
       // Don't throw error - approval creation failure shouldn't stop the entire submission
-      console.warn('⚠️ Continuing with submission despite approval creation failure');
+      console.warn('⚠️ Continuing with submission despite approval ticket creation failure');
     }
   },
 
   /**
-   * Send stakeholder notifications
+   * Send stakeholder notifications by creating change notes with recipients
    */
   async sendStakeholderNotifications(changeRequest) {
-    console.log('📧 Sending stakeholder notifications...');
+    console.log('📧 Creating stakeholder notification notes...');
     
     try {
       // Get impacted services data which contains stakeholders
@@ -1688,13 +1704,14 @@ const ChangeSubmission = {
               email: stakeholder.email,
               name: stakeholder.name || stakeholder.email,
               type: 'stakeholder',
-              source: stakeholder.source || 'Impacted Services'
+              source: stakeholder.source || 'Impacted Services',
+              id: stakeholder.id || null
             });
           }
         });
       }
       
-      // Add approvers
+      // Add approvers (who are also stakeholders for notification purposes)
       if (impactedData.approvers && impactedData.approvers.length > 0) {
         impactedData.approvers.forEach(approver => {
           if (approver.email && !notificationRecipients.find(r => r.email === approver.email)) {
@@ -1702,102 +1719,324 @@ const ChangeSubmission = {
               email: approver.email,
               name: approver.name || approver.email,
               type: 'approver',
-              source: approver.source || 'Technical Owner'
+              source: approver.source || 'Technical Owner',
+              id: approver.id || null
             });
           }
         });
       }
       
       if (notificationRecipients.length === 0) {
-        console.log('ℹ️ No stakeholders or approvers with email addresses found, skipping notifications');
-        return;
+        console.log('ℹ️ No stakeholders or approvers found, skipping stakeholder notification note');
+        return { skipped: true, reason: 'No recipients found' };
       }
       
-      console.log(`📧 Sending notifications to ${notificationRecipients.length} recipients...`);
+      // Validate that we have at least one valid email
+      const validEmails = notificationRecipients
+        .map(r => r.email)
+        .filter(email => email && this.isValidEmail(email));
       
-      // Send notifications to each recipient
-      const sentNotifications = [];
-      for (const recipient of notificationRecipients) {
-        try {
-          const notification = await this.sendStakeholderNotification(changeRequest, recipient);
-          if (notification) {
-            sentNotifications.push(notification);
-            this.state.sentNotifications.push(notification);
-          }
-        } catch (error) {
-          console.error(`❌ Failed to send notification to ${recipient.email}:`, error);
-          // Continue with other notifications even if one fails
-        }
+      if (validEmails.length === 0) {
+        console.warn('⚠️ No valid email addresses found for stakeholders, skipping notification note');
+        return { skipped: true, reason: 'No valid email addresses' };
       }
       
-      console.log(`✅ Sent ${sentNotifications.length} stakeholder notifications for change ${changeRequest.id}`);
-      return sentNotifications;
+      console.log(`📝 Creating stakeholder notification note for ${notificationRecipients.length} recipients (${validEmails.length} valid emails)...`);
+      
+      // Create a single change note with all stakeholders as recipients
+      const stakeholderNote = await this.createStakeholderNotificationNote(changeRequest, notificationRecipients);
+      
+      if (stakeholderNote) {
+        this.state.sentNotifications.push({
+          type: 'stakeholder_note',
+          noteId: stakeholderNote.id,
+          recipients: notificationRecipients,
+          validEmails: validEmails,
+          sentAt: new Date().toISOString()
+        });
+        
+        console.log(`✅ Created stakeholder notification note ${stakeholderNote.id} for change ${changeRequest.id} with ${validEmails.length} email notifications`);
+        return { 
+          success: true, 
+          note: stakeholderNote, 
+          recipientCount: notificationRecipients.length,
+          emailCount: validEmails.length 
+        };
+      } else {
+        console.warn('⚠️ Stakeholder notification note creation returned null/undefined');
+        return { success: false, reason: 'Note creation failed' };
+      }
       
     } catch (error) {
-      console.error('❌ Error sending stakeholder notifications:', error);
+      console.error('❌ Error creating stakeholder notification note:', error);
       // Don't throw error - notification failure shouldn't stop the entire submission
       console.warn('⚠️ Continuing with submission despite notification failure');
     }
   },
 
   /**
-   * Send individual stakeholder notification
+   * Create stakeholder notification note with recipients
    */
-  async sendStakeholderNotification(changeRequest, recipient) {
-    console.log(`📧 Sending notification to ${recipient.email} (${recipient.type})...`);
+  async createStakeholderNotificationNote(changeRequest, recipients) {
+    console.log(`📝 Creating stakeholder notification note for ${recipients.length} recipients...`);
     
     try {
       const data = window.changeRequestData;
       const riskAssessment = data?.riskAssessment;
       
-      // Prepare email content
-      const emailData = {
-        to: [recipient.email],
-        subject: `Change Request Notification: ${changeRequest.subject}`,
-        body: this.generateStakeholderNotificationBody(changeRequest, recipient, riskAssessment),
-        body_type: 'html'
+      // Prepare note content
+      const noteBody = this.generateStakeholderNotificationNoteBody(changeRequest, recipients, riskAssessment);
+      
+      // Extract valid email addresses for notifications
+      const stakeholderEmails = recipients
+        .map(r => r.email)
+        .filter(email => email && this.isValidEmail(email));
+      
+      console.log('📧 Stakeholder emails for notification:', stakeholderEmails);
+      
+      // Prepare note data according to Freshservice API v2 format (based on official docs)
+      const noteData = {
+        body: noteBody,
+        notify_emails: stakeholderEmails // Email addresses that will receive notifications
       };
       
-      console.log('📋 Email notification data prepared:', {
-        to: emailData.to,
-        subject: emailData.subject,
-        recipientType: recipient.type
+      console.log('📋 Stakeholder note data prepared:', {
+        hasBody: !!noteData.body,
+        bodyLength: noteBody.length,
+        recipientCount: recipients.length,
+        validEmailCount: stakeholderEmails.length,
+        notifyEmails: stakeholderEmails,
+        changeId: changeRequest.id
       });
       
-      const response = await window.client.request.invokeTemplate('sendEmail', {
-        body: JSON.stringify(emailData)
+      const response = await window.client.request.invokeTemplate('createChangeNote', {
+        context: {
+          change_id: changeRequest.id
+        },
+        body: JSON.stringify(noteData),
+        cache: false
       });
       
-      console.log('📡 Raw email notification response:', response);
+      console.log('📡 Raw stakeholder note response:', response);
       
       if (!response || !response.response) {
-        throw new Error('No response received from email notification API');
+        throw new Error('No response received from change note creation API');
       }
       
-      let emailResponse;
+      let noteResponse;
       try {
-        emailResponse = JSON.parse(response.response);
-        console.log('📋 Parsed email response:', emailResponse);
+        noteResponse = JSON.parse(response.response);
+        console.log('📋 Parsed note response:', noteResponse);
       } catch (parseError) {
-        console.error('❌ Failed to parse email response JSON:', response.response);
+        console.error('❌ Failed to parse note response JSON:', response.response);
         throw new Error(`Invalid JSON response: ${parseError.message}`);
       }
       
-      console.log(`✅ Notification sent successfully to ${recipient.email}`);
-      return {
-        recipient: recipient,
-        response: emailResponse,
-        sentAt: new Date().toISOString()
-      };
+      // Handle different response structures
+      const createdNote = noteResponse.note || noteResponse;
+      
+      console.log(`✅ Stakeholder notification note created successfully: ${createdNote.id}`);
+      return createdNote;
       
     } catch (error) {
-      console.error(`❌ Failed to send notification to ${recipient.email}:`, error);
+      console.error(`❌ Failed to create stakeholder notification note:`, error);
       throw error;
     }
   },
 
   /**
-   * Generate stakeholder notification email body
+   * Generate stakeholder notification note body
+   */
+  generateStakeholderNotificationNoteBody(changeRequest, recipients, riskAssessment) {
+    const data = window.changeRequestData;
+    
+    let body = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
+    
+    // Header
+    body += `<h3 style="color: #0066cc; margin-bottom: 20px;">📋 Stakeholder Notification</h3>`;
+    
+    // Greeting and explanation
+    body += `<p><strong>Dear Stakeholders,</strong></p>`;
+    body += `<p>You have been identified as a stakeholder for this change request because you manage or are responsible for systems that may be impacted.</p>`;
+    body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0dcaf0;">`;
+    body += `<h4 style="margin-top: 0; color: #0c5460; font-size: 16px;">📋 Important Notice</h4>`;
+    body += `<p style="margin-bottom: 0;"><strong>This notification is for your awareness and review only - no approval action is required from you.</strong> If you have any questions or concerns about this change, please contact the Request or Agent SME listed below.</p>`;
+    body += `</div>`;
+    
+    // Important contacts section
+    body += `<div style="background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #0066cc;">`;
+    body += `<h4 style="margin-top: 0; color: #0066cc;">📞 Contact Information</h4>`;
+    body += `<p><strong>For questions or concerns, please contact:</strong></p>`;
+    body += `<ul style="margin-bottom: 0;">`;
+    body += `<li><strong>Change Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'} (${data.selectedRequester?.email || 'No email available'})</li>`;
+    if (data.selectedAgent?.name || data.selectedAgent?.email) {
+      body += `<li><strong>Agent SME:</strong> ${data.selectedAgent.name || data.selectedAgent.first_name + ' ' + data.selectedAgent.last_name || 'Unknown'} (${data.selectedAgent.email || 'No email available'})</li>`;
+    }
+    body += `</ul>`;
+    body += `</div>`;
+    
+    // Prominent schedule section
+    if (data.plannedStart || data.plannedEnd) {
+      const startDate = data.plannedStart ? new Date(data.plannedStart) : null;
+      const endDate = data.plannedEnd ? new Date(data.plannedEnd) : null;
+      const isUrgent = data.changeType === 'emergency' || (startDate && startDate <= new Date(Date.now() + 48 * 60 * 60 * 1000));
+      const scheduleColor = isUrgent ? '#dc3545' : '#28a745';
+      const timeToStart = startDate ? Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
+      
+      body += `<div style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, ${scheduleColor}15 0%, ${scheduleColor}25 100%); border-radius: 8px; border: 2px solid ${scheduleColor};">`;
+      body += `<h4 style="color: ${scheduleColor}; margin-top: 0; margin-bottom: 15px; font-size: 16px;">`;
+      body += `${isUrgent ? '⚡ URGENT SCHEDULE NOTICE' : '📅 CHANGE SCHEDULE'}`;
+      body += `</h4>`;
+      
+      if (startDate) {
+        body += `<p><strong>🚀 Planned Start:</strong> ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString()}`;
+        if (timeToStart !== null && timeToStart >= 0) {
+          body += ` <span style="color: ${isUrgent ? '#dc3545' : '#28a745'}; font-weight: bold;">(${timeToStart === 0 ? 'TODAY' : timeToStart === 1 ? 'TOMORROW' : `In ${timeToStart} days`})</span>`;
+        }
+        body += `</p>`;
+      }
+      
+      if (endDate) {
+        const duration = startDate && endDate ? Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24)) : null;
+        body += `<p><strong>🏁 Planned End:</strong> ${endDate.toLocaleDateString()} at ${endDate.toLocaleTimeString()}`;
+        if (duration) {
+          body += ` <span style="color: #0066cc; font-weight: bold;">(Duration: ${duration} day${duration !== 1 ? 's' : ''})</span>`;
+        }
+        body += `</p>`;
+      }
+      
+      if (isUrgent) {
+        body += `<div style="background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffc107; margin-top: 15px;">`;
+        body += `<div style="color: #856404; font-weight: bold; font-size: 14px;">⚠️ URGENT ATTENTION</div>`;
+        body += `<div style="color: #856404; font-size: 13px; margin-top: 5px;">`;
+        body += `This change is scheduled to begin ${timeToStart <= 2 ? 'very soon' : 'within the next few days'}. Please be prepared for potential service impacts.`;
+        body += `</div></div>`;
+      }
+      
+      body += `</div>`;
+    }
+    
+    // Change details
+    body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">`;
+    body += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
+    body += `<p><strong>Change ID:</strong> CR-${changeRequest.id}</p>`;
+    body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
+    body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'}</p>`;
+    
+    if (riskAssessment) {
+      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
+      body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
+    }
+    
+    body += `</div>`;
+    
+    // Why you're receiving this notification
+    body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">`;
+    body += `<h4 style="margin-top: 0; color: #0c5460;">🎯 Why You're Receiving This Notification</h4>`;
+    body += `<p>You have been identified as a stakeholder because:</p>`;
+    body += `<ul>`;
+    
+    // Group recipients by source/type and explain why they're notified
+    const stakeholdersBySource = {};
+    recipients.forEach(recipient => {
+      const source = recipient.source || 'Manual Selection';
+      if (!stakeholdersBySource[source]) {
+        stakeholdersBySource[source] = [];
+      }
+      stakeholdersBySource[source].push(recipient);
+    });
+    
+    Object.keys(stakeholdersBySource).forEach(source => {
+      const count = stakeholdersBySource[source].length;
+      if (source.includes('Asset')) {
+        body += `<li>You manage or are responsible for ${count > 1 ? 'assets' : 'an asset'} that will be directly impacted by this change</li>`;
+      } else if (source.includes('Service')) {
+        body += `<li>You own or manage ${count > 1 ? 'services' : 'a service'} that may be affected by this change</li>`;
+      } else if (source.includes('Technical')) {
+        body += `<li>You are a technical owner or approver for systems involved in this change</li>`;
+      } else {
+        body += `<li>You have been manually identified as a stakeholder for this change</li>`;
+      }
+    });
+    
+    body += `</ul>`;
+    body += `<p><strong>No action is required from you</strong> - this is purely informational. However, if you have concerns or questions about this change, please contact the requester or agent SME listed above.</p>`;
+    body += `</div>`;
+    
+    // Implementation details
+    if (data.implementationPlan) {
+      body += `<div style="margin: 20px 0;">`;
+      body += `<h4 style="color: #333;">📋 Implementation Plan</h4>`;
+      body += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #0066cc;">${data.implementationPlan}</div>`;
+      body += `</div>`;
+    }
+    
+    // Reason for change
+    if (data.reasonForChange) {
+      body += `<div style="margin: 20px 0;">`;
+      body += `<h4 style="color: #333;">💡 Reason for Change</h4>`;
+      body += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #28a745;">${data.reasonForChange}</div>`;
+      body += `</div>`;
+    }
+    
+    // Impacted assets
+    if (data.selectedAssets && data.selectedAssets.length > 0) {
+      body += `<div style="margin: 20px 0;">`;
+      body += `<h4 style="color: #333;">🖥️ Directly Impacted Assets</h4>`;
+      body += `<ul>`;
+      data.selectedAssets.forEach(asset => {
+        body += `<li><strong>${asset.name}</strong> (${asset.asset_type_name || 'Unknown Type'})`;
+        if (asset.location_name) {
+          body += ` - Location: ${asset.location_name}`;
+        }
+        body += `</li>`;
+      });
+      body += `</ul>`;
+      body += `</div>`;
+    }
+    
+    // Backout plan
+    if (data.backoutPlan) {
+      body += `<div style="margin: 20px 0;">`;
+      body += `<h4 style="color: #333;">↩️ Backout Plan</h4>`;
+      body += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #ffc107;">${data.backoutPlan}</div>`;
+      body += `</div>`;
+    }
+    
+    // Footer
+    body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 30px; border-top: 3px solid #0066cc;">`;
+    body += `<h4 style="margin-top: 0; color: #0066cc;">📋 Next Steps</h4>`;
+    body += `<ul style="margin-bottom: 0;">`;
+    body += `<li><strong>Review the details</strong> provided in this notification</li>`;
+    body += `<li><strong>Prepare for potential impacts</strong> during the scheduled time window</li>`;
+    body += `<li><strong>Contact the requester or agent SME</strong> if you have any questions or concerns (contact information provided above)</li>`;
+    body += `<li><strong>Monitor your systems</strong> during the change implementation if applicable</li>`;
+    body += `</ul>`;
+    body += `</div>`;
+    
+    body += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 4px solid #ffc107;">`;
+    body += `<h4 style="margin-top: 0; color: #856404;">🤔 Questions or Concerns?</h4>`;
+    body += `<p style="margin-bottom: 10px;">If you have questions about this change or notice any issues:</p>`;
+    body += `<ul style="margin-bottom: 10px;">`;
+    body += `<li><strong>Technical questions:</strong> Contact the Agent SME listed above</li>`;
+    body += `<li><strong>Business impact questions:</strong> Contact the Change Requester listed above</li>`;
+    body += `<li><strong>Urgent issues:</strong> Contact both the Requester and Agent SME immediately</li>`;
+    body += `</ul>`;
+    body += `<p style="margin-bottom: 0;"><strong>Remember:</strong> You do not need to approve this change, but your feedback is valuable if you have concerns.</p>`;
+    body += `</div>`;
+    
+    body += `<div style="text-align: center; margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">`;
+    body += `<p style="margin-bottom: 10px;"><em>Thank you for your attention to this change request.</em></p>`;
+    body += `<p style="margin: 0;"><strong>IT Change Management Team</strong></p>`;
+    body += `</div>`;
+    
+    body += `</div>`;
+    
+    return body;
+  },
+
+  /**
+   * Generate stakeholder notification email body (legacy method - kept for compatibility)
    */
   generateStakeholderNotificationBody(changeRequest, recipient, riskAssessment) {
     const data = window.changeRequestData;
@@ -2125,40 +2364,43 @@ const ChangeSubmission = {
       const dueDate = new Date();
       dueDate.setHours(dueDate.getHours() + 24);
       
-      // Prepare task data following Freshservice API v2 change task schema
-      // Based on official documentation: /api/v2/changes/[id]/tasks
+      // Create a ticket as task since change tasks API isn't available in v2
+      // Using ticket creation with custom fields to reference the change
       const taskData = {
-        // Essential fields for change task creation (as per v2 API documentation)
-        title: `Peer Review Coordination Required: ${changeRequest.subject}`,
+        email: agentSME.email || `agent-${agentSME.id}@fallback.local`,
+        subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
         description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
-        status: 1, // Status: 1-Open, 2-In Progress, 3-Completed
-        agent_id: agentSME.id, // ID of the agent to whom the task is assigned
-        due_date: dueDate.toISOString(), // Due date of the task
-        notify_before: 3600, // Notify 1 hour before due date (in seconds)
-        workspace_id: 2 // CXI Change Management workspace
+        status: 2, // Open for tickets (2)
+        priority: this.mapRiskToPriority(riskAssessment?.riskLevel || riskAssessment?.level),
+        source: 2, // Portal
+        responder_id: agentSME.id,
+        due_by: dueDate.toISOString(),
+        ticket_type: "Incident", // Use Incident as ticket type (Task may not be valid)
+        custom_fields: {
+          related_change_id: changeRequest.id
+        }
       };
       
       console.log('📋 Peer review coordination task data prepared:', {
-        title: taskData.title,
+        subject: taskData.subject,
         agentSMEId: agentSME.id,
         agentSMEName: agentSME.name,
         status: taskData.status,
-        riskLevel: riskAssessment.riskLevel,
-        dueDate: dueDate.toISOString(),
+        priority: taskData.priority,
+        riskLevel: riskAssessment?.riskLevel || riskAssessment?.level,
+        dueDate: taskData.due_by,
         changeId: changeRequest.id,
-        apiVersion: 'v2',
-        workspaceId: taskData.workspace_id,
-        notifyBefore: taskData.notify_before
+        email: taskData.email,
+        ticketType: taskData.ticket_type
       });
       
-      // Create the task using the FDK request method with the change tasks endpoint (v2 API)
-      console.log('📡 Sending change task creation request...');
+      // Create the task as a ticket using the ticket creation endpoint
+      console.log('📡 Sending task ticket creation request...');
       const response = await window.client.request.invokeTemplate('createChangeTask', {
-        context: {
-          change_id: changeRequest.id
-        },
-        body: JSON.stringify(taskData),
-        cache: false // Don't cache task creation
+        body: JSON.stringify({
+          helpdesk_ticket: taskData
+        }),
+        cache: false
       });
       
       console.log('📡 Raw change task creation response:', response);
@@ -2176,17 +2418,17 @@ const ChangeSubmission = {
         throw new Error(`Invalid JSON response: ${parseError.message}`);
       }
       
-      // Handle v2 API response structure for change tasks
-      if (createdTask.task) {
-        // Standard v2 change task response structure (documented format)
-        console.log(`✅ Peer review coordination task created successfully: ${createdTask.task.id}`);
-        return createdTask.task;
+      // Handle ticket creation response structure
+      if (createdTask.helpdesk_ticket) {
+        // Standard ticket response structure
+        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.helpdesk_ticket.id}`);
+        return createdTask.helpdesk_ticket;
       } else if (createdTask.id) {
         // Direct response structure
-        console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
+        console.log(`✅ Peer review coordination task ticket created successfully: ${createdTask.id}`);
         return createdTask;
       } else {
-        console.error('❌ Unexpected change task response structure:', createdTask);
+        console.error('❌ Unexpected task ticket response structure:', createdTask);
         throw new Error(`Unexpected response structure: ${JSON.stringify(createdTask)}`);
       }
       
@@ -2245,11 +2487,11 @@ const ChangeSubmission = {
     description += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</p>`;
     description += `<p><strong>Risk Level:</strong> <span style="background-color: ${this.getRiskColor(riskAssessment.riskLevel)}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
     
-    if (data.plannedStartDate) {
-      description += `<p><strong>Planned Start:</strong> ${new Date(data.plannedStartDate).toLocaleString()}</p>`;
+    if (data.plannedStart) {
+      description += `<p><strong>Planned Start:</strong> ${new Date(data.plannedStart).toLocaleString()}</p>`;
     }
-    if (data.plannedEndDate) {
-      description += `<p><strong>Planned End:</strong> ${new Date(data.plannedEndDate).toLocaleString()}</p>`;
+    if (data.plannedEnd) {
+      description += `<p><strong>Planned End:</strong> ${new Date(data.plannedEnd).toLocaleString()}</p>`;
     }
     description += `</div>`;
     
@@ -2316,6 +2558,18 @@ const ChangeSubmission = {
   },
 
   /**
+   * Map risk level to ticket priority
+   */
+  mapRiskToPriority(riskLevel) {
+    const mapping = {
+      'Low': 1,    // Low priority
+      'Medium': 2, // Medium priority 
+      'High': 3    // High priority
+    };
+    return mapping[riskLevel] || 2; // Default to medium
+  },
+
+  /**
    * Get color for risk level badge
    */
   getRiskColor(riskLevel) {
@@ -2325,6 +2579,42 @@ const ChangeSubmission = {
       'High': '#dc3545'
     };
     return colors[riskLevel] || '#6c757d';
+  },
+
+  /**
+   * Strip HTML tags from text for plain text version
+   */
+  stripHtmlTags(html) {
+    if (!html) return '';
+    
+    try {
+      // Create a temporary element to parse HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      
+      // Get text content and clean up whitespace
+      let textContent = tempDiv.textContent || tempDiv.innerText || '';
+      
+      // Replace multiple whitespace with single space and trim
+      textContent = textContent.replace(/\s+/g, ' ').trim();
+      
+      return textContent;
+    } catch (error) {
+      console.warn('⚠️ Error stripping HTML tags:', error);
+      // Fallback: remove basic HTML tags with regex
+      return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    }
+  },
+
+  /**
+   * Validate email address format
+   */
+  isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    
+    // Basic email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
   },
 
   /**
@@ -2456,6 +2746,9 @@ const ChangeSubmission = {
       successContent += `</div></div>`;
     }
     
+    // Add impact details section
+    successContent += this.generateImpactDetailsSection();
+    
     // Update the success modal content
     const successContentDiv = document.getElementById('success-content');
     if (successContentDiv) {
@@ -2470,6 +2763,33 @@ const ChangeSubmission = {
     
     // Setup event listeners for modal buttons
     this.setupSuccessModalEventListeners();
+    
+    // Setup impact section event listeners and popovers
+    setTimeout(() => {
+      // Initialize Bootstrap popovers
+      const popoverElements = document.querySelectorAll('[data-bs-toggle="popover"]');
+      popoverElements.forEach(element => {
+        new bootstrap.Popover(element, {
+          trigger: 'hover focus',
+          delay: { show: 300, hide: 100 }
+        });
+      });
+      console.log(`✅ Initialized ${popoverElements.length} popovers`);
+      
+      // Setup detailed report button
+      const detailedReportBtn = document.getElementById('view-detailed-report-btn');
+      if (detailedReportBtn) {
+        detailedReportBtn.onclick = () => this.showImpactDetailsModal();
+        console.log('✅ Detailed report button event listener added');
+      }
+      
+      // Setup export summary button
+      const exportSummaryBtn = document.getElementById('export-impact-summary-btn');
+      if (exportSummaryBtn) {
+        exportSummaryBtn.onclick = () => this.exportImpactReport();
+        console.log('✅ Export summary button event listener added');
+      }
+    }, 100);
     
     // Hide any existing modals and show success modal
     const confirmationModal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
@@ -2492,6 +2812,968 @@ const ChangeSubmission = {
       
       successModal.show();
     }, 300);
+  },
+
+  /**
+   * Generate impact details section for the success modal
+   */
+  generateImpactDetailsSection() {
+    const data = window.changeRequestData;
+    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+    
+    // Calculate metrics for summary
+    const metrics = this.calculateImpactMetrics(data, impactedData);
+    
+    let impactSection = `
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="card-title">
+            <i class="fas fa-sitemap me-2"></i>Impact Analysis Summary
+          </h6>
+          
+          <!-- Quick Summary Cards -->
+          <div class="row text-center mb-3">
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <h5 class="text-primary mb-1">${metrics.totalAssets}</h5>
+                <small class="text-muted">Assets</small>
+                ${metrics.totalAssets > 0 ? `
+                  <button type="button" class="btn btn-link btn-sm p-0" 
+                          data-bs-toggle="popover" 
+                          data-bs-placement="top"
+                          data-bs-html="true"
+                          data-bs-content="${this.generateAssetsPopoverContent(data.selectedAssets)}"
+                          title="Affected Assets">
+                    <i class="fas fa-info-circle text-info"></i>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <h5 class="text-info mb-1">${metrics.totalStakeholders}</h5>
+                <small class="text-muted">Stakeholders</small>
+                ${metrics.totalStakeholders > 0 ? `
+                  <button type="button" class="btn btn-link btn-sm p-0" 
+                          data-bs-toggle="popover" 
+                          data-bs-placement="top"
+                          data-bs-html="true"
+                          data-bs-content="${this.generateStakeholdersPopoverContent(impactedData.stakeholders)}"
+                          title="Identified Stakeholders">
+                    <i class="fas fa-info-circle text-info"></i>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <h5 class="text-warning mb-1">${metrics.totalApprovers}</h5>
+                <small class="text-muted">Approvers</small>
+                ${metrics.totalApprovers > 0 ? `
+                  <button type="button" class="btn btn-link btn-sm p-0" 
+                          data-bs-toggle="popover" 
+                          data-bs-placement="top"
+                          data-bs-html="true"
+                          data-bs-content="${this.generateApproversPopoverContent(impactedData.approvers)}"
+                          title="Required Approvers">
+                    <i class="fas fa-info-circle text-info"></i>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Notification Status Summary -->
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <div class="d-flex align-items-center">
+                <span class="badge ${metrics.totalNotified > 0 ? 'bg-success' : 'bg-warning'} me-2">
+                  ${metrics.totalNotified} Notified
+                </span>
+                ${metrics.totalNotified > 0 ? `
+                  <button type="button" class="btn btn-link btn-sm p-0" 
+                          data-bs-toggle="popover" 
+                          data-bs-placement="right"
+                          data-bs-html="true"
+                          data-bs-content="${this.generateNotificationPopoverContent()}"
+                          title="Notification Details">
+                    <i class="fas fa-envelope text-success"></i>
+                  </button>
+                ` : '<i class="fas fa-envelope-open text-muted"></i>'}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex align-items-center">
+                <span class="badge ${metrics.createdApprovals > 0 ? 'bg-success' : 'bg-secondary'} me-2">
+                  ${metrics.createdApprovals} Approvals
+                </span>
+                <span class="badge ${metrics.createdTasks > 0 ? 'bg-info' : 'bg-secondary'}">
+                  ${metrics.createdTasks} Tasks
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="view-detailed-report-btn">
+              <i class="fas fa-file-alt me-1"></i>Detailed Report
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="export-impact-summary-btn">
+              <i class="fas fa-download me-1"></i>Export
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    return impactSection;
+  },
+
+  /**
+   * Generate assets popover content
+   */
+  generateAssetsPopoverContent(assets) {
+    if (!assets || assets.length === 0) {
+      return '<div class="text-muted">No assets selected</div>';
+    }
+    
+    let content = '<div style="max-width: 300px;">';
+    assets.slice(0, 5).forEach((asset, index) => {
+      content += `
+        <div class="mb-2 ${index < assets.length - 1 ? 'border-bottom pb-2' : ''}">
+          <div class="fw-bold">${asset.name}</div>
+          <small class="text-muted">${asset.asset_type_name || 'Unknown Type'}</small>
+          ${asset.location_name ? `<br><small class="text-secondary">📍 ${asset.location_name}</small>` : ''}
+        </div>
+      `;
+    });
+    
+    if (assets.length > 5) {
+      content += `<div class="text-muted text-center">... and ${assets.length - 5} more</div>`;
+    }
+    
+    content += '</div>';
+    return content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
+  /**
+   * Generate stakeholders popover content
+   */
+  generateStakeholdersPopoverContent(stakeholders) {
+    if (!stakeholders || stakeholders.length === 0) {
+      return '<div class="text-muted">No stakeholders identified</div>';
+    }
+    
+    const notifiedEmails = this.state.sentNotifications?.reduce((emails, notification) => {
+      return emails.concat(notification.validEmails || []);
+    }, []) || [];
+    
+    let content = '<div style="max-width: 350px;">';
+    stakeholders.slice(0, 6).forEach((stakeholder, index) => {
+      const wasNotified = notifiedEmails.includes(stakeholder.email);
+      content += `
+        <div class="mb-2 ${index < stakeholders.length - 1 ? 'border-bottom pb-2' : ''}">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-bold">${stakeholder.name || 'N/A'}</div>
+              <small class="text-muted">${stakeholder.email || 'No email'}</small>
+              <br><small class="badge bg-info">${stakeholder.source || 'Manual'}</small>
+            </div>
+            <div>
+              ${wasNotified ? 
+                '<i class="fas fa-check-circle text-success" title="Notified"></i>' : 
+                '<i class="fas fa-times-circle text-warning" title="Not Notified"></i>'}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    if (stakeholders.length > 6) {
+      content += `<div class="text-muted text-center">... and ${stakeholders.length - 6} more</div>`;
+    }
+    
+    content += '</div>';
+    return content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
+  /**
+   * Generate approvers popover content
+   */
+  generateApproversPopoverContent(approvers) {
+    if (!approvers || approvers.length === 0) {
+      return '<div class="text-muted">No approvers required</div>';
+    }
+    
+    const notifiedEmails = this.state.sentNotifications?.reduce((emails, notification) => {
+      return emails.concat(notification.validEmails || []);
+    }, []) || [];
+    
+    let content = '<div style="max-width: 350px;">';
+    approvers.slice(0, 5).forEach((approver, index) => {
+      const wasNotified = notifiedEmails.includes(approver.email);
+      const hasApproval = this.state.createdApprovals?.some(approval => 
+        approval.responder_id === approver.id
+      );
+      
+      content += `
+        <div class="mb-2 ${index < approvers.length - 1 ? 'border-bottom pb-2' : ''}">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-bold">${approver.name || 'N/A'}</div>
+              <small class="text-muted">${approver.email || 'No email'}</small>
+              <br><small class="badge bg-warning">${approver.source || 'Technical Owner'}</small>
+            </div>
+            <div class="text-end">
+              ${hasApproval ? 
+                '<i class="fas fa-ticket-alt text-success" title="Approval Created"></i>' : 
+                '<i class="fas fa-times text-danger" title="Approval Failed"></i>'}
+              <br>
+              ${wasNotified ? 
+                '<i class="fas fa-envelope text-success" title="Notified"></i>' : 
+                '<i class="fas fa-envelope-open text-warning" title="Not Notified"></i>'}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    if (approvers.length > 5) {
+      content += `<div class="text-muted text-center">... and ${approvers.length - 5} more</div>`;
+    }
+    
+    content += '</div>';
+    return content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
+  /**
+   * Generate notification popover content
+   */
+  generateNotificationPopoverContent() {
+    if (!this.state.sentNotifications || this.state.sentNotifications.length === 0) {
+      return '<div class="text-muted">No notifications sent</div>';
+    }
+    
+    let content = '<div style="max-width: 300px;">';
+    this.state.sentNotifications.forEach((notification, index) => {
+      const successRate = notification.validEmails ? 
+        `${notification.validEmails.length}/${notification.recipients?.length || 0}` : '0/0';
+      
+      content += `
+        <div class="mb-2 ${index < this.state.sentNotifications.length - 1 ? 'border-bottom pb-2' : ''}">
+          <div class="fw-bold">
+            ${notification.type === 'stakeholder_note' ? 'Stakeholder Note' : 'Email Notification'}
+          </div>
+          <div class="d-flex justify-content-between">
+            <small class="text-muted">Recipients:</small>
+            <small class="fw-bold">${successRate}</small>
+          </div>
+          <div class="d-flex justify-content-between">
+            <small class="text-muted">Sent:</small>
+            <small>${new Date(notification.sentAt).toLocaleTimeString()}</small>
+          </div>
+          ${notification.noteId ? `
+            <div class="d-flex justify-content-between">
+              <small class="text-muted">Note ID:</small>
+              <small class="font-monospace">${notification.noteId}</small>
+            </div>
+          ` : ''}
+          <div class="text-center mt-1">
+            <span class="badge ${notification.validEmails?.length > 0 ? 'bg-success' : 'bg-danger'}">
+              ${notification.validEmails?.length > 0 ? 'Success' : 'Failed'}
+            </span>
+          </div>
+        </div>
+      `;
+    });
+    
+    content += '</div>';
+    return content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  },
+
+  /**
+   * Show detailed impact information modal
+   */
+  showImpactDetailsModal() {
+    console.log('📊 Showing impact details modal...');
+    
+    const data = window.changeRequestData;
+    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+    
+    // Generate detailed impact content
+    const impactContent = this.generateDetailedImpactContent(data, impactedData);
+    
+    // Create or update impact details modal
+    let impactModal = document.getElementById('impact-details-modal');
+    if (!impactModal) {
+      // Create the modal if it doesn't exist
+      const modalHTML = `
+        <div class="modal fade" id="impact-details-modal" tabindex="-1" aria-labelledby="impact-details-title" aria-hidden="true">
+          <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="impact-details-title">
+                  <i class="fas fa-sitemap me-2"></i>Detailed Impact Analysis
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body" id="impact-details-content">
+                <!-- Content will be populated here -->
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="export-impact-btn">
+                  <i class="fas fa-download me-1"></i>Export Report
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Add modal to DOM
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+      impactModal = document.getElementById('impact-details-modal');
+      
+      // Setup export button
+      document.getElementById('export-impact-btn').onclick = () => this.exportImpactReport();
+    }
+    
+    // Update content
+    const contentDiv = document.getElementById('impact-details-content');
+    if (contentDiv) {
+      contentDiv.innerHTML = impactContent;
+    }
+    
+    // Show modal
+    const modal = new bootstrap.Modal(impactModal);
+    modal.show();
+  },
+
+  /**
+   * Generate detailed impact content
+   */
+  generateDetailedImpactContent(data, impactedData) {
+    let content = '';
+    
+    // Summary metrics
+    const metricsData = this.calculateImpactMetrics(data, impactedData);
+    content += this.generateImpactMetricsSection(metricsData);
+    
+    // Affected systems
+    content += this.generateAffectedSystemsSection(data);
+    
+    // Stakeholders and notifications
+    content += this.generateStakeholdersSection(impactedData);
+    
+    // Approvers and workflow
+    content += this.generateApproversSection(impactedData);
+    
+    // Notification status
+    content += this.generateNotificationStatusSection();
+    
+    // Risk assessment details
+    content += this.generateRiskAssessmentSection(data.riskAssessment);
+    
+    return content;
+  },
+
+  /**
+   * Calculate impact metrics
+   */
+  calculateImpactMetrics(data, impactedData) {
+    return {
+      totalAssets: data.selectedAssets?.length || 0,
+      totalStakeholders: impactedData.stakeholders?.length || 0,
+      totalApprovers: impactedData.approvers?.length || 0,
+      totalNotified: this.state.sentNotifications?.reduce((total, notification) => {
+        return total + (notification.emailCount || 0);
+      }, 0) || 0,
+      createdApprovals: this.state.createdApprovals?.length || 0,
+      createdTasks: this.state.createdTasks?.length || 0
+    };
+  },
+
+  /**
+   * Generate impact metrics section
+   */
+  generateImpactMetricsSection(metrics) {
+    return `
+      <div class="row mb-4">
+        <div class="col-12">
+          <h6 class="text-primary mb-3">
+            <i class="fas fa-chart-bar me-2"></i>Impact Overview
+          </h6>
+          <div class="row text-center">
+            <div class="col-md-2">
+              <div class="card border-primary h-100">
+                <div class="card-body">
+                  <h4 class="text-primary">${metrics.totalAssets}</h4>
+                  <small class="text-muted">Assets</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="card border-info h-100">
+                <div class="card-body">
+                  <h4 class="text-info">${metrics.totalStakeholders}</h4>
+                  <small class="text-muted">Stakeholders</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="card border-warning h-100">
+                <div class="card-body">
+                  <h4 class="text-warning">${metrics.totalApprovers}</h4>
+                  <small class="text-muted">Approvers</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="card border-success h-100">
+                <div class="card-body">
+                  <h4 class="text-success">${metrics.totalNotified}</h4>
+                  <small class="text-muted">Notified</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="card border-secondary h-100">
+                <div class="card-body">
+                  <h4 class="text-secondary">${metrics.createdApprovals}</h4>
+                  <small class="text-muted">Approvals</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <div class="card border-dark h-100">
+                <div class="card-body">
+                  <h4 class="text-dark">${metrics.createdTasks}</h4>
+                  <small class="text-muted">Tasks</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  /**
+   * Generate affected systems section
+   */
+  generateAffectedSystemsSection(data) {
+    if (!data.selectedAssets || data.selectedAssets.length === 0) {
+      return `
+        <div class="mb-4">
+          <h6 class="text-primary mb-3">
+            <i class="fas fa-server me-2"></i>Affected Systems
+          </h6>
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>No assets were directly associated with this change.
+          </div>
+        </div>
+      `;
+    }
+    
+    let content = `
+      <div class="mb-4">
+        <h6 class="text-primary mb-3">
+          <i class="fas fa-server me-2"></i>Affected Systems (${data.selectedAssets.length})
+        </h6>
+        <div class="table-responsive">
+          <table class="table table-striped table-sm">
+            <thead class="table-dark">
+              <tr>
+                <th>Asset Name</th>
+                <th>Type</th>
+                <th>Location</th>
+                <th>Manager</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    data.selectedAssets.forEach(asset => {
+      content += `
+        <tr>
+          <td>
+            <strong>${asset.name}</strong>
+            ${asset.description ? `<br><small class="text-muted">${asset.description}</small>` : ''}
+          </td>
+          <td>
+            <span class="badge bg-secondary">${asset.asset_type_name || 'Unknown'}</span>
+          </td>
+          <td>${asset.location_name || 'N/A'}</td>
+          <td>${asset.managed_by_name || 'Unassigned'}</td>
+          <td>
+            <span class="badge ${asset.asset_state === 'In Use' ? 'bg-success' : 'bg-warning'}">
+              ${asset.asset_state || 'Unknown'}
+            </span>
+          </td>
+        </tr>
+      `;
+    });
+    
+    content += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    return content;
+  },
+
+  /**
+   * Generate stakeholders section
+   */
+  generateStakeholdersSection(impactedData) {
+    if (!impactedData.stakeholders || impactedData.stakeholders.length === 0) {
+      return `
+        <div class="mb-4">
+          <h6 class="text-primary mb-3">
+            <i class="fas fa-users me-2"></i>Identified Stakeholders
+          </h6>
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>No additional stakeholders were identified through impact analysis.
+          </div>
+        </div>
+      `;
+    }
+    
+    let content = `
+      <div class="mb-4">
+        <h6 class="text-primary mb-3">
+          <i class="fas fa-users me-2"></i>Identified Stakeholders (${impactedData.stakeholders.length})
+        </h6>
+        <div class="table-responsive">
+          <table class="table table-striped table-sm">
+            <thead class="table-dark">
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Source</th>
+                <th>Role</th>
+                <th>Notification Status</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    const notifiedEmails = this.state.sentNotifications?.reduce((emails, notification) => {
+      return emails.concat(notification.validEmails || []);
+    }, []) || [];
+    
+    impactedData.stakeholders.forEach(stakeholder => {
+      const wasNotified = notifiedEmails.includes(stakeholder.email);
+      content += `
+        <tr>
+          <td>
+            <strong>${stakeholder.name || 'N/A'}</strong>
+            ${stakeholder.id ? `<br><small class="text-muted">ID: ${stakeholder.id}</small>` : ''}
+          </td>
+          <td>
+            ${stakeholder.email || 'No email available'}
+            ${stakeholder.email && !this.isValidEmail(stakeholder.email) ? 
+              '<br><small class="text-danger">Invalid email format</small>' : ''}
+          </td>
+          <td>
+            <span class="badge bg-info">${stakeholder.source || 'Manual'}</span>
+          </td>
+          <td>${stakeholder.role || 'Stakeholder'}</td>
+          <td>
+            ${wasNotified ? 
+              '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Notified</span>' : 
+              '<span class="badge bg-warning"><i class="fas fa-times me-1"></i>Not Notified</span>'}
+          </td>
+        </tr>
+      `;
+    });
+    
+    content += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    return content;
+  },
+
+  /**
+   * Generate approvers section
+   */
+  generateApproversSection(impactedData) {
+    if (!impactedData.approvers || impactedData.approvers.length === 0) {
+      return `
+        <div class="mb-4">
+          <h6 class="text-primary mb-3">
+            <i class="fas fa-user-check me-2"></i>Required Approvers
+          </h6>
+          <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>No approvers were identified for this change.
+          </div>
+        </div>
+      `;
+    }
+    
+    let content = `
+      <div class="mb-4">
+        <h6 class="text-primary mb-3">
+          <i class="fas fa-user-check me-2"></i>Required Approvers (${impactedData.approvers.length})
+        </h6>
+        <div class="table-responsive">
+          <table class="table table-striped table-sm">
+            <thead class="table-dark">
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Source</th>
+                <th>Approval Status</th>
+                <th>Notification Status</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    const notifiedEmails = this.state.sentNotifications?.reduce((emails, notification) => {
+      return emails.concat(notification.validEmails || []);
+    }, []) || [];
+    
+    impactedData.approvers.forEach(approver => {
+      const wasNotified = notifiedEmails.includes(approver.email);
+      const hasApproval = this.state.createdApprovals?.some(approval => 
+        approval.responder_id === approver.id
+      );
+      
+      content += `
+        <tr>
+          <td>
+            <strong>${approver.name || 'N/A'}</strong>
+            ${approver.id ? `<br><small class="text-muted">ID: ${approver.id}</small>` : ''}
+          </td>
+          <td>
+            ${approver.email || 'No email available'}
+            ${approver.email && !this.isValidEmail(approver.email) ? 
+              '<br><small class="text-danger">Invalid email format</small>' : ''}
+          </td>
+          <td>
+            <span class="badge bg-warning">${approver.source || 'Technical Owner'}</span>
+          </td>
+          <td>
+            ${hasApproval ? 
+              '<span class="badge bg-success"><i class="fas fa-ticket-alt me-1"></i>Approval Created</span>' : 
+              '<span class="badge bg-danger"><i class="fas fa-times me-1"></i>Approval Failed</span>'}
+          </td>
+          <td>
+            ${wasNotified ? 
+              '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Notified</span>' : 
+              '<span class="badge bg-warning"><i class="fas fa-times me-1"></i>Not Notified</span>'}
+          </td>
+        </tr>
+      `;
+    });
+    
+    content += `
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    return content;
+  },
+
+  /**
+   * Generate notification status section
+   */
+  generateNotificationStatusSection() {
+    let content = `
+      <div class="mb-4">
+        <h6 class="text-primary mb-3">
+          <i class="fas fa-envelope me-2"></i>Notification Status
+        </h6>
+    `;
+    
+    if (!this.state.sentNotifications || this.state.sentNotifications.length === 0) {
+      content += `
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>No notifications were sent.
+        </div>
+      `;
+    } else {
+      content += `
+        <div class="row">
+      `;
+      
+      this.state.sentNotifications.forEach((notification, index) => {
+        const successRate = notification.validEmails ? 
+          `${notification.validEmails.length}/${notification.recipients?.length || 0}` : '0/0';
+        
+        content += `
+          <div class="col-md-6 mb-3">
+            <div class="card">
+              <div class="card-body">
+                <h6 class="card-title">
+                  <i class="fas fa-sticky-note me-2"></i>
+                  ${notification.type === 'stakeholder_note' ? 'Stakeholder Notification' : 'Email Notification'}
+                </h6>
+                <div class="mb-2">
+                  <strong>Recipients:</strong> ${successRate} emails sent
+                </div>
+                <div class="mb-2">
+                  <strong>Sent:</strong> ${new Date(notification.sentAt).toLocaleString()}
+                </div>
+                ${notification.noteId ? `
+                  <div class="mb-2">
+                    <strong>Note ID:</strong> ${notification.noteId}
+                  </div>
+                ` : ''}
+                <div class="mb-0">
+                  <span class="badge ${notification.validEmails?.length > 0 ? 'bg-success' : 'bg-danger'}">
+                    ${notification.validEmails?.length > 0 ? 'Success' : 'Failed'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      content += `
+        </div>
+      `;
+    }
+    
+    content += `</div>`;
+    return content;
+  },
+
+  /**
+   * Generate risk assessment section
+   */
+  generateRiskAssessmentSection(riskAssessment) {
+    if (!riskAssessment) {
+      return `
+        <div class="mb-4">
+          <h6 class="text-primary mb-3">
+            <i class="fas fa-shield-alt me-2"></i>Risk Assessment
+          </h6>
+          <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>No risk assessment data available.
+          </div>
+        </div>
+      `;
+    }
+    
+    const riskColor = this.getRiskColor(riskAssessment.riskLevel);
+    
+    return `
+      <div class="mb-4">
+        <h6 class="text-primary mb-3">
+          <i class="fas fa-shield-alt me-2"></i>Risk Assessment Details
+        </h6>
+        <div class="card">
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4">
+                <div class="text-center">
+                  <h3 class="mb-1">
+                    <span class="badge" style="background-color: ${riskColor}; font-size: 18px; padding: 12px 20px;">
+                      ${riskAssessment.riskLevel?.toUpperCase()}
+                    </span>
+                  </h3>
+                  <p class="text-muted">Overall Risk Level</p>
+                  <h4 class="text-primary">${riskAssessment.totalScore}/15</h4>
+                  <p class="text-muted">Total Score</p>
+                </div>
+              </div>
+              <div class="col-md-8">
+                <div class="row">
+                  <div class="col-6 mb-3">
+                    <strong>Business Impact:</strong>
+                    <div class="progress mt-1" style="height: 8px;">
+                      <div class="progress-bar" role="progressbar" 
+                           style="width: ${(riskAssessment.businessImpact/3)*100}%; background-color: ${riskColor};">
+                      </div>
+                    </div>
+                    <small class="text-muted">${riskAssessment.businessImpact}/3</small>
+                  </div>
+                  <div class="col-6 mb-3">
+                    <strong>Affected Users:</strong>
+                    <div class="progress mt-1" style="height: 8px;">
+                      <div class="progress-bar" role="progressbar" 
+                           style="width: ${(riskAssessment.affectedUsers/3)*100}%; background-color: ${riskColor};">
+                      </div>
+                    </div>
+                    <small class="text-muted">${riskAssessment.affectedUsers}/3</small>
+                  </div>
+                  <div class="col-6 mb-3">
+                    <strong>Complexity:</strong>
+                    <div class="progress mt-1" style="height: 8px;">
+                      <div class="progress-bar" role="progressbar" 
+                           style="width: ${(riskAssessment.complexity/3)*100}%; background-color: ${riskColor};">
+                      </div>
+                    </div>
+                    <small class="text-muted">${riskAssessment.complexity}/3</small>
+                  </div>
+                  <div class="col-6 mb-3">
+                    <strong>Testing:</strong>
+                    <div class="progress mt-1" style="height: 8px;">
+                      <div class="progress-bar" role="progressbar" 
+                           style="width: ${(riskAssessment.testing/3)*100}%; background-color: ${riskColor};">
+                      </div>
+                    </div>
+                    <small class="text-muted">${riskAssessment.testing}/3</small>
+                  </div>
+                  <div class="col-12">
+                    <strong>Rollback:</strong>
+                    <div class="progress mt-1" style="height: 8px;">
+                      <div class="progress-bar" role="progressbar" 
+                           style="width: ${(riskAssessment.rollback/3)*100}%; background-color: ${riskColor};">
+                      </div>
+                    </div>
+                    <small class="text-muted">${riskAssessment.rollback}/3</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  /**
+   * Export impact report
+   */
+  exportImpactReport() {
+    console.log('📄 Exporting impact report...');
+    
+    const data = window.changeRequestData;
+    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
+    
+    // Generate report content
+    const reportContent = this.generateTextReport(data, impactedData);
+    
+    // Create and download file
+    const blob = new Blob([reportContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `change-impact-report-${this.state.submissionId || 'draft'}-${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    console.log('✅ Impact report exported successfully');
+  },
+
+  /**
+   * Generate text report
+   */
+  generateTextReport(data, impactedData) {
+    const metrics = this.calculateImpactMetrics(data, impactedData);
+    
+    let report = '';
+    report += '='.repeat(80) + '\n';
+    report += 'CHANGE REQUEST IMPACT ANALYSIS REPORT\n';
+    report += '='.repeat(80) + '\n';
+    report += `Generated: ${new Date().toLocaleString()}\n`;
+    report += `Change ID: CR-${this.state.submissionId || 'DRAFT'}\n`;
+    report += `Title: ${data.changeTitle || 'N/A'}\n`;
+    report += `Requester: ${data.selectedRequester?.name || 'N/A'}\n`;
+    report += '\n';
+    
+    // Summary metrics
+    report += 'IMPACT SUMMARY\n';
+    report += '-'.repeat(40) + '\n';
+    report += `Total Assets Affected: ${metrics.totalAssets}\n`;
+    report += `Total Stakeholders: ${metrics.totalStakeholders}\n`;
+    report += `Total Approvers: ${metrics.totalApprovers}\n`;
+    report += `Notifications Sent: ${metrics.totalNotified}\n`;
+    report += `Approvals Created: ${metrics.createdApprovals}\n`;
+    report += `Tasks Created: ${metrics.createdTasks}\n`;
+    report += '\n';
+    
+    // Risk assessment
+    if (data.riskAssessment) {
+      report += 'RISK ASSESSMENT\n';
+      report += '-'.repeat(40) + '\n';
+      report += `Overall Risk Level: ${data.riskAssessment.riskLevel?.toUpperCase()}\n`;
+      report += `Total Score: ${data.riskAssessment.totalScore}/15\n`;
+      report += `Business Impact: ${data.riskAssessment.businessImpact}/3\n`;
+      report += `Affected Users: ${data.riskAssessment.affectedUsers}/3\n`;
+      report += `Complexity: ${data.riskAssessment.complexity}/3\n`;
+      report += `Testing: ${data.riskAssessment.testing}/3\n`;
+      report += `Rollback: ${data.riskAssessment.rollback}/3\n`;
+      report += '\n';
+    }
+    
+    // Affected systems
+    if (data.selectedAssets && data.selectedAssets.length > 0) {
+      report += 'AFFECTED SYSTEMS\n';
+      report += '-'.repeat(40) + '\n';
+      data.selectedAssets.forEach((asset, index) => {
+        report += `${index + 1}. ${asset.name}\n`;
+        report += `   Type: ${asset.asset_type_name || 'Unknown'}\n`;
+        report += `   Location: ${asset.location_name || 'N/A'}\n`;
+        report += `   Manager: ${asset.managed_by_name || 'Unassigned'}\n`;
+        report += `   Status: ${asset.asset_state || 'Unknown'}\n`;
+        report += '\n';
+      });
+    }
+    
+    // Stakeholders
+    if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
+      report += 'STAKEHOLDERS\n';
+      report += '-'.repeat(40) + '\n';
+      impactedData.stakeholders.forEach((stakeholder, index) => {
+        report += `${index + 1}. ${stakeholder.name || 'N/A'}\n`;
+        report += `   Email: ${stakeholder.email || 'Not available'}\n`;
+        report += `   Source: ${stakeholder.source || 'Manual'}\n`;
+        report += `   Role: ${stakeholder.role || 'Stakeholder'}\n`;
+        report += '\n';
+      });
+    }
+    
+    // Approvers
+    if (impactedData.approvers && impactedData.approvers.length > 0) {
+      report += 'APPROVERS\n';
+      report += '-'.repeat(40) + '\n';
+      impactedData.approvers.forEach((approver, index) => {
+        report += `${index + 1}. ${approver.name || 'N/A'}\n`;
+        report += `   Email: ${approver.email || 'Not available'}\n`;
+        report += `   Source: ${approver.source || 'Technical Owner'}\n`;
+        report += '\n';
+      });
+    }
+    
+    // Notification status
+    if (this.state.sentNotifications && this.state.sentNotifications.length > 0) {
+      report += 'NOTIFICATION STATUS\n';
+      report += '-'.repeat(40) + '\n';
+      this.state.sentNotifications.forEach((notification, index) => {
+        report += `${index + 1}. ${notification.type === 'stakeholder_note' ? 'Stakeholder Notification' : 'Email Notification'}\n`;
+        report += `   Recipients: ${notification.validEmails?.length || 0}/${notification.recipients?.length || 0}\n`;
+        report += `   Sent: ${new Date(notification.sentAt).toLocaleString()}\n`;
+        if (notification.noteId) {
+          report += `   Note ID: ${notification.noteId}\n`;
+        }
+        report += `   Status: ${notification.validEmails?.length > 0 ? 'Success' : 'Failed'}\n`;
+        report += '\n';
+      });
+    }
+    
+    report += '='.repeat(80) + '\n';
+    report += 'END OF REPORT\n';
+    report += '='.repeat(80) + '\n';
+    
+    return report;
   },
 
   /**
@@ -3080,7 +4362,7 @@ const ChangeSubmission = {
       }
       
       if (totalStakeholders > 0) {
-        summaryHtml += `<li>Email notifications will be sent to ${totalStakeholders} stakeholder(s) and approver(s)</li>`;
+        summaryHtml += `<li>Stakeholder notification note will be created with ${totalStakeholders} recipient(s)</li>`;
       }
       
       if (data.selectedAssets && data.selectedAssets.length > 0) {
@@ -3121,7 +4403,7 @@ const ChangeSubmission = {
                 <ul class="list-unstyled mb-0">`;
     
     if (totalStakeholders > 0) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Stakeholder notifications will be sent to ${totalStakeholders} recipient(s)</li>`;
+      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Stakeholder notification note will be created for ${totalStakeholders} recipient(s)</li>`;
     }
     
     if (riskAssessment && riskAssessment.totalScore >= 8) {

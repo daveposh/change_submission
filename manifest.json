@@ -28,6 +28,8 @@
         "createChangeApproval": {},
         "sendEmail": {},
         "createChangeTask": {},
+        "createChangeNote": {},
+        "getChangeNotes": {},
         "createTicket": {}
       },
       "storage": {
