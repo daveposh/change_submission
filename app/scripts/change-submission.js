@@ -2674,7 +2674,7 @@ const ChangeSubmission = {
     // Review checklist
     description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #6c757d; margin-bottom: 20px;">`;
     description += `<h4 style="margin-top: 0; color: #495057;">📝 Peer Review Checklist</h4>`;
-    description += `<p>The peer review (whether conducted by you or a peer) should evaluate:</p>`;
+    description += `<p>The peer review (conducted by an independent reviewer) should evaluate:</p>`;
     description += `<ul style="margin-bottom: 0;">`;
     description += `<li><strong>Technical Feasibility:</strong> Can this change be implemented as described?</li>`;
     description += `<li><strong>Risk Assessment:</strong> Are there additional risks or issues not considered?</li>`;

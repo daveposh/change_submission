@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Freshworks FDK Change Management Application now automatically creates peer review coordination tasks for change requests with risk scores of 7 or higher (Medium and High risk changes). The task is assigned to an agent SME (Subject Matter Expert) who is responsible for coordinating the peer review process.
+The Freshworks FDK Change Management Application now automatically creates peer review coordination tasks for change requests with risk scores of 8 or higher (Medium and High risk changes). The task is assigned to an agent SME (Subject Matter Expert) who is responsible for coordinating the peer review process.
 
 ## Risk Threshold Logic
 
@@ -14,14 +14,14 @@ The Freshworks FDK Change Management Application now automatically creates peer 
   - **High Risk**: 12-15 points
 
 ### Peer Review Trigger
-- **Threshold**: Risk score ≥ 7
+- **Threshold**: Risk score ≥ 8
 - **Applies to**: Medium Risk (8-11) and High Risk (12-15) changes
 - **Rationale**: Low risk changes (5-7) use standard approval processes
 
 ## Implementation Details
 
 ### SME Coordination Approach
-When a change request is submitted with risk score ≥ 7:
+When a change request is submitted with risk score ≥ 8:
 
 1. **SME Identification**: System automatically identifies an agent SME from:
    - **Primary**: Assigned agent (if different from requester)
@@ -88,7 +88,7 @@ Standard evaluation criteria for the peer review:
 ### Submission Feedback
 After successful change submission, users see:
 
-#### For Risk Score ≥ 7 (with SME identified):
+#### For Risk Score ≥ 8 (with SME identified):
 ```
 ✅ Change Request Submitted Successfully!
 Change Request ID: CR-12345
@@ -101,7 +101,7 @@ to the agent SME. They are responsible for obtaining peer review within 24 hours
 by assigning to a qualified peer reviewer, coordinating external review, or escalating for assignment.
 ```
 
-#### For Risk Score ≥ 7 (no SME identified):
+#### For Risk Score ≥ 8 (no SME identified):
 ```
 ⚠️ Peer Review Required
 Due to the Medium risk level, peer review is required but no agent SME could be 
@@ -109,7 +109,7 @@ automatically identified. Please manually assign a Subject Matter Expert to
 coordinate the peer review process.
 ```
 
-#### For Risk Score < 7:
+#### For Risk Score < 8:
 ```
 ℹ️ No peer review required for Low risk changes.
 ```
