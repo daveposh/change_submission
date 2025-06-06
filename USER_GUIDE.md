@@ -359,8 +359,7 @@ The Change Management Application is a comprehensive tool for submitting, review
 1. **SME Assignment**: Agent SME identified (assigned agent → technical owner → asset manager)
 2. **Coordination Task**: Task created for SME to coordinate peer review
 3. **SME Options**:
-   - Conduct review personally (if qualified and independent)
-   - Assign to qualified peer reviewer
+   - Assign to qualified peer reviewer (different from requester and SME)
    - Coordinate external review and attach evidence
    - Escalate for appropriate reviewer assignment
 4. **Review Completion**: SME provides evidence of completed review
@@ -653,26 +652,28 @@ graph TD
     G --> M[Assign SME Coordinator]
     M --> N[SME Reviews Options]
     N --> O{SME Decision}
-    O -->|Self Review| P[SME Conducts Review]
     O -->|Assign Peer| Q[Assign to Peer Reviewer]
     O -->|External Review| R[Coordinate External Review]
+    O -->|Escalate| S[Escalate for Assignment]
     
-    P --> S[Review Complete]
     Q --> T[Peer Conducts Review]
     R --> U[External Review Complete]
+    S --> V[Management Assigns Reviewer]
     
-    T --> S
-    U --> S
-    S --> V[Attach Review Evidence]
-    V --> W[Technical Owner Approval]
-    W --> J
+    T --> W[Review Complete]
+    U --> W
+    V --> X[Assigned Reviewer Conducts Review]
+    X --> W
+    W --> Y[Attach Review Evidence]
+    Y --> Z[Technical Owner Approval]
+    Z --> J
     
-    H --> X[CAB Meeting Scheduled]
-    X --> Y[CAB Reviews Change]
-    Y --> Z{CAB Decision}
-    Z -->|Approved| AA[Approved with Conditions]
-    Z -->|Rejected| L
-    Z -->|Deferred| BB[Request More Information]
+    H --> AA1[CAB Meeting Scheduled]
+    AA1 --> BB1[CAB Reviews Change]
+    BB1 --> CC1{CAB Decision}
+    CC1 -->|Approved| AA[Approved with Conditions]
+    CC1 -->|Rejected| L
+    CC1 -->|Deferred| BB[Request More Information]
     
     AA --> W
     BB --> CC[Requester Updates Change]

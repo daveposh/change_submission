@@ -2663,12 +2663,11 @@ const ChangeSubmission = {
     } else {
       description += `<p>As the assigned Subject Matter Expert, you must coordinate an <strong>independent peer review</strong> by choosing <strong>ONE</strong> of the following options:</p>`;
       description += `<ol style="margin-bottom: 0;">`;
-      description += `<li><strong>Conduct Review Yourself:</strong> If you have the expertise and were not involved in planning this change, you may perform the peer review yourself.</li>`;
-      description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review.</li>`;
+      description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review (must be someone other than yourself or the requester).</li>`;
       description += `<li><strong>Coordinate External Review:</strong> Obtain peer review through other team members and attach evidence of the completed review.</li>`;
-      description += `<li><strong>Escalate for Review Assignment:</strong> If unsure who should review, escalate to management to identify an appropriate peer reviewer.</li>`;
+      description += `<li><strong>Escalate for Review Assignment:</strong> Contact management to identify and assign an appropriate independent peer reviewer.</li>`;
       description += `</ol>`;
-      description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Note:</strong> The goal is independent technical validation. If you were involved in planning this change, assign it to someone else for review.</p>`;
+      description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Important:</strong> Peer reviews must be conducted by someone independent from the change planning and SME coordination. You cannot review work you coordinated or were involved in planning.</p>`;
     }
     description += `</div>`;
     
@@ -2865,7 +2864,7 @@ const ChangeSubmission = {
               </h6>
               <p class="mb-0">
                 Due to the ${riskAssessment.riskLevel} risk level, a <strong>peer review coordination task</strong> 
-                has been assigned to the agent SME. They are responsible for obtaining peer review within 24 hours.
+                has been assigned to the agent SME. They are responsible for assigning an independent peer reviewer within 24 hours.
               </p>
             </div>
           `;
