@@ -31,9 +31,9 @@ When a change request is submitted with risk score ≥ 7:
 2. **Single Task Creation**: Creates one peer review coordination task assigned to the identified SME
 
 3. **SME Responsibilities**: The SME must choose one of three options:
-   - **Self-Review**: Conduct the peer review themselves if they have expertise
-   - **Reassignment**: Reassign the task to a qualified technical peer
+   - **Peer Assignment**: Reassign the task to a qualified technical peer (different from requester and SME)
    - **External Coordination**: Obtain peer review through other means and attach evidence
+   - **Escalation**: Escalate for appropriate reviewer assignment
 
 ### Task Properties
 - **Subject**: "Peer Review Coordination Required: [Change Title]"
@@ -63,10 +63,10 @@ Each peer review coordination task includes:
 - Risk assessment breakdown
 
 #### SME Responsibilities
-Clear instructions for the SME with three coordination options:
-1. **Conduct Review Yourself**: If SME has expertise
-2. **Reassign to Peer**: Transfer task to qualified reviewer
-3. **Coordinate External Review**: Obtain review externally and attach evidence
+Clear instructions for the SME with coordination options:
+1. **Assign to Peer Reviewer**: Transfer task to qualified reviewer (must be independent)
+2. **Coordinate External Review**: Obtain review externally and attach evidence
+3. **Escalate for Assignment**: Request management assign appropriate peer reviewer
 
 #### Review Checklist
 Standard evaluation criteria for the peer review:
@@ -98,7 +98,7 @@ Risk Level: MEDIUM (Score: 9/15)
 🎯 Peer Review Coordination Required
 Due to the Medium risk level, a peer review coordination task has been assigned 
 to the agent SME. They are responsible for obtaining peer review within 24 hours 
-by either conducting the review themselves, reassigning to a peer, or coordinating external review.
+by assigning to a qualified peer reviewer, coordinating external review, or escalating for assignment.
 ```
 
 #### For Risk Score ≥ 7 (no SME identified):
@@ -211,9 +211,9 @@ this.state.createdTasks.push(task);
 5. **Clear Accountability**: SME is responsible for ensuring review completion
 
 ### SME Options
-1. **Self-Review**: SME conducts review if they have sufficient expertise
-2. **Peer Assignment**: SME reassigns to most qualified technical peer
-3. **External Coordination**: SME obtains review through other channels
+1. **Peer Assignment**: SME reassigns to most qualified technical peer (independent reviewer)
+2. **External Coordination**: SME obtains review through other channels
+3. **Escalation**: SME escalates for appropriate reviewer assignment when uncertain
 
 ## Future Enhancements
 
