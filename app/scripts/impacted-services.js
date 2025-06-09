@@ -660,10 +660,23 @@ const ImpactedServices = {
 
   /**
    * Extract approvers from direct assets (managed_by field)
+   * Preserves manually added approvers while adding new ones from asset analysis
    */
   async extractApproversFromDirectAssets() {
     const approvers = new Map(); // Use Map to avoid duplicates
 
+    // First, preserve existing manually added approvers
+    console.log(`🔄 Preserving ${this.state.approvers.length} existing approvers...`);
+    this.state.approvers.forEach(existingApprover => {
+      if (existingApprover.source === 'Manually added') {
+        console.log(`   ✅ Preserving manually added approver: ${existingApprover.name}`);
+        approvers.set(existingApprover.id, existingApprover);
+      } else {
+        console.log(`   🔄 Will re-analyze asset-based approver: ${existingApprover.name} (${existingApprover.source})`);
+      }
+    });
+
+    // Then, extract new approvers from direct assets
     for (const asset of this.state.directAssets) {
       try {
         // Get managed by information using existing helper methods
@@ -686,7 +699,7 @@ const ImpactedServices = {
           if (userDetails) {
             const approverKey = userDetails.id || managedById;
             if (!approvers.has(approverKey)) {
-              approvers.set(approverKey, {
+              const newApprover = {
                 id: userDetails.id || managedById,
                 name: `${userDetails.first_name || ''} ${userDetails.last_name || ''}`.trim() || 'Unknown',
                 email: userDetails.email || userDetails.primary_email || 'N/A',
@@ -695,7 +708,11 @@ const ImpactedServices = {
                 source: `Direct asset: ${asset.name}`,
                 sourceAsset: asset,
                 userDetails: userDetails
-              });
+              };
+              approvers.set(approverKey, newApprover);
+              console.log(`   ➕ Added new asset-based approver: ${newApprover.name}`);
+            } else {
+              console.log(`   ⚠️ Approver ${userDetails.id || managedById} already exists (preserved or duplicate)`);
             }
           }
         }
@@ -705,7 +722,9 @@ const ImpactedServices = {
     }
 
     this.state.approvers = Array.from(approvers.values());
-    console.log(`✅ Extracted ${this.state.approvers.length} unique approvers`);
+    const manualCount = this.state.approvers.filter(a => a.source === 'Manually added').length;
+    const assetCount = this.state.approvers.filter(a => a.source !== 'Manually added').length;
+    console.log(`✅ Final approvers list: ${this.state.approvers.length} total (${manualCount} manual, ${assetCount} from assets)`);
   },
 
   /**
@@ -1124,10 +1143,23 @@ const ImpactedServices = {
 
   /**
    * Extract stakeholders from related assets (managed_by field)
+   * Preserves manually added stakeholders while adding new ones from asset analysis
    */
   async extractStakeholdersFromRelatedAssets() {
     const stakeholders = new Map(); // Use Map to avoid duplicates
 
+    // First, preserve existing manually added stakeholders
+    console.log(`🔄 Preserving ${this.state.stakeholders.length} existing stakeholders...`);
+    this.state.stakeholders.forEach(existingStakeholder => {
+      if (existingStakeholder.source === 'Manually added') {
+        console.log(`   ✅ Preserving manually added stakeholder: ${existingStakeholder.name}`);
+        stakeholders.set(existingStakeholder.id, existingStakeholder);
+      } else {
+        console.log(`   🔄 Will re-analyze asset-based stakeholder: ${existingStakeholder.name} (${existingStakeholder.source})`);
+      }
+    });
+
+    // Then, extract new stakeholders from related assets
     for (const asset of this.state.relatedAssets) {
       try {
         // Get managed by information using existing helper methods
@@ -1153,7 +1185,7 @@ const ImpactedServices = {
             // Don't add if they're already an approver
             if (!this.state.approvers.some(a => a.id === stakeholderKey)) {
               if (!stakeholders.has(stakeholderKey)) {
-                stakeholders.set(stakeholderKey, {
+                const newStakeholder = {
                   id: userDetails.id || managedById,
                   name: `${userDetails.first_name || ''} ${userDetails.last_name || ''}`.trim() || 'Unknown',
                   email: userDetails.email || userDetails.primary_email || 'N/A',
@@ -1162,8 +1194,14 @@ const ImpactedServices = {
                   source: `Related asset: ${asset.name}`,
                   sourceAsset: asset,
                   userDetails: userDetails
-                });
+                };
+                stakeholders.set(stakeholderKey, newStakeholder);
+                console.log(`   ➕ Added new asset-based stakeholder: ${newStakeholder.name}`);
+              } else {
+                console.log(`   ⚠️ Stakeholder ${userDetails.id || managedById} already exists (preserved or duplicate)`);
               }
+            } else {
+              console.log(`   ⚠️ User ${userDetails.id || managedById} is already an approver, skipping as stakeholder`);
             }
           }
         }
@@ -1173,7 +1211,9 @@ const ImpactedServices = {
     }
 
     this.state.stakeholders = Array.from(stakeholders.values());
-    console.log(`✅ Extracted ${this.state.stakeholders.length} unique stakeholders`);
+    const manualCount = this.state.stakeholders.filter(s => s.source === 'Manually added').length;
+    const assetCount = this.state.stakeholders.filter(s => s.source !== 'Manually added').length;
+    console.log(`✅ Final stakeholders list: ${this.state.stakeholders.length} total (${manualCount} manual, ${assetCount} from assets)`);
   },
 
   /**

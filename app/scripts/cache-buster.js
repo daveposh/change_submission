@@ -3,7 +3,7 @@
 // Force refresh timestamp: <?= new Date().getTime() ?>
 
 console.log('🔄 Cache buster loaded - forcing fresh script execution');
-console.log('📋 Change Submission Version: 2.4.0 - Workflow States & Notification Updates');
+console.log('📋 Change Submission Version: 2.4.2 - Preserve Manual Approvers/Stakeholders');
 
 // Clear any cached stakeholder notification functions
 if (window.ChangeSubmission) {
