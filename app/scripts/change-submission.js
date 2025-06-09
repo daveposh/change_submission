@@ -2254,15 +2254,15 @@ const ChangeSubmission = {
       const riskColor = this.getRiskColor(riskAssessment.riskLevel);
       body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
       
-      // Add risk level explanation in notifications
+      // Add risk level explanation and workflow status in notifications
       body += `<div style="background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid ${riskColor}; margin-top: 10px;">`;
       body += `<div style="font-size: 13px; color: #495057;">`;
       if (riskAssessment.riskLevel === 'High') {
-        body += `<strong>High Risk:</strong> This change requires enhanced oversight with extended approval workflows and mandatory peer review.`;
+        body += `<strong>High Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner and CAB approval. Final status will be "Scheduled" when ready for implementation.`;
       } else if (riskAssessment.riskLevel === 'Medium') {
-        body += `<strong>Medium Risk:</strong> This change follows standard approval processes with peer review coordination.`;
+        body += `<strong>Medium Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
       } else {
-        body += `<strong>Low Risk:</strong> This change has minimal business disruption potential but follows standard procedures.`;
+        body += `<strong>Low Risk:</strong> This change goes directly to "Pending Approval" status for technical owner approval, then to "Scheduled" status when ready for implementation.`;
       }
       body += `</div></div>`;
     }
@@ -2301,18 +2301,23 @@ const ChangeSubmission = {
     if (recipient.type === 'approver') {
       body += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;">`;
       body += `<h4 style="margin-top: 0; color: #856404;">Action Required</h4>`;
-      body += `<p>As an identified approver, you will receive a separate approval request that requires your review and approval.</p>`;
+      body += `<p>As an identified approver, you will receive a separate approval request when the change reaches "Pending Approval" status.</p>`;
+      if (data.riskAssessment && data.riskAssessment.totalScore >= 8) {
+        body += `<p><strong>Timeline:</strong> This ${data.riskAssessment.riskLevel} risk change must complete peer review first. You will receive the approval request after the workflow automator processes the peer review completion.</p>`;
+      } else {
+        body += `<p><strong>Timeline:</strong> This ${data.riskAssessment?.riskLevel || 'Low'} risk change will send approval requests immediately.</p>`;
+      }
       if (data.plannedStart) {
         const timeToStart = Math.ceil((new Date(data.plannedStart) - new Date()) / (1000 * 60 * 60 * 24));
         if (timeToStart <= 3) {
-          body += `<p style="color: #dc3545; font-weight: bold;">⚠️ Please note the urgent timeline - approval needed promptly!</p>`;
+          body += `<p style="color: #dc3545; font-weight: bold;">⚠️ Please note the urgent timeline - approval needed promptly when received!</p>`;
         }
       }
       body += `</div>`;
     } else {
       body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">`;
       body += `<h4 style="margin-top: 0; color: #0c5460;">For Your Information</h4>`;
-      body += `<p>Please review this change request and provide any feedback or concerns to the change requester.</p>`;
+      body += `<p>Please review this change request and provide any feedback or concerns to the change requester. This notification is for your awareness - no approval action is required from you.</p>`;
       body += `</div>`;
     }
     
@@ -2881,38 +2886,55 @@ const ChangeSubmission = {
             </div>
       `;
       
-      // Add peer review information
+      // Add workflow status information based on risk level
       if (riskAssessment.totalScore >= 8) {
+        // Medium/High risk - goes to "Pending Review" first
         if (createdTasksCount > 0) {
           successContent += `
             <div class="alert alert-warning mb-0">
               <h6 class="alert-heading">
-                <i class="fas fa-user-cog me-2"></i>Peer Review Coordination Required
+                <i class="fas fa-clock me-2"></i>Status: PENDING REVIEW
               </h6>
-              <p class="mb-0">
-                Due to the ${riskAssessment.riskLevel} risk level, a <strong>peer review coordination task</strong> 
-                has been assigned to the agent SME. They are responsible for assigning an independent peer reviewer within 24 hours.
+              <p class="mb-2">
+                Your ${riskAssessment.riskLevel} risk change requires peer review before moving to approval phase.
               </p>
+              <p class="mb-2">
+                <strong>Next Steps:</strong> A peer review coordination task has been assigned to the agent SME. 
+                Upon completion of peer review, the Freshservice workflow automator will:
+              </p>
+              <ul class="mb-2">
+                <li>Change status to "Pending Approval"</li>
+                <li>Create approval tickets for technical owners${riskAssessment.riskLevel === 'High' ? ' and CAB members' : ''}</li>
+                <li>Move to "Scheduled" status once all approvals are obtained</li>
+              </ul>
             </div>
           `;
         } else {
           successContent += `
             <div class="alert alert-danger mb-0">
               <h6 class="alert-heading">
-                <i class="fas fa-exclamation-triangle me-2"></i>Peer Review Required
+                <i class="fas fa-exclamation-triangle me-2"></i>Status: PENDING REVIEW
               </h6>
               <p class="mb-0">
-                Due to the ${riskAssessment.riskLevel} risk level, peer review is required but no agent SME could be automatically identified. 
+                Your ${riskAssessment.riskLevel} risk change requires peer review but no agent SME could be automatically identified. 
                 Please manually assign a Subject Matter Expert to coordinate the peer review process.
               </p>
             </div>
           `;
         }
       } else {
+        // Low risk - goes directly to "Pending Approval"
         successContent += `
-          <div class="alert alert-info mb-0">
+          <div class="alert alert-success mb-0">
+            <h6 class="alert-heading">
+              <i class="fas fa-arrow-right me-2"></i>Status: PENDING APPROVAL
+            </h6>
+            <p class="mb-2">
+              Your ${riskAssessment.riskLevel} risk change has been routed directly to technical owners for approval.
+            </p>
             <p class="mb-0">
-              <i class="fas fa-info-circle me-2"></i>No peer review required for ${riskAssessment.riskLevel} risk changes.
+              <strong>Next Steps:</strong> Technical owners will review and approve your change. 
+              Once approved, the status will change to "Scheduled" and be ready for implementation.
             </p>
           </div>
         `;
@@ -4532,8 +4554,14 @@ const ChangeSubmission = {
             <h6 class="alert-heading"><i class="fas fa-robot me-2"></i>Automated Processes</h6>
             <ul class="mb-0">`;
               
-      if (impactedData.approvers && impactedData.approvers.length > 0) {
-        summaryHtml += `<li>Approval workflow will be created with ${impactedData.approvers.length} approver(s)</li>`;
+      // Risk-based initial status assignment
+      if (riskAssessment) {
+        if (riskAssessment.totalScore >= 8) {
+          summaryHtml += `<li>Initial status: "Pending Review" (${riskAssessment.riskLevel} risk requires peer review first)</li>`;
+          summaryHtml += `<li>Peer review coordination task will be assigned to agent SME</li>`;
+        } else {
+          summaryHtml += `<li>Initial status: "Pending Approval" (${riskAssessment.riskLevel} risk - direct to approval)</li>`;
+        }
       }
       
       if (totalStakeholders > 0) {
@@ -4544,8 +4572,9 @@ const ChangeSubmission = {
         summaryHtml += `<li>Assets will be automatically associated with the change request</li>`;
       }
               
-      if (riskAssessment && (riskAssessment.riskLevel === 'Medium' || riskAssessment.riskLevel === 'High')) {
-        summaryHtml += `<li>Peer review coordination task will be created (${riskAssessment.riskLevel} risk requires peer review)</li>`;
+      if (impactedData.approvers && impactedData.approvers.length > 0) {
+        const when = riskAssessment && riskAssessment.totalScore >= 8 ? 'after peer review completion' : 'immediately';
+        summaryHtml += `<li>Approval tickets will be created ${when} for ${impactedData.approvers.length} approver(s)</li>`;
       }
       
       summaryHtml += `</ul>
@@ -4568,8 +4597,17 @@ const ChangeSubmission = {
                   <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Change request will be created in Freshservice</li>
                   <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Assets will be associated with the change</li>`;
     
-    if (impactedData.approvers && impactedData.approvers.length > 0) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Approval workflow will be created for ${impactedData.approvers.length} approver(s)</li>`;
+    // Risk-based status assignment
+    if (riskAssessment) {
+      if (riskAssessment.totalScore >= 8) {
+        summaryHtml += `<li class="mb-2"><i class="fas fa-clock text-warning me-2"></i>Status: "Pending Review" (${riskAssessment.riskLevel} risk)</li>`;
+        summaryHtml += `<li class="mb-2"><i class="fas fa-user-cog text-info me-2"></i>Peer review task assigned to agent SME</li>`;
+      } else {
+        summaryHtml += `<li class="mb-2"><i class="fas fa-arrow-right text-success me-2"></i>Status: "Pending Approval" (${riskAssessment.riskLevel} risk)</li>`;
+        if (impactedData.approvers && impactedData.approvers.length > 0) {
+          summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Approval tickets created immediately for ${impactedData.approvers.length} approver(s)</li>`;
+        }
+      }
     }
     
     summaryHtml += `</ul>
@@ -4578,14 +4616,21 @@ const ChangeSubmission = {
                 <ul class="list-unstyled mb-0">`;
     
     if (totalStakeholders > 0) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Stakeholder notification note will be created for ${totalStakeholders} recipient(s)</li>`;
+      summaryHtml += `<li class="mb-2"><i class="fas fa-envelope text-primary me-2"></i>Stakeholder notification note will be created for ${totalStakeholders} recipient(s)</li>`;
     }
     
     if (riskAssessment && riskAssessment.totalScore >= 8) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Peer review coordination task will be assigned to SME</li>`;
+      summaryHtml += `<li class="mb-2"><i class="fas fa-robot text-info me-2"></i>Upon peer review completion: Workflow automator will transition to "Pending Approval"</li>`;
+      if (impactedData.approvers && impactedData.approvers.length > 0) {
+        const approverText = riskAssessment.riskLevel === 'High' ? `${impactedData.approvers.length} technical owner(s) + CAB` : `${impactedData.approvers.length} technical owner(s)`;
+        summaryHtml += `<li class="mb-2"><i class="fas fa-check text-warning me-2"></i>Approval tickets will be created for ${approverText}</li>`;
+      }
+      summaryHtml += `<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Final status: "Scheduled" when all approvals obtained</li>`;
+    } else if (impactedData.approvers && impactedData.approvers.length > 0) {
+      summaryHtml += `<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Status: "Scheduled" when approvals complete</li>`;
     }
     
-    summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>You will receive confirmation and tracking information</li>
+    summaryHtml += `<li class="mb-2"><i class="fas fa-bell text-info me-2"></i>You will receive confirmation and tracking information</li>
                 </ul>
               </div>
             </div>
@@ -4602,10 +4647,12 @@ const ChangeSubmission = {
           <ul class="mb-0">
             <li>Once submitted, this change request cannot be edited directly</li>
             <li>Any modifications will require creating a new change request or working with your assigned agent</li>
-            <li>You will receive email notifications as the change progresses through the approval workflow</li>`;
+            <li>You will receive email notifications as the change progresses through the workflow states</li>`;
     
     if (riskAssessment && riskAssessment.totalScore >= 8) {
-      summaryHtml += `<li>This ${riskAssessment.riskLevel} risk change requires peer review coordination by the assigned SME</li>`;
+      summaryHtml += `<li>This ${riskAssessment.riskLevel} risk change will start in "Pending Review" status and require peer review coordination before moving to approval phase</li>`;
+    } else if (riskAssessment) {
+      summaryHtml += `<li>This ${riskAssessment.riskLevel} risk change will start in "Pending Approval" status and proceed directly to technical owner approval</li>`;
     }
     
     summaryHtml += `</ul>
