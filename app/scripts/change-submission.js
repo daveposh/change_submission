@@ -2509,20 +2509,21 @@ const ChangeSubmission = {
   async createPeerReviewCoordinationTask(changeRequest, agentSME, riskAssessment) {
     console.log(`📝 Creating peer review coordination task for agent SME ${agentSME.id}...`);
     
+    // Calculate due date (24 hours from now for peer review coordination)
+    const dueDate = new Date();
+    dueDate.setHours(dueDate.getHours() + 24);
+    
+    // Create task data structure for v2 API - following exact API specification
+    const taskData = {
+      agent_id: parseInt(agentSME.id), // Ensure it's a number
+      status: 1, // 1-Open, 2-In Progress, 3-Completed
+      due_date: dueDate.toISOString(),
+      notify_before: 0, // Time in seconds before which notification is sent
+      title: `Peer Review Coordination Required: ${changeRequest.subject}`,
+      description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
+    };
+    
     try {
-      // Calculate due date (24 hours from now for peer review coordination)
-      const dueDate = new Date();
-      dueDate.setHours(dueDate.getHours() + 24);
-      
-      // Create task data structure for v2 API - following exact API specification
-      const taskData = {
-        agent_id: parseInt(agentSME.id), // Ensure it's a number
-        status: 1, // 1-Open, 2-In Progress, 3-Completed
-        due_date: dueDate.toISOString(),
-        notify_before: 0, // Time in seconds before which notification is sent
-        title: `Peer Review Coordination Required: ${changeRequest.subject}`,
-        description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
-      };
       
       // Add workspace_id if the change request has one (for Employee Support Mode accounts)
       if (changeRequest.workspace_id) {
