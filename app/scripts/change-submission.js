@@ -2388,6 +2388,9 @@ const ChangeSubmission = {
           this.state.createdTasks.push(task);
           console.log(`✅ Created peer review coordination task for agent SME ${agentSME.id}: Task ${task.id}`);
           return [task];
+        } else {
+          console.warn(`⚠️ Task creation returned null for agent SME ${agentSME.id}, but no error was thrown`);
+          return [];
         }
       } catch (error) {
         console.error(`❌ Failed to create peer review coordination task for agent SME ${agentSME.id}:`, error);
@@ -2506,15 +2509,20 @@ const ChangeSubmission = {
       const dueDate = new Date();
       dueDate.setHours(dueDate.getHours() + 24);
       
-      // Create a task associated with the change request using proper change tasks API
+      // Create task data structure for v2 API - following exact API specification
       const taskData = {
-        agent_id: agentSME.id,
-        status: 1, // Open for tasks (1-Open, 2-In Progress, 3-Completed)
+        agent_id: parseInt(agentSME.id), // Ensure it's a number
+        status: 1, // 1-Open, 2-In Progress, 3-Completed
         due_date: dueDate.toISOString(),
-        notify_before: 0, // No notification before due date
+        notify_before: 0, // Time in seconds before which notification is sent
         title: `Peer Review Coordination Required: ${changeRequest.subject}`,
         description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
       };
+      
+      // Add workspace_id if the change request has one (for Employee Support Mode accounts)
+      if (changeRequest.workspace_id) {
+        taskData.workspace_id = parseInt(changeRequest.workspace_id);
+      }
       
       console.log('📋 Peer review coordination task data prepared:', {
         title: taskData.title,
@@ -2525,10 +2533,12 @@ const ChangeSubmission = {
         dueDate: taskData.due_date,
         changeId: changeRequest.id,
         agentId: taskData.agent_id,
-        notifyBefore: taskData.notify_before
+        notifyBefore: taskData.notify_before,
+        workspaceId: taskData.workspace_id,
+        fullTaskData: taskData
       });
       
-      // Create the task using the proper change tasks API endpoint
+      // Create the task using the v2 change tasks API endpoint
       console.log('📡 Sending change task creation request...');
       const response = await window.client.request.invokeTemplate('createChangeTask', {
         context: {
@@ -2553,15 +2563,15 @@ const ChangeSubmission = {
         throw new Error(`Invalid JSON response: ${parseError.message}`);
       }
       
-      // Handle change task creation response structure
-      if (createdTask.task) {
-        // Standard task response structure
-        console.log(`✅ Peer review coordination task created successfully: ${createdTask.task.id}`);
-        return createdTask.task;
-      } else if (createdTask.id) {
-        // Direct response structure
+      // Handle v2 API response structure for change tasks
+      // The v2 API should return the task object directly
+      if (createdTask && createdTask.id) {
         console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
         return createdTask;
+      } else if (createdTask && createdTask.task && createdTask.task.id) {
+        // Fallback for wrapped response structure
+        console.log(`✅ Peer review coordination task created successfully: ${createdTask.task.id}`);
+        return createdTask.task;
       } else {
         console.error('❌ Unexpected change task response structure:', createdTask);
         throw new Error(`Unexpected response structure: ${JSON.stringify(createdTask)}`);
@@ -2571,23 +2581,40 @@ const ChangeSubmission = {
       console.error(`❌ Failed to create peer review coordination task for agent SME ${agentSME.id}:`, error);
       
       // Enhanced error logging for debugging
-      if (error.status === 500 && error.response) {
-        console.error('📋 500 Error Details:', {
+      if (error.status && error.response) {
+        console.error('📋 API Error Details:', {
           status: error.status,
           response: error.response,
           headers: error.headers,
           attempts: error.attempts,
           changeId: changeRequest.id,
-          agentId: agentSME.id
+          agentId: agentSME.id,
+          taskData: taskData
         });
         
         // Try to parse error response for more details
         try {
           const errorData = JSON.parse(error.response);
           console.error('📋 Parsed error response:', errorData);
+          
+          // Log specific error messages if available
+          if (errorData.message) {
+            console.error('📋 API Error Message:', errorData.message);
+          }
+          if (errorData.errors) {
+            console.error('📋 API Validation Errors:', errorData.errors);
+          }
         } catch (parseErr) {
-          console.error('📋 Could not parse error response as JSON');
+          console.error('📋 Could not parse error response as JSON:', error.response);
         }
+      } else {
+        console.error('📋 Non-HTTP Error:', {
+          errorType: typeof error,
+          errorMessage: error.message,
+          errorStack: error.stack,
+          changeId: changeRequest.id,
+          agentId: agentSME.id
+        });
       }
       
       // For now, don't throw to prevent blocking submission
