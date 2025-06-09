@@ -965,8 +965,6 @@ const ImpactedServices = {
             console.log(`   2. Relationships feature not enabled for this asset type`);
             console.log(`   3. Asset relationships endpoint not supported in this Freshservice instance`);
             relationshipsApiAvailable = false; // Don't try for other assets
-          } else {
-            console.log(`ℹ️ Other error occurred (status: ${error.status}), will continue trying for other assets`);
           }
         }
       }

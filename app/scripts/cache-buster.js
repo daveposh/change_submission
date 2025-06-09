@@ -20,4 +20,4 @@ if (document.readyState === 'complete') {
 
 // Cache buster for change submission app
 // This forces browsers to reload cached JavaScript files when the version changes
-window.CACHE_VERSION = '2.4.5'; 
+window.CACHE_VERSION = '2.4.6'; 

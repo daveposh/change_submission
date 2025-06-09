@@ -931,7 +931,7 @@ const ChangeSubmission = {
       }
       
       // Display assets grouped by type
-      Object.keys(assetsByType).forEach(assetType => {
+      for (const assetType of Object.keys(assetsByType)) {
         const assets = assetsByType[assetType];
         description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">`;
         description += `<h4 style="margin: 0 0 15px 0; color: #007bff; font-size: 16px; display: flex; align-items: center;">`;
@@ -1031,7 +1031,7 @@ const ChangeSubmission = {
         }
         description += `</div>`;
         description += `</div>`;
-      });
+      }
       description += `</div>`;
     }
 
