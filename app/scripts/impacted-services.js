@@ -621,37 +621,76 @@ const ImpactedServices = {
         return;
       }
 
+      let hasErrors = false;
+      const errors = [];
+
       // Step 2: Preload users referenced in direct assets
-      console.log('👥 Preloading users referenced in direct assets...');
-      await preloadAssetUsers(this.state.directAssets);
+      try {
+        console.log('👥 Preloading users referenced in direct assets...');
+        await preloadAssetUsers(this.state.directAssets);
+      } catch (error) {
+        console.warn('⚠️ Error preloading direct asset users:', error);
+        errors.push('User preloading for direct assets failed');
+        hasErrors = true;
+      }
 
       // Step 3: Extract approvers from direct assets
-      console.log('👥 Extracting approvers from direct assets...');
-      await this.extractApproversFromDirectAssets();
+      try {
+        console.log('👥 Extracting approvers from direct assets...');
+        await this.extractApproversFromDirectAssets();
+      } catch (error) {
+        console.warn('⚠️ Error extracting approvers:', error);
+        errors.push('Approver extraction failed');
+        hasErrors = true;
+      }
 
       // Step 4: Find related assets through asset relationships
-      console.log('🔗 Finding related assets through relationships...');
-      await this.findRelatedAssets();
+      try {
+        console.log('🔗 Finding related assets through relationships...');
+        await this.findRelatedAssets();
+      } catch (error) {
+        console.warn('⚠️ Error finding related assets:', error);
+        errors.push('Related asset discovery failed');
+        hasErrors = true;
+      }
 
       // Step 5: Preload users referenced in related assets
       if (this.state.relatedAssets.length > 0) {
-        console.log('👥 Preloading users referenced in related assets...');
-        await preloadAssetUsers(this.state.relatedAssets);
+        try {
+          console.log('👥 Preloading users referenced in related assets...');
+          await preloadAssetUsers(this.state.relatedAssets);
+        } catch (error) {
+          console.warn('⚠️ Error preloading related asset users:', error);
+          errors.push('User preloading for related assets failed');
+          hasErrors = true;
+        }
       }
 
       // Step 6: Extract stakeholders from related assets
-      console.log('🤝 Extracting stakeholders from related assets...');
-      await this.extractStakeholdersFromRelatedAssets();
+      try {
+        console.log('🤝 Extracting stakeholders from related assets...');
+        await this.extractStakeholdersFromRelatedAssets();
+      } catch (error) {
+        console.warn('⚠️ Error extracting stakeholders:', error);
+        errors.push('Stakeholder extraction failed');
+        hasErrors = true;
+      }
 
       // Step 7: Display results
       this.displayResults();
 
       this.state.analysisComplete = true;
-      console.log('✅ Impacted services analysis complete');
+      
+      if (hasErrors) {
+        console.log('⚠️ Impacted services analysis completed with some errors');
+        this.showNotification('warning', `Analysis completed with some issues: ${errors.join(', ')}. Results may be incomplete.`);
+      } else {
+        console.log('✅ Impacted services analysis complete');
+      }
 
     } catch (error) {
-      console.error('❌ Error during services analysis:', error);
-      this.showNotification('danger', 'Error analyzing services: ' + error.message);
+      console.error('❌ Critical error during services analysis:', error);
+      this.showNotification('danger', 'Critical error analyzing services: ' + error.message);
     } finally {
       this.state.isAnalyzing = false;
       this.showAnalysisStatus(false);
@@ -907,10 +946,21 @@ const ImpactedServices = {
             assetName: directAsset.name
           });
           
-          // Check if this is a 404 error (relationships endpoint not available)
+          // Check for specific error types and handle appropriately
           if (error.status === 404) {
             console.log(`ℹ️ Asset relationships endpoint returned 404 for asset ${directAsset.name}`);
             console.log(`ℹ️ This could mean:`);
+          } else if (error.status === 502) {
+            console.log(`ℹ️ Server connectivity error (502) for asset ${directAsset.name}`);
+            console.log(`ℹ️ This is likely a temporary server issue - will try fallback methods`);
+          } else if (error.status === 500) {
+            console.log(`ℹ️ Server error (500) for asset ${directAsset.name}`);
+            console.log(`ℹ️ This is likely a temporary server issue - will try fallback methods`);
+          } else if (error.response === 'Error in establishing connection') {
+            console.log(`ℹ️ Connection error for asset ${directAsset.name}`);
+            console.log(`ℹ️ This is likely a network connectivity issue - will try fallback methods`);
+          } else {
+            console.log(`ℹ️ Other error occurred (status: ${error.status}), will continue trying for other assets`);
             console.log(`   1. Asset has no relationships defined`);
             console.log(`   2. Relationships feature not enabled for this asset type`);
             console.log(`   3. Asset relationships endpoint not supported in this Freshservice instance`);

@@ -450,7 +450,7 @@ const ChangeSubmission = {
       subject: data.changeTitle || 'Untitled Change Request',
       
       // REQUIRED: Description - Enhanced with rich formatted information
-      description: this.createEnhancedDescription(data, impactedData, data.riskAssessment),
+      description: await this.createEnhancedDescription(data, impactedData, data.riskAssessment),
       
       // REQUIRED: Workspace - Always required field
       workspace_id: workspaceId, // Default to workspace 2 ("CXI Change Management")
@@ -668,7 +668,7 @@ const ChangeSubmission = {
    * Create enhanced description with rich formatting for change request
    * Incorporates risk assessment and service impact information
    */
-  createEnhancedDescription(data, impactedData, riskAssessment) {
+  async createEnhancedDescription(data, impactedData, riskAssessment) {
     console.log('📝 Creating enhanced description with risk and impact information...');
     
     // Start with user-provided description
@@ -903,13 +903,32 @@ const ChangeSubmission = {
       
       // Group assets by type for better organization
       const assetsByType = {};
-      data.selectedAssets.forEach(asset => {
-        const type = asset.asset_type_name || 'Unknown Type';
-        if (!assetsByType[type]) {
-          assetsByType[type] = [];
+      for (const asset of data.selectedAssets) {
+        // Get asset type name with proper resolution
+        let assetTypeName = 'Unknown Type';
+        
+        // Try to get resolved asset type name from cache manager
+        if (window.CacheManager && typeof window.CacheManager.getAssetTypeName === 'function' && asset.asset_type_id) {
+          try {
+            const resolvedTypeName = await window.CacheManager.getAssetTypeName(asset.asset_type_id);
+            if (resolvedTypeName && resolvedTypeName !== 'Unknown' && !resolvedTypeName.startsWith('Asset Type ')) {
+              assetTypeName = resolvedTypeName;
+            }
+          } catch (error) {
+            console.warn('Error resolving asset type:', error);
+          }
         }
-        assetsByType[type].push(asset);
-      });
+        
+        // Fallback to direct property if resolution failed
+        if (assetTypeName === 'Unknown Type') {
+          assetTypeName = asset.asset_type_name || 'Unknown Type';
+        }
+        
+        if (!assetsByType[assetTypeName]) {
+          assetsByType[assetTypeName] = [];
+        }
+        assetsByType[assetTypeName].push(asset);
+      }
       
       // Display assets grouped by type
       Object.keys(assetsByType).forEach(assetType => {
@@ -922,11 +941,35 @@ const ChangeSubmission = {
         
         // Display each asset with enhanced information
         description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;">`;
-        assets.forEach(asset => {
-          // Get technical owner information
-          const technicalOwner = asset.managed_by_name || asset.agent_name || asset.user_name || 'Unassigned';
-          const technicalOwnerId = asset.managed_by || asset.agent_id || asset.user_id || null;
-          const ownerInfo = technicalOwnerId ? `${technicalOwner} (ID: ${technicalOwnerId})` : technicalOwner;
+        for (const asset of assets) {
+          // Get technical owner information with proper user resolution
+          let technicalOwner = 'Unassigned';
+          let technicalOwnerId = null;
+          
+          // Try to get resolved name from cache manager
+          if (window.CacheManager && typeof window.CacheManager.getManagedByInfo === 'function') {
+            try {
+              const resolvedOwner = await window.CacheManager.getManagedByInfo(asset);
+              if (resolvedOwner && resolvedOwner !== 'N/A' && !resolvedOwner.includes('ID:')) {
+                technicalOwner = resolvedOwner;
+              }
+            } catch (error) {
+              console.warn('Error resolving technical owner:', error);
+            }
+          }
+          
+          // Fallback to direct properties if resolution failed
+          if (technicalOwner === 'Unassigned') {
+            technicalOwner = asset.managed_by_name || asset.agent_name || asset.user_name || 'Unassigned';
+          }
+          
+          // Get the ID for display
+          technicalOwnerId = asset.managed_by || asset.agent_id || asset.user_id || null;
+          
+          // Format owner info - only show ID if name is still "Unassigned"
+          const ownerInfo = (technicalOwnerId && technicalOwner === 'Unassigned') 
+            ? `${technicalOwner} (ID: ${technicalOwnerId})` 
+            : technicalOwner;
           
           description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6; position: relative; cursor: pointer;" `;
           description += `onmouseover="this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'; this.style.transform='translateY(-2px)'" `;
@@ -985,7 +1028,7 @@ const ChangeSubmission = {
           description += `</div>`;
           
           description += `</div>`;
-        });
+        }
         description += `</div>`;
         description += `</div>`;
       });
@@ -1272,7 +1315,7 @@ const ChangeSubmission = {
       }
 
       const changeRequest = data.change;
-      console.log(`✅ Change request created successfully: CR-${changeRequest.id}`);
+              console.log(`✅ Change request created successfully: CHN-${changeRequest.id}`);
 
       return changeRequest;
 
@@ -1921,7 +1964,7 @@ const ChangeSubmission = {
       const riskAssessment = data?.riskAssessment;
       
       // Prepare note content
-      const noteBody = this.generateStakeholderNotificationNoteBody(changeRequest, recipients, riskAssessment);
+      const noteBody = await this.generateStakeholderNotificationNoteBody(changeRequest, recipients, riskAssessment);
       
       // Extract valid email addresses for notifications
       const stakeholderEmails = recipients
@@ -1983,8 +2026,25 @@ const ChangeSubmission = {
   /**
    * Generate stakeholder notification note body
    */
-  generateStakeholderNotificationNoteBody(changeRequest, recipients, riskAssessment) {
+  async generateStakeholderNotificationNoteBody(changeRequest, recipients, riskAssessment) {
     const data = window.changeRequestData;
+    
+    // Get Freshservice domain for creating clickable links
+    const getFreshserviceDomain = async () => {
+      try {
+        const params = await window.client.iparams.get();
+        if (params && params.freshservice_domain) {
+          return params.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        }
+        return 'your-domain.freshservice.com';
+      } catch (error) {
+        console.error('❌ Could not retrieve installation parameters:', error);
+        return 'your-domain.freshservice.com';
+      }
+    };
+    
+    const freshserviceDomain = await getFreshserviceDomain();
+    const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
     
     let body = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
     
@@ -2055,7 +2115,7 @@ const ChangeSubmission = {
     // Change details
     body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">`;
     body += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
-    body += `<p><strong>Change ID:</strong> CR-${changeRequest.id}</p>`;
+    body += `<p><strong>Change ID:</strong> <a href="${changeUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">CHN-${changeRequest.id}</a></p>`;
     body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
     body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'}</p>`;
     
@@ -2175,8 +2235,25 @@ const ChangeSubmission = {
   /**
    * Generate stakeholder notification email body (legacy method - kept for compatibility)
    */
-  generateStakeholderNotificationBody(changeRequest, recipient, riskAssessment) {
+  async generateStakeholderNotificationBody(changeRequest, recipient, riskAssessment) {
     const data = window.changeRequestData;
+    
+    // Get Freshservice domain for creating clickable links
+    const getFreshserviceDomain = async () => {
+      try {
+        const params = await window.client.iparams.get();
+        if (params && params.freshservice_domain) {
+          return params.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        }
+        return 'your-domain.freshservice.com';
+      } catch (error) {
+        console.error('❌ Could not retrieve installation parameters:', error);
+        return 'your-domain.freshservice.com';
+      }
+    };
+    
+    const freshserviceDomain = await getFreshserviceDomain();
+    const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
     
     let body = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
     
@@ -2246,7 +2323,7 @@ const ChangeSubmission = {
     // Change details
     body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">`;
     body += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
-    body += `<p><strong>Change ID:</strong> CR-${changeRequest.id}</p>`;
+    body += `<p><strong>Change ID:</strong> <a href="${changeUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">CHN-${changeRequest.id}</a></p>`;
     body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
     body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'}</p>`;
     
@@ -2520,7 +2597,7 @@ const ChangeSubmission = {
       due_date: dueDate.toISOString(),
       notify_before: 0, // Time in seconds before which notification is sent
       title: `Peer Review Coordination Required: ${changeRequest.subject}`,
-      description: this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
+      description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
     };
     
     try {
@@ -2632,8 +2709,25 @@ const ChangeSubmission = {
   /**
    * Generate peer review coordination task description for agent SME
    */
-  generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
+  async generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
     const data = window.changeRequestData;
+    
+    // Get Freshservice domain for creating clickable links
+    const getFreshserviceDomain = async () => {
+      try {
+        const params = await window.client.iparams.get();
+        if (params && params.freshservice_domain) {
+          return params.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        }
+        return 'your-domain.freshservice.com';
+      } catch (error) {
+        console.error('❌ Could not retrieve installation parameters:', error);
+        return 'your-domain.freshservice.com';
+      }
+    };
+    
+    const freshserviceDomain = await getFreshserviceDomain();
+    const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
     
     let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6;">`;
     
@@ -2650,7 +2744,7 @@ const ChangeSubmission = {
     // Change request details
     description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">`;
     description += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
-    description += `<p><strong>Change ID:</strong> CR-${changeRequest.id}</p>`;
+    description += `<p><strong>Change ID:</strong> <a href="${changeUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">CHN-${changeRequest.id}</a></p>`;
     description += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
     description += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</p>`;
     description += `<p><strong>Risk Level:</strong> <span style="background-color: ${this.getRiskColor(riskAssessment.riskLevel)}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
@@ -2851,7 +2945,7 @@ const ChangeSubmission = {
             <div class="row">
               <div class="col-md-6">
                 <p><strong>Change Request ID:</strong></p>
-                <p class="h5 text-primary">CR-${changeRequest.id}</p>
+                <p class="h5"><a href="${changeUrl}" target="_blank" class="text-primary text-decoration-none">CHN-${changeRequest.id}</a></p>
               </div>
               <div class="col-md-6">
                 <p><strong>Title:</strong></p>
@@ -3882,7 +3976,7 @@ const ChangeSubmission = {
     report += 'CHANGE REQUEST IMPACT ANALYSIS REPORT\n';
     report += '='.repeat(80) + '\n';
     report += `Generated: ${new Date().toLocaleString()}\n`;
-    report += `Change ID: CR-${this.state.submissionId || 'DRAFT'}\n`;
+    report += `Change ID: CHN-${this.state.submissionId || 'DRAFT'}\n`;
     report += `Title: ${data.changeTitle || 'N/A'}\n`;
     report += `Requester: ${data.selectedRequester?.name || 'N/A'}\n`;
     report += '\n';
