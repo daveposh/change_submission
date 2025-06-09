@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Freshworks FDK Change Management Application now automatically creates peer review coordination tasks for change requests with risk scores of 8 or higher (Medium and High risk changes). The task is assigned to an agent SME (Subject Matter Expert) who is responsible for coordinating the peer review process.
+The Freshworks FDK Change Management Application implements a risk-based approval workflow with automated state transitions. Changes with risk scores of 8 or higher (Medium and High risk) enter a "Pending Review" state and require peer review coordination before moving to the approval phase. Upon peer review completion, the Freshservice workflow automator automatically transitions the change to "Pending Approval" status and releases approval tickets to technical owners and/or CAB members.
 
 ## Risk Threshold Logic
 
@@ -13,27 +13,41 @@ The Freshworks FDK Change Management Application now automatically creates peer 
   - **Medium Risk**: 8-11 points  
   - **High Risk**: 12-15 points
 
-### Peer Review Trigger
-- **Threshold**: Risk score ≥ 8
-- **Applies to**: Medium Risk (8-11) and High Risk (12-15) changes
-- **Rationale**: Low risk changes (5-7) use standard approval processes
+### Status Assignment
+- **Low Risk (5-7)**: Initial status "Pending Approval" - direct to technical owner approval
+- **Medium/High Risk (≥8)**: Initial status "Pending Review" - peer review required first
+- **Rationale**: Risk-based routing ensures appropriate review level for change complexity
 
 ## Implementation Details
 
-### SME Coordination Approach
-When a change request is submitted with risk score ≥ 8:
+### Risk-Based Workflow Process
+When a change request is submitted:
 
-1. **SME Identification**: System automatically identifies an agent SME from:
+**Low Risk Changes (Score 5-7)**:
+1. **Status Assignment**: "Pending Approval"
+2. **Immediate Action**: Technical owner approval tickets created automatically
+3. **Workflow**: Standard approval process begins immediately
+
+**Medium/High Risk Changes (Score ≥ 8)**:
+1. **Status Assignment**: "Pending Review"
+2. **SME Identification**: System automatically identifies an agent SME from:
    - **Primary**: Assigned agent (if different from requester)
    - **Fallback**: Primary technical owner from impacted services analysis
    - **Last Resort**: Asset manager from selected assets
-
-2. **Single Task Creation**: Creates one peer review coordination task assigned to the identified SME
-
-3. **SME Responsibilities**: The SME must choose one of three options:
+3. **Task Creation**: Creates peer review coordination task assigned to the identified SME
+4. **SME Responsibilities**: The SME must choose one of three options:
    - **Peer Assignment**: Reassign the task to a qualified technical peer (different from requester and SME)
    - **External Coordination**: Obtain peer review through other means and attach evidence
    - **Escalation**: Escalate for appropriate reviewer assignment
+
+### Workflow Automation Trigger
+When the peer review coordination task is marked complete:
+1. **Automatic Detection**: Freshservice workflow automator monitors task completion
+2. **Status Transition**: Change status automatically updates from "Pending Review" to "Pending Approval"
+3. **Approval Release**: System creates approval tickets for:
+   - Technical owners (for all medium/high risk changes)
+   - CAB members (for high risk changes only)
+4. **Final Approval**: When all approvals obtained, status changes to "Scheduled"
 
 ### Task Properties
 - **Subject**: "Peer Review Coordination Required: [Change Title]"
@@ -88,30 +102,57 @@ Standard evaluation criteria for the peer review:
 ### Submission Feedback
 After successful change submission, users see:
 
-#### For Risk Score ≥ 8 (with SME identified):
+#### For Low Risk Changes (Score 5-7):
+```
+✅ Change Request Submitted Successfully!
+Change Request ID: CR-12345
+Title: Database Schema Update
+Risk Level: LOW (Score: 6/15)
+Status: PENDING APPROVAL
+
+🚀 Direct to Approval Process
+Your low risk change has been routed directly to technical owners for approval.
+No peer review is required for this risk level.
+```
+
+#### For Medium Risk Changes (Score 8-11):
 ```
 ✅ Change Request Submitted Successfully!
 Change Request ID: CR-12345
 Title: Database Schema Update
 Risk Level: MEDIUM (Score: 9/15)
+Status: PENDING REVIEW
 
-🎯 Peer Review Coordination Required
-Due to the Medium risk level, a peer review coordination task has been assigned 
-to the agent SME. They are responsible for obtaining peer review within 24 hours 
-by assigning to a qualified peer reviewer, coordinating external review, or escalating for assignment.
+🎯 Peer Review Required
+A peer review coordination task has been assigned to the agent SME. 
+Upon completion of peer review, the Freshservice workflow automator will:
+- Change status to "Pending Approval"
+- Create approval tickets for technical owners
+- Change will move to "Scheduled" status once approved
 ```
 
-#### For Risk Score ≥ 8 (no SME identified):
+#### For High Risk Changes (Score 12-15):
+```
+✅ Change Request Submitted Successfully!
+Change Request ID: CR-12345
+Title: Database Schema Update
+Risk Level: HIGH (Score: 13/15)
+Status: PENDING REVIEW
+
+🏛️ Peer Review + CAB Required
+A peer review coordination task has been assigned to the agent SME.
+Upon completion of peer review, the Freshservice workflow automator will:
+- Change status to "Pending Approval"
+- Create approval tickets for technical owners AND CAB
+- Change will move to "Scheduled" status once all approvals obtained
+```
+
+#### For Medium/High Risk (no SME identified):
 ```
 ⚠️ Peer Review Required
-Due to the Medium risk level, peer review is required but no agent SME could be 
+Due to the risk level, peer review is required but no agent SME could be 
 automatically identified. Please manually assign a Subject Matter Expert to 
-coordinate the peer review process.
-```
-
-#### For Risk Score < 8:
-```
-ℹ️ No peer review required for Low risk changes.
+coordinate the peer review process. Change status: PENDING REVIEW
 ```
 
 ## Technical Implementation

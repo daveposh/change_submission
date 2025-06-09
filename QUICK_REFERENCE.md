@@ -1,7 +1,30 @@
 # Change Management Quick Reference Guide
 
 ## Process Overview
-**Change Request → Asset Association → Risk Assessment → Planning → Scheduling → Review → Submit → Approval → Implementation**
+**Change Request → Asset Association → Risk Assessment → Planning → Scheduling → Review → Submit → [Risk-Based Routing] → Approval → Implementation**
+
+## Change Approval Workflow States
+
+### Status Flow Overview
+```
+Low Risk:    Submitted → Pending Approval → Scheduled
+Med/High:    Submitted → Pending Review → Pending Approval → Scheduled
+```
+
+### State Definitions
+- **Pending Review**: Requires peer review coordination (Medium/High risk only)
+- **Pending Approval**: Awaiting technical owner/CAB approval  
+- **Scheduled**: All approvals obtained, ready for implementation
+
+### Risk-Based Routing
+- **Low Risk (5-7)**: Direct to approval (Technical owners only)
+- **Medium Risk (8-11)**: Peer review → Technical owners
+- **High Risk (12-15)**: Peer review → Technical owners + CAB
+
+### Key Automation
+- Freshservice workflow automator monitors peer review task completion
+- Automatically transitions from "Pending Review" to "Pending Approval"
+- Creates appropriate approval tickets based on risk level
 
 ## Risk Assessment Scale (1-3 each factor)
 | Factor | 1 (Low) | 2 (Medium) | 3 (High) |
@@ -13,9 +36,9 @@
 | **Rollback Risk** | Easy/automated | Moderate difficulty | Difficult/data loss risk |
 
 ## Risk Levels & Requirements
-- **Low Risk (5-7)**: Technical owner approval only, 2 days lead time
-- **Medium Risk (8-11)**: + Peer review coordination, 5 days lead time  
-- **High Risk (12-15)**: + CAB review + enhanced oversight, 10 days lead time
+- **Low Risk (5-7)**: Status "Pending Approval" → Technical owner approval only, 2 days lead time
+- **Medium Risk (8-11)**: Status "Pending Review" → Peer review → Technical owner approval, 5 days lead time  
+- **High Risk (12-15)**: Status "Pending Review" → Peer review → Technical owner + CAB approval, 10 days lead time
 
 ## Required Documentation
 - **Implementation Plan**: Step-by-step execution procedure
@@ -32,10 +55,12 @@
 
 ## Automated Actions Upon Submission
 1. ✅ Change request created in Freshservice
-2. ✅ Assets associated with change
+2. ✅ Assets associated with change  
 3. ✅ Stakeholder notifications sent
-4. ✅ Approval tickets created for technical owners
-5. ✅ Peer review tasks created (if medium/high risk)
+4. ✅ Risk-based status assignment:
+   - **Low Risk**: Status "Pending Approval" + Technical owner approval tickets
+   - **Medium/High Risk**: Status "Pending Review" + Peer review coordination task
+5. ✅ Workflow automation triggers upon peer review completion
 6. ✅ Additional approver fields populated
 
 ## Emergency Changes

@@ -31,10 +31,50 @@ This is a full-page application built using the FDK Freshservice Framework SDK t
   - Review all change request details before submission
   - Edit options before final submission
 
+- **Risk-Based Approval Workflow**:
+  - **Low Risk Changes**: Move directly to "Pending Approval" state for technical owner approval
+  - **Medium/High Risk Changes**: Move to "Pending Review" state for peer review coordination
+  - **Workflow Automation**: After peer review completion, Freshservice workflow automator releases approvals to assigned technical owners and/or high-risk CAB
+  - **Scheduled State**: Changes move to "Scheduled" status once all required approvals are obtained
+
 - **Data Persistence**:
   - Auto-save form data to Freshworks Data Storage
   - Resume from previously saved drafts
   - Clear data upon successful submission
+
+## Approval Workflow States
+
+### Change Request Status Flow
+
+1. **Submitted**: Initial state when change request is created
+2. **Pending Review**: For medium/high risk changes requiring peer review
+3. **Pending Approval**: For low risk changes or after peer review completion
+4. **Scheduled**: All approvals obtained, ready for implementation during change window
+
+### Risk-Based Routing
+
+- **Low Risk (Score 5-7)**: 
+  - Direct routing to "Pending Approval"
+  - Technical owners receive approval requests immediately
+  
+- **Medium Risk (Score 8-11)**: 
+  - Initial state: "Pending Review"
+  - Peer review coordination task assigned to agent SME
+  - After peer review: Workflow automator moves to "Pending Approval"
+  
+- **High Risk (Score 12-15)**: 
+  - Initial state: "Pending Review"
+  - Peer review coordination + CAB review requirements
+  - After peer review: Workflow automator releases to technical owners and CAB
+
+### Workflow Automation
+
+The Freshservice workflow automator handles state transitions:
+- Monitors peer review task completion
+- Automatically transitions from "Pending Review" to "Pending Approval"
+- Creates approval tickets for identified technical owners
+- Escalates to high-risk CAB when required
+- Moves to "Scheduled" when all approvals are obtained
 
 ## Installation
 
@@ -86,6 +126,22 @@ The app uses configurable asset type names to filter assets in the search. This 
 5. Review the Change Request summary and confirm submission
 
 Your form data will be automatically saved as you proceed, allowing you to return later to complete the submission.
+
+### Post-Submission Process
+
+After successful submission, the change request follows this workflow:
+
+**For Low Risk Changes:**
+- Status: "Pending Approval"
+- Technical owners receive approval requests immediately
+- Once approved: Status changes to "Scheduled"
+
+**For Medium/High Risk Changes:**
+- Status: "Pending Review"
+- Agent SME receives peer review coordination task
+- After peer review completion: Workflow automator moves to "Pending Approval"
+- Technical owners (and CAB for high risk) receive approval requests
+- Once all approvals obtained: Status changes to "Scheduled"
 
 ## API Usage
 

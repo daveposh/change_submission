@@ -193,8 +193,12 @@ The Change Management Application is a comprehensive tool for submitting, review
 2. **Submit Request**: Create change request in Freshservice
 3. **Asset Association**: Link selected assets to change
 4. **Stakeholder Notifications**: Send notifications to identified stakeholders
-5. **Approval Workflow**: Create approval tickets for technical owners
-6. **Peer Review Tasks**: Create coordination tasks for medium/high risk changes
+5. **Risk-Based Routing**: Route to appropriate approval state based on risk level
+6. **Workflow Automation**: Initiate automated approval processes
+
+**Initial Status Assignment**:
+- **Low Risk Changes (Score 5-7)**: Status = "Pending Approval"
+- **Medium/High Risk Changes (Score 8-15)**: Status = "Pending Review"
 
 **Automated Actions**:
 - Change request creation with comprehensive description
@@ -311,25 +315,33 @@ The Change Management Application is a comprehensive tool for submitting, review
 
 #### Risk-Based Classification
 **Low Risk Changes (Score 5-7)**:
+- **Initial Status**: "Pending Approval"
 - **Approval Requirements**: Technical owner approval only
 - **Lead Time**: Minimum 2 business days
 - **Documentation**: Standard implementation plan required
-- **Review Process**: Automated approval workflow
+- **Review Process**: Direct to technical owner approval
 - **Examples**: Routine updates, minor configuration changes
 
 **Medium Risk Changes (Score 8-11)**:
-- **Approval Requirements**: Technical owner + peer review coordination
+- **Initial Status**: "Pending Review"
+- **Approval Requirements**: Peer review → Technical owner approval
 - **Lead Time**: Minimum 5 business days
 - **Documentation**: Implementation, validation, and backout plans required
-- **Review Process**: Peer review coordination by assigned agent
+- **Review Process**: Peer review coordination → Workflow automator → Technical owner approval
 - **Examples**: System upgrades, database changes, network modifications
 
 **High Risk Changes (Score 12-15)**:
-- **Approval Requirements**: Technical owner + CAB review + enhanced oversight
+- **Initial Status**: "Pending Review"
+- **Approval Requirements**: Peer review → Technical owner + CAB approval
 - **Lead Time**: Minimum 10 business days
 - **Documentation**: Comprehensive planning including detailed risk mitigation
-- **Review Process**: CAB review + independent peer review + business stakeholder approval
+- **Review Process**: Peer review coordination → Workflow automator → Technical owner + CAB approval
 - **Examples**: Major system replacements, architecture changes, data migrations
+
+#### Status Definitions
+**Pending Review**: Change requires peer review before approval process can begin
+**Pending Approval**: Change is awaiting approval from technical owners and/or CAB
+**Scheduled**: All approvals obtained, change ready for implementation during maintenance window
 
 #### Emergency Changes
 **Criteria for Emergency Classification**:
@@ -345,17 +357,31 @@ The Change Management Application is a comprehensive tool for submitting, review
 
 ### Approval Workflow Procedures
 
-#### Standard Approval Process
-1. **Automatic Stakeholder Identification**: System identifies technical owners and stakeholders
-2. **Approval Ticket Creation**: Individual approval tickets created for each technical owner
-3. **Stakeholder Notification**: Notification sent to all impacted stakeholders
-4. **Parallel Approvals**: All approvals processed simultaneously
-5. **Approval Completion**: Change approved when all required approvals received
+#### Risk-Based Status Assignment
+Upon submission, changes are assigned an initial status based on risk level:
 
-#### Peer Review Coordination Process
+**Low Risk Changes (Score 5-7)**:
+- **Initial Status**: "Pending Approval"
+- **Immediate Action**: Technical owner approval tickets created
+- **Process**: Standard approval workflow begins immediately
+
+**Medium/High Risk Changes (Score 8-15)**:
+- **Initial Status**: "Pending Review"  
+- **Immediate Action**: Peer review coordination task created
+- **Process**: Must complete peer review before moving to approval phase
+
+#### Standard Approval Process (Low Risk)
+1. **Automatic Stakeholder Identification**: System identifies technical owners and stakeholders
+2. **Status Assignment**: Change status set to "Pending Approval"
+3. **Approval Ticket Creation**: Individual approval tickets created for each technical owner
+4. **Stakeholder Notification**: Notification sent to all impacted stakeholders
+5. **Parallel Approvals**: All approvals processed simultaneously
+6. **Status Update**: When all approvals received, status changes to "Scheduled"
+
+#### Peer Review Coordination Process (Medium/High Risk)
 **Triggered For**: Medium and High risk changes (score ≥ 8)
 
-**Process Flow**:
+**Phase 1: Peer Review (Status: "Pending Review")**:
 1. **SME Assignment**: Agent SME identified (assigned agent → technical owner → asset manager)
 2. **Coordination Task**: Task created for SME to coordinate peer review
 3. **SME Options**:
@@ -364,6 +390,18 @@ The Change Management Application is a comprehensive tool for submitting, review
    - Escalate for appropriate reviewer assignment
 4. **Review Completion**: SME provides evidence of completed review
 5. **Documentation**: Review findings attached to change request
+
+**Phase 2: Workflow Automation Trigger**:
+1. **Task Completion Detection**: Freshservice workflow automator monitors peer review task
+2. **Status Transition**: Upon task completion, status changes to "Pending Approval"
+3. **Approval Release**: Workflow automator creates approval tickets for technical owners
+4. **CAB Escalation**: For high risk changes, additional CAB approvals are created
+
+**Phase 3: Approval Process (Status: "Pending Approval")**:
+1. **Technical Owner Approvals**: Standard approval process begins
+2. **CAB Review**: High risk changes include Change Advisory Board approval
+3. **Parallel Processing**: All approvals processed simultaneously
+4. **Final Status**: When all approvals received, status changes to "Scheduled"
 
 #### Escalation Procedures
 **Escalation Triggers**:
@@ -636,52 +674,63 @@ graph TD
 ```mermaid
 graph TD
     A[Change Submitted] --> B[Identify Technical Owners]
-    B --> C[Create Approval Tickets]
-    C --> D[Send Stakeholder Notifications]
-    D --> E{Risk Level Check}
+    B --> C[Send Stakeholder Notifications]
+    C --> D{Risk Level Check}
     
-    E -->|Low Risk| F[Standard Approval Process]
-    E -->|Medium Risk| G[Peer Review Coordination]
-    E -->|High Risk| H[CAB Review Process]
+    D -->|Low Risk 5-7| E[Status: Pending Approval]
+    D -->|Medium Risk 8-11| F[Status: Pending Review]
+    D -->|High Risk 12-15| G[Status: Pending Review]
     
-    F --> I[Technical Owner Review]
-    I --> J{Approved?}
-    J -->|Yes| K[Change Approved]
+    E --> H[Create Technical Owner Approvals]
+    H --> I[Technical Owners Review]
+    I --> J{All Approved?}
+    J -->|Yes| K[Status: Scheduled]
     J -->|No| L[Change Rejected]
     
-    G --> M[Assign SME Coordinator]
-    M --> N[SME Reviews Options]
-    N --> O{SME Decision}
-    O -->|Assign Peer| Q[Assign to Peer Reviewer]
-    O -->|External Review| R[Coordinate External Review]
-    O -->|Escalate| S[Escalate for Assignment]
+    F --> M[Create Peer Review Task]
+    G --> N[Create Peer Review Task + CAB Flag]
     
-    Q --> T[Peer Conducts Review]
-    R --> U[External Review Complete]
-    S --> V[Management Assigns Reviewer]
+    M --> O[Assign SME Coordinator]
+    N --> O
+    O --> P[SME Reviews Options]
+    P --> Q{SME Decision}
+    Q -->|Assign Peer| R[Assign to Peer Reviewer]
+    Q -->|External Review| S[Coordinate External Review]
+    Q -->|Escalate| T[Escalate for Assignment]
     
-    T --> W[Review Complete]
-    U --> W
-    V --> X[Assigned Reviewer Conducts Review]
-    X --> W
-    W --> Y[Attach Review Evidence]
-    Y --> Z[Technical Owner Approval]
-    Z --> J
+    R --> U[Peer Conducts Review]
+    S --> V[External Review Complete]
+    T --> W[Management Assigns Reviewer]
+    W --> X[Assigned Reviewer Conducts Review]
     
-    H --> AA1[CAB Meeting Scheduled]
-    AA1 --> BB1[CAB Reviews Change]
-    BB1 --> CC1{CAB Decision}
-    CC1 -->|Approved| AA[Approved with Conditions]
-    CC1 -->|Rejected| L
-    CC1 -->|Deferred| BB[Request More Information]
+    U --> Y[Review Complete]
+    V --> Y
+    X --> Y
+    Y --> Z[Attach Review Evidence]
+    Z --> AA[Complete Peer Review Task]
     
-    AA --> W
-    BB --> CC[Requester Updates Change]
-    CC --> H
+    AA --> BB[Workflow Automator Triggered]
+    BB --> CC{Risk Level?}
+    CC -->|Medium Risk| DD[Status: Pending Approval]
+    CC -->|High Risk| EE[Status: Pending Approval + CAB]
     
-    K --> DD[Implementation Authorized]
-    L --> EE[Requester Notified]
-    EE --> FF[Change Cancelled/Modified]
+    DD --> FF[Create Technical Owner Approvals]
+    EE --> GG[Create Technical Owner + CAB Approvals]
+    
+    FF --> HH[Technical Owners Review]
+    GG --> II[Technical Owners + CAB Review]
+    
+    HH --> JJ{All Approved?}
+    II --> KK{All Approved?}
+    
+    JJ -->|Yes| K
+    JJ -->|No| L
+    KK -->|Yes| K
+    KK -->|No| L
+    
+    K --> LL[Ready for Implementation]
+    L --> MM[Requester Notified]
+    MM --> NN[Change Cancelled/Modified]
 ```
 
 ### Stakeholder Notification Flow
