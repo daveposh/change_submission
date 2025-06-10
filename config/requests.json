@@ -261,7 +261,7 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/assets",
       "query": {
-        "filter": "<%= context.filter_query %>",
+        "query": "<%= context.filter_query %>",
         "include": "<%= context.include %>",
         "page": "<%= context.page || '1' %>"
       },
@@ -269,6 +269,9 @@
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
+    },
+    "options": {
+      "isOAuth": false
     }
   },
   "createChangeTask": {

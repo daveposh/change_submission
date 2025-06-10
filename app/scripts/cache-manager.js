@@ -396,7 +396,7 @@ const CacheManager = {
       
       console.log(`📦 Fetching assets for ${matchingTypeIds.length} matching asset types using single filter request...`);
       
-      // Build OR filter query exactly like Postman: "asset_type_id: ID1 OR asset_type_id: ID2 OR ..."
+      // Build filter query according to Freshservice API format
       const filterParts = matchingTypeIds.map(typeId => `asset_type_id:${typeId}`);
       const filterQuery = filterParts.join(' OR ');
       
