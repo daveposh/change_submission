@@ -3,7 +3,7 @@
 // Force refresh timestamp: <?= new Date().getTime() ?>
 
 console.log('🔄 Cache buster loaded - forcing fresh script execution');
-console.log('📋 Change Submission Version: 2.5.0 - Guided Tour Feature Added');
+console.log('📋 Change Submission Version: 2.6.0 - Guided Tour Feature Removed');
 
 // Clear any cached stakeholder notification functions
 if (window.ChangeSubmission) {
@@ -20,4 +20,4 @@ if (document.readyState === 'complete') {
 
 // Cache buster for change submission app
 // This forces browsers to reload cached JavaScript files when the version changes
-window.CACHE_VERSION = '2.4.7'; 
+window.CACHE_VERSION = '2.6.0'; 
