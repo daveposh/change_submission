@@ -16,4 +16,8 @@ if (document.readyState === 'complete') {
   console.log('🔄 Page already loaded - cache buster applied');
 } else {
   console.log('⏳ Page still loading - cache buster will apply on completion');
-} 
+}
+
+// Cache buster for change submission app
+// This forces browsers to reload cached JavaScript files when the version changes
+window.CACHE_VERSION = '2.4.7'; 

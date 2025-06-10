@@ -569,13 +569,36 @@ const ImpactedServices = {
    * @param {string} type - 'approver' or 'stakeholder'
    */
   removeUser(userId, type) {
-    const list = type === 'approver' ? this.state.approvers : this.state.stakeholders;
-    const index = list.findIndex(u => u.id === userId);
+    console.log(`🗑️ Attempting to remove user: ID=${userId}, type=${type}`);
     
-    if (index === -1) return;
+    // Validate input parameters
+    if (!userId || (!type || (type !== 'approver' && type !== 'stakeholder'))) {
+      console.error('❌ Invalid parameters for removeUser:', { userId, type });
+      return;
+    }
+
+    const list = type === 'approver' ? this.state.approvers : this.state.stakeholders;
+    console.log(`📋 Current ${type} list length: ${list.length}`);
+    
+    // Find user with debugging
+    const index = list.findIndex(u => {
+      const match = u.id == userId; // Use == to handle string/number comparison
+      console.log(`   Checking user ${u.id} (${u.name}) == ${userId}: ${match}`);
+      return match;
+    });
+    
+    if (index === -1) {
+      console.warn(`⚠️ User ${userId} not found in ${type} list`);
+      this.showNotification('warning', `User not found in ${type} list`);
+      return;
+    }
 
     const removedUser = list[index];
+    console.log(`✅ Found user to remove: ${removedUser.name} at index ${index}`);
+    
+    // Remove user from list
     list.splice(index, 1);
+    console.log(`📋 New ${type} list length: ${list.length}`);
 
     // Update displays
     this.displayResults();
@@ -584,7 +607,7 @@ const ImpactedServices = {
     // Show success message
     this.showNotification('success', `Removed ${removedUser.name} from ${type}s`);
 
-    console.log(`❌ Removed ${removedUser.name} from ${type}s`);
+    console.log(`✅ Successfully removed ${removedUser.name} from ${type}s`);
   },
 
   /**
@@ -621,37 +644,76 @@ const ImpactedServices = {
         return;
       }
 
+      let hasErrors = false;
+      const errors = [];
+
       // Step 2: Preload users referenced in direct assets
-      console.log('👥 Preloading users referenced in direct assets...');
-      await preloadAssetUsers(this.state.directAssets);
+      try {
+        console.log('👥 Preloading users referenced in direct assets...');
+        await preloadAssetUsers(this.state.directAssets);
+      } catch (error) {
+        console.warn('⚠️ Error preloading direct asset users:', error);
+        errors.push('User preloading for direct assets failed');
+        hasErrors = true;
+      }
 
       // Step 3: Extract approvers from direct assets
-      console.log('👥 Extracting approvers from direct assets...');
-      await this.extractApproversFromDirectAssets();
+      try {
+        console.log('👥 Extracting approvers from direct assets...');
+        await this.extractApproversFromDirectAssets();
+      } catch (error) {
+        console.warn('⚠️ Error extracting approvers:', error);
+        errors.push('Approver extraction failed');
+        hasErrors = true;
+      }
 
       // Step 4: Find related assets through asset relationships
-      console.log('🔗 Finding related assets through relationships...');
-      await this.findRelatedAssets();
+      try {
+        console.log('🔗 Finding related assets through relationships...');
+        await this.findRelatedAssets();
+      } catch (error) {
+        console.warn('⚠️ Error finding related assets:', error);
+        errors.push('Related asset discovery failed');
+        hasErrors = true;
+      }
 
       // Step 5: Preload users referenced in related assets
       if (this.state.relatedAssets.length > 0) {
-        console.log('👥 Preloading users referenced in related assets...');
-        await preloadAssetUsers(this.state.relatedAssets);
+        try {
+          console.log('👥 Preloading users referenced in related assets...');
+          await preloadAssetUsers(this.state.relatedAssets);
+        } catch (error) {
+          console.warn('⚠️ Error preloading related asset users:', error);
+          errors.push('User preloading for related assets failed');
+          hasErrors = true;
+        }
       }
 
       // Step 6: Extract stakeholders from related assets
-      console.log('🤝 Extracting stakeholders from related assets...');
-      await this.extractStakeholdersFromRelatedAssets();
+      try {
+        console.log('🤝 Extracting stakeholders from related assets...');
+        await this.extractStakeholdersFromRelatedAssets();
+      } catch (error) {
+        console.warn('⚠️ Error extracting stakeholders:', error);
+        errors.push('Stakeholder extraction failed');
+        hasErrors = true;
+      }
 
       // Step 7: Display results
       this.displayResults();
 
       this.state.analysisComplete = true;
-      console.log('✅ Impacted services analysis complete');
+      
+      if (hasErrors) {
+        console.log('⚠️ Impacted services analysis completed with some errors');
+        this.showNotification('warning', `Analysis completed with some issues: ${errors.join(', ')}. Results may be incomplete.`);
+      } else {
+        console.log('✅ Impacted services analysis complete');
+      }
 
     } catch (error) {
-      console.error('❌ Error during services analysis:', error);
-      this.showNotification('danger', 'Error analyzing services: ' + error.message);
+      console.error('❌ Critical error during services analysis:', error);
+      this.showNotification('danger', 'Critical error analyzing services: ' + error.message);
     } finally {
       this.state.isAnalyzing = false;
       this.showAnalysisStatus(false);
@@ -660,10 +722,23 @@ const ImpactedServices = {
 
   /**
    * Extract approvers from direct assets (managed_by field)
+   * Preserves manually added approvers while adding new ones from asset analysis
    */
   async extractApproversFromDirectAssets() {
     const approvers = new Map(); // Use Map to avoid duplicates
 
+    // First, preserve existing manually added approvers
+    console.log(`🔄 Preserving ${this.state.approvers.length} existing approvers...`);
+    this.state.approvers.forEach(existingApprover => {
+      if (existingApprover.source === 'Manually added') {
+        console.log(`   ✅ Preserving manually added approver: ${existingApprover.name}`);
+        approvers.set(existingApprover.id, existingApprover);
+      } else {
+        console.log(`   🔄 Will re-analyze asset-based approver: ${existingApprover.name} (${existingApprover.source})`);
+      }
+    });
+
+    // Then, extract new approvers from direct assets
     for (const asset of this.state.directAssets) {
       try {
         // Get managed by information using existing helper methods
@@ -686,7 +761,7 @@ const ImpactedServices = {
           if (userDetails) {
             const approverKey = userDetails.id || managedById;
             if (!approvers.has(approverKey)) {
-              approvers.set(approverKey, {
+              const newApprover = {
                 id: userDetails.id || managedById,
                 name: `${userDetails.first_name || ''} ${userDetails.last_name || ''}`.trim() || 'Unknown',
                 email: userDetails.email || userDetails.primary_email || 'N/A',
@@ -695,7 +770,11 @@ const ImpactedServices = {
                 source: `Direct asset: ${asset.name}`,
                 sourceAsset: asset,
                 userDetails: userDetails
-              });
+              };
+              approvers.set(approverKey, newApprover);
+              console.log(`   ➕ Added new asset-based approver: ${newApprover.name}`);
+            } else {
+              console.log(`   ⚠️ Approver ${userDetails.id || managedById} already exists (preserved or duplicate)`);
             }
           }
         }
@@ -705,7 +784,9 @@ const ImpactedServices = {
     }
 
     this.state.approvers = Array.from(approvers.values());
-    console.log(`✅ Extracted ${this.state.approvers.length} unique approvers`);
+    const manualCount = this.state.approvers.filter(a => a.source === 'Manually added').length;
+    const assetCount = this.state.approvers.filter(a => a.source !== 'Manually added').length;
+    console.log(`✅ Final approvers list: ${this.state.approvers.length} total (${manualCount} manual, ${assetCount} from assets)`);
   },
 
   /**
@@ -888,16 +969,25 @@ const ImpactedServices = {
             assetName: directAsset.name
           });
           
-          // Check if this is a 404 error (relationships endpoint not available)
+          // Check for specific error types and handle appropriately
           if (error.status === 404) {
             console.log(`ℹ️ Asset relationships endpoint returned 404 for asset ${directAsset.name}`);
             console.log(`ℹ️ This could mean:`);
+          } else if (error.status === 502) {
+            console.log(`ℹ️ Server connectivity error (502) for asset ${directAsset.name}`);
+            console.log(`ℹ️ This is likely a temporary server issue - will try fallback methods`);
+          } else if (error.status === 500) {
+            console.log(`ℹ️ Server error (500) for asset ${directAsset.name}`);
+            console.log(`ℹ️ This is likely a temporary server issue - will try fallback methods`);
+          } else if (error.response === 'Error in establishing connection') {
+            console.log(`ℹ️ Connection error for asset ${directAsset.name}`);
+            console.log(`ℹ️ This is likely a network connectivity issue - will try fallback methods`);
+          } else {
+            console.log(`ℹ️ Other error occurred (status: ${error.status}), will continue trying for other assets`);
             console.log(`   1. Asset has no relationships defined`);
             console.log(`   2. Relationships feature not enabled for this asset type`);
             console.log(`   3. Asset relationships endpoint not supported in this Freshservice instance`);
             relationshipsApiAvailable = false; // Don't try for other assets
-          } else {
-            console.log(`ℹ️ Other error occurred (status: ${error.status}), will continue trying for other assets`);
           }
         }
       }
@@ -1124,10 +1214,23 @@ const ImpactedServices = {
 
   /**
    * Extract stakeholders from related assets (managed_by field)
+   * Preserves manually added stakeholders while adding new ones from asset analysis
    */
   async extractStakeholdersFromRelatedAssets() {
     const stakeholders = new Map(); // Use Map to avoid duplicates
 
+    // First, preserve existing manually added stakeholders
+    console.log(`🔄 Preserving ${this.state.stakeholders.length} existing stakeholders...`);
+    this.state.stakeholders.forEach(existingStakeholder => {
+      if (existingStakeholder.source === 'Manually added') {
+        console.log(`   ✅ Preserving manually added stakeholder: ${existingStakeholder.name}`);
+        stakeholders.set(existingStakeholder.id, existingStakeholder);
+      } else {
+        console.log(`   🔄 Will re-analyze asset-based stakeholder: ${existingStakeholder.name} (${existingStakeholder.source})`);
+      }
+    });
+
+    // Then, extract new stakeholders from related assets
     for (const asset of this.state.relatedAssets) {
       try {
         // Get managed by information using existing helper methods
@@ -1153,7 +1256,7 @@ const ImpactedServices = {
             // Don't add if they're already an approver
             if (!this.state.approvers.some(a => a.id === stakeholderKey)) {
               if (!stakeholders.has(stakeholderKey)) {
-                stakeholders.set(stakeholderKey, {
+                const newStakeholder = {
                   id: userDetails.id || managedById,
                   name: `${userDetails.first_name || ''} ${userDetails.last_name || ''}`.trim() || 'Unknown',
                   email: userDetails.email || userDetails.primary_email || 'N/A',
@@ -1162,8 +1265,14 @@ const ImpactedServices = {
                   source: `Related asset: ${asset.name}`,
                   sourceAsset: asset,
                   userDetails: userDetails
-                });
+                };
+                stakeholders.set(stakeholderKey, newStakeholder);
+                console.log(`   ➕ Added new asset-based stakeholder: ${newStakeholder.name}`);
+              } else {
+                console.log(`   ⚠️ Stakeholder ${userDetails.id || managedById} already exists (preserved or duplicate)`);
               }
+            } else {
+              console.log(`   ⚠️ User ${userDetails.id || managedById} is already an approver, skipping as stakeholder`);
             }
           }
         }
@@ -1173,7 +1282,9 @@ const ImpactedServices = {
     }
 
     this.state.stakeholders = Array.from(stakeholders.values());
-    console.log(`✅ Extracted ${this.state.stakeholders.length} unique stakeholders`);
+    const manualCount = this.state.stakeholders.filter(s => s.source === 'Manually added').length;
+    const assetCount = this.state.stakeholders.filter(s => s.source !== 'Manually added').length;
+    console.log(`✅ Final stakeholders list: ${this.state.stakeholders.length} total (${manualCount} manual, ${assetCount} from assets)`);
   },
 
   /**
@@ -1261,9 +1372,25 @@ const ImpactedServices = {
     // Add click handlers for remove buttons
     container.querySelectorAll('.remove-user-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const userId = parseInt(e.target.closest('.remove-user-btn').dataset.userId);
-        const userType = e.target.closest('.remove-user-btn').dataset.userType;
-        this.removeUser(userId, userType);
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Get the button element (in case user clicked on the icon inside)
+        const button = e.currentTarget;
+        const userId = button.dataset.userId;
+        const userType = button.dataset.userType;
+        
+        console.log(`🗑️ Remove button clicked: userId=${userId}, userType=${userType}`);
+        
+        // Convert userId to number and validate
+        const userIdNum = parseInt(userId);
+        if (isNaN(userIdNum)) {
+          console.error('❌ Invalid user ID:', userId);
+          return;
+        }
+        
+        // Call removeUser with proper context binding
+        this.removeUser(userIdNum, userType);
       });
     });
   },
