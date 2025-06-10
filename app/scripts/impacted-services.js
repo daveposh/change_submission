@@ -569,13 +569,36 @@ const ImpactedServices = {
    * @param {string} type - 'approver' or 'stakeholder'
    */
   removeUser(userId, type) {
-    const list = type === 'approver' ? this.state.approvers : this.state.stakeholders;
-    const index = list.findIndex(u => u.id === userId);
+    console.log(`🗑️ Attempting to remove user: ID=${userId}, type=${type}`);
     
-    if (index === -1) return;
+    // Validate input parameters
+    if (!userId || (!type || (type !== 'approver' && type !== 'stakeholder'))) {
+      console.error('❌ Invalid parameters for removeUser:', { userId, type });
+      return;
+    }
+
+    const list = type === 'approver' ? this.state.approvers : this.state.stakeholders;
+    console.log(`📋 Current ${type} list length: ${list.length}`);
+    
+    // Find user with debugging
+    const index = list.findIndex(u => {
+      const match = u.id == userId; // Use == to handle string/number comparison
+      console.log(`   Checking user ${u.id} (${u.name}) == ${userId}: ${match}`);
+      return match;
+    });
+    
+    if (index === -1) {
+      console.warn(`⚠️ User ${userId} not found in ${type} list`);
+      this.showNotification('warning', `User not found in ${type} list`);
+      return;
+    }
 
     const removedUser = list[index];
+    console.log(`✅ Found user to remove: ${removedUser.name} at index ${index}`);
+    
+    // Remove user from list
     list.splice(index, 1);
+    console.log(`📋 New ${type} list length: ${list.length}`);
 
     // Update displays
     this.displayResults();
@@ -584,7 +607,7 @@ const ImpactedServices = {
     // Show success message
     this.showNotification('success', `Removed ${removedUser.name} from ${type}s`);
 
-    console.log(`❌ Removed ${removedUser.name} from ${type}s`);
+    console.log(`✅ Successfully removed ${removedUser.name} from ${type}s`);
   },
 
   /**
@@ -1349,9 +1372,25 @@ const ImpactedServices = {
     // Add click handlers for remove buttons
     container.querySelectorAll('.remove-user-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const userId = parseInt(e.target.closest('.remove-user-btn').dataset.userId);
-        const userType = e.target.closest('.remove-user-btn').dataset.userType;
-        this.removeUser(userId, userType);
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Get the button element (in case user clicked on the icon inside)
+        const button = e.currentTarget;
+        const userId = button.dataset.userId;
+        const userType = button.dataset.userType;
+        
+        console.log(`🗑️ Remove button clicked: userId=${userId}, userType=${userType}`);
+        
+        // Convert userId to number and validate
+        const userIdNum = parseInt(userId);
+        if (isNaN(userIdNum)) {
+          console.error('❌ Invalid user ID:', userId);
+          return;
+        }
+        
+        // Call removeUser with proper context binding
+        this.removeUser(userIdNum, userType);
       });
     });
   },
