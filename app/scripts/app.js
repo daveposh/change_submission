@@ -2193,6 +2193,68 @@ function populateFormFields() {
 function setupEventListeners() {
   console.log('🎯 Setting up event listeners...');
   
+  // Logo animation click handler
+  const logoImg = document.querySelector('.app-icon-svg');
+  if (logoImg) {
+    logoImg.addEventListener('click', function(e) {
+      e.preventDefault();
+      
+      // Get the SVG content to add the clicked class
+      if (logoImg.tagName === 'IMG' && logoImg.src.includes('.svg')) {
+        // For IMG elements, we need to load the SVG content
+        fetch(logoImg.src)
+          .then(response => response.text())
+          .then(svgText => {
+            // Create a temporary div to parse the SVG
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = svgText;
+            const svgElement = tempDiv.querySelector('svg');
+            
+            if (svgElement) {
+              // Replace the IMG with the actual SVG
+              svgElement.setAttribute('class', logoImg.className);
+              svgElement.setAttribute('width', logoImg.width || '48');
+              svgElement.setAttribute('height', logoImg.height || '48');
+              svgElement.setAttribute('alt', logoImg.alt);
+              
+              logoImg.parentNode.replaceChild(svgElement, logoImg);
+              
+              // Add clicked class to trigger faster animations
+              const logoContainer = svgElement.querySelector('.cxi-logo-container');
+              if (logoContainer) {
+                logoContainer.classList.add('clicked');
+                
+                // Remove the clicked class after 3 seconds
+                setTimeout(() => {
+                  logoContainer.classList.remove('clicked');
+                }, 3000);
+              }
+            }
+          })
+          .catch(error => {
+            console.warn('Could not load SVG for animation:', error);
+          });
+      } else if (logoImg.tagName === 'svg') {
+        // Already an SVG element
+        const logoContainer = logoImg.querySelector('.cxi-logo-container');
+        if (logoContainer) {
+          logoContainer.classList.add('clicked');
+          
+          // Remove the clicked class after 3 seconds
+          setTimeout(() => {
+            logoContainer.classList.remove('clicked');
+          }, 3000);
+        }
+      }
+    });
+    
+    // Make the logo look clickable
+    logoImg.style.cursor = 'pointer';
+    logoImg.title = 'Click to spin the gears!';
+    
+    console.log('✅ Logo animation click handler added');
+  }
+  
   // Tab event listeners
   const assetAssociationTab = document.getElementById('asset-association-tab');
   if (assetAssociationTab) {
