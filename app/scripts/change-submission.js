@@ -310,7 +310,7 @@ const ChangeSubmission = {
       // Step 4: Associate assets with the change request
       this.updateSubmissionProgress('associating-assets', 'active', 'Associating assets...');
       console.log('🔗 Step 4: Associating assets with change request...');
-      await this.associateAssets(changeRequest.id);
+              this.associateAssets(changeRequest.id);
       this.updateSubmissionProgress('associating-assets', 'completed', 'Assets associated successfully');
       this.updateOverallProgress(67);
 
