@@ -3476,11 +3476,35 @@ For questions about this process, please refer to the Change Management procedur
          if (viewBtn && changeRequest.id) {
            viewBtn.href = `https://your-domain.freshservice.com/a/changes/${changeRequest.id}`;
          }
-       } else {
-         // Fallback: show simple notification
-         console.log('✅ Change request submitted successfully:', changeRequest);
-         alert(`Change request "${changeRequest.subject}" submitted successfully!\nChange ID: ${changeRequest.display_id || changeRequest.id}`);
-       }
+               } else {
+          // Fallback: show simple notification using app notification system
+          console.log('✅ Change request submitted successfully:', changeRequest);
+          
+          // Try to use the app's notification system if available
+          if (typeof showNotification === 'function') {
+            showNotification('success', `Change request "${changeRequest.subject}" submitted successfully! Change ID: ${changeRequest.display_id || changeRequest.id}`);
+          } else {
+            // Create a simple in-page success message
+            const successDiv = document.createElement('div');
+            successDiv.className = 'alert alert-success alert-dismissible fade show position-fixed';
+            successDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+            successDiv.innerHTML = `
+              <h5 class="alert-heading"><i class="fas fa-check-circle me-2"></i>Success!</h5>
+              <p class="mb-1">Change request "${changeRequest.subject}" submitted successfully!</p>
+              <small>Change ID: ${changeRequest.display_id || changeRequest.id}</small>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            document.body.appendChild(successDiv);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+              if (successDiv.parentNode) {
+                successDiv.parentNode.removeChild(successDiv);
+              }
+            }, 5000);
+          }
+        }
        
      } catch (error) {
        console.error('❌ Error showing submission success:', error);
