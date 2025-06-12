@@ -10,79 +10,48 @@
       <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
     </linearGradient>
-    <linearGradient id="docGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#f8fafc;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
+    <linearGradient id="goldRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:1" />
     </linearGradient>
     
     <!-- Drop shadow filter -->
     <filter id="dropShadow" x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
+      <feDropShadow dx="3" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.3"/>
     </filter>
   </defs>
   
-  <!-- Main document background with gradient -->
-  <g class="document-group" filter="url(#dropShadow)">
-    <path d="M8 6 L8 58 L56 58 L56 18 L44 6 Z" fill="url(#docGradient)" stroke="#64748b" stroke-width="1"/>
-    <!-- Document corner fold -->
-    <path d="M44 6 L44 18 L56 18 Z" fill="#cbd5e1" stroke="#64748b" stroke-width="1"/>
-  </g>
-  
-  <!-- CXI Oval Logo with gold ring - matching brand style -->
-  <g class="cxi-badge">
-    <!-- Gold outer ring -->
-    <ellipse cx="32" cy="18" rx="18" ry="9" fill="none" stroke="url(#cxiOrange)" stroke-width="2"/>
+  <!-- Main CXI Oval Logo - centered and prominent -->
+  <g class="cxi-logo" filter="url(#dropShadow)">
+    <!-- Gold outer ring - matching brand style -->
+    <ellipse cx="32" cy="32" rx="28" ry="18" fill="none" stroke="url(#goldRing)" stroke-width="3"/>
+    
     <!-- Blue oval background -->
-    <ellipse cx="32" cy="18" rx="15" ry="7.5" fill="url(#cxiBlue)" stroke="#1e40af" stroke-width="1"/>
-    <!-- CXI text in white -->
-    <text x="32" y="22" font-family="Arial, sans-serif" font-size="9" font-weight="bold" text-anchor="middle" fill="white">CXI</text>
+    <ellipse cx="32" cy="32" rx="25" ry="15" fill="url(#cxiBlue)" stroke="#1e40af" stroke-width="1"/>
+    
+    <!-- CXI text in white - prominent size -->
+    <text x="32" y="38" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="white">CXI</text>
   </g>
   
-  <!-- Palm Tree - tropical/vacation theme -->
-  <g class="palm-tree">
-    <!-- Tree trunk -->
-    <rect x="17" y="32" width="3" height="12" rx="1" fill="#8b4513" stroke="#654321" stroke-width="0.5"/>
+  <!-- Change request indicator - small icon -->
+  <g class="change-indicator">
+    <!-- Small gear icon -->
+    <circle cx="50" cy="14" r="6" fill="url(#cxiOrange)" stroke="#d97706" stroke-width="1" opacity="0.9"/>
+    <circle cx="50" cy="14" r="2.5" fill="#f8fafc"/>
     
-    <!-- Palm fronds -->
-    <g class="palm-fronds" fill="#228b22" stroke="#006400" stroke-width="0.5">
-      <!-- Top frond -->
-      <path d="M18.5 32 Q16 28 14 26 Q16 27 18.5 32" fill="#32cd32"/>
-      <path d="M18.5 32 Q21 28 23 26 Q21 27 18.5 32" fill="#32cd32"/>
-      
-      <!-- Side fronds -->
-      <path d="M18.5 34 Q14 30 11 29 Q14 31 18.5 34" fill="#228b22"/>
-      <path d="M18.5 34 Q23 30 26 29 Q23 31 18.5 34" fill="#228b22"/>
-      
-      <!-- Lower fronds -->
-      <path d="M18.5 36 Q15 33 12 33 Q15 34 18.5 36" fill="#228b22"/>
-      <path d="M18.5 36 Q22 33 25 33 Q22 34 18.5 36" fill="#228b22"/>
+    <!-- Gear teeth -->
+    <g fill="url(#cxiOrange)" opacity="0.8">
+      <rect x="49.5" y="6" width="1" height="3" rx="0.5"/>
+      <rect x="49.5" y="19" width="1" height="3" rx="0.5"/>
+      <rect x="42" y="13.5" width="3" height="1" rx="0.5"/>
+      <rect x="55" y="13.5" width="3" height="1" rx="0.5"/>
     </g>
-    
-    <!-- Coconuts -->
-    <circle cx="17" cy="33" r="1" fill="#8b4513"/>
-    <circle cx="20" cy="34" r="1" fill="#8b4513"/>
   </g>
   
-  <!-- Change request lines (document content) -->
-  <g class="document-lines" stroke="#94a3b8" stroke-width="1" opacity="0.6">
-    <line x1="28" y1="30" x2="50" y2="30"/>
-    <line x1="28" y1="34" x2="48" y2="34"/>
-    <line x1="28" y1="38" x2="52" y2="38"/>
-    <line x1="28" y1="42" x2="46" y2="42"/>
-    <line x1="12" y1="48" x2="52" y2="48"/>
-    <line x1="12" y1="52" x2="48" y2="52"/>
-  </g>
-  
-  <!-- Currency Exchange Symbol -->
+  <!-- Currency Exchange Symbol - bottom left -->
   <g class="exchange-symbol">
     <!-- Dollar sign with background -->
-    <circle cx="46" cy="38" r="6" fill="url(#cxiOrange)" stroke="#d97706" stroke-width="1" opacity="0.9"/>
-    <text x="46" y="42" font-family="Arial, sans-serif" font-size="8" font-weight="bold" text-anchor="middle" fill="white">$</text>
-    
-    <!-- Exchange arrows -->
-    <path d="M36 34 L42 34 L40 32 L44 35 L40 38 L42 36 L36 36 Z" fill="url(#cxiBlue)" opacity="0.8"/>
+    <circle cx="14" cy="50" r="5" fill="url(#cxiOrange)" stroke="#d97706" stroke-width="1" opacity="0.9"/>
+    <text x="14" y="53" font-family="Arial, sans-serif" font-size="7" font-weight="bold" text-anchor="middle" fill="white">$</text>
   </g>
-  
-  <!-- Brand accent line -->
-  <line x1="8" y1="28" x2="56" y2="28" stroke="url(#cxiOrange)" stroke-width="2" opacity="0.6"/>
 </svg> 
