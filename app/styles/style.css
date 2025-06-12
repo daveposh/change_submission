@@ -1235,17 +1235,86 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 
 /* Dark mode adjustments for guided tour */
 [data-bs-theme="dark"] .shepherd-modal-overlay-container {
-  background-color: rgba(0, 0, 0, 0.4) !important;
+  background-color: rgba(0, 0, 0, 0.6) !important;
 }
 
 [data-bs-theme="dark"] .shepherd-element {
   background-color: #2d3748 !important;
   border: 1px solid #4a5568 !important;
   color: #e2e8f0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
 }
 
 [data-bs-theme="dark"] .shepherd-title {
+  color: #f3f4f6 !important;
+  font-weight: 600;
+}
+
+[data-bs-theme="dark"] .shepherd-text {
   color: #e2e8f0 !important;
+}
+
+[data-bs-theme="dark"] .shepherd-header {
+  border-bottom: 1px solid #4a5568;
+  background-color: #374151 !important;
+}
+
+[data-bs-theme="dark"] .shepherd-content {
+  background-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .shepherd-footer {
+  border-top: 1px solid #4a5568;
+  background-color: #374151 !important;
+}
+
+[data-bs-theme="dark"] .shepherd-button {
+  background-color: #6b7280 !important;
+  border-color: #6b7280 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .shepherd-button:hover {
+  background-color: #4b5563 !important;
+  border-color: #4b5563 !important;
+}
+
+[data-bs-theme="dark"] .shepherd-button-primary {
+  background-color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .shepherd-button-primary:hover {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+}
+
+[data-bs-theme="dark"] .shepherd-button-secondary {
+  background-color: #6b7280 !important;
+  border-color: #6b7280 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .shepherd-button-secondary:hover {
+  background-color: #4b5563 !important;
+  border-color: #4b5563 !important;
+}
+
+[data-bs-theme="dark"] .shepherd-cancel-icon {
+  color: #9ca3af !important;
+}
+
+[data-bs-theme="dark"] .shepherd-cancel-icon:hover {
+  color: #f3f4f6 !important;
+}
+
+[data-bs-theme="dark"] .shepherd-element .shepherd-arrow:before {
+  border-color: #2d3748 !important;
+}
+
+[data-bs-theme="dark"] .shepherd-element.shepherd-theme-arrows .shepherd-content:before {
+  border-color: #2d3748 !important;
 }
 
 [data-bs-theme="dark"] .step-item {

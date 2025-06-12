@@ -3,7 +3,7 @@
 // Force refresh timestamp: <?= new Date().getTime() ?>
 
 console.log('🔄 Cache buster loaded - forcing fresh script execution');
-console.log('📋 Change Submission Version: 2.8.1 - Complete Dark Mode for Asset Association');
+console.log('📋 Change Submission Version: 2.8.3 - Enhanced Guided Tour Dark Mode Contrast');
 
 // Clear any cached stakeholder notification functions
 if (window.ChangeSubmission) {

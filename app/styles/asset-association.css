@@ -592,9 +592,42 @@
   font-weight: 500;
 }
 
+[data-bs-theme="dark"] .add-asset-btn {
+  background-color: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .add-asset-btn:hover {
+  background-color: #15803d;
+  border-color: #15803d;
+}
+
+[data-bs-theme="dark"] .remove-asset-btn {
+  background-color: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .remove-asset-btn:hover {
+  background-color: #b91c1c;
+  border-color: #b91c1c;
+}
+
 .clear-all-assets-btn {
   border-radius: 6px;
   font-weight: 500;
+}
+
+[data-bs-theme="dark"] .clear-all-assets-btn {
+  background-color: #6b7280;
+  border-color: #6b7280;
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .clear-all-assets-btn:hover {
+  background-color: #4b5563;
+  border-color: #4b5563;
 }
 
 /* Tab Badge Styles */
@@ -1112,6 +1145,21 @@
   top: 0.75rem;
   right: 1rem;
   transform: scale(1.2);
+}
+
+[data-bs-theme="dark"] .service-item-checkbox {
+  background-color: #374151;
+  border-color: #6b7280;
+  color: #e2e8f0;
+}
+
+[data-bs-theme="dark"] .service-item-checkbox:checked {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+[data-bs-theme="dark"] .service-item-checkbox:focus {
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
 }
 
 /* Service Loading and Empty States */
