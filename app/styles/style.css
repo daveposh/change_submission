@@ -1861,26 +1861,29 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 .app-title {
   font-size: 2.5rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 30%, #10B981 70%, #059669 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  background-size: 300% 300%;
-  animation: gradientShift 8s ease infinite;
+  color: #1e40af;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   display: inline-block;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@keyframes gradientShift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+/* Color shifting animation using CXI brand colors */
+@keyframes colorShift {
+  0%, 100% { color: #1e40af; }
+  25% { color: #1e3a8a; }
+  50% { color: #f59e0b; }
+  75% { color: #d97706; }
 }
 
 .cxi-text {
   font-weight: 900;
   position: relative;
   margin-right: 0.5rem;
+  color: #1e40af;
+  animation: colorShift 8s ease infinite;
 }
 
 .cxi-text::after {
@@ -1909,6 +1912,11 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   text-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
 }
 
+.app-header:hover .cxi-text {
+  color: #f59e0b;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+}
+
 /* Letter hover animations */
 .title-text {
   display: inline-block;
@@ -1928,25 +1936,42 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 
 /* Dark mode adjustments */
 [data-bs-theme="dark"] .app-header {
-  background: linear-gradient(135deg, transparent 0%, rgba(79, 70, 229, 0.1) 50%, transparent 100%);
-  border-bottom-color: rgba(79, 70, 229, 0.2);
+  background: linear-gradient(135deg, transparent 0%, rgba(30, 64, 175, 0.1) 50%, transparent 100%);
+  border-bottom-color: rgba(30, 64, 175, 0.2);
 }
 
 [data-bs-theme="dark"] .app-header:hover {
-  box-shadow: 0 8px 25px rgba(79, 70, 229, 0.25);
-  border-bottom-color: rgba(79, 70, 229, 0.5);
+  box-shadow: 0 8px 25px rgba(30, 64, 175, 0.25);
+  border-bottom-color: rgba(30, 64, 175, 0.5);
 }
 
 [data-bs-theme="dark"] .app-title {
-  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 30%, #10B981 70%, #059669 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  background-size: 300% 300%;
+  color: #3b82f6;
+}
+
+[data-bs-theme="dark"] .cxi-text {
+  color: #3b82f6;
 }
 
 [data-bs-theme="dark"] .app-header:hover .app-title {
-  text-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  text-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+[data-bs-theme="dark"] .app-header:hover .cxi-text {
+  color: #fbbf24;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+/* Dark mode color animation */
+@keyframes colorShiftDark {
+  0%, 100% { color: #3b82f6; }
+  25% { color: #1e40af; }
+  50% { color: #fbbf24; }
+  75% { color: #f59e0b; }
+}
+
+[data-bs-theme="dark"] .cxi-text {
+  animation: colorShiftDark 8s ease infinite;
 }
 
 /* Responsive adjustments */
