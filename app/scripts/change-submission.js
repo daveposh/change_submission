@@ -4125,7 +4125,7 @@ For questions about this process, please refer to the Change Management procedur
     /**
      * Associate assets with the created change request
      */
-    async associateAssets(changeId) {
+    associateAssets(changeId) {
       try {
         console.log('🔗 Confirming asset association for change request:', changeId);
         
