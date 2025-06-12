@@ -4985,9 +4985,18 @@ const ChangeSubmission = {
         
         // Re-enable the page so user can edit
         setTimeout(() => {
+          // Remove any lingering modal backdrops
+          const backdrops = document.querySelectorAll('.modal-backdrop');
+          backdrops.forEach(backdrop => backdrop.remove());
+          
+          // Remove modal-open class from body
+          document.body.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.body.style.paddingRight = '';
+          
           this.ensurePageEnabled();
           console.log('✅ Page re-enabled for editing');
-        }, 300); // Small delay to ensure modal closes properly
+        }, 500); // Slightly longer delay to ensure modal fully closes
       };
     }
     
