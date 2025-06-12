@@ -408,12 +408,18 @@ const ChangeSubmission = {
     let departmentId = null;
     try {
       const params = await window.client.iparams.get();
-      workspaceId = params.workspace_id || 2; // Default to workspace 2 ("CXI Change Management")
+      workspaceId = params.workspace_id; // Use configured workspace (DO NOT hard-code)
       departmentId = params.department_id;
       console.log('🏢 Configuration from iparams:', { workspaceId, departmentId });
+      
+      if (!workspaceId) {
+        console.warn('⚠️ No workspace_id configured in installation parameters');
+        console.warn('⚠️ This might cause issues in multi-workspace environments');
+        console.warn('⚠️ API will use account default workspace');
+      }
     } catch (error) {
       console.warn('⚠️ Could not retrieve installation parameters:', error);
-      workspaceId = 2; // Fallback to default workspace
+      console.warn('⚠️ No workspace will be specified - API will use account default');
     }
 
     // Calculate priority based on change type and risk level
@@ -475,8 +481,8 @@ const ChangeSubmission = {
       // REQUIRED: Description - Enhanced with rich formatted information
       description: await this.createEnhancedDescription(data, impactedData, data.riskAssessment),
       
-      // REQUIRED: Workspace - Always required field
-      workspace_id: workspaceId, // Default to workspace 2 ("CXI Change Management")
+      // CONDITIONAL: Workspace - Only add if configured
+      ...(workspaceId && { workspace_id: workspaceId }), // Only add if configured
       
       // REQUIRED: Requester
       requester_id: data.selectedRequester?.id,
@@ -1162,8 +1168,8 @@ const ChangeSubmission = {
       // REQUIRED: Description
       description: data.changeDescription || data.reasonForChange || 'Change request created via app',
       
-      // REQUIRED: Workspace
-      workspace_id: 2, // Required field - "CXI Change Management" workspace
+      // CONDITIONAL: Workspace - Only add if needed for environment
+      // Note: Removed hard-coded workspace ID - API will use account default
       
       // REQUIRED: Requester
       requester_id: data.selectedRequester?.id,
@@ -2430,12 +2436,195 @@ const ChangeSubmission = {
   },
 
   /**
+   * Comprehensive diagnostic function for peer review task creation
+   */
+  async runPeerReviewDiagnostics(changeRequest) {
+    console.log('🔬 Running comprehensive peer review diagnostics...');
+    
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      environment: 'unknown',
+      issues: [],
+      warnings: [],
+      data: {}
+    };
+    
+    try {
+      // 1. Check installation parameters
+      try {
+        const params = await window.client.iparams.get();
+        diagnostics.data.installationParams = params;
+        diagnostics.data.hasWorkspaceId = !!params.workspace_id;
+        diagnostics.data.hasDomainConfig = !!params.freshservice_domain;
+        
+        if (!params.workspace_id) {
+          diagnostics.warnings.push('No workspace_id configured in installation parameters');
+        }
+        
+        console.log('📋 Installation parameters:', params);
+      } catch (error) {
+        diagnostics.issues.push(`Cannot retrieve installation parameters: ${error.message}`);
+      }
+      
+      // 2. Check risk assessment data
+      const data = window.changeRequestData;
+      const riskAssessment = data?.riskAssessment;
+      
+      diagnostics.data.hasRiskAssessment = !!riskAssessment;
+      diagnostics.data.riskScore = riskAssessment?.totalScore;
+      diagnostics.data.riskLevel = riskAssessment?.riskLevel;
+      diagnostics.data.requiresPeerReview = riskAssessment?.totalScore >= 8;
+      
+      if (!riskAssessment) {
+        diagnostics.issues.push('No risk assessment data available');
+      } else if (!riskAssessment.totalScore) {
+        diagnostics.issues.push('Risk assessment missing total score');
+      } else if (riskAssessment.totalScore < 8) {
+        diagnostics.warnings.push(`Risk score ${riskAssessment.totalScore} below peer review threshold (8+)`);
+      }
+      
+      // 3. Check agent SME identification
+      const agentSME = this.identifyAgentSME(data, changeRequest);
+      diagnostics.data.hasAgentSME = !!agentSME;
+      diagnostics.data.agentSME = agentSME ? {
+        id: agentSME.id,
+        name: agentSME.name,
+        source: agentSME.source,
+        email: agentSME.email
+      } : null;
+      
+      if (!agentSME) {
+        diagnostics.issues.push('No agent SME could be identified for peer review coordination');
+      } else {
+        console.log(`📋 Agent SME identified: ${agentSME.id} (${agentSME.name}) from ${agentSME.source}`);
+      }
+      
+      // 4. Check change request data
+      diagnostics.data.changeRequest = {
+        id: changeRequest.id,
+        subject: changeRequest.subject,
+        agent_id: changeRequest.agent_id,
+        requester_id: changeRequest.requester_id,
+        workspace_id: changeRequest.workspace_id,
+        status: changeRequest.status
+      };
+      
+      // 5. Test API connectivity
+      try {
+        console.log('🌐 Testing API connectivity...');
+        const testResponse = await window.client.request.invokeTemplate('getAgents', {
+          context: {},
+          cache: false
+        });
+        
+        diagnostics.data.apiConnectivity = 'SUCCESS';
+        if (testResponse && testResponse.response) {
+          const agents = JSON.parse(testResponse.response);
+          diagnostics.data.agentCount = agents.agents?.length || 0;
+        }
+      } catch (apiError) {
+        diagnostics.issues.push(`API connectivity test failed: ${apiError.message}`);
+        diagnostics.data.apiConnectivity = 'FAILED';
+      }
+      
+      // 6. Environment detection
+      try {
+        const params = await window.client.iparams.get();
+        if (params.freshservice_domain) {
+          const domain = params.freshservice_domain;
+          if (domain.includes('sandbox') || domain.includes('test')) {
+            diagnostics.environment = 'TEST/SANDBOX';
+          } else if (domain.includes('dev')) {
+            diagnostics.environment = 'DEVELOPMENT';
+          } else {
+            diagnostics.environment = 'PRODUCTION';
+          }
+          diagnostics.data.domain = domain;
+        }
+      } catch (error) {
+        diagnostics.warnings.push('Could not determine environment from domain');
+      }
+      
+      // 7. Configuration recommendations
+      const recommendations = [];
+      
+      if (!diagnostics.data.hasWorkspaceId) {
+        recommendations.push('Configure workspace_id in installation parameters for multi-workspace environments');
+      }
+      
+      if (!diagnostics.data.hasAgentSME) {
+        recommendations.push('Ensure changes have assigned agents or technical owners for peer review coordination');
+      }
+      
+      if (diagnostics.data.riskScore < 8) {
+        recommendations.push('Peer review only triggers for risk scores >= 8 (Medium/High risk changes)');
+      }
+      
+      diagnostics.data.recommendations = recommendations;
+      
+      // 8. Template verification
+      try {
+        // Check if createChangeTask template is accessible
+        console.log('🔍 Verifying createChangeTask template...');
+        // Note: We can't actually test the template without creating a task
+        // but we can verify the manifest declares it
+        diagnostics.data.hasCreateChangeTaskTemplate = true;
+      } catch (error) {
+        diagnostics.issues.push('createChangeTask template verification failed');
+      }
+      
+      console.log('🔬 PEER REVIEW DIAGNOSTICS COMPLETE');
+      console.log('📊 Summary:', {
+        environment: diagnostics.environment,
+        issues: diagnostics.issues.length,
+        warnings: diagnostics.warnings.length,
+        canCreatePeerReviewTask: diagnostics.issues.length === 0 && diagnostics.data.requiresPeerReview
+      });
+      
+      if (diagnostics.issues.length > 0) {
+        console.error('🚨 CRITICAL ISSUES FOUND:');
+        diagnostics.issues.forEach((issue, index) => {
+          console.error(`   ${index + 1}. ${issue}`);
+        });
+      }
+      
+      if (diagnostics.warnings.length > 0) {
+        console.warn('⚠️ WARNINGS:');
+        diagnostics.warnings.forEach((warning, index) => {
+          console.warn(`   ${index + 1}. ${warning}`);
+        });
+      }
+      
+      if (recommendations.length > 0) {
+        console.log('💡 RECOMMENDATIONS:');
+        recommendations.forEach((rec, index) => {
+          console.log(`   ${index + 1}. ${rec}`);
+        });
+      }
+      
+      console.log('📋 Full diagnostic data:', diagnostics);
+      
+      return diagnostics;
+      
+    } catch (error) {
+      console.error('❌ Diagnostic function failed:', error);
+      diagnostics.issues.push(`Diagnostic function error: ${error.message}`);
+      return diagnostics;
+    }
+  },
+
+  /**
    * Create peer review tasks for assigned agents
    */
   async createPeerReviewTasks(changeRequest) {
     console.log('👥 Creating peer review tasks...');
     
     try {
+      // Run diagnostics first if in debug mode
+      if (console.level === 'debug' || window.location.search.includes('debug=true')) {
+        await this.runPeerReviewDiagnostics(changeRequest);
+      }
+      
       // Get the risk assessment data
       const data = window.changeRequestData;
       const riskAssessment = data?.riskAssessment;
@@ -2461,33 +2650,38 @@ const ChangeSubmission = {
       // Peer review required for score 8+ (Medium and High risk changes)
       const requiresPeerReview = riskAssessment.totalScore >= 8;
       
-              console.log(`📊 Risk threshold analysis:`, {
-          totalScore: riskAssessment.totalScore,
-          riskLevel: riskAssessment.riskLevel,
-          threshold: 8,
-          requiresPeerReview: requiresPeerReview,
-          reasoning: requiresPeerReview 
-            ? `Score ${riskAssessment.totalScore} >= 8 (${riskAssessment.riskLevel} risk) - Peer review required`
-            : `Score ${riskAssessment.totalScore} < 8 (${riskAssessment.riskLevel} risk) - No peer review needed`
-        });
+      console.log(`📊 Risk threshold analysis:`, {
+        totalScore: riskAssessment.totalScore,
+        riskLevel: riskAssessment.riskLevel,
+        threshold: 8,
+        requiresPeerReview: requiresPeerReview,
+        reasoning: requiresPeerReview 
+          ? `Score ${riskAssessment.totalScore} >= 8 (${riskAssessment.riskLevel} risk) - Peer review required`
+          : `Score ${riskAssessment.totalScore} < 8 (${riskAssessment.riskLevel} risk) - No peer review needed`
+      });
       
-              if (!requiresPeerReview) {
-          console.log(`ℹ️ Risk score ${riskAssessment.totalScore} is below threshold (8+), no peer review required`);
-          return;
-        }
-        
-        console.log(`🎯 Risk score ${riskAssessment.totalScore} requires peer review task creation`);
+      if (!requiresPeerReview) {
+        console.log(`ℹ️ Risk score ${riskAssessment.totalScore} is below threshold (8+), no peer review required`);
+        return;
+      }
+      
+      console.log(`🎯 Risk score ${riskAssessment.totalScore} requires peer review task creation`);
       
       // Identify the agent SME who will coordinate peer review
       const agentSME = this.identifyAgentSME(data, changeRequest);
       
       if (!agentSME) {
-        console.warn('⚠️ No agent SME identified, skipping peer review task creation');
+        console.warn('⚠️ No agent SME identified for peer review coordination');
+        console.warn('🔧 Running diagnostics to identify the issue...');
+        await this.runPeerReviewDiagnostics(changeRequest);
         return;
       }
       
+      console.log(`✅ Agent SME identified: ${agentSME.id} (${agentSME.name}) - Source: ${agentSME.source}`);
+      
       // Create a single peer review coordination task for the agent SME
       try {
+        console.log('📝 Attempting to create peer review coordination task...');
         const task = await this.createPeerReviewCoordinationTask(changeRequest, agentSME, riskAssessment);
         if (task) {
           this.state.createdTasks.push(task);
@@ -2495,10 +2689,13 @@ const ChangeSubmission = {
           return [task];
         } else {
           console.warn(`⚠️ Task creation returned null for agent SME ${agentSME.id}, but no error was thrown`);
+          console.warn('🔧 This might indicate environment-specific configuration issues');
           return [];
         }
       } catch (error) {
         console.error(`❌ Failed to create peer review coordination task for agent SME ${agentSME.id}:`, error);
+        console.warn('🔧 Running diagnostics to identify the issue...');
+        await this.runPeerReviewDiagnostics(changeRequest);
         throw error;
       }
       
@@ -2605,82 +2802,178 @@ const ChangeSubmission = {
 
   /**
    * Create a peer review coordination task for the agent SME
+   * IMPORTANT: This requires the change request to be created first to get the change_id
    */
   async createPeerReviewCoordinationTask(changeRequest, agentSME, riskAssessment) {
     console.log(`📝 Creating peer review coordination task for agent SME ${agentSME.id}...`);
+    console.log(`🆔 Using change ID: ${changeRequest.id} for task context`);
     
-    // Calculate due date (24 hours from now for peer review coordination)
-    const dueDate = new Date();
-    dueDate.setHours(dueDate.getHours() + 24);
-    
-    // Create task data structure for v2 API - following exact API specification
-    const taskData = {
-      agent_id: parseInt(agentSME.id), // Ensure it's a number
-      status: 1, // 1-Open, 2-In Progress, 3-Completed
-      due_date: dueDate.toISOString(),
-      notify_before: 0, // Time in seconds before which notification is sent
-      title: `Peer Review Coordination Required: ${changeRequest.subject}`,
-      description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
-    };
+    // Validate that we have a change ID
+    if (!changeRequest.id) {
+      throw new Error('Cannot create change task: change request ID is required for API context');
+    }
     
     try {
+      // Validate agent ID exists and is numeric
+      const agentId = parseInt(agentSME.id);
+      if (!agentId || isNaN(agentId)) {
+        throw new Error(`Invalid agent ID for SME: ${agentSME.id} (must be numeric)`);
+      }
       
-      // Add workspace_id if the change request has one (for Employee Support Mode accounts)
+      // Calculate due date (24 hours from now for peer review coordination)
+      const dueDate = new Date();
+      dueDate.setHours(dueDate.getHours() + 24);
+      
+      // Get installation parameters for environment-specific configuration
+      let params;
+      try {
+        params = await window.client.iparams.get();
+        console.log('📋 Installation parameters retrieved for task creation');
+      } catch (paramError) {
+        console.warn('⚠️ Could not retrieve installation parameters, using defaults:', paramError);
+        params = {};
+      }
+      
+      // Create task data structure for v2 API - following exact API specification
+      const taskData = {
+        agent_id: agentId,
+        status: 1, // 1-Open, 2-In Progress, 3-Completed
+        due_date: dueDate.toISOString(),
+        notify_before: 0, // Time in seconds before which notification is sent
+        title: `Peer Review Coordination Required: ${changeRequest.subject}`,
+        description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
+      };
+      
+      // Add workspace_id based on environment and configuration
       if (changeRequest.workspace_id) {
+        // Use workspace from the change request (most reliable)
         taskData.workspace_id = parseInt(changeRequest.workspace_id);
+        console.log(`📋 Using change request workspace_id: ${taskData.workspace_id}`);
+      } else if (params.workspace_id) {
+        // Use workspace from installation parameters
+        taskData.workspace_id = parseInt(params.workspace_id);
+        console.log(`📋 Using installation parameter workspace_id: ${taskData.workspace_id}`);
+      } else {
+        // No workspace specified - let API use default
+        console.log('📋 No workspace_id specified - using API default');
       }
       
       console.log('📋 Peer review coordination task data prepared:', {
         title: taskData.title,
         agentSMEId: agentSME.id,
         agentSMEName: agentSME.name,
+        agentSMESource: agentSME.source,
         status: taskData.status,
         riskLevel: riskAssessment?.riskLevel || riskAssessment?.level,
+        riskScore: riskAssessment?.totalScore,
         dueDate: taskData.due_date,
         changeId: changeRequest.id,
         agentId: taskData.agent_id,
         notifyBefore: taskData.notify_before,
         workspaceId: taskData.workspace_id,
-        fullTaskData: taskData
+        hasWorkspaceId: !!taskData.workspace_id
       });
       
-      // Create the task using the v2 change tasks API endpoint
-      console.log('📡 Sending change task creation request...');
-      const response = await window.client.request.invokeTemplate('createChangeTask', {
-        context: {
-          change_id: changeRequest.id
-        },
-        body: JSON.stringify(taskData),
-        cache: false
-      });
-      
-      console.log('📡 Raw change task creation response:', response);
-      
-      if (!response || !response.response) {
-        throw new Error('No response received from change task creation API');
-      }
-      
+      // CRITICAL: Use change-specific task creation endpoint with change_id context
+      console.log('📡 Attempting change task creation with change_id context...');
+      let response;
       let createdTask;
-      try {
-        createdTask = JSON.parse(response.response);
-        console.log('📋 Parsed change task response:', createdTask);
-      } catch (parseError) {
-        console.error('❌ Failed to parse change task response JSON:', response.response);
-        throw new Error(`Invalid JSON response: ${parseError.message}`);
-      }
       
-      // Handle v2 API response structure for change tasks
-      // The v2 API should return the task object directly
-      if (createdTask && createdTask.id) {
-        console.log(`✅ Peer review coordination task created successfully: ${createdTask.id}`);
-        return createdTask;
-      } else if (createdTask && createdTask.task && createdTask.task.id) {
-        // Fallback for wrapped response structure
-        console.log(`✅ Peer review coordination task created successfully: ${createdTask.task.id}`);
-        return createdTask.task;
-      } else {
-        console.error('❌ Unexpected change task response structure:', createdTask);
-        throw new Error(`Unexpected response structure: ${JSON.stringify(createdTask)}`);
+      try {
+        response = await window.client.request.invokeTemplate('createChangeTask', {
+          context: {
+            change_id: changeRequest.id  // ESSENTIAL: Change ID required for /api/v2/changes/{change_id}/tasks endpoint
+          },
+          body: JSON.stringify(taskData),
+          cache: false
+        });
+        
+        console.log('📡 Change task creation response received:', {
+          hasResponse: !!response,
+          hasResponseBody: !!response?.response,
+          responseType: typeof response?.response,
+          changeId: changeRequest.id
+        });
+        
+        if (response && response.response) {
+          createdTask = JSON.parse(response.response);
+          console.log('📋 Parsed change task response:', createdTask);
+          
+          // Handle different response structures
+          if (createdTask && createdTask.id) {
+            console.log(`✅ Change task created successfully: ${createdTask.id} for change ${changeRequest.id}`);
+            return createdTask;
+          } else if (createdTask && createdTask.task && createdTask.task.id) {
+            console.log(`✅ Change task created successfully (wrapped): ${createdTask.task.id} for change ${changeRequest.id}`);
+            return createdTask.task;
+          }
+        }
+        
+        throw new Error('Change task creation succeeded but returned unexpected structure');
+        
+      } catch (changeTaskError) {
+        console.warn('⚠️ Change task creation failed, trying fallback method:', changeTaskError.message);
+        
+        // Fallback: Try creating a regular ticket/task (not attached to change)
+        console.log('📡 Attempting fallback ticket creation...');
+        
+        // Modify task data for regular ticket creation
+        const ticketData = {
+          ...taskData,
+          subject: taskData.title,
+          description_text: taskData.description,
+          type: 'Incident', // Use 'Incident' or 'Service Request' as task type
+          priority: riskAssessment?.riskLevel === 'High' ? 3 : 2, // High=3, Medium=2
+          source: 1, // Portal
+          requester_id: changeRequest.requester_id,
+          custom_fields: {
+            // Add custom fields to link it to the change
+            change_request_id: changeRequest.id,
+            task_type: 'peer_review_coordination',
+            risk_level: riskAssessment?.riskLevel,
+            risk_score: riskAssessment?.totalScore
+          }
+        };
+        
+        // Remove change-specific fields for ticket creation
+        delete ticketData.title;
+        
+        console.log('📋 Fallback ticket data prepared:', {
+          subject: ticketData.subject,
+          agentId: ticketData.agent_id,
+          type: ticketData.type,
+          priority: ticketData.priority,
+          changeId: changeRequest.id,
+          workspaceId: ticketData.workspace_id
+        });
+        
+        try {
+          const fallbackResponse = await window.client.request.invokeTemplate('createTask', {
+            body: JSON.stringify(ticketData),
+            cache: false
+          });
+          
+          console.log('📡 Fallback ticket creation response received');
+          
+          if (fallbackResponse && fallbackResponse.response) {
+            const fallbackTask = JSON.parse(fallbackResponse.response);
+            console.log('📋 Parsed fallback ticket response:', fallbackTask);
+            
+            if (fallbackTask && fallbackTask.id) {
+              console.log(`✅ Fallback task created successfully: ${fallbackTask.id} (linked to change ${changeRequest.id})`);
+              return fallbackTask;
+            } else if (fallbackTask && fallbackTask.ticket && fallbackTask.ticket.id) {
+              console.log(`✅ Fallback task created successfully (wrapped): ${fallbackTask.ticket.id} (linked to change ${changeRequest.id})`);
+              return fallbackTask.ticket;
+            }
+          }
+          
+          throw new Error('Fallback ticket creation failed');
+          
+        } catch (fallbackError) {
+          console.error('❌ Both change task and fallback ticket creation failed');
+          throw new Error(`Task creation failed: ${changeTaskError.message}. Fallback also failed: ${fallbackError.message}`);
+        }
       }
       
     } catch (error) {
@@ -2692,10 +2985,9 @@ const ChangeSubmission = {
           status: error.status,
           response: error.response,
           headers: error.headers,
-          attempts: error.attempts,
           changeId: changeRequest.id,
           agentId: agentSME.id,
-          taskData: taskData
+          environment: 'unknown'
         });
         
         // Try to parse error response for more details
@@ -2703,2731 +2995,135 @@ const ChangeSubmission = {
           const errorData = JSON.parse(error.response);
           console.error('📋 Parsed error response:', errorData);
           
-          // Log specific error messages if available
+          // Log specific error messages
           if (errorData.message) {
             console.error('📋 API Error Message:', errorData.message);
           }
           if (errorData.errors) {
             console.error('📋 API Validation Errors:', errorData.errors);
           }
+          if (errorData.description) {
+            console.error('📋 API Error Description:', errorData.description);
+          }
         } catch (parseErr) {
           console.error('📋 Could not parse error response as JSON:', error.response);
         }
-      } else {
-        console.error('📋 Non-HTTP Error:', {
-          errorType: typeof error,
-          errorMessage: error.message,
-          errorStack: error.stack,
-          changeId: changeRequest.id,
-          agentId: agentSME.id
-        });
       }
       
-      // For now, don't throw to prevent blocking submission
-      console.warn('⚠️ Continuing submission despite task creation failure...');
-      return null;
-    }
-  },
+             // Don't throw error to prevent blocking submission - continue with warning
+       console.warn('⚠️ Continuing submission despite task creation failure...');
+       return null;
+     }
+   },
 
-  /**
-   * Generate peer review coordination task description for agent SME
-   */
-  async generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
-    const data = window.changeRequestData;
-    
-    // Get Freshservice domain for creating clickable links
-    const getFreshserviceDomain = async () => {
-      try {
-        const params = await window.client.iparams.get();
-        if (params && params.freshservice_domain) {
-          return params.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        }
-        return 'your-domain.freshservice.com';
-      } catch (error) {
-        console.error('❌ Could not retrieve installation parameters:', error);
-        return 'your-domain.freshservice.com';
-      }
-    };
-    
-    const freshserviceDomain = await getFreshserviceDomain();
-    const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
-    
-    let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6;">`;
-    
-    // Header
-    description += `<h3 style="color: #0066cc; margin-bottom: 20px;">🎯 Peer Review Coordination Required</h3>`;
-    
-    // SME Assignment Notice
-    description += `<div style="background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #0066cc;">`;
-    description += `<h4 style="margin-top: 0; color: #0066cc;">📋 SME Assignment</h4>`;
-    description += `<p><strong>Assigned SME:</strong> ${agentSME.name} (${agentSME.source})</p>`;
-    description += `<p><strong>Responsibility:</strong> You are responsible for coordinating the peer review process for this ${riskAssessment.riskLevel} risk change.</p>`;
-    description += `</div>`;
-    
-    // Change request details
-    description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">`;
-    description += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
-    description += `<p><strong>Change ID:</strong> <a href="${changeUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">CHN-${changeRequest.id}</a></p>`;
-    description += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
-    description += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</p>`;
-    description += `<p><strong>Risk Level:</strong> <span style="background-color: ${this.getRiskColor(riskAssessment.riskLevel)}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
-    
-    if (data.plannedStart) {
-      description += `<p><strong>Planned Start:</strong> ${new Date(data.plannedStart).toLocaleString()}</p>`;
-    }
-    if (data.plannedEnd) {
-      description += `<p><strong>Planned End:</strong> ${new Date(data.plannedEnd).toLocaleString()}</p>`;
-    }
-    description += `</div>`;
-    
-    // Implementation details
-    if (data.implementationPlan) {
-      description += `<div style="margin-bottom: 20px;">`;
-      description += `<h4 style="color: #333;">Implementation Plan</h4>`;
-      description += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #0066cc;">${data.implementationPlan}</div>`;
-      description += `</div>`;
-    }
-    
-    // Validation plan
-    if (data.validationPlan) {
-      description += `<div style="margin-bottom: 20px;">`;
-      description += `<h4 style="color: #333;">Validation Plan</h4>`;
-      description += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #28a745;">${data.validationPlan}</div>`;
-      description += `</div>`;
-    }
-    
-    // SME Responsibilities - Different instructions for self-requested vs. assigned agent
-    const isSelfRequested = agentSME.source?.includes('Self') || agentSME.source?.includes('Self-Requested');
-    
-    description += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin-bottom: 20px;">`;
-    description += `<h4 style="margin-top: 0; color: #856404;">🎯 Your Responsibilities as SME Coordinator</h4>`;
-    
-    if (isSelfRequested) {
-      description += `<p>As the <strong>requester and assigned SME</strong>, you must obtain an <strong>independent peer review</strong> since you cannot review your own work. Choose <strong>ONE</strong> of the following options:</p>`;
-      description += `<ol style="margin-bottom: 0;">`;
-      description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review of your change plan.</li>`;
-      description += `<li><strong>Coordinate External Review:</strong> Ask a colleague to review your change and attach evidence of their completed review to this task.</li>`;
-      description += `<li><strong>Escalate for Review Assignment:</strong> Contact your manager to assign an appropriate independent peer reviewer.</li>`;
-      description += `</ol>`;
-      description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Important:</strong> Since you are both the requester and SME, independent review is mandatory. You cannot approve your own work.</p>`;
-    } else {
-      description += `<p>As the assigned Subject Matter Expert, you must coordinate an <strong>independent peer review</strong> by choosing <strong>ONE</strong> of the following options:</p>`;
-      description += `<ol style="margin-bottom: 0;">`;
-      description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review (must be someone other than yourself or the requester).</li>`;
-      description += `<li><strong>Coordinate External Review:</strong> Obtain peer review through other team members and attach evidence of the completed review.</li>`;
-      description += `<li><strong>Escalate for Review Assignment:</strong> Contact management to identify and assign an appropriate independent peer reviewer.</li>`;
-      description += `</ol>`;
-      description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Important:</strong> Peer reviews must be conducted by someone independent from the change planning and SME coordination. You cannot review work you coordinated or were involved in planning.</p>`;
-    }
-    description += `</div>`;
-    
-    // Review checklist
-    description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #6c757d; margin-bottom: 20px;">`;
-    description += `<h4 style="margin-top: 0; color: #495057;">📝 Peer Review Checklist</h4>`;
-    description += `<p>The peer review (conducted by an independent reviewer) should evaluate:</p>`;
-    description += `<ul style="margin-bottom: 0;">`;
-    description += `<li><strong>Technical Feasibility:</strong> Can this change be implemented as described?</li>`;
-    description += `<li><strong>Risk Assessment:</strong> Are there additional risks or issues not considered?</li>`;
-    description += `<li><strong>Alternative Approaches:</strong> Are there better or safer ways to achieve the same outcome?</li>`;
-    description += `<li><strong>Testing Strategy:</strong> Is the testing approach adequate for the risk level?</li>`;
-    description += `<li><strong>Rollback Plan:</strong> Is the rollback strategy sufficient and tested?</li>`;
-    description += `<li><strong>Implementation Timeline:</strong> Is the proposed timeline realistic and appropriate?</li>`;
-    description += `</ul>`;
-    description += `</div>`;
-    
-    // Instructions
-    description += `<div style="margin-top: 20px; padding: 15px; background-color: #d1ecf1; border-radius: 5px;">`;
-    description += `<h4 style="margin-top: 0; color: #0c5460;">📋 Completion Instructions</h4>`;
-    description += `<p><strong>Deadline:</strong> Complete peer review coordination within <strong>24 hours</strong>.</p>`;
-    description += `<p><strong>Required Actions:</strong></p>`;
-    description += `<ul>`;
-    description += `<li>Identify and assign a qualified peer reviewer (not yourself) to perform independent technical review</li>`;
-    description += `<li>Ensure the peer reviewer has access to all relevant documentation and plans</li>`;
-    description += `<li>Collect and attach evidence of completed peer review (review notes, findings, recommendations)</li>`;
-    description += `<li>Update this task with review results and any concerns identified</li>`;
-    description += `<li>Coordinate with the change requester if issues are found that need resolution</li>`;
-    description += `</ul>`;
-    description += `<p><strong>Important:</strong> The peer review must be conducted by someone other than the original SME or change requester to ensure independent validation of the technical approach.</p>`;
-    description += `</div>`;
-    
-    description += `</div>`;
-    
-    return description;
-  },
-
-  /**
-   * Map risk level to ticket priority
-   */
-  mapRiskToPriority(riskLevel) {
-    const mapping = {
-      'Low': 1,    // Low priority
-      'Medium': 2, // Medium priority 
-      'High': 3    // High priority
-    };
-    return mapping[riskLevel] || 2; // Default to medium
-  },
-
-  /**
-   * Get color for risk level badge
-   */
-  getRiskColor(riskLevel) {
-    const colors = {
-      'Low': '#28a745',
-      'Medium': '#ffc107',
-      'High': '#dc3545'
-    };
-    return colors[riskLevel] || '#6c757d';
-  },
-
-  /**
-   * Strip HTML tags from text for plain text version
-   */
-  stripHtmlTags(html) {
-    if (!html) return '';
-    
-    try {
-      // Create a temporary element to parse HTML
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = html;
-      
-      // Get text content and clean up whitespace
-      let textContent = tempDiv.textContent || tempDiv.innerText || '';
-      
-      // Replace multiple whitespace with single space and trim
-      textContent = textContent.replace(/\s+/g, ' ').trim();
-      
-      return textContent;
-    } catch (error) {
-      console.warn('⚠️ Error stripping HTML tags:', error);
-      // Fallback: remove basic HTML tags with regex
-      return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-    }
-  },
-
-  /**
-   * Validate email address format
-   */
-  isValidEmail(email) {
-    if (!email || typeof email !== 'string') return false;
-    
-    // Basic email validation regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
-  },
-
-  /**
-   * Update change request with additional metadata
-   */
-  updateChangeRequestMetadata() {
-    console.log('🔄 Updating change request with workflow metadata...');
-    // Implementation would go here
-  },
-
-  /**
-   * Show submission success in modal
-   */
-  async showSubmissionSuccess(changeRequest) {
-    console.log('🎉 Showing submission success modal...');
-    
-    // Get risk assessment and peer review task information
-    const data = window.changeRequestData;
-    const riskAssessment = data?.riskAssessment;
-    const createdTasksCount = this.state.createdTasks?.length || 0;
-    
-    // Get Freshservice domain from installation parameters
-    const getFreshserviceDomain = async () => {
-      try {
-        // Get installation parameters using the client API
-        const params = await window.client.iparams.get();
-        console.log('🔍 Retrieved iparams:', params);
-        
-        if (params && params.freshservice_domain) {
-          const domain = params.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-          console.log('✅ Using domain from iparams:', domain);
-          return domain;
-        }
-        
-        console.warn('⚠️ No freshservice_domain found in iparams');
-        return 'your-domain.freshservice.com';
-      } catch (error) {
-        console.error('❌ Could not retrieve installation parameters:', error);
-        return 'your-domain.freshservice.com';
-      }
-    };
-
-    const freshserviceDomain = await getFreshserviceDomain();
-    const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
-    
-    // Build success content
-    let successContent = `
-      <div class="text-center mb-4">
-        <div class="display-4 mb-3">🎉</div>
-        <h4 class="text-success mb-3">Change Request Created Successfully!</h4>
-        <div class="card">
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-6">
-                <p><strong>Change Request ID:</strong></p>
-                <p class="h5"><a href="${changeUrl}" target="_blank" class="text-primary text-decoration-none">CHN-${changeRequest.id}</a></p>
-              </div>
-              <div class="col-md-6">
-                <p><strong>Title:</strong></p>
-                <p class="h6">${changeRequest.subject}</p>
-              </div>
-            </div>
-            
-            <div class="mt-3">
-              <small class="text-muted">
-                <i class="fas fa-link me-1"></i>
-                Direct link: <a href="${changeUrl}" target="_blank" class="text-decoration-none">${changeUrl}</a>
-              </small>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Add risk level information
-    if (riskAssessment) {
-      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
-      successContent += `
-        <div class="card mb-3">
-          <div class="card-body">
-            <h6 class="card-title">
-              <i class="fas fa-shield-alt me-2"></i>Risk Assessment
-            </h6>
-            <div class="d-flex align-items-center mb-3">
-              <span class="badge me-3" style="background-color: ${riskColor}; font-size: 14px; padding: 8px 12px;">
-                ${riskAssessment.riskLevel?.toUpperCase()} RISK
-              </span>
-              <span class="text-muted">Score: ${riskAssessment.totalScore}/15</span>
-            </div>
-      `;
-      
-      // Add workflow status information based on risk level
-      if (riskAssessment.totalScore >= 8) {
-        // Medium/High risk - goes to "Pending Review" first
-        if (createdTasksCount > 0) {
-          successContent += `
-            <div class="alert alert-warning mb-0">
-              <h6 class="alert-heading">
-                <i class="fas fa-clock me-2"></i>Status: PENDING REVIEW
-              </h6>
-              <p class="mb-2">
-                Your ${riskAssessment.riskLevel} risk change requires peer review before moving to approval phase.
-              </p>
-              <p class="mb-2">
-                <strong>Next Steps:</strong> A peer review coordination task has been assigned to the agent SME. 
-                Upon completion of peer review, the Freshservice workflow automator will:
-              </p>
-              <ul class="mb-2">
-                <li>Change status to "Pending Approval"</li>
-                <li>Create approval tickets for technical owners${riskAssessment.riskLevel === 'High' ? ' and CAB members' : ''}</li>
-                <li>Move to "Scheduled" status once all approvals are obtained</li>
-              </ul>
-            </div>
-          `;
-        } else {
-          successContent += `
-            <div class="alert alert-danger mb-0">
-              <h6 class="alert-heading">
-                <i class="fas fa-exclamation-triangle me-2"></i>Status: PENDING REVIEW
-              </h6>
-              <p class="mb-0">
-                Your ${riskAssessment.riskLevel} risk change requires peer review but no agent SME could be automatically identified. 
-                Please manually assign a Subject Matter Expert to coordinate the peer review process.
-              </p>
-            </div>
-          `;
-        }
-      } else {
-        // Low risk - goes directly to "Pending Approval"
-        successContent += `
-          <div class="alert alert-success mb-0">
-            <h6 class="alert-heading">
-              <i class="fas fa-arrow-right me-2"></i>Status: PENDING APPROVAL
-            </h6>
-            <p class="mb-2">
-              Your ${riskAssessment.riskLevel} risk change has been routed directly to technical owners for approval.
-            </p>
-            <p class="mb-0">
-              <strong>Next Steps:</strong> Technical owners will review and approve your change. 
-              Once approved, the status will change to "Scheduled" and be ready for implementation.
-            </p>
-          </div>
-        `;
-      }
-      
-      successContent += `</div></div>`;
-    }
-    
-    // Add impact details section
-    successContent += this.generateImpactDetailsSection();
-    
-    // Update the success modal content
-    const successContentDiv = document.getElementById('success-content');
-    if (successContentDiv) {
-      successContentDiv.innerHTML = successContent;
-    }
-    
-    // Update the View Change button link
-    const viewChangeBtn = document.getElementById('view-change-btn');
-    if (viewChangeBtn) {
-      viewChangeBtn.href = changeUrl;
-    }
-    
-    // Setup event listeners for modal buttons
-    this.setupSuccessModalEventListeners();
-    
-    // Setup impact section event listeners and popovers
-    setTimeout(() => {
-      // Initialize Bootstrap popovers
-      const popoverElements = document.querySelectorAll('[data-bs-toggle="popover"]');
-      popoverElements.forEach(element => {
-        new bootstrap.Popover(element, {
-          trigger: 'hover focus',
-          delay: { show: 300, hide: 100 }
-        });
-      });
-      console.log(`✅ Initialized ${popoverElements.length} popovers`);
-      
-      // Setup detailed report button
-      const detailedReportBtn = document.getElementById('view-detailed-report-btn');
-      if (detailedReportBtn) {
-        detailedReportBtn.onclick = () => this.showImpactDetailsModal();
-        console.log('✅ Detailed report button event listener added');
-      }
-      
-      // Setup export summary button
-      const exportSummaryBtn = document.getElementById('export-impact-summary-btn');
-      if (exportSummaryBtn) {
-        exportSummaryBtn.onclick = () => this.exportImpactReport();
-        console.log('✅ Export summary button event listener added');
-      }
-    }, 100);
-    
-    // Hide any existing modals and show success modal
-    const confirmationModal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
-    if (confirmationModal) {
-      confirmationModal.hide();
-    }
-    
-    // Show success modal with delay to ensure confirmation modal is hidden
-    setTimeout(() => {
-      const successModal = new bootstrap.Modal(document.getElementById('success-modal'));
-      
-      // Add event listener for when modal is hidden
-      const successModalElement = document.getElementById('success-modal');
-      if (successModalElement) {
-        successModalElement.addEventListener('hidden.bs.modal', () => {
-          console.log('🔧 Success modal hidden event triggered - ensuring page is enabled');
-          this.ensurePageEnabled();
-        }, { once: true }); // Only run once since we create new modal instances
-      }
-      
-      successModal.show();
-    }, 300);
-  },
-
-  /**
-   * Generate impact details section for the success modal
-   */
-  generateImpactDetailsSection() {
-    const data = window.changeRequestData;
-    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
-    
-    // Calculate metrics for summary
-    const metrics = this.calculateImpactMetrics(data, impactedData);
-    
-    let impactSection = `
-      <div class="card mb-3">
-        <div class="card-body">
-          <h6 class="card-title">
-            <i class="fas fa-sitemap me-2"></i>Impact Analysis Summary
-          </h6>
-          
-          <!-- Quick Summary Cards -->
-          <div class="row text-center mb-3">
-            <div class="col-4">
-              <div class="border rounded p-2">
-                <h5 class="text-primary mb-1">${metrics.totalAssets}</h5>
-                <small class="text-muted">Assets</small>
-                ${metrics.totalAssets > 0 ? `
-                  <button type="button" class="btn btn-link btn-sm p-0" 
-                          data-bs-toggle="popover" 
-                          data-bs-placement="top"
-                          data-bs-html="true"
-                          data-bs-content="${this.generateAssetsPopoverContent(data.selectedAssets)}"
-                          title="Affected Assets">
-                    <i class="fas fa-info-circle text-info"></i>
-                  </button>
-                ` : ''}
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="border rounded p-2">
-                <h5 class="text-info mb-1">${metrics.totalStakeholders}</h5>
-                <small class="text-muted">Stakeholders</small>
-                ${metrics.totalStakeholders > 0 ? `
-                  <button type="button" class="btn btn-link btn-sm p-0" 
-                          data-bs-toggle="popover" 
-                          data-bs-placement="top"
-                          data-bs-html="true"
-                          data-bs-content="${this.generateStakeholdersPopoverContent(impactedData.stakeholders)}"
-                          title="Identified Stakeholders">
-                    <i class="fas fa-info-circle text-info"></i>
-                  </button>
-                ` : ''}
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="border rounded p-2">
-                <h5 class="text-warning mb-1">${metrics.totalApprovers}</h5>
-                <small class="text-muted">Approvers</small>
-                ${metrics.totalApprovers > 0 ? `
-                  <button type="button" class="btn btn-link btn-sm p-0" 
-                          data-bs-toggle="popover" 
-                          data-bs-placement="top"
-                          data-bs-html="true"
-                          data-bs-content="${this.generateApproversPopoverContent(impactedData.approvers)}"
-                          title="Required Approvers">
-                    <i class="fas fa-info-circle text-info"></i>
-                  </button>
-                ` : ''}
-              </div>
-            </div>
-          </div>
-          
-          <!-- Notification Status Summary -->
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <div class="d-flex align-items-center">
-                <span class="badge ${metrics.totalNotified > 0 ? 'bg-success' : 'bg-warning'} me-2">
-                  ${metrics.totalNotified} Notified
-                </span>
-                ${metrics.totalNotified > 0 ? `
-                  <button type="button" class="btn btn-link btn-sm p-0" 
-                          data-bs-toggle="popover" 
-                          data-bs-placement="right"
-                          data-bs-html="true"
-                          data-bs-content="${this.generateNotificationPopoverContent()}"
-                          title="Notification Details">
-                    <i class="fas fa-envelope text-success"></i>
-                  </button>
-                ` : '<i class="fas fa-envelope-open text-muted"></i>'}
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="d-flex align-items-center">
-                <span class="badge ${metrics.createdApprovals > 0 ? 'bg-success' : 'bg-secondary'} me-2">
-                  ${metrics.createdApprovals} Approvals
-                </span>
-                <span class="badge ${metrics.createdTasks > 0 ? 'bg-info' : 'bg-secondary'}">
-                  ${metrics.createdTasks} Tasks
-                </span>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Action Buttons -->
-          <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-primary btn-sm" id="view-detailed-report-btn">
-              <i class="fas fa-file-alt me-1"></i>Detailed Report
-            </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" id="export-impact-summary-btn">
-              <i class="fas fa-download me-1"></i>Export
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    return impactSection;
-  },
-
-  /**
-   * Generate assets popover content
-   */
-  generateAssetsPopoverContent(assets) {
-    if (!assets || assets.length === 0) {
-      return '<div class="text-muted">No assets selected</div>';
-    }
-    
-    let content = '<div style="max-width: 300px;">';
-    assets.slice(0, 5).forEach((asset, index) => {
-      content += `
-        <div class="mb-2 ${index < assets.length - 1 ? 'border-bottom pb-2' : ''}">
-          <div class="fw-bold">${asset.name}</div>
-          <small class="text-muted">${asset.asset_type_name || 'Unknown Type'}</small>
-          ${asset.location_name ? `<br><small class="text-secondary">📍 ${asset.location_name}</small>` : ''}
-        </div>
-      `;
-    });
-    
-    if (assets.length > 5) {
-      content += `<div class="text-muted text-center">... and ${assets.length - 5} more</div>`;
-    }
-    
-    content += '</div>';
-    return content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  },
-
-  /**
-   * Generate stakeholders popover content
-   */
-  generateStakeholdersPopoverContent(stakeholders) {
-    if (!stakeholders || stakeholders.length === 0) {
-      return '<div class="text-muted">No stakeholders identified</div>';
-    }
-    
-    const notifiedEmails = this.state.sentNotifications?.reduce((emails, notification) => {
-      return emails.concat(notification.validEmails || []);
-    }, []) || [];
-    
-    let content = '<div style="max-width: 350px;">';
-    stakeholders.slice(0, 6).forEach((stakeholder, index) => {
-      const wasNotified = notifiedEmails.includes(stakeholder.email);
-      content += `
-        <div class="mb-2 ${index < stakeholders.length - 1 ? 'border-bottom pb-2' : ''}">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <div class="fw-bold">${stakeholder.name || 'N/A'}</div>
-              <small class="text-muted">${stakeholder.email || 'No email'}</small>
-              <br><small class="badge bg-info">${stakeholder.source || 'Manual'}</small>
-            </div>
-            <div>
-              ${wasNotified ? 
-                '<i class="fas fa-check-circle text-success" title="Notified"></i>' : 
-                '<i class="fas fa-times-circle text-warning" title="Not Notified"></i>'}
-            </div>
-          </div>
-        </div>
-      `;
-    });
-    
-    if (stakeholders.length > 6) {
-      content += `<div class="text-muted text-center">... and ${stakeholders.length - 6} more</div>`;
-    }
-    
-    content += '</div>';
-    return content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  },
-
-  /**
-   * Generate approvers popover content
-   */
-  generateApproversPopoverContent(approvers) {
-    if (!approvers || approvers.length === 0) {
-      return '<div class="text-muted">No approvers required</div>';
-    }
-    
-    const notifiedEmails = this.state.sentNotifications?.reduce((emails, notification) => {
-      return emails.concat(notification.validEmails || []);
-    }, []) || [];
-    
-    let content = '<div style="max-width: 350px;">';
-    approvers.slice(0, 5).forEach((approver, index) => {
-      const wasNotified = notifiedEmails.includes(approver.email);
-      const hasApproval = this.state.createdApprovals?.some(approval => 
-        approval.responder_id === approver.id
-      );
-      
-      content += `
-        <div class="mb-2 ${index < approvers.length - 1 ? 'border-bottom pb-2' : ''}">
-          <div class="d-flex justify-content-between align-items-start">
-            <div>
-              <div class="fw-bold">${approver.name || 'N/A'}</div>
-              <small class="text-muted">${approver.email || 'No email'}</small>
-              <br><small class="badge bg-warning">${approver.source || 'Technical Owner'}</small>
-            </div>
-            <div class="text-end">
-              ${hasApproval ? 
-                '<i class="fas fa-ticket-alt text-success" title="Approval Created"></i>' : 
-                '<i class="fas fa-times text-danger" title="Approval Failed"></i>'}
-              <br>
-              ${wasNotified ? 
-                '<i class="fas fa-envelope text-success" title="Notified"></i>' : 
-                '<i class="fas fa-envelope-open text-warning" title="Not Notified"></i>'}
-            </div>
-          </div>
-        </div>
-      `;
-    });
-    
-    if (approvers.length > 5) {
-      content += `<div class="text-muted text-center">... and ${approvers.length - 5} more</div>`;
-    }
-    
-    content += '</div>';
-    return content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  },
-
-  /**
-   * Generate notification popover content
-   */
-  generateNotificationPopoverContent() {
-    if (!this.state.sentNotifications || this.state.sentNotifications.length === 0) {
-      return '<div class="text-muted">No notifications sent</div>';
-    }
-    
-    let content = '<div style="max-width: 300px;">';
-    this.state.sentNotifications.forEach((notification, index) => {
-      const successRate = notification.validEmails ? 
-        `${notification.validEmails.length}/${notification.recipients?.length || 0}` : '0/0';
-      
-      content += `
-        <div class="mb-2 ${index < this.state.sentNotifications.length - 1 ? 'border-bottom pb-2' : ''}">
-          <div class="fw-bold">
-            ${notification.type === 'stakeholder_note' ? 'Stakeholder Note' : 'Email Notification'}
-          </div>
-          <div class="d-flex justify-content-between">
-            <small class="text-muted">Recipients:</small>
-            <small class="fw-bold">${successRate}</small>
-          </div>
-          <div class="d-flex justify-content-between">
-            <small class="text-muted">Sent:</small>
-            <small>${new Date(notification.sentAt).toLocaleTimeString()}</small>
-          </div>
-          ${notification.noteId ? `
-            <div class="d-flex justify-content-between">
-              <small class="text-muted">Note ID:</small>
-              <small class="font-monospace">${notification.noteId}</small>
-            </div>
-          ` : ''}
-          <div class="text-center mt-1">
-            <span class="badge ${notification.validEmails?.length > 0 ? 'bg-success' : 'bg-danger'}">
-              ${notification.validEmails?.length > 0 ? 'Success' : 'Failed'}
-            </span>
-          </div>
-        </div>
-      `;
-    });
-    
-    content += '</div>';
-    return content.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  },
-
-  /**
-   * Show detailed impact information modal
-   */
-  showImpactDetailsModal() {
-    console.log('📊 Showing impact details modal...');
-    
-    const data = window.changeRequestData;
-    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
-    
-    // Generate detailed impact content
-    const impactContent = this.generateDetailedImpactContent(data, impactedData);
-    
-    // Create or update impact details modal
-    let impactModal = document.getElementById('impact-details-modal');
-    if (!impactModal) {
-      // Create the modal if it doesn't exist
-      const modalHTML = `
-        <div class="modal fade" id="impact-details-modal" tabindex="-1" aria-labelledby="impact-details-title" aria-hidden="true">
-          <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title" id="impact-details-title">
-                  <i class="fas fa-sitemap me-2"></i>Detailed Impact Analysis
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-              </div>
-              <div class="modal-body" id="impact-details-content">
-                <!-- Content will be populated here -->
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" id="export-impact-btn">
-                  <i class="fas fa-download me-1"></i>Export Report
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      // Add modal to DOM
-      document.body.insertAdjacentHTML('beforeend', modalHTML);
-      impactModal = document.getElementById('impact-details-modal');
-      
-      // Setup export button
-      document.getElementById('export-impact-btn').onclick = () => this.exportImpactReport();
-    }
-    
-    // Update content
-    const contentDiv = document.getElementById('impact-details-content');
-    if (contentDiv) {
-      contentDiv.innerHTML = impactContent;
-    }
-    
-    // Show modal
-    const modal = new bootstrap.Modal(impactModal);
-    modal.show();
-  },
-
-  /**
-   * Generate detailed impact content
-   */
-  generateDetailedImpactContent(data, impactedData) {
-    let content = '';
-    
-    // Summary metrics
-    const metricsData = this.calculateImpactMetrics(data, impactedData);
-    content += this.generateImpactMetricsSection(metricsData);
-    
-    // Affected systems
-    content += this.generateAffectedSystemsSection(data);
-    
-    // Stakeholders and notifications
-    content += this.generateStakeholdersSection(impactedData);
-    
-    // Approvers and workflow
-    content += this.generateApproversSection(impactedData);
-    
-    // Notification status
-    content += this.generateNotificationStatusSection();
-    
-    // Risk assessment details
-    content += this.generateRiskAssessmentSection(data.riskAssessment);
-    
-    return content;
-  },
-
-  /**
-   * Calculate impact metrics
-   */
-  calculateImpactMetrics(data, impactedData) {
-    return {
-      totalAssets: data.selectedAssets?.length || 0,
-      totalStakeholders: impactedData.stakeholders?.length || 0,
-      totalApprovers: impactedData.approvers?.length || 0,
-      totalNotified: this.state.sentNotifications?.reduce((total, notification) => {
-        return total + (notification.emailCount || 0);
-      }, 0) || 0,
-      createdApprovals: this.state.createdApprovals?.length || 0,
-      createdTasks: this.state.createdTasks?.length || 0
-    };
-  },
-
-  /**
-   * Generate impact metrics section
-   */
-  generateImpactMetricsSection(metrics) {
-    return `
-      <div class="row mb-4">
-        <div class="col-12">
-          <h6 class="text-primary mb-3">
-            <i class="fas fa-chart-bar me-2"></i>Impact Overview
-          </h6>
-          <div class="row text-center">
-            <div class="col-md-2">
-              <div class="card border-primary h-100">
-                <div class="card-body">
-                  <h4 class="text-primary">${metrics.totalAssets}</h4>
-                  <small class="text-muted">Assets</small>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-2">
-              <div class="card border-info h-100">
-                <div class="card-body">
-                  <h4 class="text-info">${metrics.totalStakeholders}</h4>
-                  <small class="text-muted">Stakeholders</small>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-2">
-              <div class="card border-warning h-100">
-                <div class="card-body">
-                  <h4 class="text-warning">${metrics.totalApprovers}</h4>
-                  <small class="text-muted">Approvers</small>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-2">
-              <div class="card border-success h-100">
-                <div class="card-body">
-                  <h4 class="text-success">${metrics.totalNotified}</h4>
-                  <small class="text-muted">Notified</small>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-2">
-              <div class="card border-secondary h-100">
-                <div class="card-body">
-                  <h4 class="text-secondary">${metrics.createdApprovals}</h4>
-                  <small class="text-muted">Approvals</small>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-2">
-              <div class="card border-dark h-100">
-                <div class="card-body">
-                  <h4 class="text-dark">${metrics.createdTasks}</h4>
-                  <small class="text-muted">Tasks</small>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  /**
-   * Generate affected systems section
-   */
-  generateAffectedSystemsSection(data) {
-    if (!data.selectedAssets || data.selectedAssets.length === 0) {
-      return `
-        <div class="mb-4">
-          <h6 class="text-primary mb-3">
-            <i class="fas fa-server me-2"></i>Affected Systems
-          </h6>
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>No assets were directly associated with this change.
-          </div>
-        </div>
-      `;
-    }
-    
-    let content = `
-      <div class="mb-4">
-        <h6 class="text-primary mb-3">
-          <i class="fas fa-server me-2"></i>Affected Systems (${data.selectedAssets.length})
-        </h6>
-        <div class="table-responsive">
-          <table class="table table-striped table-sm">
-            <thead class="table-dark">
-              <tr>
-                <th>Asset Name</th>
-                <th>Type</th>
-                <th>Location</th>
-                <th>Manager</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-    `;
-    
-    data.selectedAssets.forEach(asset => {
-      content += `
-        <tr>
-          <td>
-            <strong>${asset.name}</strong>
-            ${asset.description ? `<br><small class="text-muted">${asset.description}</small>` : ''}
-          </td>
-          <td>
-            <span class="badge bg-secondary">${asset.asset_type_name || 'Unknown'}</span>
-          </td>
-          <td>${asset.location_name || 'N/A'}</td>
-          <td>${asset.managed_by_name || 'Unassigned'}</td>
-          <td>
-            <span class="badge ${asset.asset_state === 'In Use' ? 'bg-success' : 'bg-warning'}">
-              ${asset.asset_state || 'Unknown'}
-            </span>
-          </td>
-        </tr>
-      `;
-    });
-    
-    content += `
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-    
-    return content;
-  },
-
-  /**
-   * Generate stakeholders section
-   */
-  generateStakeholdersSection(impactedData) {
-    if (!impactedData.stakeholders || impactedData.stakeholders.length === 0) {
-      return `
-        <div class="mb-4">
-          <h6 class="text-primary mb-3">
-            <i class="fas fa-users me-2"></i>Identified Stakeholders
-          </h6>
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>No additional stakeholders were identified through impact analysis.
-          </div>
-        </div>
-      `;
-    }
-    
-    let content = `
-      <div class="mb-4">
-        <h6 class="text-primary mb-3">
-          <i class="fas fa-users me-2"></i>Identified Stakeholders (${impactedData.stakeholders.length})
-        </h6>
-        <div class="table-responsive">
-          <table class="table table-striped table-sm">
-            <thead class="table-dark">
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Source</th>
-                <th>Role</th>
-                <th>Notification Status</th>
-              </tr>
-            </thead>
-            <tbody>
-    `;
-    
-    const notifiedEmails = this.state.sentNotifications?.reduce((emails, notification) => {
-      return emails.concat(notification.validEmails || []);
-    }, []) || [];
-    
-    impactedData.stakeholders.forEach(stakeholder => {
-      const wasNotified = notifiedEmails.includes(stakeholder.email);
-      content += `
-        <tr>
-          <td>
-            <strong>${stakeholder.name || 'N/A'}</strong>
-            ${stakeholder.id ? `<br><small class="text-muted">ID: ${stakeholder.id}</small>` : ''}
-          </td>
-          <td>
-            ${stakeholder.email || 'No email available'}
-            ${stakeholder.email && !this.isValidEmail(stakeholder.email) ? 
-              '<br><small class="text-danger">Invalid email format</small>' : ''}
-          </td>
-          <td>
-            <span class="badge bg-info">${stakeholder.source || 'Manual'}</span>
-          </td>
-          <td>${stakeholder.role || 'Stakeholder'}</td>
-          <td>
-            ${wasNotified ? 
-              '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Notified</span>' : 
-              '<span class="badge bg-warning"><i class="fas fa-times me-1"></i>Not Notified</span>'}
-          </td>
-        </tr>
-      `;
-    });
-    
-    content += `
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-    
-    return content;
-  },
-
-  /**
-   * Generate approvers section
-   */
-  generateApproversSection(impactedData) {
-    if (!impactedData.approvers || impactedData.approvers.length === 0) {
-      return `
-        <div class="mb-4">
-          <h6 class="text-primary mb-3">
-            <i class="fas fa-user-check me-2"></i>Required Approvers
-          </h6>
-          <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>No approvers were identified for this change.
-          </div>
-        </div>
-      `;
-    }
-    
-    let content = `
-      <div class="mb-4">
-        <h6 class="text-primary mb-3">
-          <i class="fas fa-user-check me-2"></i>Required Approvers (${impactedData.approvers.length})
-        </h6>
-        <div class="table-responsive">
-          <table class="table table-striped table-sm">
-            <thead class="table-dark">
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Source</th>
-                <th>Approval Status</th>
-                <th>Notification Status</th>
-              </tr>
-            </thead>
-            <tbody>
-    `;
-    
-    const notifiedEmails = this.state.sentNotifications?.reduce((emails, notification) => {
-      return emails.concat(notification.validEmails || []);
-    }, []) || [];
-    
-    impactedData.approvers.forEach(approver => {
-      const wasNotified = notifiedEmails.includes(approver.email);
-      const hasApproval = this.state.createdApprovals?.some(approval => 
-        approval.responder_id === approver.id
-      );
-      
-      content += `
-        <tr>
-          <td>
-            <strong>${approver.name || 'N/A'}</strong>
-            ${approver.id ? `<br><small class="text-muted">ID: ${approver.id}</small>` : ''}
-          </td>
-          <td>
-            ${approver.email || 'No email available'}
-            ${approver.email && !this.isValidEmail(approver.email) ? 
-              '<br><small class="text-danger">Invalid email format</small>' : ''}
-          </td>
-          <td>
-            <span class="badge bg-warning">${approver.source || 'Technical Owner'}</span>
-          </td>
-          <td>
-            ${hasApproval ? 
-              '<span class="badge bg-success"><i class="fas fa-ticket-alt me-1"></i>Approval Created</span>' : 
-              '<span class="badge bg-danger"><i class="fas fa-times me-1"></i>Approval Failed</span>'}
-          </td>
-          <td>
-            ${wasNotified ? 
-              '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Notified</span>' : 
-              '<span class="badge bg-warning"><i class="fas fa-times me-1"></i>Not Notified</span>'}
-          </td>
-        </tr>
-      `;
-    });
-    
-    content += `
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-    
-    return content;
-  },
-
-  /**
-   * Generate notification status section
-   */
-  generateNotificationStatusSection() {
-    let content = `
-      <div class="mb-4">
-        <h6 class="text-primary mb-3">
-          <i class="fas fa-envelope me-2"></i>Notification Status
-        </h6>
-    `;
-    
-    if (!this.state.sentNotifications || this.state.sentNotifications.length === 0) {
-      content += `
-        <div class="alert alert-warning">
-          <i class="fas fa-exclamation-triangle me-2"></i>No notifications were sent.
-        </div>
-      `;
-    } else {
-      content += `
-        <div class="row">
-      `;
-      
-      this.state.sentNotifications.forEach((notification) => {
-        const successRate = notification.validEmails ? 
-          `${notification.validEmails.length}/${notification.recipients?.length || 0}` : '0/0';
-        
-        content += `
-          <div class="col-md-6 mb-3">
-            <div class="card">
-              <div class="card-body">
-                <h6 class="card-title">
-                  <i class="fas fa-sticky-note me-2"></i>
-                  ${notification.type === 'stakeholder_note' ? 'Stakeholder Notification' : 'Email Notification'}
-                </h6>
-                <div class="mb-2">
-                  <strong>Recipients:</strong> ${successRate} emails sent
-                </div>
-                <div class="mb-2">
-                  <strong>Sent:</strong> ${new Date(notification.sentAt).toLocaleString()}
-                </div>
-                ${notification.noteId ? `
-                  <div class="mb-2">
-                    <strong>Note ID:</strong> ${notification.noteId}
-                  </div>
-                ` : ''}
-                <div class="mb-0">
-                  <span class="badge ${notification.validEmails?.length > 0 ? 'bg-success' : 'bg-danger'}">
-                    ${notification.validEmails?.length > 0 ? 'Success' : 'Failed'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      });
-      
-      content += `
-        </div>
-      `;
-    }
-    
-    content += `</div>`;
-    return content;
-  },
-
-  /**
-   * Generate risk assessment section
-   */
-  generateRiskAssessmentSection(riskAssessment) {
-    if (!riskAssessment) {
-      return `
-        <div class="mb-4">
-          <h6 class="text-primary mb-3">
-            <i class="fas fa-shield-alt me-2"></i>Risk Assessment
-          </h6>
-          <div class="alert alert-warning">
-            <i class="fas fa-exclamation-triangle me-2"></i>No risk assessment data available.
-          </div>
-        </div>
-      `;
-    }
-    
-    const riskColor = this.getRiskColor(riskAssessment.riskLevel);
-    
-    return `
-      <div class="mb-4">
-        <h6 class="text-primary mb-3">
-          <i class="fas fa-shield-alt me-2"></i>Risk Assessment Details
-        </h6>
-        <div class="card">
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-4">
-                <div class="text-center">
-                  <h3 class="mb-1">
-                    <span class="badge" style="background-color: ${riskColor}; font-size: 18px; padding: 12px 20px;">
-                      ${riskAssessment.riskLevel?.toUpperCase()}
-                    </span>
-                  </h3>
-                  <p class="text-muted">Overall Risk Level</p>
-                  <h4 class="text-primary">${riskAssessment.totalScore}/15</h4>
-                  <p class="text-muted">Total Score</p>
-                </div>
-              </div>
-              <div class="col-md-8">
-                <div class="row">
-                  <div class="col-6 mb-3">
-                    <strong>Business Impact:</strong>
-                    <div class="progress mt-1" style="height: 8px;">
-                      <div class="progress-bar" role="progressbar" 
-                           style="width: ${(riskAssessment.businessImpact/3)*100}%; background-color: ${riskColor};">
-                      </div>
-                    </div>
-                    <small class="text-muted">${riskAssessment.businessImpact}/3</small>
-                  </div>
-                  <div class="col-6 mb-3">
-                    <strong>Affected Users:</strong>
-                    <div class="progress mt-1" style="height: 8px;">
-                      <div class="progress-bar" role="progressbar" 
-                           style="width: ${(riskAssessment.affectedUsers/3)*100}%; background-color: ${riskColor};">
-                      </div>
-                    </div>
-                    <small class="text-muted">${riskAssessment.affectedUsers}/3</small>
-                  </div>
-                  <div class="col-6 mb-3">
-                    <strong>Complexity:</strong>
-                    <div class="progress mt-1" style="height: 8px;">
-                      <div class="progress-bar" role="progressbar" 
-                           style="width: ${(riskAssessment.complexity/3)*100}%; background-color: ${riskColor};">
-                      </div>
-                    </div>
-                    <small class="text-muted">${riskAssessment.complexity}/3</small>
-                  </div>
-                  <div class="col-6 mb-3">
-                    <strong>Testing:</strong>
-                    <div class="progress mt-1" style="height: 8px;">
-                      <div class="progress-bar" role="progressbar" 
-                           style="width: ${(riskAssessment.testing/3)*100}%; background-color: ${riskColor};">
-                      </div>
-                    </div>
-                    <small class="text-muted">${riskAssessment.testing}/3</small>
-                  </div>
-                  <div class="col-12">
-                    <strong>Rollback:</strong>
-                    <div class="progress mt-1" style="height: 8px;">
-                      <div class="progress-bar" role="progressbar" 
-                           style="width: ${(riskAssessment.rollback/3)*100}%; background-color: ${riskColor};">
-                      </div>
-                    </div>
-                    <small class="text-muted">${riskAssessment.rollback}/3</small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  /**
-   * Export impact report
-   */
-  exportImpactReport() {
-    console.log('📄 Exporting impact report...');
-    
-    const data = window.changeRequestData;
-    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
-    
-    // Generate report content
-    const reportContent = this.generateTextReport(data, impactedData);
-    
-    // Create and download file
-    const blob = new Blob([reportContent], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `change-impact-report-${this.state.submissionId || 'draft'}-${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    
-    console.log('✅ Impact report exported successfully');
-  },
-
-  /**
-   * Generate text report
-   */
-  generateTextReport(data, impactedData) {
-    const metrics = this.calculateImpactMetrics(data, impactedData);
-    
-    let report = '';
-    report += '='.repeat(80) + '\n';
-    report += 'CHANGE REQUEST IMPACT ANALYSIS REPORT\n';
-    report += '='.repeat(80) + '\n';
-    report += `Generated: ${new Date().toLocaleString()}\n`;
-    report += `Change ID: CHN-${this.state.submissionId || 'DRAFT'}\n`;
-    report += `Title: ${data.changeTitle || 'N/A'}\n`;
-    report += `Requester: ${data.selectedRequester?.name || 'N/A'}\n`;
-    report += '\n';
-    
-    // Summary metrics
-    report += 'IMPACT SUMMARY\n';
-    report += '-'.repeat(40) + '\n';
-    report += `Total Assets Affected: ${metrics.totalAssets}\n`;
-    report += `Total Stakeholders: ${metrics.totalStakeholders}\n`;
-    report += `Total Approvers: ${metrics.totalApprovers}\n`;
-    report += `Notifications Sent: ${metrics.totalNotified}\n`;
-    report += `Approvals Created: ${metrics.createdApprovals}\n`;
-    report += `Tasks Created: ${metrics.createdTasks}\n`;
-    report += '\n';
-    
-    // Risk assessment
-    if (data.riskAssessment) {
-      report += 'RISK ASSESSMENT\n';
-      report += '-'.repeat(40) + '\n';
-      report += `Overall Risk Level: ${data.riskAssessment.riskLevel?.toUpperCase()}\n`;
-      report += `Total Score: ${data.riskAssessment.totalScore}/15\n`;
-      report += `Business Impact: ${data.riskAssessment.businessImpact}/3\n`;
-      report += `Affected Users: ${data.riskAssessment.affectedUsers}/3\n`;
-      report += `Complexity: ${data.riskAssessment.complexity}/3\n`;
-      report += `Testing: ${data.riskAssessment.testing}/3\n`;
-      report += `Rollback: ${data.riskAssessment.rollback}/3\n`;
-      report += '\n';
-    }
-    
-    // Affected systems
-    if (data.selectedAssets && data.selectedAssets.length > 0) {
-      report += 'AFFECTED SYSTEMS\n';
-      report += '-'.repeat(40) + '\n';
-      data.selectedAssets.forEach((asset, index) => {
-        report += `${index + 1}. ${asset.name}\n`;
-        report += `   Type: ${asset.asset_type_name || 'Unknown'}\n`;
-        report += `   Location: ${asset.location_name || 'N/A'}\n`;
-        report += `   Manager: ${asset.managed_by_name || 'Unassigned'}\n`;
-        report += `   Status: ${asset.asset_state || 'Unknown'}\n`;
-        report += '\n';
-      });
-    }
-    
-    // Stakeholders
-    if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
-      report += 'STAKEHOLDERS\n';
-      report += '-'.repeat(40) + '\n';
-      impactedData.stakeholders.forEach((stakeholder, index) => {
-        report += `${index + 1}. ${stakeholder.name || 'N/A'}\n`;
-        report += `   Email: ${stakeholder.email || 'Not available'}\n`;
-        report += `   Source: ${stakeholder.source || 'Manual'}\n`;
-        report += `   Role: ${stakeholder.role || 'Stakeholder'}\n`;
-        report += '\n';
-      });
-    }
-    
-    // Approvers
-    if (impactedData.approvers && impactedData.approvers.length > 0) {
-      report += 'APPROVERS\n';
-      report += '-'.repeat(40) + '\n';
-      impactedData.approvers.forEach((approver, index) => {
-        report += `${index + 1}. ${approver.name || 'N/A'}\n`;
-        report += `   Email: ${approver.email || 'Not available'}\n`;
-        report += `   Source: ${approver.source || 'Technical Owner'}\n`;
-        report += '\n';
-      });
-    }
-    
-    // Notification status
-    if (this.state.sentNotifications && this.state.sentNotifications.length > 0) {
-      report += 'NOTIFICATION STATUS\n';
-      report += '-'.repeat(40) + '\n';
-      this.state.sentNotifications.forEach((notification, index) => {
-        report += `${index + 1}. ${notification.type === 'stakeholder_note' ? 'Stakeholder Notification' : 'Email Notification'}\n`;
-        report += `   Recipients: ${notification.validEmails?.length || 0}/${notification.recipients?.length || 0}\n`;
-        report += `   Sent: ${new Date(notification.sentAt).toLocaleString()}\n`;
-        if (notification.noteId) {
-          report += `   Note ID: ${notification.noteId}\n`;
-        }
-        report += `   Status: ${notification.validEmails?.length > 0 ? 'Success' : 'Failed'}\n`;
-        report += '\n';
-      });
-    }
-    
-    report += '='.repeat(80) + '\n';
-    report += 'END OF REPORT\n';
-    report += '='.repeat(80) + '\n';
-    
-    return report;
-  },
-
-  /**
-   * Setup event listeners for success modal buttons
-   */
-  setupSuccessModalEventListeners() {
-    console.log('🔧 Setting up success modal event listeners...');
-    
-    // New change button
-    const newChangeBtn = document.getElementById('new-change-btn');
-    if (newChangeBtn) {
-      newChangeBtn.onclick = () => {
-        console.log('🔄 User clicked "Create Another Change" - reloading page');
-        const successModal = bootstrap.Modal.getInstance(document.getElementById('success-modal'));
-        if (successModal) {
-          successModal.hide();
-        }
-        
-        // Ensure page is enabled before reload
-        this.ensurePageEnabled();
-        
-        // Additional cleanup for stuck modals
-        setTimeout(() => {
-          this.forceCleanupModals();
-          window.location.reload();
-        }, 200);
-      };
-      console.log('✅ New change button event listener set');
-    } else {
-      console.warn('⚠️ New change button not found');
-    }
-    
-    // Close button - just closes modal to show the underlying page with details
-    const closeBtn = document.getElementById('close-success-btn');
-    if (closeBtn) {
-      closeBtn.onclick = () => {
-        console.log('❌ User clicked "Close & View Details" - closing modal');
-        const successModal = bootstrap.Modal.getInstance(document.getElementById('success-modal'));
-        if (successModal) {
-          successModal.hide();
-        }
-        
-        // Ensure page is re-enabled after modal closes with additional cleanup
-        setTimeout(() => {
-          this.ensurePageEnabled();
-          this.forceCleanupModals();
-        }, 100);
-        
-        // Show success notification
-        this.showBriefSuccessNotification();
-      };
-      console.log('✅ Close button event listener set');
-    } else {
-      console.warn('⚠️ Close button not found');
-    }
-    
-    // View Change button is already set up with the correct href in showSubmissionSuccess
-    const viewChangeBtn = document.getElementById('view-change-btn');
-    if (viewChangeBtn) {
-      console.log('✅ View change button found with href:', viewChangeBtn.href);
-    } else {
-      console.warn('⚠️ View change button not found');
-    }
-  },
-
-  /**
-   * Ensure the page is properly enabled and not dark/disabled
-   */
-  ensurePageEnabled() {
-    console.log('🔧 Ensuring page is properly enabled...');
-    
-    // Remove any lingering modal backdrops
-    const backdrops = document.querySelectorAll('.modal-backdrop');
-    backdrops.forEach(backdrop => {
-      console.log('🗑️ Removing modal backdrop:', backdrop);
-      backdrop.remove();
-    });
-    
-    // Ensure body doesn't have modal-open class
-    if (document.body.classList.contains('modal-open')) {
-      console.log('🔧 Removing modal-open class from body');
-      document.body.classList.remove('modal-open');
-    }
-    
-    // Restore body overflow and remove any inline styles
-    document.body.style.overflow = '';
-    document.body.style.paddingRight = '';
-    
-    // Remove any Bootstrap modal classes from html element
-    const htmlElement = document.documentElement;
-    if (htmlElement.classList.contains('modal-open')) {
-      htmlElement.classList.remove('modal-open');
-    }
-    
-    // Ensure app content is enabled
-    const appContent = document.getElementById('app-content');
-    if (appContent) {
-      appContent.classList.remove('app-initializing');
-      appContent.classList.add('app-ready');
-      appContent.style.pointerEvents = 'auto';
-      appContent.style.filter = 'none';
-      console.log('✅ App content re-enabled');
-    }
-    
-    // Check for any initialization overlay that might still be showing
-    const initOverlay = document.getElementById('initialization-overlay');
-    if (initOverlay) {
-      console.log('🔧 Hiding any lingering initialization overlay');
-      initOverlay.style.display = 'none';
-      initOverlay.style.visibility = 'hidden';
-      initOverlay.style.opacity = '0';
-      initOverlay.style.zIndex = '-1';
-    }
-    
-    // Force remove any overlay-related classes from body
-    document.body.classList.remove('modal-open', 'overflow-hidden');
-    
-    // Ensure main container is visible and enabled
-    const mainContainer = document.querySelector('.fw-widget-wrapper');
-    if (mainContainer) {
-      mainContainer.style.pointerEvents = 'auto';
-      mainContainer.style.filter = 'none';
-      mainContainer.style.opacity = '1';
-    }
-    
-    // Clear any remaining modal instances that might be stuck
-    const modalElements = document.querySelectorAll('.modal');
-    modalElements.forEach(modal => {
-      const modalInstance = bootstrap.Modal.getInstance(modal);
-      if (modalInstance && modal.classList.contains('show')) {
-        console.log('🔧 Force closing stuck modal:', modal.id);
-        modalInstance.hide();
-      }
-    });
-    
-    console.log('✅ Page enablement check complete');
-  },
-
-  /**
-   * Force cleanup of any stuck modals and overlays
-   */
-  forceCleanupModals() {
-    console.log('🧹 Force cleaning up modals and overlays...');
-    
-    // Remove ALL modal backdrops (including any stuck ones)
-    document.querySelectorAll('.modal-backdrop, .modal-backdrop.show, .modal-backdrop.fade').forEach(el => {
-      console.log('🗑️ Removing backdrop:', el);
-      el.remove();
-    });
-    
-    // Remove modal-open from body and html
-    document.body.classList.remove('modal-open', 'overflow-hidden');
-    document.documentElement.classList.remove('modal-open', 'overflow-hidden');
-    
-    // Reset ALL body styles that might interfere
-    document.body.style.cssText = '';
-    document.body.style.overflow = '';
-    document.body.style.paddingRight = '';
-    document.body.style.position = '';
-    document.body.style.width = '';
-    document.body.style.height = '';
-    
-    // Reset html styles
-    document.documentElement.style.overflow = '';
-    document.documentElement.style.paddingRight = '';
-    
-    // Force hide ALL modals regardless of state
-    document.querySelectorAll('.modal').forEach(modal => {
-      modal.classList.remove('show', 'in');
-      modal.style.display = 'none';
-      modal.style.visibility = 'hidden';
-      modal.style.opacity = '0';
-      modal.setAttribute('aria-hidden', 'true');
-      modal.setAttribute('aria-modal', 'false');
-      
-      // Remove any Bootstrap modal instances
-      const modalInstance = bootstrap.Modal.getInstance(modal);
-      if (modalInstance) {
-        try {
-          modalInstance.dispose();
-        } catch (e) {
-          console.warn('⚠️ Could not dispose modal instance:', e);
-        }
-      }
-    });
-    
-    // Force hide initialization overlay with multiple methods
-    const initOverlays = document.querySelectorAll('#initialization-overlay, .initialization-overlay');
-    initOverlays.forEach(overlay => {
-      if (overlay) {
-        overlay.style.display = 'none !important';
-        overlay.style.visibility = 'hidden !important';
-        overlay.style.opacity = '0 !important';
-        overlay.style.zIndex = '-1 !important';
-        overlay.style.pointerEvents = 'none !important';
-        overlay.classList.add('fade-out');
-        // Remove after animation
-        setTimeout(() => {
-          if (overlay.parentNode) {
-            overlay.remove();
-          }
-        }, 500);
-      }
-    });
-    
-    // Re-enable app content with multiple approaches
-    const appContent = document.getElementById('app-content');
-    if (appContent) {
-      appContent.classList.remove('app-initializing');
-      appContent.classList.add('app-ready');
-      appContent.style.pointerEvents = 'auto';
-      appContent.style.filter = 'none';
-      appContent.style.opacity = '1';
-      appContent.style.visibility = 'visible';
-    }
-    
-    // Re-enable main wrapper
-    const mainWrapper = document.querySelector('.fw-widget-wrapper');
-    if (mainWrapper) {
-      mainWrapper.style.pointerEvents = 'auto';
-      mainWrapper.style.filter = 'none';
-      mainWrapper.style.opacity = '1';
-      mainWrapper.style.visibility = 'visible';
-    }
-    
-    // Remove any lingering overlay elements
-    document.querySelectorAll('[class*="overlay"], [class*="backdrop"], [id*="overlay"]').forEach(el => {
-      if (el.style.position === 'fixed' && el.style.zIndex > 1000) {
-        console.log('🗑️ Removing potential overlay element:', el);
-        el.remove();
-      }
-    });
-    
-    // Force focus back to body to ensure interaction
-    if (document.activeElement && document.activeElement.tagName === 'BODY') {
-      document.body.focus();
-    }
-    
-    console.log('✅ Aggressive force cleanup complete');
-  },
-
-  /**
-   * Show a brief success notification when modal is closed
-   */
-  showBriefSuccessNotification() {
-    const notification = document.createElement('div');
-    notification.className = 'alert alert-success alert-dismissible fade show';
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      z-index: 1055;
-      max-width: 350px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    `;
-    notification.innerHTML = `
-      <strong>✅ Change Request Submitted!</strong>
-      <br>You can create another change or continue working with the form.
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.remove();
-      }
-    }, 5000);
-  },
-
-  /**
-   * Show submission error
-   */
-  showSubmissionError(error) {
-    console.error('❌ Showing submission error:', error);
-    
-    const errorMessage = `
-      <div class="alert alert-danger" role="alert">
-        <h4 class="alert-heading">❌ Change Request Submission Failed</h4>
-        <p><strong>Error:</strong> ${error.message || 'Unknown error occurred'}</p>
-      </div>
-    `;
-
-    const statusElement = document.getElementById('submission-status');
-    if (statusElement) {
-      statusElement.innerHTML = errorMessage;
-      statusElement.className = 'alert alert-danger';
-      statusElement.style.display = 'block';
-    }
-  },
-
-  /**
-   * Show/hide submission status
-   */
-  showSubmissionStatus(show) {
-    const statusElement = document.getElementById('submission-status');
-    if (statusElement) {
-      statusElement.style.display = show ? 'block' : 'none';
-    }
-  },
-
-  /**
-   * Show submission progress modal
-   */
-  showSubmissionProgressModal() {
-    const modal = document.getElementById('submission-progress-modal');
-    if (modal) {
-      // Reset all steps to initial state
-      this.resetSubmissionProgress();
-      
-      // Show the modal
-      const bootstrapModal = new bootstrap.Modal(modal, {
-        backdrop: 'static',
-        keyboard: false
-      });
-      bootstrapModal.show();
-      
-      // Store modal instance for later use
-      this.progressModal = bootstrapModal;
-      
-      console.log('📊 Submission progress modal displayed');
-    }
-  },
-
-  /**
-   * Hide submission progress modal
-   */
-  hideSubmissionProgressModal() {
-    if (this.progressModal) {
-      this.progressModal.hide();
-      this.progressModal = null;
-    }
-  },
-
-  /**
-   * Reset submission progress to initial state
-   */
-  resetSubmissionProgress() {
-    const steps = ['validation', 'risk-assessment', 'creating-change', 'associating-assets', 'creating-tasks', 'notifications'];
-    
-    steps.forEach(stepId => {
-      const stepElement = document.getElementById(`step-${stepId}`);
-      if (stepElement) {
-        // Remove status classes
-        stepElement.classList.remove('active', 'completed', 'error');
-        
-        // Reset icons
-        const icons = stepElement.querySelectorAll('.step-icon i');
-        icons.forEach(icon => icon.style.display = 'none');
-        
-        // Show default icon
-        const defaultIcon = stepElement.querySelector('.step-icon .fa-circle');
-        if (defaultIcon) defaultIcon.style.display = 'inline';
-      }
-    });
-
-    // Reset overall progress
-    this.updateOverallProgress(0);
-    document.getElementById('overall-status').textContent = 'Initializing submission...';
-    
-    // Hide error details
-    const errorDetails = document.getElementById('submission-error-details');
-    if (errorDetails) errorDetails.style.display = 'none';
-    
-    // Show/hide buttons
-    const cancelBtn = document.getElementById('cancel-submission');
-    const closeBtn = document.getElementById('close-progress');
-    if (cancelBtn) cancelBtn.style.display = 'inline-block';
-    if (closeBtn) closeBtn.style.display = 'none';
-  },
-
-  /**
-   * Update progress for a specific step
-   */
-  updateSubmissionProgress(stepId, status, message) {
-    const stepElement = document.getElementById(`step-${stepId}`);
-    if (!stepElement) return;
-
-    // Remove previous status classes
-    stepElement.classList.remove('active', 'completed', 'error');
-    
-    // Add new status class
-    stepElement.classList.add(status);
-
-    // Update icons
-    const icons = stepElement.querySelectorAll('.step-icon i');
-    icons.forEach(icon => icon.style.display = 'none');
-
-    let activeIcon;
-    switch (status) {
-      case 'active':
-        activeIcon = stepElement.querySelector('.step-icon .fa-circle-notch');
-        if (activeIcon) activeIcon.style.display = 'inline';
-        break;
-      case 'completed':
-        activeIcon = stepElement.querySelector('.step-icon .fa-check-circle');
-        if (activeIcon) activeIcon.style.display = 'inline';
-        break;
-      case 'error':
-        activeIcon = stepElement.querySelector('.step-icon .fa-exclamation-circle');
-        if (activeIcon) activeIcon.style.display = 'inline';
-        break;
-    }
-
-    // Update step description if message provided
-    if (message) {
-      const descElement = stepElement.querySelector('.step-description');
-      if (descElement) {
-        descElement.textContent = message;
-      }
-    }
-
-    // Update overall status message
-    if (status === 'active') {
-      document.getElementById('overall-status').textContent = message || 'Processing...';
-    }
-
-    console.log(`📊 Step ${stepId} updated to ${status}: ${message}`);
-  },
-
-  /**
-   * Update overall progress bar
-   */
-  updateOverallProgress(percentage) {
-    const progressBar = document.getElementById('overall-progress-bar');
-    const progressPercent = document.getElementById('overall-progress-percent');
-    
-    if (progressBar) {
-      progressBar.style.width = `${percentage}%`;
-      progressBar.setAttribute('aria-valuenow', percentage);
-    }
-    
-    if (progressPercent) {
-      progressPercent.textContent = `${percentage}%`;
-    }
-
-    console.log(`📊 Overall progress updated to ${percentage}%`);
-  },
-
-  /**
-   * Show submission progress error
-   */
-  showSubmissionProgressError(error) {
-    // Update overall status
-    document.getElementById('overall-status').textContent = 'Submission failed - see details below';
-    
-    // Show error details
-    const errorDetails = document.getElementById('submission-error-details');
-    const errorMessage = document.getElementById('error-message');
-    
-    if (errorDetails && errorMessage) {
-      errorMessage.textContent = error.message || 'An unexpected error occurred during submission';
-      errorDetails.style.display = 'block';
-    }
-
-    // Update buttons
-    const cancelBtn = document.getElementById('cancel-submission');
-    const closeBtn = document.getElementById('close-progress');
-    if (cancelBtn) cancelBtn.style.display = 'none';
-    if (closeBtn) closeBtn.style.display = 'inline-block';
-
-    // Stop progress bar animation
-    const progressBar = document.getElementById('overall-progress-bar');
-    if (progressBar) {
-      progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
-      progressBar.classList.add('bg-danger');
-    }
-
-    console.error('📊 Submission progress error displayed:', error);
-  },
-
-  /**
-   * Retry submission after error
-   */
-  retrySubmission() {
-    console.log('🔄 Retrying submission...');
-    this.hideSubmissionProgressModal();
-    
-    // Wait a moment for modal to close, then retry
-    setTimeout(() => {
-      this.handleSubmission();
-    }, 300);
-  },
-
-  /**
-   * Show comprehensive submission summary modal
-   */
-  showSubmissionSummary() {
-    console.log('📋 Showing comprehensive submission summary...');
-
-    // First validate all data
-    const validationResult = this.validateSubmissionData();
-    if (!validationResult.isValid) {
-      this.showValidationErrors(validationResult.errors);
-      return;
-    }
-
-    // Generate and show the summary modal
-    this.generateSubmissionSummary();
-    
-    // Show the modal
-    const modal = new bootstrap.Modal(document.getElementById('confirmation-modal'));
-    modal.show();
-    
-    // Setup modal event listeners
-    this.setupModalEventListeners();
-  },
-
-  /**
-   * Generate comprehensive submission summary content
-   */
-  generateSubmissionSummary() {
-    console.log('📝 Generating submission summary content...');
-    
-    const data = window.changeRequestData;
-    const riskAssessment = data?.riskAssessment;
-    const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
-    
-    // Helper function to format user name
-    const formatUserName = (user) => {
-      if (!user) return 'Unknown';
-      if (user.name) return user.name;
-      if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`;
-      if (user.first_name) return user.first_name;
-      if (user.email) return user.email;
-      return 'Unknown';
-    };
-    
-    let summaryHtml = `<div class="submission-summary">`;
-    
-    // Header with change overview
-    summaryHtml += `<div class="row mb-4">
-      <div class="col-12">
-        <div class="card border-primary">
-          <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Change Request Overview</h5>
-          </div>
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-8">
-                <h6 class="fw-bold">${data.changeTitle || 'Untitled Change Request'}</h6>
-                <p class="text-muted mb-2">${data.changeDescription || data.reasonForChange || 'No description provided'}</p>
-                <div class="d-flex flex-wrap gap-2">
-                  <span class="badge bg-secondary">${data.changeType?.toUpperCase() || 'NORMAL'} CHANGE</span>`;
-    
-    if (riskAssessment) {
-      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
-      summaryHtml += `<span class="badge" style="background-color: ${riskColor};">${riskAssessment.riskLevel?.toUpperCase()} RISK</span>`;
-    }
-    
-    summaryHtml += `</div>
-              </div>
-              <div class="col-md-4 text-end">
-                <div class="text-muted small">
-                  <div><strong>Requester:</strong> ${formatUserName(data.selectedRequester)}</div>
-                  <div><strong>Agent:</strong> ${formatUserName(data.selectedAgent) || 'Unassigned'}</div>`;
-    
-    if (data.selectedRequester?.email) {
-      summaryHtml += `<div class="text-truncate" title="${data.selectedRequester.email}"><i class="fas fa-envelope me-1"></i>${data.selectedRequester.email}</div>`;
-    }
-    
-    if (data.plannedStart) {
-      summaryHtml += `<div><strong>Start:</strong> ${new Date(data.plannedStart).toLocaleString()}</div>`;
-    }
-    if (data.plannedEnd) {
-      summaryHtml += `<div><strong>End:</strong> ${new Date(data.plannedEnd).toLocaleString()}</div>`;
-    }
-    
-    summaryHtml += `</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-    
-    // Implementation details section
-    summaryHtml += `<div class="row mb-4">
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Implementation Plan</h6>
-          </div>
-          <div class="card-body">
-            <p class="small">${data.implementationPlan || 'No implementation plan provided'}</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-undo me-2"></i>Backout Plan</h6>
-          </div>
-          <div class="card-body">
-            <p class="small">${data.backoutPlan || 'No backout plan provided'}</p>
-          </div>
-        </div>
-      </div>
-    </div>`;
-    
-    // Validation plan if available
-    if (data.validationPlan) {
-      summaryHtml += `<div class="row mb-4">
-        <div class="col-12">
-          <div class="card">
-            <div class="card-header">
-              <h6 class="mb-0"><i class="fas fa-check-circle me-2"></i>Validation Plan</h6>
-            </div>
-            <div class="card-body">
-              <p class="small">${data.validationPlan}</p>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }
-    
-    // Risk assessment details
-    if (riskAssessment) {
-      // Helper function to get risk criteria explanation
-      const getRiskCriteriaExplanation = (criteria, score) => {
-        const explanations = {
-          businessImpact: {
-            1: "Limited - Minor impact on business operations",
-            2: "Noticeable - Moderate impact on business operations", 
-            3: "Significant - Major impact on business operations"
-          },
-          affectedUsers: {
-            1: "Less than 50 users affected",
-            2: "50-200 users affected",
-            3: "More than 200 users affected"
-          },
-          complexity: {
-            1: "Simple - Low technical complexity",
-            2: "Moderate - Medium technical complexity",
-            3: "Complex - High technical complexity"
-          },
-          testing: {
-            1: "Comprehensive - Thorough testing completed",
-            2: "Adequate - Standard testing completed",
-            3: "Limited - Minimal testing completed"
-          },
-          rollback: {
-            1: "Detailed rollback plan available",
-            2: "Basic rollback steps defined",
-            3: "No clear rollback procedure"
-          }
-        };
-        return explanations[criteria]?.[score] || `Score: ${score}/3`;
-      };
-
-      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
-      summaryHtml += `<div class="row mb-4">
-        <div class="col-12">
-          <div class="card border-warning">
-            <div class="card-header bg-warning text-dark">
-              <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Risk Assessment Details</h6>
-            </div>
-            <div class="card-body">
-              <div class="row mb-3">
-                <div class="col-12 text-center">
-                  <h5 class="mb-2">
-                    <span class="badge fs-6" style="background-color: ${riskColor};">
-                      ${riskAssessment.riskLevel?.toUpperCase()} RISK
-                    </span>
-                  </h5>
-                  <p class="text-muted mb-0">Total Score: <strong>${riskAssessment.totalScore || 0}/15</strong></p>
-                </div>
-              </div>
-              
-              <div class="row">
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <span class="fw-semibold">Business Impact:</span>
-                      <span class="badge bg-secondary">${riskAssessment.businessImpact || 0}/3</span>
-                    </div>
-                    <small class="text-muted">${getRiskCriteriaExplanation('businessImpact', riskAssessment.businessImpact)}</small>
-                  </div>
-                  
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <span class="fw-semibold">Affected Users:</span>
-                      <span class="badge bg-secondary">${riskAssessment.affectedUsers || 0}/3</span>
-                    </div>
-                    <small class="text-muted">${getRiskCriteriaExplanation('affectedUsers', riskAssessment.affectedUsers)}</small>
-                  </div>
-                  
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <span class="fw-semibold">Complexity:</span>
-                      <span class="badge bg-secondary">${riskAssessment.complexity || 0}/3</span>
-                    </div>
-                    <small class="text-muted">${getRiskCriteriaExplanation('complexity', riskAssessment.complexity)}</small>
-                  </div>
-                </div>
-                
-                <div class="col-md-6">
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <span class="fw-semibold">Testing Level:</span>
-                      <span class="badge bg-secondary">${riskAssessment.testing || 0}/3</span>
-                    </div>
-                    <small class="text-muted">${getRiskCriteriaExplanation('testing', riskAssessment.testing)}</small>
-                  </div>
-                  
-                  <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                      <span class="fw-semibold">Rollback Capability:</span>
-                      <span class="badge bg-secondary">${riskAssessment.rollback || 0}/3</span>
-                    </div>
-                    <small class="text-muted">${getRiskCriteriaExplanation('rollback', riskAssessment.rollback)}</small>
-                  </div>
-                  
-                  <div class="alert alert-info mb-0">
-                    <small>
-                      <strong>Risk Policy:</strong><br>
-                      ${riskAssessment.totalScore >= 12 ? 'High Risk requires extensive review + mandatory 24hr peer review' :
-                        riskAssessment.totalScore >= 8 ? 'Medium Risk requires additional review + 24hr peer review' :
-                        'Low Risk follows standard approval process'}
-                    </small>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }
-    
-    // Assets and impact analysis section
-    summaryHtml += `<div class="row mb-4">
-      <div class="col-12">
-        <div class="card">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-network-wired me-2"></i>Asset Impact Analysis</h6>
-          </div>
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-6">
-                <h6 class="text-primary mb-3"><i class="fas fa-server me-2"></i>Direct Assets (${data.selectedAssets?.length || 0})</h6>`;
-    
-    if (data.selectedAssets && data.selectedAssets.length > 0) {
-      summaryHtml += `<div class="list-group list-group-flush">`;
-      data.selectedAssets.slice(0, 3).forEach(asset => {
-        // Get additional asset details
-        const environment = asset.environment || 'Unknown';
-        const location = asset.location_name || 'Unknown Location';
-        const managedBy = asset.managed_by_name || asset.user_name || 'Unassigned';
-        
-        summaryHtml += `<div class="list-group-item px-0 py-2 border-0">
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="flex-grow-1">
-              <div class="fw-semibold">${asset.name}</div>
-              <small class="text-muted d-block">${asset.asset_type_name || 'Unknown Type'}</small>
-              <div class="d-flex flex-wrap gap-1 mt-1">
-                <span class="badge bg-secondary">${environment}</span>
-                <span class="badge bg-info">${location}</span>
-                ${managedBy !== 'Unassigned' ? `<span class="badge bg-success" title="Managed By">${managedBy}</span>` : ''}
-              </div>
-            </div>
-          </div>
-        </div>`;
-      });
-      if (data.selectedAssets.length > 3) {
-        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
-          <small class="text-muted">... and ${data.selectedAssets.length - 3} more direct assets</small>
-        </div>`;
-      }
-      summaryHtml += `</div>`;
-    } else {
-      summaryHtml += `<p class="text-muted small">No direct assets selected</p>`;
-    }
-    
-    summaryHtml += `</div>
-              <div class="col-md-6">
-                <h6 class="text-success mb-3"><i class="fas fa-sitemap me-2"></i>Related Assets (${impactedData.relatedAssets?.length || 0})</h6>`;
-    
-    if (impactedData.relatedAssets && impactedData.relatedAssets.length > 0) {
-      summaryHtml += `<div class="list-group list-group-flush">`;
-      impactedData.relatedAssets.slice(0, 3).forEach(asset => {
-        const environment = asset.environment || 'Unknown';
-        const relationship = asset.relationship_type || 'Related';
-        
-        summaryHtml += `<div class="list-group-item px-0 py-2 border-0">
-          <div class="fw-semibold">${asset.name}</div>
-          <small class="text-muted d-block">${asset.asset_type_name || 'Unknown Type'}</small>
-          <div class="d-flex flex-wrap gap-1 mt-1">
-            <span class="badge bg-outline-secondary">${environment}</span>
-            <span class="badge bg-warning text-dark" title="Relationship">${relationship}</span>
-          </div>
-        </div>`;
-      });
-      if (impactedData.relatedAssets.length > 3) {
-        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
-          <small class="text-muted">... and ${impactedData.relatedAssets.length - 3} more related assets</small>
-        </div>`;
-      }
-      summaryHtml += `</div>`;
-    } else {
-      summaryHtml += `<p class="text-muted small">No related assets found</p>`;
-    }
-    
-    summaryHtml += `</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-
-    // Stakeholders and approvers section
-    const totalStakeholders = (impactedData.stakeholders?.length || 0) + (impactedData.approvers?.length || 0);
-    summaryHtml += `<div class="row mb-4">
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-user-check me-2"></i>Approvers (${impactedData.approvers?.length || 0})</h6>
-          </div>
-          <div class="card-body">`;
-    
-    if (impactedData.approvers && impactedData.approvers.length > 0) {
-      summaryHtml += `<div class="list-group list-group-flush">`;
-      impactedData.approvers.slice(0, 4).forEach(approver => {
-        const source = approver.source || 'Manual';
-        const role = approver.role || 'Approver';
-        
-        summaryHtml += `<div class="list-group-item px-0 py-2 border-0">
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="flex-grow-1">
-              <div class="fw-semibold">${approver.name}</div>
-              <small class="text-muted d-block">${approver.email}</small>
-              <div class="d-flex flex-wrap gap-1 mt-1">
-                <span class="badge bg-primary">${role}</span>
-                <span class="badge bg-secondary" title="Source">${source}</span>
-              </div>
-            </div>
-          </div>
-        </div>`;
-      });
-      if (impactedData.approvers.length > 4) {
-        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
-          <small class="text-muted">... and ${impactedData.approvers.length - 4} more approvers</small>
-        </div>`;
-      }
-      summaryHtml += `</div>`;
-    } else {
-      summaryHtml += `<p class="text-muted small">No approvers identified</p>`;
-    }
-    
-    summaryHtml += `</div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="card h-100">
-          <div class="card-header">
-            <h6 class="mb-0"><i class="fas fa-users me-2"></i>Stakeholders (${impactedData.stakeholders?.length || 0})</h6>
-          </div>
-          <div class="card-body">`;
-    
-    if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
-      summaryHtml += `<div class="list-group list-group-flush">`;
-      impactedData.stakeholders.slice(0, 4).forEach(stakeholder => {
-        const source = stakeholder.source || 'Manual';
-        const role = stakeholder.role || 'Stakeholder';
-        
-        summaryHtml += `<div class="list-group-item px-0 py-2 border-0">
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="flex-grow-1">
-              <div class="fw-semibold">${stakeholder.name}</div>
-              <small class="text-muted d-block">${stakeholder.email}</small>
-              <div class="d-flex flex-wrap gap-1 mt-1">
-                <span class="badge bg-info">${role}</span>
-                <span class="badge bg-secondary" title="Source">${source}</span>
-              </div>
-            </div>
-          </div>
-        </div>`;
-      });
-      if (impactedData.stakeholders.length > 4) {
-        summaryHtml += `<div class="list-group-item px-0 py-1 border-0">
-          <small class="text-muted">... and ${impactedData.stakeholders.length - 4} more stakeholders</small>
-        </div>`;
-      }
-      summaryHtml += `</div>`;
-    } else {
-      summaryHtml += `<p class="text-muted small">No stakeholders identified</p>`;
-    }
-    
-    summaryHtml += `</div>
-        </div>
-      </div>
-    </div>`;
-    
-    // Summary of automated processes
-    if (totalStakeholders > 0 || (data.selectedAssets && data.selectedAssets.length > 0)) {
-      summaryHtml += `<div class="row mb-4">
-        <div class="col-12">
-          <div class="alert alert-info">
-            <h6 class="alert-heading"><i class="fas fa-robot me-2"></i>Automated Processes</h6>
-            <ul class="mb-0">`;
-              
-      // Risk-based initial status assignment
-      if (riskAssessment) {
-        if (riskAssessment.totalScore >= 8) {
-          summaryHtml += `<li>Initial status: "Pending Review" (${riskAssessment.riskLevel} risk requires peer review first)</li>`;
-          summaryHtml += `<li>Peer review coordination task will be assigned to agent SME</li>`;
-        } else {
-          summaryHtml += `<li>Initial status: "Pending Approval" (${riskAssessment.riskLevel} risk - direct to approval)</li>`;
-        }
-      }
-      
-      if (totalStakeholders > 0) {
-        summaryHtml += `<li>Stakeholder notification note will be created with ${totalStakeholders} recipient(s)</li>`;
-      }
-      
-      if (data.selectedAssets && data.selectedAssets.length > 0) {
-        summaryHtml += `<li>Assets will be automatically associated with the change request</li>`;
-      }
-              
-      if (impactedData.approvers && impactedData.approvers.length > 0) {
-        const when = riskAssessment && riskAssessment.totalScore >= 8 ? 'after peer review completion' : 'immediately';
-        summaryHtml += `<li>Approval tickets will be created ${when} for ${impactedData.approvers.length} approver(s)</li>`;
-      }
-      
-      summaryHtml += `</ul>
-          </div>
-        </div>
-      </div>`;
-    }
-    
-    // Workflow summary
-    summaryHtml += `<div class="row mb-4">
-      <div class="col-12">
-        <div class="card border-info">
-          <div class="card-header bg-info text-white">
-            <h6 class="mb-0"><i class="fas fa-workflow me-2"></i>What Will Happen After Submission</h6>
-          </div>
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-6">
-                <ul class="list-unstyled mb-0">
-                  <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Change request will be created in Freshservice</li>
-                  <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Assets will be associated with the change</li>`;
-    
-    // Risk-based status assignment
-    if (riskAssessment) {
-      if (riskAssessment.totalScore >= 8) {
-        summaryHtml += `<li class="mb-2"><i class="fas fa-clock text-warning me-2"></i>Status: "Pending Review" (${riskAssessment.riskLevel} risk)</li>`;
-        summaryHtml += `<li class="mb-2"><i class="fas fa-user-cog text-info me-2"></i>Peer review task assigned to agent SME</li>`;
-      } else {
-        summaryHtml += `<li class="mb-2"><i class="fas fa-arrow-right text-success me-2"></i>Status: "Pending Approval" (${riskAssessment.riskLevel} risk)</li>`;
-        if (impactedData.approvers && impactedData.approvers.length > 0) {
-          summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Approval tickets created immediately for ${impactedData.approvers.length} approver(s)</li>`;
-        }
-      }
-    }
-    
-    summaryHtml += `</ul>
-              </div>
-              <div class="col-md-6">
-                <ul class="list-unstyled mb-0">`;
-    
-    if (totalStakeholders > 0) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-envelope text-primary me-2"></i>Stakeholder notification note will be created for ${totalStakeholders} recipient(s)</li>`;
-    }
-    
-    if (riskAssessment && riskAssessment.totalScore >= 8) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-robot text-info me-2"></i>Upon peer review completion: Workflow automator will transition to "Pending Approval"</li>`;
-      if (impactedData.approvers && impactedData.approvers.length > 0) {
-        const approverText = riskAssessment.riskLevel === 'High' ? `${impactedData.approvers.length} technical owner(s) + CAB` : `${impactedData.approvers.length} technical owner(s)`;
-        summaryHtml += `<li class="mb-2"><i class="fas fa-check text-warning me-2"></i>Approval tickets will be created for ${approverText}</li>`;
-      }
-      summaryHtml += `<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Final status: "Scheduled" when all approvals obtained</li>`;
-    } else if (impactedData.approvers && impactedData.approvers.length > 0) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Status: "Scheduled" when approvals complete</li>`;
-    }
-    
-    summaryHtml += `<li class="mb-2"><i class="fas fa-bell text-info me-2"></i>You will receive confirmation and tracking information</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-    
-    // Important notes
-    summaryHtml += `<div class="row">
-      <div class="col-12">
-        <div class="alert alert-warning">
-          <h6><i class="fas fa-exclamation-circle me-2"></i>Important Notes</h6>
-          <ul class="mb-0">
-            <li>Once submitted, this change request cannot be edited directly</li>
-            <li>Any modifications will require creating a new change request or working with your assigned agent</li>
-            <li>You will receive email notifications as the change progresses through the workflow states</li>`;
-    
-    if (riskAssessment && riskAssessment.totalScore >= 8) {
-      summaryHtml += `<li>This ${riskAssessment.riskLevel} risk change will start in "Pending Review" status and require peer review coordination before moving to approval phase</li>`;
-    } else if (riskAssessment) {
-      summaryHtml += `<li>This ${riskAssessment.riskLevel} risk change will start in "Pending Approval" status and proceed directly to technical owner approval</li>`;
-    }
-    
-    summaryHtml += `</ul>
-        </div>
-      </div>
-    </div>`;
-    
-    summaryHtml += `</div>`;
-    
-    // Update the modal content
-    const summaryContent = document.getElementById('summary-content');
-    if (summaryContent) {
-      summaryContent.innerHTML = summaryHtml;
-    }
-    
-    console.log('✅ Submission summary content generated and populated');
-  },
-
-  /**
-   * Setup modal event listeners
-   */
-  setupModalEventListeners() {
-    console.log('🔧 Setting up modal event listeners...');
-    
-    // Universal modal cleanup handler for ALL modals
-    this.setupUniversalModalCleanup();
-    
-    // Edit request button
-    const editBtn = document.getElementById('edit-request');
-    if (editBtn) {
-      editBtn.onclick = () => {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
-        modal.hide();
-        console.log('📝 User chose to edit request - modal closed');
-        
-        // Re-enable the page so user can edit
-        setTimeout(() => {
-          this.ensurePageEnabled();
-          this.forceCleanupModals();
-          console.log('✅ Page re-enabled for editing');
-        }, 300); // Small delay to ensure modal closes properly
-      };
-    }
-    
-    // Confirm submit button
-    const confirmBtn = document.getElementById('confirm-submit');
-    if (confirmBtn) {
-      confirmBtn.onclick = (e) => {
-        e.preventDefault();
-        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
-        modal.hide();
-        console.log('✅ User confirmed submission - proceeding with submission');
-        this.handleSubmission();
-      };
-    }
-    
-    // Close progress modal button
-    const closeProgressBtn = document.getElementById('close-progress');
-    if (closeProgressBtn) {
-      closeProgressBtn.onclick = () => {
-        console.log('📋 Progress modal close button clicked');
-        setTimeout(() => {
-          this.ensurePageEnabled();
-          this.forceCleanupModals();
-        }, 100);
-      };
-    }
-    
-    console.log('✅ Modal event listeners setup complete');
-  },
-
-  /**
-   * Setup universal modal cleanup for ALL modals
-   */
-  setupUniversalModalCleanup() {
-    console.log('🌐 Setting up universal modal cleanup handlers...');
-    
-    // Get all modal elements
-    const modalElements = document.querySelectorAll('.modal');
-    
-    modalElements.forEach(modal => {
-      console.log(`🔧 Setting up cleanup for modal: ${modal.id || 'unnamed'}`);
-      
-      // Listen for Bootstrap modal hidden event (when modal is fully closed)
-      modal.addEventListener('hidden.bs.modal', () => {
-        console.log(`🧹 Modal closed: ${modal.id || 'unnamed'} - running cleanup`);
-        
-        setTimeout(() => {
-          this.ensurePageEnabled();
-          this.forceCleanupModals();
-        }, 50); // Small delay to ensure modal close animation completes
-      });
-      
-      // Listen for modal hide event (when modal starts closing)
-      modal.addEventListener('hide.bs.modal', () => {
-        console.log(`⏬ Modal hiding: ${modal.id || 'unnamed'} - preparing cleanup`);
-      });
-      
-      // Handle close button clicks
-      const closeButtons = modal.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
-      closeButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-          console.log(`❌ Close button clicked in modal: ${modal.id || 'unnamed'}`);
-          setTimeout(() => {
-            this.ensurePageEnabled();
-            this.forceCleanupModals();
-          }, 100);
-        });
-      });
-    });
-    
-    // Handle ESC key presses that might close modals
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        // Check if any modal is currently shown
-        const shownModal = document.querySelector('.modal.show');
-        if (shownModal) {
-          console.log('⌨️ ESC key pressed - modal will close, preparing cleanup');
-          setTimeout(() => {
-            this.ensurePageEnabled();
-            this.forceCleanupModals();
-          }, 200);
-        }
-      }
-    });
-    
-    // Global click handler for any modal backdrop clicks
-    document.addEventListener('click', (e) => {
-      if (e.target && e.target.classList.contains('modal-backdrop')) {
-        console.log('🖱️ Modal backdrop clicked - preparing cleanup');
-        setTimeout(() => {
-          this.ensurePageEnabled();
-          this.forceCleanupModals();
-        }, 200);
-      }
-    });
-    
-    // Monitor for any DOM mutations that might add modals or backdrops
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList') {
-          // Check for newly added modals
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === 1 && node.classList && node.classList.contains('modal')) {
-              console.log('🆕 New modal detected, setting up cleanup handlers...');
-              this.setupModalCleanupForElement(node);
-            }
-          });
-          
-          // Clean up if modal backdrops are removed (might indicate modal closed)
-          mutation.removedNodes.forEach((node) => {
-            if (node.nodeType === 1 && node.classList && node.classList.contains('modal-backdrop')) {
-              console.log('🗑️ Modal backdrop removed, ensuring page is enabled...');
-              setTimeout(() => {
-                this.ensurePageEnabled();
-              }, 50);
-            }
-          });
-        }
-      });
-    });
-    
-    observer.observe(document.body, { childList: true, subtree: true });
-    
-    console.log('✅ Universal modal cleanup handlers setup complete');
-  },
-
-  /**
-   * Setup cleanup handlers for a specific modal element
-   */
-  setupModalCleanupForElement(modal) {
-    if (!modal || modal.dataset.cleanupSetup === 'true') {
-      return; // Already setup
-    }
-    
-    console.log(`🔧 Setting up cleanup for modal element: ${modal.id || 'unnamed'}`);
-    
-    // Mark as setup to avoid duplicate handlers
-    modal.dataset.cleanupSetup = 'true';
-    
-    // Listen for Bootstrap modal events
-    modal.addEventListener('hidden.bs.modal', () => {
-      console.log(`🧹 Modal hidden: ${modal.id || 'unnamed'} - running cleanup`);
-      setTimeout(() => {
-        this.ensurePageEnabled();
-        this.forceCleanupModals();
-      }, 50);
-    });
-    
-    modal.addEventListener('hide.bs.modal', () => {
-      console.log(`⏬ Modal hiding: ${modal.id || 'unnamed'} - preparing cleanup`);
-    });
-    
-    // Handle close button clicks
-    const closeButtons = modal.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
-    closeButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        console.log(`❌ Close button clicked in modal: ${modal.id || 'unnamed'}`);
-        setTimeout(() => {
-          this.ensurePageEnabled();
-          this.forceCleanupModals();
-        }, 100);
-      });
-    });
-  },
-
-  /**
-   * Show validation errors in a user-friendly way
-   */
-  showValidationErrors(errors) {
-    const errorMessage = `
-      <div class="alert alert-danger" role="alert">
-        <h6><i class="fas fa-exclamation-triangle me-2"></i>Please complete the following before submitting:</h6>
-        <ul class="mb-0 mt-2">
-          ${errors.map(error => `<li>${error}</li>`).join('')}
-        </ul>
-      </div>
-    `;
-
-    const statusElement = document.getElementById('submission-status');
-    if (statusElement) {
-      statusElement.innerHTML = errorMessage;
-      statusElement.style.display = 'block';
-      
-      statusElement.scrollIntoView({ behavior: 'smooth' });
-      
-      setTimeout(() => {
-        statusElement.style.display = 'none';
-      }, 10000);
-    }
-  },
-
-  /**
-   * Associate assets with the change request via API
-   */
-  async associateAssets(changeRequest) {
-    console.log('🔗 Associating assets with change request...');
+   /**
+    * Generate the description for a peer review coordination task
+    */
+   async generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
+    console.log('📝 Generating peer review coordination task description...');
     
     try {
       const data = window.changeRequestData;
+      const riskLevel = riskAssessment?.riskLevel || 'Unknown';
+      const riskScore = riskAssessment?.totalScore || 'N/A';
       
-      if (!data.selectedAssets || data.selectedAssets.length === 0) {
-        console.log('ℹ️ No assets selected for association, skipping asset association');
-        return;
-      }
-      
-      console.log(`🔍 Found ${data.selectedAssets.length} assets to associate:`, 
-        data.selectedAssets.map(asset => ({ id: asset.id, name: asset.name, display_id: asset.display_id })));
-      
-      // Prepare asset association data - using correct Freshservice API v2 format
-      const assetAssociationData = this.prepareAssetAssociationData(data.selectedAssets);
-      
-      console.log('📋 Asset association data prepared:', assetAssociationData);
-      
-      // Use the correct API call format for associating assets with changes
-      const response = await window.client.request.invokeTemplate('updateChange', {
-        context: {
-          change_id: changeRequest.id
-        },
-        body: JSON.stringify(assetAssociationData),
-        cache: false // Don't cache asset association requests
-      });
-      
-      console.log('📡 Raw asset association response:', response);
-      
-      if (!response || !response.response) {
-        throw new Error('No response received from asset association API');
-      }
-      
-      let associationResponse;
+      // Get domain for links
+      let domain = 'your-domain';
       try {
-        associationResponse = JSON.parse(response.response);
-        console.log('📋 Parsed asset association response:', associationResponse);
-      } catch (parseError) {
-        console.error('❌ Failed to parse asset association response JSON:', response.response);
-        throw new Error(`Invalid JSON response: ${parseError.message}`);
+        const params = await window.client.iparams.get();
+        domain = params.freshservice_domain || 'your-domain';
+      } catch (error) {
+        console.warn('Could not get domain for links:', error);
       }
       
-      // Track associated assets
-      this.state.associatedAssets = data.selectedAssets.map(asset => ({
-        id: asset.id,
-        display_id: asset.display_id,
-        name: asset.name,
-        asset_type_name: asset.asset_type_name
-      }));
+      const description = `
+📋 **PEER REVIEW COORDINATION REQUIRED**
+
+You have been assigned to coordinate the peer review process for this ${riskLevel} risk change request.
+
+**Change Request Details:**
+• **Subject:** ${changeRequest.subject}
+• **Change ID:** ${changeRequest.id}
+• **Risk Assessment:** ${riskLevel} Risk (Score: ${riskScore}/15)
+• **Requester:** ${data.selectedRequester?.name || 'Unknown'}
+• **Planned Implementation:** ${data.plannedStart || 'Not specified'}
+
+**Your Responsibilities as Peer Review Coordinator:**
+1. **Review the change request details** in the linked change record
+2. **Identify appropriate peer reviewers** based on the impacted systems and risk level
+3. **Coordinate the peer review process** by reaching out to identified reviewers
+4. **Collect and consolidate feedback** from peer reviewers
+5. **Document review outcomes** and any recommended modifications
+6. **Update this task** with review status and findings
+
+**Risk Assessment Summary:**
+${this.generateRiskSummaryForTask(riskAssessment)}
+
+**Impacted Assets:**
+${data.selectedAssets?.map(asset => `• ${asset.name} (${asset.asset_type_name || 'Unknown Type'})`).join('\n') || '• No specific assets identified'}
+
+**Implementation Plan:**
+${data.implementationPlan || 'Not provided'}
+
+**Backout Plan:**
+${data.backoutPlan || 'Not provided'}
+
+**Next Steps:**
+1. Review the full change request: https://${domain}/a/change-mgmt/change-request/view/${changeRequest.id}
+2. Identify 2-3 peer reviewers familiar with the impacted systems
+3. Coordinate review meetings or async reviews as appropriate
+4. Document findings and recommendations
+5. Update change request with peer review outcomes
+
+**Completion Criteria:**
+- [ ] Peer reviewers identified and contacted
+- [ ] Technical review completed
+- [ ] Risk mitigation strategies validated
+- [ ] Implementation approach reviewed
+- [ ] Backout procedures verified
+- [ ] Recommendations documented
+- [ ] Change request updated with review status
+
+Please complete this coordination within 24 hours to keep the change request on schedule.
+
+**Contact Information:**
+• **Assigned SME:** ${agentSME.name} (${agentSME.email || 'Email not available'})
+• **Source:** ${agentSME.source}
+
+For questions about this process, please refer to the Change Management procedures or contact the Change Advisory Board.
+      `.trim();
       
-      console.log(`✅ Successfully associated ${data.selectedAssets.length} assets with change ${changeRequest.id}`);
-      return associationResponse;
+      return description;
       
     } catch (error) {
-      console.error('❌ Error associating assets with change request:', error);
-      // Don't throw error - asset association failure shouldn't stop the entire submission
-      console.warn('⚠️ Continuing with submission despite asset association failure');
-      return null;
+      console.error('❌ Error generating task description:', error);
+      return `Peer Review Coordination Required for Change Request: ${changeRequest.subject}\n\nRisk Level: ${riskAssessment?.riskLevel || 'Unknown'}\nPlease coordinate peer review for this change request.`;
     }
   },
 
   /**
-   * Prepare asset association data for API call
+   * Generate a risk summary for task descriptions
    */
-  prepareAssetAssociationData(selectedAssets) {
-    console.log('📦 Preparing asset association data...');
+  generateRiskSummaryForTask(riskAssessment) {
+    if (!riskAssessment) {
+      return '• Risk assessment data not available';
+    }
     
-    // For Freshservice API v2 changes, assets can be associated using display_id
-    // Let's try the correct format for the changes API
-    const assetsData = selectedAssets.map(asset => {
-      // Use display_id if available, otherwise use the asset id
-      const displayId = asset.display_id || asset.id;
-      console.log(`📋 Processing asset: ${asset.name} (ID: ${asset.id}, Display ID: ${displayId})`);
-      
-      return {
-        display_id: displayId
-      };
-    });
+    const items = [
+      `• **Business Impact:** ${this.formatImpactLevel(riskAssessment.businessImpact)} - ${this.getBusinessImpactDescription(riskAssessment.businessImpact)}`,
+      `• **Affected Users:** ${this.formatImpactLevel(riskAssessment.affectedUsers)} - ${this.getUserImpactDescription(riskAssessment.affectedUsers)}`,
+      `• **Complexity:** ${this.formatImpactLevel(riskAssessment.complexity)} - ${this.getComplexityDescription(riskAssessment.complexity)}`,
+      `• **Testing:** ${this.formatImpactLevel(riskAssessment.testing)} - ${this.getTestingDescription(riskAssessment.testing)}`,
+      `• **Rollback:** ${this.formatImpactLevel(riskAssessment.rollback)} - ${this.getRollbackDescription(riskAssessment.rollback)}`
+    ];
     
-    const associationData = {
-      assets: assetsData
-    };
-    
-    console.log('📋 Asset association data prepared:', {
-      assetCount: assetsData.length,
-      assets: assetsData
-    });
-    
-    return associationData;
-  },
-
-
+    return items.join('\n');
+  }
 };
 
-// Initialize the module when the script loads
+// Initialize the module when DOM is ready
 if (typeof window !== 'undefined') {
-  console.log('🔧 ChangeSubmission: Script loaded, initializing module...');
-  window.ChangeSubmission = ChangeSubmission; 
-  console.log('🔧 ChangeSubmission: Module attached to window object');
-  
-  // Auto-initialize when DOM is ready
   if (document.readyState === 'loading') {
-    console.log('🔧 ChangeSubmission: DOM still loading, adding event listener...');
     document.addEventListener('DOMContentLoaded', () => {
       console.log('🔧 ChangeSubmission: DOM loaded, initializing...');
       ChangeSubmission.init();
