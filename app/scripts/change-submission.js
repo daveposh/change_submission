@@ -2610,14 +2610,21 @@ const ChangeSubmission = {
     const dueDate = new Date();
     dueDate.setHours(dueDate.getHours() + 24);
     
-    // Create task data structure for v2 API - following exact API specification
+          // Create task data structure for v2 API - following exact API specification
+    const description = await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment);
+    
+    // Ensure description is properly escaped for JSON
+    const escapedDescription = description.replace(/[\u0000-\u0019]+/g, "")
+                                        .replace(/\\"/g, '"')
+                                        .replace(/"/g, '\\"');
+    
     const taskData = {
       agent_id: parseInt(agentSME.id), // Ensure it's a number
       status: 1, // 1-Open, 2-In Progress, 3-Completed
       due_date: dueDate.toISOString(),
       notify_before: 0, // Time in seconds before which notification is sent
       title: `Peer Review Coordination Required: ${changeRequest.subject}`,
-      description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
+      description: escapedDescription
     };
     
     try {
