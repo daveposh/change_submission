@@ -2844,12 +2844,13 @@ const ChangeSubmission = {
          description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
        };
        
-       // Create minimal version for testing (similar to your successful manual call)
-       const minimalTaskData = {
+       // Use the successful minimal approach with properly formatted due_date
+       const workingTaskData = {
          agent_id: agentId,
          status: 1,
          title: `Peer Review Coordination Required: ${changeRequest.subject}`,
-         description: "Test description - peer review coordination required"
+         description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
+         due_date: dueDate.toISOString() // Ensure proper ISO 8601 format for Freshservice API
        };
       
       // Add workspace_id based on environment and configuration
@@ -2897,19 +2898,12 @@ const ChangeSubmission = {
          }
        });
        
-       // Log the EXACT request body that will be sent
-       console.log('📋 EXACT REQUEST BODY:', JSON.stringify(taskData, null, 2));
-       console.log('📋 REQUEST BODY SIZE:', JSON.stringify(taskData).length + ' bytes');
-       
-       // Log each field type and value
-       console.log('📋 FIELD VALIDATION:', {
-         agent_id: { value: taskData.agent_id, type: typeof taskData.agent_id, isNumber: typeof taskData.agent_id === 'number' },
-         status: { value: taskData.status, type: typeof taskData.status, isNumber: typeof taskData.status === 'number' },
-         due_date: { value: taskData.due_date, type: typeof taskData.due_date, isString: typeof taskData.due_date === 'string' },
-         notify_before: { value: taskData.notify_before, type: typeof taskData.notify_before, isNumber: typeof taskData.notify_before === 'number' },
-         title: { value: taskData.title?.substring(0, 50) + '...', type: typeof taskData.title, length: taskData.title?.length },
-         description: { hasValue: !!taskData.description, type: typeof taskData.description, length: taskData.description?.length },
-         workspace_id: { value: taskData.workspace_id, type: typeof taskData.workspace_id, isNumber: typeof taskData.workspace_id === 'number' }
+       console.log('📋 Task data prepared:', {
+         agentId: workingTaskData.agent_id,
+         title: workingTaskData.title.substring(0, 50) + '...',
+         status: workingTaskData.status,
+         dueDate: workingTaskData.due_date,
+         hasDescription: !!workingTaskData.description
        });
        
        let response;
@@ -2924,13 +2918,13 @@ const ChangeSubmission = {
            try {
              console.log(`📡 API attempt ${retryCount + 1}/${maxRetries + 1}...`);
              
-             // Try minimal request first (similar to successful manual call)
-             console.log('📡 Attempting MINIMAL request first...');
+             // Use the working minimal approach
+             console.log('📡 Using proven working approach...');
              response = await window.client.request.invokeTemplate('createChangeTask', {
                context: {
                  change_id: changeRequest.id  // ESSENTIAL: Change ID required for /api/v2/changes/{change_id}/tasks endpoint
                },
-               body: JSON.stringify(minimalTaskData),
+               body: JSON.stringify(workingTaskData),
                cache: false
              });
              
@@ -3208,8 +3202,290 @@ For questions about this process, please refer to the Change Management procedur
       `• **Rollback:** ${this.formatImpactLevel(riskAssessment.rollback)} - ${this.getRollbackDescription(riskAssessment.rollback)}`
     ];
     
-    return items.join('\n');
-  }
+         return items.join('\n');
+   },
+
+   /**
+    * Show submission progress modal
+    */
+   showSubmissionProgressModal() {
+     console.log('📊 Showing submission progress modal...');
+     try {
+       const modal = document.getElementById('submission-progress-modal');
+       if (modal) {
+         // Reset modal state
+         this.updateOverallProgress(0);
+         this.resetAllSteps();
+         
+         // Show modal using Bootstrap
+         const bootstrapModal = new bootstrap.Modal(modal, {
+           backdrop: 'static',
+           keyboard: false
+         });
+         bootstrapModal.show();
+         
+         this.state.progressModal = bootstrapModal;
+         console.log('✅ Submission progress modal displayed');
+       } else {
+         console.error('❌ Submission progress modal not found in DOM');
+       }
+     } catch (error) {
+       console.error('❌ Error showing submission progress modal:', error);
+     }
+   },
+
+   /**
+    * Hide submission progress modal
+    */
+   hideSubmissionProgressModal() {
+     console.log('📊 Hiding submission progress modal...');
+     try {
+       if (this.state.progressModal) {
+         this.state.progressModal.hide();
+         this.state.progressModal = null;
+       }
+       
+       // Ensure page is enabled after modal closes
+       setTimeout(() => {
+         this.ensurePageEnabled();
+       }, 300);
+       
+       console.log('✅ Submission progress modal hidden');
+     } catch (error) {
+       console.error('❌ Error hiding submission progress modal:', error);
+     }
+   },
+
+   /**
+    * Update submission progress for a specific step
+    */
+   updateSubmissionProgress(stepId, status, message) {
+     console.log(`📊 Step ${stepId} updated to ${status}: ${message}`);
+     
+     try {
+       const stepElement = document.getElementById(`step-${stepId}`);
+       if (!stepElement) {
+         console.warn(`⚠️ Step element not found: step-${stepId}`);
+         return;
+       }
+       
+       // Remove all status classes
+       stepElement.classList.remove('active', 'completed', 'error');
+       
+       // Add new status class
+       stepElement.classList.add(status);
+       
+       // Update icons
+       const icons = stepElement.querySelectorAll('.step-icon i');
+       icons.forEach(icon => icon.style.display = 'none');
+       
+       switch (status) {
+         case 'active':
+           const spinIcon = stepElement.querySelector('.fa-circle-notch');
+           if (spinIcon) spinIcon.style.display = 'inline-block';
+           break;
+         case 'completed':
+           const checkIcon = stepElement.querySelector('.fa-check-circle');
+           if (checkIcon) checkIcon.style.display = 'inline-block';
+           break;
+         case 'error':
+           const errorIcon = stepElement.querySelector('.fa-exclamation-circle');
+           if (errorIcon) errorIcon.style.display = 'inline-block';
+           break;
+         default:
+           const defaultIcon = stepElement.querySelector('.fa-circle');
+           if (defaultIcon) defaultIcon.style.display = 'inline-block';
+       }
+       
+       // Update step description with message
+       const descElement = stepElement.querySelector('.step-description');
+       if (descElement && message) {
+         descElement.textContent = message;
+       }
+       
+     } catch (error) {
+       console.error(`❌ Error updating step ${stepId}:`, error);
+     }
+   },
+
+   /**
+    * Update overall progress percentage
+    */
+   updateOverallProgress(percent) {
+     console.log(`📊 Overall progress updated to ${percent}%`);
+     
+     try {
+       const progressBar = document.getElementById('overall-progress-bar');
+       const progressPercent = document.getElementById('overall-progress-percent');
+       const overallStatus = document.getElementById('overall-status');
+       
+       if (progressBar) {
+         progressBar.style.width = `${percent}%`;
+         progressBar.setAttribute('aria-valuenow', percent);
+       }
+       
+       if (progressPercent) {
+         progressPercent.textContent = `${percent}%`;
+       }
+       
+       if (overallStatus) {
+         if (percent === 0) {
+           overallStatus.textContent = 'Initializing submission...';
+         } else if (percent < 100) {
+           overallStatus.textContent = 'Processing your change request...';
+         } else {
+           overallStatus.textContent = 'Submission completed successfully!';
+         }
+       }
+       
+     } catch (error) {
+       console.error('❌ Error updating overall progress:', error);
+     }
+   },
+
+   /**
+    * Reset all steps to initial state
+    */
+   resetAllSteps() {
+     console.log('🔄 Resetting all submission steps...');
+     
+     try {
+       const steps = ['validation', 'risk-assessment', 'creating-change', 'associating-assets', 'creating-tasks', 'notifications'];
+       
+       steps.forEach(stepId => {
+         const stepElement = document.getElementById(`step-${stepId}`);
+         if (stepElement) {
+           // Remove all status classes
+           stepElement.classList.remove('active', 'completed', 'error');
+           
+           // Hide all icons except default
+           const icons = stepElement.querySelectorAll('.step-icon i');
+           icons.forEach(icon => icon.style.display = 'none');
+           
+           const defaultIcon = stepElement.querySelector('.fa-circle');
+           if (defaultIcon) defaultIcon.style.display = 'inline-block';
+           
+           // Reset description to original
+           const descElement = stepElement.querySelector('.step-description');
+           if (descElement) {
+             const descriptions = {
+               'validation': 'Checking all required fields and data integrity',
+               'risk-assessment': 'Calculating risk scores and determining approval workflow',
+               'creating-change': 'Creating the change request in Freshservice',
+               'associating-assets': 'Linking selected assets to the change request',
+               'creating-tasks': 'Setting up approval workflow and peer review tasks',
+               'notifications': 'Sending notifications to stakeholders'
+             };
+             descElement.textContent = descriptions[stepId] || 'Processing...';
+           }
+         }
+       });
+       
+     } catch (error) {
+       console.error('❌ Error resetting steps:', error);
+     }
+   },
+
+   /**
+    * Show submission error in progress modal
+    */
+   showSubmissionProgressError(error) {
+     console.error('📊 Showing submission error in modal:', error);
+     
+     try {
+       // Update overall status
+       const overallStatus = document.getElementById('overall-status');
+       if (overallStatus) {
+         overallStatus.textContent = 'Submission failed. Please review the error and try again.';
+         overallStatus.className = 'text-danger small';
+       }
+       
+       // Show error details
+       const errorDetails = document.getElementById('submission-error-details');
+       const errorMessage = document.getElementById('error-message');
+       
+       if (errorDetails && errorMessage) {
+         errorMessage.textContent = error.message || 'An unexpected error occurred during submission.';
+         errorDetails.style.display = 'block';
+       }
+       
+       // Show close/retry buttons
+       const cancelBtn = document.getElementById('cancel-submission');
+       const closeBtn = document.getElementById('close-progress');
+       
+       if (cancelBtn) {
+         cancelBtn.style.display = 'inline-block';
+         cancelBtn.textContent = 'Close';
+       }
+       
+       if (closeBtn) {
+         closeBtn.style.display = 'inline-block';
+       }
+       
+     } catch (err) {
+       console.error('❌ Error showing submission error:', err);
+     }
+   },
+
+   /**
+    * Show submission success
+    */
+   showSubmissionSuccess(changeRequest) {
+     console.log('🎉 Showing submission success for change:', changeRequest);
+     
+     try {
+       // Hide progress modal first
+       this.hideSubmissionProgressModal();
+       
+       // Show success modal (if it exists)
+       const successModal = document.getElementById('success-modal');
+       if (successModal) {
+         const modal = new bootstrap.Modal(successModal);
+         modal.show();
+         
+         // Update success content
+         const successContent = document.getElementById('success-content');
+         if (successContent) {
+           successContent.innerHTML = `
+             <div class="text-center mb-4">
+               <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+               <h4 class="mt-3 text-success">Change Request Created Successfully!</h4>
+             </div>
+             
+             <div class="row">
+               <div class="col-md-6">
+                 <strong>Change ID:</strong><br>
+                 <span class="text-primary">${changeRequest.display_id || changeRequest.id}</span>
+               </div>
+               <div class="col-md-6">
+                 <strong>Subject:</strong><br>
+                 ${changeRequest.subject}
+               </div>
+             </div>
+             
+             <div class="alert alert-info mt-3">
+               <i class="fas fa-info-circle me-2"></i>
+               Your change request has been submitted and is now in the approval workflow.
+               Stakeholders have been notified automatically.
+             </div>
+           `;
+         }
+         
+         // Update view change button
+         const viewBtn = document.getElementById('view-change-btn');
+         if (viewBtn && changeRequest.id) {
+           viewBtn.href = `https://your-domain.freshservice.com/a/changes/${changeRequest.id}`;
+         }
+       } else {
+         // Fallback: show simple notification
+         console.log('✅ Change request submitted successfully:', changeRequest);
+         alert(`Change request "${changeRequest.subject}" submitted successfully!\nChange ID: ${changeRequest.display_id || changeRequest.id}`);
+       }
+       
+     } catch (error) {
+       console.error('❌ Error showing submission success:', error);
+     }
+   }
 };
 
 // Initialize the module when DOM is ready
