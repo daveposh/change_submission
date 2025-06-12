@@ -13,6 +13,10 @@
   justify-content: center;
 }
 
+[data-bs-theme="dark"] .initialization-overlay {
+  background: rgba(45, 55, 72, 0.95);
+}
+
 .initialization-overlay.fade-out {
   animation: overlayFadeOut 0.5s ease-in-out forwards;
 }
@@ -105,6 +109,13 @@ body {
   padding: 0;
   color: #333;
   line-height: 1.5;
+  background-color: #ffffff;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+[data-bs-theme="dark"] body {
+  background-color: #212529;
+  color: #e9ecef;
 }
 
 /* Bootstrap enhancing styles */
@@ -655,6 +666,12 @@ html {
   margin-bottom: 0.5rem;
 }
 
+[data-bs-theme="dark"] .search-loading.live-search {
+  background: linear-gradient(135deg, #1e3a8a 0%, #7c2d93 100%);
+  border-color: #60a5fa;
+  color: #e2e8f0;
+}
+
 .search-loading.live-search .spinner-border {
   animation: live-search-pulse 1.5s ease-in-out infinite;
 }
@@ -662,6 +679,10 @@ html {
 .search-loading.live-search span {
   font-weight: 500;
   font-size: 0.9rem;
+}
+
+[data-bs-theme="dark"] .search-loading.live-search span {
+  color: #e2e8f0;
 }
 
 /* Live search pulse animation */
@@ -688,16 +709,33 @@ html {
   font-size: 0.9rem;
 }
 
+[data-bs-theme="dark"] .search-hint {
+  background-color: #374151;
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
 /* Enhanced search input styling for live search */
 .search-input-container input:focus {
   border-color: #2196f3;
   box-shadow: 0 0 0 0.2rem rgba(33, 150, 243, 0.25);
 }
 
+[data-bs-theme="dark"] .search-input-container input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 0.2rem rgba(96, 165, 250, 0.25);
+}
+
 /* Live search active state */
 .search-input-container.live-search-active input {
   border-color: #2196f3;
   background-color: #f8f9ff;
+}
+
+[data-bs-theme="dark"] .search-input-container.live-search-active input {
+  border-color: #60a5fa;
+  background-color: #1e3a8a;
+  color: #e2e8f0;
 }
 
 .search-input-container.live-search-active::after {
@@ -709,6 +747,10 @@ html {
   color: #2196f3;
   font-size: 1.2rem;
   pointer-events: none;
+}
+
+[data-bs-theme="dark"] .search-input-container.live-search-active::after {
+  color: #60a5fa;
 }
 
 /* Impacted Services Styles */

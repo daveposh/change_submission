@@ -3,7 +3,7 @@
 // Force refresh timestamp: <?= new Date().getTime() ?>
 
 console.log('🔄 Cache buster loaded - forcing fresh script execution');
-console.log('📋 Change Submission Version: 2.8.4 - Fixed User Selection Dark Mode Contrast');
+console.log('📋 Change Submission Version: 2.8.5 - Fixed Loading Screen & Live Search Dark Mode');
 
 // Clear any cached stakeholder notification functions
 if (window.ChangeSubmission) {
