@@ -227,6 +227,12 @@ h3 {
   padding: 10px;
 }
 
+[data-bs-theme="dark"] .selected-user {
+  background: #2d3748;
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
 .input-group .input-group-text {
   background-color: #f8f9fa;
   border-left: none;

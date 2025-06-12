@@ -338,6 +338,12 @@
   margin-top: 0.5rem;
 }
 
+[data-bs-theme="dark"] .selected-user {
+  background: #2d3748;
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
 .selected-user .badge {
   font-size: 0.75em;
   padding: 0.35em 0.65em;
@@ -354,7 +360,89 @@
   font-size: 1.1em;
 }
 
+[data-bs-theme="dark"] .selected-user strong {
+  color: #f3f4f6;
+}
+
 .selected-user .text-muted {
   color: #6c757d !important;
   font-size: 0.9em;
+}
+
+[data-bs-theme="dark"] .selected-user .text-muted {
+  color: #9ca3af !important;
+}
+
+/* Dark mode for user search results and list items */
+[data-bs-theme="dark"] .list-group-item-action {
+  background-color: #2d3748;
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
+[data-bs-theme="dark"] .list-group-item-action:hover {
+  background-color: #374151;
+  border-color: #6b7280;
+}
+
+/* Dark mode badge styling */
+[data-bs-theme="dark"] .list-group-item .badge.bg-secondary {
+  background-color: #6b7280 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .list-group-item .badge.bg-success {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .list-group-item .badge.bg-warning {
+  background-color: #d97706 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .list-group-item .badge.bg-primary {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .list-group-item .badge.bg-info {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .selected-user .badge.bg-secondary {
+  background-color: #6b7280 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .selected-user .badge.bg-success {
+  background-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .selected-user .badge.bg-warning {
+  background-color: #d97706 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .selected-user .badge.bg-primary {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .selected-user .badge.bg-info {
+  background-color: #0891b2 !important;
+  color: #ffffff !important;
+}
+
+/* Dark mode for custom badge colors */
+[data-bs-theme="dark"] .badge.bg-purple {
+  background-color: #8b5cf6 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .badge.bg-orange {
+  background-color: #ea580c !important;
+  color: #ffffff !important;
 } 
