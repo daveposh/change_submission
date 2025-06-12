@@ -2834,15 +2834,23 @@ const ChangeSubmission = {
         params = {};
       }
       
-      // Create task data structure for v2 API - following exact API specification
-      const taskData = {
-        agent_id: agentId,
-        status: 1, // 1-Open, 2-In Progress, 3-Completed
-        due_date: dueDate.toISOString(),
-        notify_before: 0, // Time in seconds before which notification is sent
-        title: `Peer Review Coordination Required: ${changeRequest.subject}`,
-        description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
-      };
+             // Create task data structure for v2 API - following exact API specification
+       const taskData = {
+         agent_id: agentId,
+         status: 1, // 1-Open, 2-In Progress, 3-Completed
+         due_date: dueDate.toISOString(),
+         notify_before: 0, // Time in seconds before which notification is sent
+         title: `Peer Review Coordination Required: ${changeRequest.subject}`,
+         description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment)
+       };
+       
+       // Create minimal version for testing (similar to your successful manual call)
+       const minimalTaskData = {
+         agent_id: agentId,
+         status: 1,
+         title: `Peer Review Coordination Required: ${changeRequest.subject}`,
+         description: "Test description - peer review coordination required"
+       };
       
       // Add workspace_id based on environment and configuration
       if (changeRequest.workspace_id) {
@@ -2874,19 +2882,76 @@ const ChangeSubmission = {
         hasWorkspaceId: !!taskData.workspace_id
       });
       
-      // CRITICAL: Use change-specific task creation endpoint with change_id context
-      console.log('📡 Attempting change task creation with change_id context...');
-      let response;
-      let createdTask;
-      
-      try {
-        response = await window.client.request.invokeTemplate('createChangeTask', {
-          context: {
-            change_id: changeRequest.id  // ESSENTIAL: Change ID required for /api/v2/changes/{change_id}/tasks endpoint
-          },
-          body: JSON.stringify(taskData),
-          cache: false
-        });
+             // CRITICAL: Use change-specific task creation endpoint with change_id context
+       console.log('📡 Attempting change task creation with change_id context...');
+       console.log('🔍 DEBUG: Full API call details:', {
+         template: 'createChangeTask',
+         endpoint: `/api/v2/changes/${changeRequest.id}/tasks`,
+         changeId: changeRequest.id,
+         method: 'POST',
+         bodyPreview: {
+           agent_id: taskData.agent_id,
+           title: taskData.title,
+           status: taskData.status,
+           workspace_id: taskData.workspace_id
+         }
+       });
+       
+       // Log the EXACT request body that will be sent
+       console.log('📋 EXACT REQUEST BODY:', JSON.stringify(taskData, null, 2));
+       console.log('📋 REQUEST BODY SIZE:', JSON.stringify(taskData).length + ' bytes');
+       
+       // Log each field type and value
+       console.log('📋 FIELD VALIDATION:', {
+         agent_id: { value: taskData.agent_id, type: typeof taskData.agent_id, isNumber: typeof taskData.agent_id === 'number' },
+         status: { value: taskData.status, type: typeof taskData.status, isNumber: typeof taskData.status === 'number' },
+         due_date: { value: taskData.due_date, type: typeof taskData.due_date, isString: typeof taskData.due_date === 'string' },
+         notify_before: { value: taskData.notify_before, type: typeof taskData.notify_before, isNumber: typeof taskData.notify_before === 'number' },
+         title: { value: taskData.title?.substring(0, 50) + '...', type: typeof taskData.title, length: taskData.title?.length },
+         description: { hasValue: !!taskData.description, type: typeof taskData.description, length: taskData.description?.length },
+         workspace_id: { value: taskData.workspace_id, type: typeof taskData.workspace_id, isNumber: typeof taskData.workspace_id === 'number' }
+       });
+       
+       let response;
+       let createdTask;
+       
+       try {
+         // Try with retry mechanism since this was working yesterday
+         let retryCount = 0;
+         const maxRetries = 2;
+         
+         while (retryCount <= maxRetries) {
+           try {
+             console.log(`📡 API attempt ${retryCount + 1}/${maxRetries + 1}...`);
+             
+             // Try minimal request first (similar to successful manual call)
+             console.log('📡 Attempting MINIMAL request first...');
+             response = await window.client.request.invokeTemplate('createChangeTask', {
+               context: {
+                 change_id: changeRequest.id  // ESSENTIAL: Change ID required for /api/v2/changes/{change_id}/tasks endpoint
+               },
+               body: JSON.stringify(minimalTaskData),
+               cache: false
+             });
+             
+             // If we get here, the call succeeded
+             break;
+             
+           } catch (retryError) {
+             console.warn(`⚠️ API attempt ${retryCount + 1} failed:`, retryError.message);
+             retryCount++;
+             
+             if (retryCount <= maxRetries) {
+               // Wait before retry (exponential backoff)
+               const waitTime = Math.pow(2, retryCount) * 1000; // 2s, 4s
+               console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+               await new Promise(resolve => setTimeout(resolve, waitTime));
+             } else {
+               // All retries exhausted, throw the last error
+               throw retryError;
+             }
+           }
+         }
         
         console.log('📡 Change task creation response received:', {
           hasResponse: !!response,
@@ -2911,8 +2976,34 @@ const ChangeSubmission = {
         
         throw new Error('Change task creation succeeded but returned unexpected structure');
         
-      } catch (changeTaskError) {
-        console.warn('⚠️ Change task creation failed, trying fallback method:', changeTaskError.message);
+             } catch (changeTaskError) {
+         console.warn('⚠️ Change task creation failed, trying fallback method:', changeTaskError.message);
+         
+         // Enhanced diagnostics for 500 errors
+         if (changeTaskError.status === 500) {
+           console.error('🚨 500 INTERNAL SERVER ERROR - This suggests a Freshservice API issue');
+           console.error('📋 Environment diagnostics:', {
+             changeId: changeRequest.id,
+             agentId: taskData.agent_id,
+             endpoint: `/api/v2/changes/${changeRequest.id}/tasks`,
+             workspaceId: taskData.workspace_id,
+             hasWorkspace: !!taskData.workspace_id,
+             taskDataKeys: Object.keys(taskData),
+             bodySize: JSON.stringify(taskData).length
+           });
+           
+           // Check if it's a specific API issue
+           try {
+             const params = await window.client.iparams.get();
+             console.error('📋 API configuration check:', {
+               hasDomain: !!params.freshservice_domain,
+               hasApiKey: !!params.api_key,
+               domain: params.freshservice_domain
+             });
+           } catch (paramError) {
+             console.error('📋 Could not check API configuration:', paramError);
+           }
+         }
         
         // Fallback: Try creating a regular ticket/task (not attached to change)
         console.log('📡 Attempting fallback ticket creation...');
