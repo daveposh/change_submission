@@ -3,7 +3,7 @@
 // Force refresh timestamp: <?= new Date().getTime() ?>
 
 console.log('🔄 Cache buster loaded - forcing fresh script execution');
-console.log('📋 Change Submission Version: 2.6.0 - Guided Tour Feature Removed');
+console.log('📋 Change Submission Version: 2.7.0 - Enhanced with Guided Tour & Submission Progress');
 
 // Clear any cached stakeholder notification functions
 if (window.ChangeSubmission) {

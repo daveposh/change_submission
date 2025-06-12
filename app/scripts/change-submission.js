@@ -200,56 +200,76 @@ const ChangeSubmission = {
 
     console.log('🚀 Starting change request submission workflow...');
     this.state.isSubmitting = true;
-    this.showSubmissionStatus(true);
+    this.showSubmissionProgressModal();
 
     try {
       // Step 1: Validate all form data
+      this.updateSubmissionProgress('validation', 'active', 'Validating request data...');
       console.log('📋 Step 1: Validating form data...');
       const validationResult = this.validateSubmissionData();
       if (!validationResult.isValid) {
+        this.updateSubmissionProgress('validation', 'error', 'Validation failed');
         throw new Error(`Validation failed: ${validationResult.message}`);
       }
+      this.updateSubmissionProgress('validation', 'completed', 'Validation completed successfully');
+      this.updateOverallProgress(16);
 
-      // Step 2: Prepare change request data
-      console.log('📦 Step 2: Preparing change request data...');
+      // Step 2: Process risk assessment
+      this.updateSubmissionProgress('risk-assessment', 'active', 'Processing risk assessment...');
+      console.log('📋 Step 2: Processing risk assessment...');
       const changeRequestData = await this.prepareChangeRequestData();
+      this.updateSubmissionProgress('risk-assessment', 'completed', 'Risk assessment processed');
+      this.updateOverallProgress(33);
 
       // Step 3: Create the change request
+      this.updateSubmissionProgress('creating-change', 'active', 'Creating change request...');
       console.log('🎯 Step 3: Creating change request in Freshservice...');
       const changeRequest = await this.createChangeRequest(changeRequestData);
       this.state.submissionId = changeRequest.id;
+      this.updateSubmissionProgress('creating-change', 'completed', 'Change request created successfully');
+      this.updateOverallProgress(50);
 
-      // Step 4: Associate assets with the change request (early for stakeholder identification)
+      // Step 4: Associate assets with the change request
+      this.updateSubmissionProgress('associating-assets', 'active', 'Associating assets...');
       console.log('🔗 Step 4: Associating assets with change request...');
       await this.associateAssets(changeRequest);
+      this.updateSubmissionProgress('associating-assets', 'completed', 'Assets associated successfully');
+      this.updateOverallProgress(67);
 
-      // Step 5: Create approval workflow (handled by workflow automator)
+      // Step 5: Create approval workflow and tasks
+      this.updateSubmissionProgress('creating-tasks', 'active', 'Setting up approval workflow...');
       console.log('✅ Step 5: Approval workflow configured via custom fields...');
       console.log('🤖 Workflow automator will process lf_technical_owner and lf_additional_approver_* fields');
-      // Skip API-based approval creation since workflow automator handles this
+      
+      // Create peer review task if needed
+      console.log('👥 Creating peer review task if needed...');
+      await this.createPeerReviewTasks(changeRequest);
+      this.updateSubmissionProgress('creating-tasks', 'completed', 'Approval workflow configured');
+      this.updateOverallProgress(84);
 
-      // Step 6: Create stakeholder notification note (after change creation with change ID)
+      // Step 6: Send notifications
+      this.updateSubmissionProgress('notifications', 'active', 'Sending notifications...');
       console.log('📧 Step 6: Creating stakeholder notification note...');
       await this.sendStakeholderNotifications(changeRequest);
-
-      // Step 7: Create peer review task if needed
-      console.log('👥 Step 7: Creating peer review task if needed...');
-      await this.createPeerReviewTasks(changeRequest);
-
-      // Step 8: Update change request with additional metadata
-      console.log('🔄 Step 8: Updating change request with workflow data...');
+      
+      // Update change request with additional metadata
+      console.log('🔄 Updating change request with workflow data...');
       await this.updateChangeRequestMetadata(changeRequest);
+      this.updateSubmissionProgress('notifications', 'completed', 'Notifications sent successfully');
+      this.updateOverallProgress(100);
 
-      // Step 9: Show success and redirect
-      console.log('🎉 Step 9: Submission completed successfully!');
-      await this.showSubmissionSuccess(changeRequest);
+      // Step 7: Show success
+      console.log('🎉 Submission completed successfully!');
+      setTimeout(() => {
+        this.hideSubmissionProgressModal();
+        this.showSubmissionSuccess(changeRequest);
+      }, 1000);
 
     } catch (error) {
       console.error('❌ Error during change request submission:', error);
-      this.showSubmissionError(error);
+      this.showSubmissionProgressError(error);
     } finally {
       this.state.isSubmitting = false;
-      this.showSubmissionStatus(false);
     }
   },
 
@@ -4231,6 +4251,189 @@ const ChangeSubmission = {
     if (statusElement) {
       statusElement.style.display = show ? 'block' : 'none';
     }
+  },
+
+  /**
+   * Show submission progress modal
+   */
+  showSubmissionProgressModal() {
+    const modal = document.getElementById('submission-progress-modal');
+    if (modal) {
+      // Reset all steps to initial state
+      this.resetSubmissionProgress();
+      
+      // Show the modal
+      const bootstrapModal = new bootstrap.Modal(modal, {
+        backdrop: 'static',
+        keyboard: false
+      });
+      bootstrapModal.show();
+      
+      // Store modal instance for later use
+      this.progressModal = bootstrapModal;
+      
+      console.log('📊 Submission progress modal displayed');
+    }
+  },
+
+  /**
+   * Hide submission progress modal
+   */
+  hideSubmissionProgressModal() {
+    if (this.progressModal) {
+      this.progressModal.hide();
+      this.progressModal = null;
+    }
+  },
+
+  /**
+   * Reset submission progress to initial state
+   */
+  resetSubmissionProgress() {
+    const steps = ['validation', 'risk-assessment', 'creating-change', 'associating-assets', 'creating-tasks', 'notifications'];
+    
+    steps.forEach(stepId => {
+      const stepElement = document.getElementById(`step-${stepId}`);
+      if (stepElement) {
+        // Remove status classes
+        stepElement.classList.remove('active', 'completed', 'error');
+        
+        // Reset icons
+        const icons = stepElement.querySelectorAll('.step-icon i');
+        icons.forEach(icon => icon.style.display = 'none');
+        
+        // Show default icon
+        const defaultIcon = stepElement.querySelector('.step-icon .fa-circle');
+        if (defaultIcon) defaultIcon.style.display = 'inline';
+      }
+    });
+
+    // Reset overall progress
+    this.updateOverallProgress(0);
+    document.getElementById('overall-status').textContent = 'Initializing submission...';
+    
+    // Hide error details
+    const errorDetails = document.getElementById('submission-error-details');
+    if (errorDetails) errorDetails.style.display = 'none';
+    
+    // Show/hide buttons
+    const cancelBtn = document.getElementById('cancel-submission');
+    const closeBtn = document.getElementById('close-progress');
+    if (cancelBtn) cancelBtn.style.display = 'inline-block';
+    if (closeBtn) closeBtn.style.display = 'none';
+  },
+
+  /**
+   * Update progress for a specific step
+   */
+  updateSubmissionProgress(stepId, status, message) {
+    const stepElement = document.getElementById(`step-${stepId}`);
+    if (!stepElement) return;
+
+    // Remove previous status classes
+    stepElement.classList.remove('active', 'completed', 'error');
+    
+    // Add new status class
+    stepElement.classList.add(status);
+
+    // Update icons
+    const icons = stepElement.querySelectorAll('.step-icon i');
+    icons.forEach(icon => icon.style.display = 'none');
+
+    let activeIcon;
+    switch (status) {
+      case 'active':
+        activeIcon = stepElement.querySelector('.step-icon .fa-circle-notch');
+        if (activeIcon) activeIcon.style.display = 'inline';
+        break;
+      case 'completed':
+        activeIcon = stepElement.querySelector('.step-icon .fa-check-circle');
+        if (activeIcon) activeIcon.style.display = 'inline';
+        break;
+      case 'error':
+        activeIcon = stepElement.querySelector('.step-icon .fa-exclamation-circle');
+        if (activeIcon) activeIcon.style.display = 'inline';
+        break;
+    }
+
+    // Update step description if message provided
+    if (message) {
+      const descElement = stepElement.querySelector('.step-description');
+      if (descElement) {
+        descElement.textContent = message;
+      }
+    }
+
+    // Update overall status message
+    if (status === 'active') {
+      document.getElementById('overall-status').textContent = message || 'Processing...';
+    }
+
+    console.log(`📊 Step ${stepId} updated to ${status}: ${message}`);
+  },
+
+  /**
+   * Update overall progress bar
+   */
+  updateOverallProgress(percentage) {
+    const progressBar = document.getElementById('overall-progress-bar');
+    const progressPercent = document.getElementById('overall-progress-percent');
+    
+    if (progressBar) {
+      progressBar.style.width = `${percentage}%`;
+      progressBar.setAttribute('aria-valuenow', percentage);
+    }
+    
+    if (progressPercent) {
+      progressPercent.textContent = `${percentage}%`;
+    }
+
+    console.log(`📊 Overall progress updated to ${percentage}%`);
+  },
+
+  /**
+   * Show submission progress error
+   */
+  showSubmissionProgressError(error) {
+    // Update overall status
+    document.getElementById('overall-status').textContent = 'Submission failed - see details below';
+    
+    // Show error details
+    const errorDetails = document.getElementById('submission-error-details');
+    const errorMessage = document.getElementById('error-message');
+    
+    if (errorDetails && errorMessage) {
+      errorMessage.textContent = error.message || 'An unexpected error occurred during submission';
+      errorDetails.style.display = 'block';
+    }
+
+    // Update buttons
+    const cancelBtn = document.getElementById('cancel-submission');
+    const closeBtn = document.getElementById('close-progress');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    if (closeBtn) closeBtn.style.display = 'inline-block';
+
+    // Stop progress bar animation
+    const progressBar = document.getElementById('overall-progress-bar');
+    if (progressBar) {
+      progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+      progressBar.classList.add('bg-danger');
+    }
+
+    console.error('📊 Submission progress error displayed:', error);
+  },
+
+  /**
+   * Retry submission after error
+   */
+  retrySubmission() {
+    console.log('🔄 Retrying submission...');
+    this.hideSubmissionProgressModal();
+    
+    // Wait a moment for modal to close, then retry
+    setTimeout(() => {
+      this.handleSubmission();
+    }, 300);
   },
 
   /**
