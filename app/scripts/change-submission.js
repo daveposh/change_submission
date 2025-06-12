@@ -4127,58 +4127,28 @@ For questions about this process, please refer to the Change Management procedur
      */
     async associateAssets(changeId) {
       try {
-        console.log('🔗 Starting asset association for change request:', changeId);
+        console.log('🔗 Confirming asset association for change request:', changeId);
         
         // Get impacted assets from step 3
         const impactedAssets = window.changeRequestData?.impactedAssets || [];
         
         if (!impactedAssets || impactedAssets.length === 0) {
-          console.log('ℹ️ No assets to associate with change request');
+          console.log('ℹ️ No assets were selected for this change request');
           return true;
         }
         
-        console.log(`📋 Found ${impactedAssets.length} assets to associate:`, impactedAssets);
-        
-        // For now, assets are typically included in the initial change request creation
-        // or managed through Freshservice workflows. Log the assets for reference.
+        // Assets were already included in the change request creation
+        // Just log for confirmation
         const assetSummary = impactedAssets.map(asset => ({
           id: asset.id,
           name: asset.name,
           display_id: asset.asset_display_id || asset.display_id,
-          impact_type: asset.impact_type || 'affected',
-          asset_type: asset.asset_type_name || 'Unknown'
+          impact_type: asset.impact_type || 'affected'
         }));
         
-        console.log('📋 Assets associated with change request:', assetSummary);
+        console.log(`✅ Assets already associated during change creation: ${assetSummary.length} assets`);
+        console.log('📋 Asset details:', assetSummary);
         
-        // Create a note in the change request with asset details
-        try {
-          const assetList = assetSummary.map(asset => 
-            `• ${asset.name} (${asset.display_id}) - ${asset.asset_type} [${asset.impact_type}]`
-          ).join('\n');
-          
-          const noteData = {
-            body: `<h4>Impacted Assets</h4><p>The following assets are impacted by this change:</p><pre>${assetList}</pre>`,
-            notify_emails: []
-          };
-          
-          const noteResponse = await client.request.invokeTemplate('createChangeNote', {
-            context: {
-              change_id: changeId
-            },
-            body: JSON.stringify(noteData)
-          });
-          
-          if (noteResponse && noteResponse.response) {
-            console.log('✅ Asset details added to change request as note');
-          }
-          
-        } catch (noteError) {
-          console.warn('⚠️ Could not add asset note to change request:', noteError);
-        }
-        
-        // Simulate successful association since assets were captured in the change request
-        console.log(`✅ Asset association completed for ${impactedAssets.length} assets`);
         return true;
         
       } catch (error) {
