@@ -785,11 +785,20 @@ class GuidedTourManager {
              </ul>
              <br><strong>Remember:</strong> The system automatically saves your progress, so you can always come back to finish a request later.
              <br><br>Click the <strong>Help button</strong> anytime to restart this tutorial!`,
+      cancelIcon: {
+        enabled: true,
+        label: 'Close Tutorial'
+      },
       buttons: [
         {
           text: 'Previous',
           classes: 'shepherd-button-secondary',
           action: () => this.tour.back()
+        },
+        {
+          text: 'Close Tutorial',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.cancel()
         },
         {
           text: 'Finish & Start Creating!',
