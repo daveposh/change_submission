@@ -228,7 +228,10 @@ class GuidedTourManager {
     // Change type selection
     this.tour.addStep({
       title: 'Select Change Type',
-      text: 'Let\'s select "Normal Change" for our security patch example. This affects approval workflows and lead times.',
+      text: `We have two change types available:
+             <br><br><strong>Normal Change:</strong> Planned changes with proper lead time and approval workflow
+             <br><strong>Emergency Change:</strong> Urgent changes requiring immediate implementation
+             <br><br>Let's select "Normal Change" for our security patch example.`,
       attachTo: {
         element: '#change-type',
         on: 'left'
@@ -570,13 +573,17 @@ class GuidedTourManager {
       text: `Approvers are specific stakeholders with decision-making authority:
              <br><br><strong>Approval Types:</strong>
              <ul style="text-align: left; margin-top: 10px;">
-               <li><strong>Business Approval:</strong> Service owners approve business impact</li>
-               <li><strong>Technical Approval:</strong> Technical leads approve implementation</li>
-               <li><strong>CAB Approval:</strong> Change Advisory Board for high-risk changes</li>
-               <li><strong>Emergency Approval:</strong> Emergency change authority for urgent changes</li>
+               <li><strong>Technical Owner Approval:</strong> Technical leads approve implementation details</li>
+               <li><strong>Peer Review:</strong> SME coordination for medium/high risk changes</li>
+               <li><strong>High Risk CAB:</strong> Change Advisory Board for high-risk changes</li>
+               <li><strong>Emergency Authority:</strong> For emergency changes requiring immediate action</li>
              </ul>
-             <br><strong>Approval Workflow:</strong> Determined by change type, risk level, and impacted services.
-             <br><strong>Parallel vs Sequential:</strong> Some approvals can happen simultaneously, others require order.`,
+             <br><strong>Workflow States:</strong>
+             <ul style="text-align: left; margin-top: 5px;">
+               <li><strong>Pending Review:</strong> Peer review coordination phase</li>
+               <li><strong>Pending Approval:</strong> Technical owner approval phase</li>
+               <li><strong>Scheduled:</strong> All approvals obtained, ready for implementation</li>
+             </ul>`,
       attachTo: {
         element: '.approvers-section',
         on: 'left'
@@ -598,17 +605,19 @@ class GuidedTourManager {
     // Approval Matrix Guide
     this.tour.addStep({
       title: 'Change Approval Matrix',
-      text: `Different changes require different approval levels:
-             <br><br><strong>Standard Changes:</strong> Pre-approved, no additional approvals needed
-             <br><strong>Normal Changes:</strong> Business + Technical approval required
-             <br><strong>Major Changes:</strong> CAB + Business + Technical approval
-             <br><strong>Emergency Changes:</strong> Emergency authority + post-implementation CAB review
-             <br><br><strong>Risk-Based Approvals:</strong>
+      text: `Our approval workflow is based on change type and risk level:
+             <br><br><strong>Normal Changes:</strong>
              <ul style="text-align: left; margin-top: 10px;">
-               <li><strong>Low Risk:</strong> Service owner approval</li>
-               <li><strong>Medium Risk:</strong> Service owner + Technical lead</li>
-               <li><strong>High Risk:</strong> CAB + All stakeholders</li>
-             </ul>`,
+               <li><strong>Low Risk:</strong> Direct to "Pending Approval" → Technical Owner approval only</li>
+               <li><strong>Medium Risk:</strong> "Pending Review" → Peer Review → Technical Owner approval</li>
+               <li><strong>High Risk:</strong> "Pending Review" → Peer Review → Technical Owner + High Risk CAB approval</li>
+             </ul>
+             <br><strong>Emergency Changes:</strong>
+             <ul style="text-align: left; margin-top: 10px;">
+               <li>Emergency authority approval</li>
+               <li>Post-implementation review required</li>
+             </ul>
+             <br><strong>Workflow Automation:</strong> Freshservice automator handles state transitions after peer review completion.`,
       buttons: [
         {
           text: 'Previous',
@@ -626,15 +635,15 @@ class GuidedTourManager {
     // Example Impact Analysis
     this.tour.addStep({
       title: 'Our Security Patch Example',
-      text: `Let's review the impact of our database security patch:
+      text: `Let's review the impact and approval flow for our database security patch:
              <br><br><strong>Impacted Services:</strong> All services using the production database
              <br><strong>Affected Users:</strong> All application users during maintenance window
              <br><strong>Business Impact:</strong> Temporary service unavailability during patching
-             <br><br><strong>Required Approvals:</strong>
+             <br><br><strong>Expected Approval Flow:</strong>
              <ul style="text-align: left; margin-top: 10px;">
-               <li>Database Administrator (Technical)</li>
-               <li>Application Service Owner (Business)</li>
-               <li>Security Team (Compliance)</li>
+               <li><strong>If Low Risk:</strong> Direct to Database Administrator (Technical Owner)</li>
+               <li><strong>If Medium Risk:</strong> Peer Review → Database Administrator approval</li>
+               <li><strong>If High Risk:</strong> Peer Review → Database Administrator + High Risk CAB</li>
              </ul>
              <br><strong>Notification List:</strong> End users, support teams, operations staff`,
       attachTo: {
