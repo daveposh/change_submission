@@ -3627,7 +3627,17 @@ For questions about this process, please refer to the Change Management procedur
         // Get form data if available
         const formData = window.formData || {};
         
-        // Collect data from various sources
+        // Debug: Log available global variables
+        console.log('🔍 Available global variables:', {
+          hasSelectedRequester: !!window.selectedRequester,
+          hasSelectedAgent: !!window.selectedAgent,
+          hasFormData: !!formData,
+          hasChangeRequestData: !!window.changeRequestData,
+          selectedRequesterKeys: window.selectedRequester ? Object.keys(window.selectedRequester) : [],
+          selectedAgentKeys: window.selectedAgent ? Object.keys(window.selectedAgent) : []
+        });
+        
+        // Collect data from various sources with better fallbacks
         const consolidatedData = {
           // Basic change details
           changeTitle: this.getFieldValue('change-title') || formData.changeDetails?.title || '',
@@ -3644,13 +3654,13 @@ For questions about this process, please refer to the Change Management procedur
           backoutPlan: this.getFieldValue('backout-plan') || formData.changeDetails?.backoutPlan || '',
           validationPlan: this.getFieldValue('validation-plan') || formData.changeDetails?.validationPlan || '',
           
-          // Selections from other modules
-          selectedRequester: window.selectedRequester || null,
-          selectedAgent: window.selectedAgent || null,
-          selectedAssets: window.AssetAssociation?.getSelectedAssets() || [],
+          // Selections - try multiple sources
+          selectedRequester: window.selectedRequester || window.changeRequestData?.selectedRequester || formData.selectedRequester || null,
+          selectedAgent: window.selectedAgent || window.changeRequestData?.selectedAgent || formData.selectedAgent || null,
+          selectedAssets: window.AssetAssociation?.getSelectedAssets() || window.changeRequestData?.selectedAssets || formData.selectedAssets || [],
           
           // Risk assessment
-          riskAssessment: window.formData?.riskAssessment || null
+          riskAssessment: window.formData?.riskAssessment || window.changeRequestData?.riskAssessment || null
         };
         
         // Store in global variable for submission
@@ -3661,8 +3671,11 @@ For questions about this process, please refer to the Change Management procedur
           hasDescription: !!consolidatedData.changeDescription,
           hasRequester: !!consolidatedData.selectedRequester,
           hasAgent: !!consolidatedData.selectedAgent,
+          requesterName: consolidatedData.selectedRequester?.name || 'Not found',
+          agentName: consolidatedData.selectedAgent?.name || consolidatedData.selectedAgent?.email || 'Not found',
           assetCount: consolidatedData.selectedAssets?.length || 0,
-          hasRiskAssessment: !!consolidatedData.riskAssessment
+          hasRiskAssessment: !!consolidatedData.riskAssessment,
+          riskLevel: consolidatedData.riskAssessment?.riskLevel
         });
         
         return consolidatedData;
@@ -3687,62 +3700,205 @@ For questions about this process, please refer to the Change Management procedur
     },
 
     /**
-     * Generate submission summary HTML
+     * Generate submission summary HTML with enhanced styling
      */
     generateSubmissionSummary() {
       const data = window.changeRequestData;
       const riskAssessment = data?.riskAssessment;
       
+      // Get change type display name
+      const changeTypeNames = {
+        '1': 'Minor Change',
+        '2': 'Major Change', 
+        '3': 'Standard Change',
+        '4': 'Emergency Change',
+        '5': 'Normal Change',
+        '6': 'Maintenance Change'
+      };
+      const changeTypeName = changeTypeNames[data.changeType] || 'Unknown';
+      
+      // Risk level styling
+      const getRiskBadge = (level) => {
+        switch(level?.toLowerCase()) {
+          case 'low': return '<span class="badge bg-success">🟢 Low Risk</span>';
+          case 'medium': return '<span class="badge bg-warning">🟡 Medium Risk</span>';
+          case 'high': return '<span class="badge bg-danger">🔴 High Risk</span>';
+          default: return '<span class="badge bg-secondary">❓ Not Assessed</span>';
+        }
+      };
+      
+      // Timeline formatting
+      const formatDateTime = (dateStr) => {
+        if (!dateStr) return '<span class="text-muted">Not scheduled</span>';
+        try {
+          return new Date(dateStr).toLocaleString('en-US', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        } catch {
+          return dateStr;
+        }
+      };
+      
+      // Plan completion badges
+      const getPlanBadge = (plan, label) => {
+        if (plan && plan.trim()) {
+          return `<span class="badge bg-success me-2"><i class="fas fa-check me-1"></i>${label}</span>`;
+        } else {
+          return `<span class="badge bg-warning me-2"><i class="fas fa-exclamation-triangle me-1"></i>${label} Missing</span>`;
+        }
+      };
+      
       return `
         <div class="submission-summary">
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <h6><i class="fas fa-edit me-2"></i>Change Details</h6>
-              <p><strong>Title:</strong> ${data.changeTitle || 'Not specified'}</p>
-              <p><strong>Type:</strong> ${data.changeType || 'Not selected'}</p>
-              <p><strong>Description:</strong> ${data.changeDescription ? 'Provided' : 'Not provided'}</p>
+          <!-- Header Card -->
+          <div class="card border-primary mb-4">
+            <div class="card-header bg-primary text-white">
+              <h5 class="mb-0">
+                <i class="fas fa-clipboard-check me-2"></i>
+                Change Request Summary
+              </h5>
             </div>
-            <div class="col-md-6">
-              <h6><i class="fas fa-users me-2"></i>Assignment</h6>
-              <p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Not selected'}</p>
-              <p><strong>Agent:</strong> ${data.selectedAgent?.name || 'Not selected'}</p>
-              <p><strong>Assets:</strong> ${data.selectedAssets?.length || 0} selected</p>
-            </div>
-          </div>
-          
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <h6><i class="fas fa-clock me-2"></i>Timeline</h6>
-              <p><strong>Planned Start:</strong> ${data.plannedStart ? new Date(data.plannedStart).toLocaleString() : 'Not scheduled'}</p>
-              <p><strong>Planned End:</strong> ${data.plannedEnd ? new Date(data.plannedEnd).toLocaleString() : 'Not scheduled'}</p>
-            </div>
-            <div class="col-md-6">
-              <h6><i class="fas fa-chart-line me-2"></i>Risk Assessment</h6>
-              <p><strong>Risk Level:</strong> ${riskAssessment?.riskLevel || 'Not assessed'}</p>
-              <p><strong>Risk Score:</strong> ${riskAssessment?.totalScore || 'N/A'}/15</p>
-            </div>
-          </div>
-          
-          <div class="row">
-            <div class="col-12">
-              <h6><i class="fas fa-list-check me-2"></i>Implementation Plans</h6>
-              <div class="d-flex gap-3">
-                <span class="badge ${data.implementationPlan ? 'bg-success' : 'bg-warning'}">
-                  Implementation: ${data.implementationPlan ? 'Complete' : 'Missing'}
-                </span>
-                <span class="badge ${data.backoutPlan ? 'bg-success' : 'bg-warning'}">
-                  Backout: ${data.backoutPlan ? 'Complete' : 'Missing'}
-                </span>
-                <span class="badge ${data.validationPlan ? 'bg-success' : 'bg-warning'}">
-                  Validation: ${data.validationPlan ? 'Complete' : 'Missing'}
-                </span>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-8">
+                  <h6 class="text-primary">
+                    <i class="fas fa-edit me-2"></i>
+                    ${data.changeTitle || '<span class="text-danger">⚠️ Title not specified</span>'}
+                  </h6>
+                  <p class="text-muted mb-2">
+                    <strong>Type:</strong> ${changeTypeName}
+                    <span class="ms-3"><strong>Description:</strong> ${data.changeDescription ? '✅ Provided' : '❌ Not provided'}</span>
+                  </p>
+                </div>
+                <div class="col-md-4 text-end">
+                  ${getRiskBadge(riskAssessment?.riskLevel)}
+                  ${riskAssessment?.totalScore ? `<div class="small text-muted mt-1">Score: ${riskAssessment.totalScore}/15</div>` : ''}
+                </div>
               </div>
             </div>
           </div>
           
-          <div class="alert alert-info mt-3">
-            <i class="fas fa-info-circle me-2"></i>
-            Review the details above before submitting. Once submitted, the change request will enter the approval workflow.
+          <!-- Assignment & Timeline Row -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="card h-100">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0"><i class="fas fa-users me-2 text-info"></i>Assignment</h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <strong>Requester:</strong><br>
+                    ${data.selectedRequester?.name ? 
+                      `<span class="text-success"><i class="fas fa-user me-1"></i>${data.selectedRequester.name}</span>` :
+                      '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Not selected</span>'
+                    }
+                  </div>
+                  <div class="mb-3">
+                    <strong>Assigned Agent:</strong><br>
+                    ${data.selectedAgent?.name || data.selectedAgent?.email ? 
+                      `<span class="text-success"><i class="fas fa-user-cog me-1"></i>${data.selectedAgent.name || data.selectedAgent.email}</span>` :
+                      '<span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>Not selected</span>'
+                    }
+                  </div>
+                  <div>
+                    <strong>Assets:</strong><br>
+                    <span class="badge bg-info">
+                      <i class="fas fa-server me-1"></i>
+                      ${data.selectedAssets?.length || 0} selected
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="card h-100">
+                <div class="card-header bg-light">
+                  <h6 class="mb-0"><i class="fas fa-clock me-2 text-warning"></i>Timeline</h6>
+                </div>
+                <div class="card-body">
+                  <div class="mb-3">
+                    <strong>Planned Start:</strong><br>
+                    <span class="text-primary">${formatDateTime(data.plannedStart)}</span>
+                  </div>
+                  <div>
+                    <strong>Planned End:</strong><br>
+                    <span class="text-primary">${formatDateTime(data.plannedEnd)}</span>
+                  </div>
+                  ${data.plannedStart && data.plannedEnd ? 
+                    `<div class="mt-2">
+                       <small class="text-muted">
+                         <i class="fas fa-hourglass-half me-1"></i>
+                         Duration: ${this.calculateDuration(new Date(data.plannedStart), new Date(data.plannedEnd))}
+                       </small>
+                     </div>` : ''
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Implementation Plans -->
+          <div class="card mb-4">
+            <div class="card-header bg-light">
+              <h6 class="mb-0"><i class="fas fa-list-check me-2 text-success"></i>Implementation Readiness</h6>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                ${getPlanBadge(data.implementationPlan, 'Implementation Plan')}
+                ${getPlanBadge(data.backoutPlan, 'Backout Plan')}
+                ${getPlanBadge(data.validationPlan, 'Validation Plan')}
+              </div>
+              
+              ${riskAssessment ? `
+                <div class="alert alert-info mb-0">
+                  <h6 class="alert-heading mb-2">
+                    <i class="fas fa-chart-line me-2"></i>Risk Assessment Complete
+                  </h6>
+                  <div class="row">
+                    <div class="col-md-6">
+                      <small>
+                        <strong>Business Impact:</strong> ${riskAssessment.businessImpact}/3<br>
+                        <strong>User Impact:</strong> ${riskAssessment.affectedUsers}/3<br>
+                        <strong>Complexity:</strong> ${riskAssessment.complexity}/3
+                      </small>
+                    </div>
+                    <div class="col-md-6">
+                      <small>
+                        <strong>Testing Level:</strong> ${riskAssessment.testing}/3<br>
+                        <strong>Rollback Risk:</strong> ${riskAssessment.rollback}/3<br>
+                        <strong>Total Score:</strong> ${riskAssessment.totalScore}/15
+                      </small>
+                    </div>
+                  </div>
+                </div>
+              ` : `
+                <div class="alert alert-warning mb-0">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  Risk assessment not completed
+                </div>
+              `}
+            </div>
+          </div>
+          
+          <!-- Next Steps -->
+          <div class="alert alert-primary">
+            <h6 class="alert-heading">
+              <i class="fas fa-arrow-right me-2"></i>Next Steps
+            </h6>
+            <p class="mb-0">
+              Once submitted, this change request will enter the approval workflow. 
+              ${riskAssessment?.riskLevel === 'Medium' || riskAssessment?.riskLevel === 'High' ? 
+                '<strong>A peer review task will be created due to the Medium/High risk level.</strong>' : 
+                'Standard approval process will apply.'
+              }
+              Stakeholders will be notified automatically.
+            </p>
           </div>
         </div>
       `;
