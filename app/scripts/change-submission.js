@@ -4027,11 +4027,11 @@ For questions about this process, please refer to the Change Management procedur
       const confirmBtn = document.getElementById('confirm-submit');
       if (confirmBtn) {
         // Remove any existing listeners
-        const newBtn = confirmBtn.cloneNode(true);
-        confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
         
-        // Add new listener
-        newBtn.addEventListener('click', (e) => {
+        // Add new listener for confirm button
+        newConfirmBtn.addEventListener('click', (e) => {
           e.preventDefault();
           
           // Hide confirmation modal
@@ -4047,6 +4047,45 @@ For questions about this process, please refer to the Change Management procedur
         });
         
         console.log('✅ Confirm submission button listener setup');
+      }
+      
+      // Setup edit request button
+      const editBtn = document.getElementById('edit-request');
+      if (editBtn) {
+        // Remove any existing listeners
+        const newEditBtn = editBtn.cloneNode(true);
+        editBtn.parentNode.replaceChild(newEditBtn, editBtn);
+        
+        // Add new listener for edit button
+        newEditBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          
+          console.log('📝 User clicked edit request, closing confirmation modal');
+          
+          // Hide confirmation modal
+          const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
+          if (confirmModal) {
+            confirmModal.hide();
+          }
+          
+          // Ensure page is usable after modal closes
+          setTimeout(() => {
+            this.ensurePageEnabled();
+            
+            // Optional: Show a notification that user can edit
+            if (typeof showNotification === 'function') {
+              showNotification('info', 'You can now edit your change request details.');
+            }
+            
+            // Optional: Scroll to top or focus on first field
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+          }, 300);
+        });
+        
+        console.log('✅ Edit request button listener setup');
+      } else {
+        console.warn('⚠️ Edit request button not found in modal');
       }
     }
 };
