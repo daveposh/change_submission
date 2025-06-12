@@ -4104,13 +4104,14 @@ const ChangeSubmission = {
           successModal.hide();
         }
         
-        // Ensure page is enabled before reload (in case reload is delayed)
+        // Ensure page is enabled before reload
         this.ensurePageEnabled();
         
-        // Small delay to ensure modal closes before reload
+        // Additional cleanup for stuck modals
         setTimeout(() => {
+          this.forceCleanupModals();
           window.location.reload();
-        }, 100);
+        }, 200);
       };
       console.log('✅ New change button event listener set');
     } else {
@@ -4127,10 +4128,13 @@ const ChangeSubmission = {
           successModal.hide();
         }
         
-        // Ensure page is re-enabled after modal closes
-        this.ensurePageEnabled();
+        // Ensure page is re-enabled after modal closes with additional cleanup
+        setTimeout(() => {
+          this.ensurePageEnabled();
+          this.forceCleanupModals();
+        }, 100);
         
-        // Optional: Show a brief notification that they can still access the change
+        // Show success notification
         this.showBriefSuccessNotification();
       };
       console.log('✅ Close button event listener set');
@@ -4166,10 +4170,14 @@ const ChangeSubmission = {
       document.body.classList.remove('modal-open');
     }
     
-    // Restore body overflow
-    if (document.body.style.overflow === 'hidden') {
-      console.log('🔧 Restoring body overflow');
-      document.body.style.overflow = '';
+    // Restore body overflow and remove any inline styles
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    
+    // Remove any Bootstrap modal classes from html element
+    const htmlElement = document.documentElement;
+    if (htmlElement.classList.contains('modal-open')) {
+      htmlElement.classList.remove('modal-open');
     }
     
     // Ensure app content is enabled
@@ -4184,12 +4192,78 @@ const ChangeSubmission = {
     
     // Check for any initialization overlay that might still be showing
     const initOverlay = document.getElementById('initialization-overlay');
-    if (initOverlay && initOverlay.style.display !== 'none') {
+    if (initOverlay) {
       console.log('🔧 Hiding any lingering initialization overlay');
       initOverlay.style.display = 'none';
+      initOverlay.style.visibility = 'hidden';
+      initOverlay.style.opacity = '0';
+      initOverlay.style.zIndex = '-1';
     }
     
+    // Force remove any overlay-related classes from body
+    document.body.classList.remove('modal-open', 'overflow-hidden');
+    
+    // Ensure main container is visible and enabled
+    const mainContainer = document.querySelector('.fw-widget-wrapper');
+    if (mainContainer) {
+      mainContainer.style.pointerEvents = 'auto';
+      mainContainer.style.filter = 'none';
+      mainContainer.style.opacity = '1';
+    }
+    
+    // Clear any remaining modal instances that might be stuck
+    const modalElements = document.querySelectorAll('.modal');
+    modalElements.forEach(modal => {
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance && modal.classList.contains('show')) {
+        console.log('🔧 Force closing stuck modal:', modal.id);
+        modalInstance.hide();
+      }
+    });
+    
     console.log('✅ Page enablement check complete');
+  },
+
+  /**
+   * Force cleanup of any stuck modals and overlays
+   */
+  forceCleanupModals() {
+    console.log('🧹 Force cleaning up modals and overlays...');
+    
+    // Remove all modal backdrops
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    
+    // Remove modal-open from body and html
+    document.body.classList.remove('modal-open');
+    document.documentElement.classList.remove('modal-open');
+    
+    // Reset body styles
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    
+    // Hide all modals
+    document.querySelectorAll('.modal.show').forEach(modal => {
+      modal.classList.remove('show');
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+    });
+    
+    // Force hide initialization overlay
+    const initOverlay = document.getElementById('initialization-overlay');
+    if (initOverlay) {
+      initOverlay.style.display = 'none !important';
+      initOverlay.remove();
+    }
+    
+    // Re-enable app content
+    const appContent = document.getElementById('app-content');
+    if (appContent) {
+      appContent.style.pointerEvents = 'auto';
+      appContent.style.filter = 'none';
+      appContent.style.opacity = '1';
+    }
+    
+    console.log('✅ Force cleanup complete');
   },
 
   /**
