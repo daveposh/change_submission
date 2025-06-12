@@ -449,8 +449,8 @@ class GuidedTourManager {
 
     // Impacted Services tab
     this.tour.addStep({
-      title: 'Impacted Services Analysis',
-      text: 'This section automatically analyzes the services and stakeholders impacted by your selected assets.',
+      title: 'Impact Analysis Overview',
+      text: 'Impact Analysis is critical for understanding who and what will be affected by your change. This drives approval workflows and stakeholder communication.',
       attachTo: {
         element: '#impacted-services-tab',
         on: 'bottom'
@@ -462,13 +462,195 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Next',
+          text: 'Learn Impact Analysis',
           classes: 'shepherd-button-primary',
           action: () => {
             // Switch to impacted services tab
             document.getElementById('impacted-services-tab').click();
             setTimeout(() => this.tour.next(), 300);
           }
+        }
+      ]
+    });
+
+    // Impact Analysis - What is it?
+    this.tour.addStep({
+      title: 'What is Impact Analysis?',
+      text: `Impact Analysis identifies all services, systems, and people affected by your change:
+             <br><br><strong>Key Components:</strong>
+             <ul style="text-align: left; margin-top: 10px;">
+               <li><strong>Service Dependencies:</strong> Which services rely on your changed assets</li>
+               <li><strong>User Groups:</strong> Who will experience service disruption</li>
+               <li><strong>Business Functions:</strong> Which business processes might be affected</li>
+               <li><strong>Technical Dependencies:</strong> Upstream/downstream system impacts</li>
+             </ul>
+             <br>This analysis determines required approvals and notification lists.`,
+      attachTo: {
+        element: '.impacted-services-content',
+        on: 'top'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Continue',
+          classes: 'shepherd-button-primary',
+          action: () => this.tour.next()
+        }
+      ]
+    });
+
+    // How Impact Analysis Works
+    this.tour.addStep({
+      title: 'How Impact Analysis Works',
+      text: `The system automatically analyzes your selected assets to determine impacts:
+             <br><br><strong>Automatic Analysis:</strong>
+             <ul style="text-align: left; margin-top: 10px;">
+               <li><strong>Service Mapping:</strong> Reviews CMDB relationships to find dependent services</li>
+               <li><strong>User Impact:</strong> Calculates affected user counts based on service usage</li>
+               <li><strong>Business Impact:</strong> Identifies critical business functions at risk</li>
+               <li><strong>Technical Impact:</strong> Maps infrastructure dependencies</li>
+             </ul>
+             <br><strong>Pro Tip:</strong> More accurate asset selection = better impact analysis!`,
+      attachTo: {
+        element: '.services-impact-summary',
+        on: 'left'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Learn About Stakeholders',
+          classes: 'shepherd-button-primary',
+          action: () => this.tour.next()
+        }
+      ]
+    });
+
+    // Stakeholders Explanation
+    this.tour.addStep({
+      title: 'Understanding Stakeholders',
+      text: `Stakeholders are people who need to know about or approve your change:
+             <br><br><strong>Types of Stakeholders:</strong>
+             <ul style="text-align: left; margin-top: 10px;">
+               <li><strong>Business Owners:</strong> Own the services being changed</li>
+               <li><strong>Technical Owners:</strong> Responsible for the technical assets</li>
+               <li><strong>End Users:</strong> Will experience the change impact</li>
+               <li><strong>Support Teams:</strong> Handle incidents and user support</li>
+               <li><strong>Compliance:</strong> Ensure regulatory requirements are met</li>
+             </ul>
+             <br>The system auto-identifies stakeholders based on asset ownership and service relationships.`,
+      attachTo: {
+        element: '.stakeholders-section',
+        on: 'right'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Learn About Approvers',
+          classes: 'shepherd-button-primary',
+          action: () => this.tour.next()
+        }
+      ]
+    });
+
+    // Approvers Explanation
+    this.tour.addStep({
+      title: 'Understanding Approvers',
+      text: `Approvers are specific stakeholders with decision-making authority:
+             <br><br><strong>Approval Types:</strong>
+             <ul style="text-align: left; margin-top: 10px;">
+               <li><strong>Business Approval:</strong> Service owners approve business impact</li>
+               <li><strong>Technical Approval:</strong> Technical leads approve implementation</li>
+               <li><strong>CAB Approval:</strong> Change Advisory Board for high-risk changes</li>
+               <li><strong>Emergency Approval:</strong> Emergency change authority for urgent changes</li>
+             </ul>
+             <br><strong>Approval Workflow:</strong> Determined by change type, risk level, and impacted services.
+             <br><strong>Parallel vs Sequential:</strong> Some approvals can happen simultaneously, others require order.`,
+      attachTo: {
+        element: '.approvers-section',
+        on: 'left'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'See Approval Matrix',
+          classes: 'shepherd-button-primary',
+          action: () => this.tour.next()
+        }
+      ]
+    });
+
+    // Approval Matrix Guide
+    this.tour.addStep({
+      title: 'Change Approval Matrix',
+      text: `Different changes require different approval levels:
+             <br><br><strong>Standard Changes:</strong> Pre-approved, no additional approvals needed
+             <br><strong>Normal Changes:</strong> Business + Technical approval required
+             <br><strong>Major Changes:</strong> CAB + Business + Technical approval
+             <br><strong>Emergency Changes:</strong> Emergency authority + post-implementation CAB review
+             <br><br><strong>Risk-Based Approvals:</strong>
+             <ul style="text-align: left; margin-top: 10px;">
+               <li><strong>Low Risk:</strong> Service owner approval</li>
+               <li><strong>Medium Risk:</strong> Service owner + Technical lead</li>
+               <li><strong>High Risk:</strong> CAB + All stakeholders</li>
+             </ul>`,
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Review Our Example',
+          classes: 'shepherd-button-primary',
+          action: () => this.tour.next()
+        }
+      ]
+    });
+
+    // Example Impact Analysis
+    this.tour.addStep({
+      title: 'Our Security Patch Example',
+      text: `Let's review the impact of our database security patch:
+             <br><br><strong>Impacted Services:</strong> All services using the production database
+             <br><strong>Affected Users:</strong> All application users during maintenance window
+             <br><strong>Business Impact:</strong> Temporary service unavailability during patching
+             <br><br><strong>Required Approvals:</strong>
+             <ul style="text-align: left; margin-top: 10px;">
+               <li>Database Administrator (Technical)</li>
+               <li>Application Service Owner (Business)</li>
+               <li>Security Team (Compliance)</li>
+             </ul>
+             <br><strong>Notification List:</strong> End users, support teams, operations staff`,
+      attachTo: {
+        element: '.impact-summary-card',
+        on: 'top'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Move to Risk Assessment',
+          classes: 'shepherd-button-primary',
+          action: () => this.tour.next()
         }
       ]
     });
@@ -581,8 +763,16 @@ class GuidedTourManager {
                <li>✅ Filled out change details with clear title and description</li>
                <li>✅ Selected appropriate change type and filled implementation plan</li>
                <li>✅ Learned about asset association and search functionality</li>
+               <li>✅ Understood impact analysis, stakeholders, and approvers</li>
+               <li>✅ Learned approval workflows and stakeholder identification</li>
                <li>✅ Completed a comprehensive risk assessment</li>
                <li>✅ Prepared a change request ready for submission</li>
+             </ul>
+             <br><strong>Key Takeaways:</strong>
+             <ul style="text-align: left; margin-top: 5px;">
+               <li>🎯 Impact analysis drives approval requirements</li>
+               <li>👥 Stakeholders vs. Approvers have different roles</li>
+               <li>⚡ Change type and risk level determine approval workflow</li>
              </ul>
              <br><strong>Remember:</strong> The system automatically saves your progress, so you can always come back to finish a request later.
              <br><br>Click the <strong>Help button</strong> anytime to restart this tutorial!`,
