@@ -43,9 +43,9 @@ class GuidedTourManager {
     // Welcome step
     this.tour.addStep({
       title: 'Welcome to Change Request App',
-      text: `This guided tour will show you how to create and submit change requests effectively. 
-             The tour covers all main features including change details, asset association, 
-             impacted services analysis, and risk assessment.`,
+      text: `This guided tour will walk you through creating a complete change request step-by-step. 
+             You'll learn how to fill out each section, select assets, assess risks, and submit your request.
+             <br><br><strong>We'll create a sample change request together!</strong>`,
       buttons: [
         {
           text: 'Skip Tour',
@@ -53,7 +53,7 @@ class GuidedTourManager {
           action: () => this.tour.cancel()
         },
         {
-          text: 'Start Tour',
+          text: 'Let\'s Start!',
           classes: 'shepherd-button-primary',
           action: () => this.tour.next()
         }
@@ -150,8 +150,8 @@ class GuidedTourManager {
 
     // Change title field
     this.tour.addStep({
-      title: 'Change Title',
-      text: 'Provide a clear, descriptive title that summarizes what this change will accomplish.',
+      title: 'Let\'s Fill Out the Title',
+      text: 'First, let\'s add a sample title. I\'ll fill this in for you as an example.',
       attachTo: {
         element: '#change-title',
         on: 'right'
@@ -163,17 +163,50 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Next',
+          text: 'Fill Title & Continue',
           classes: 'shepherd-button-primary',
-          action: () => this.tour.next()
+          action: () => {
+            // Fill in a sample title
+            document.getElementById('change-title').value = 'Update Production Database Server - Security Patches';
+            // Trigger change event to ensure data is saved
+            document.getElementById('change-title').dispatchEvent(new Event('input', { bubbles: true }));
+            this.tour.next();
+          }
+        }
+      ]
+    });
+
+    // Description field
+    this.tour.addStep({
+      title: 'Add a Description',
+      text: 'Now let\'s add a description explaining what this change involves.',
+      attachTo: {
+        element: '#change-description',
+        on: 'right'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Fill Description & Continue',
+          classes: 'shepherd-button-primary',
+          action: () => {
+            // Fill in a sample description
+            document.getElementById('change-description').value = 'Install latest security patches on the production database server to address recent vulnerabilities and maintain compliance with security standards.';
+            document.getElementById('change-description').dispatchEvent(new Event('input', { bubbles: true }));
+            this.tour.next();
+          }
         }
       ]
     });
 
     // Live search feature
     this.tour.addStep({
-      title: 'Live Search for Users',
-      text: 'These fields feature intelligent live search. Start typing (3+ characters) for instant results, or press Enter for manual search. Use arrow keys to navigate results.',
+      title: 'Live Search for Requester',
+      text: 'Now let\'s select a requester. Start typing a name and watch the live search in action! Try typing "john" or any name.',
       attachTo: {
         element: '#requester-search',
         on: 'right'
@@ -185,7 +218,7 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Next',
+          text: 'I\'ll Skip For Now',
           classes: 'shepherd-button-primary',
           action: () => this.tour.next()
         }
@@ -194,8 +227,8 @@ class GuidedTourManager {
 
     // Change type selection
     this.tour.addStep({
-      title: 'Change Type',
-      text: 'Select between Normal or Emergency change. This affects approval workflows and lead times.',
+      title: 'Select Change Type',
+      text: 'Let\'s select "Normal Change" for our security patch example. This affects approval workflows and lead times.',
       attachTo: {
         element: '#change-type',
         on: 'left'
@@ -207,17 +240,82 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Next',
+          text: 'Select Normal Change',
           classes: 'shepherd-button-primary',
-          action: () => this.tour.next()
+          action: () => {
+            // Select normal change
+            document.getElementById('change-type').value = 'normal';
+            document.getElementById('change-type').dispatchEvent(new Event('change', { bubbles: true }));
+            this.tour.next();
+          }
+        }
+      ]
+    });
+
+    // Implementation plan
+    this.tour.addStep({
+      title: 'Implementation Plan',
+      text: 'Now let\'s add implementation details. This is crucial for a successful change request.',
+      attachTo: {
+        element: '#implementation-plan',
+        on: 'right'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Fill Implementation Plan',
+          classes: 'shepherd-button-primary',
+          action: () => {
+            // Fill implementation plan
+            const implPlan = document.getElementById('implementation-plan');
+            if (implPlan) {
+              implPlan.value = '1. Schedule maintenance window during off-peak hours\n2. Create database backup\n3. Apply security patches using automated deployment tools\n4. Verify system functionality\n5. Update documentation';
+              implPlan.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            this.tour.next();
+          }
+        }
+             ]
+     });
+
+    // Backout plan
+    this.tour.addStep({
+      title: 'Add Backout Plan',
+      text: 'Every change needs a rollback plan. Let\'s add one for our security patch scenario.',
+      attachTo: {
+        element: '#backout-plan',
+        on: 'right'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Fill Backout Plan',
+          classes: 'shepherd-button-primary',
+          action: () => {
+            // Fill backout plan
+            const backoutPlan = document.getElementById('backout-plan');
+            if (backoutPlan) {
+              backoutPlan.value = '1. Immediately restore from backup if system becomes unstable\n2. Rollback patches using system recovery tools\n3. Restart services and verify system functionality\n4. Notify stakeholders of any service disruption\n5. Document issues and plan remediation';
+              backoutPlan.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            this.tour.next();
+          }
         }
       ]
     });
 
     // Asset Association tab
     this.tour.addStep({
-      title: 'Asset Association',
-      text: 'Associate assets (servers, applications, services) that will be affected by your change.',
+      title: 'Time for Asset Association',
+      text: 'Great! Now let\'s associate the assets that will be affected by our database server security patch. Click to go to the Asset Association tab.',
       attachTo: {
         element: '#asset-association-tab',
         on: 'bottom'
@@ -229,7 +327,7 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Next',
+          text: 'Go to Asset Association',
           classes: 'shepherd-button-primary',
           action: () => {
             // Switch to asset association tab
@@ -242,8 +340,8 @@ class GuidedTourManager {
 
     // Asset search functionality
     this.tour.addStep({
-      title: 'Asset Search',
-      text: 'Search for assets by name, type, or description. The search supports intelligent filtering and provides real-time results.',
+      title: 'Search for Database Assets',
+      text: 'Let\'s search for database-related assets. I\'ll search for "database" to find relevant assets for our security patch.',
       attachTo: {
         element: '#asset-search-input',
         on: 'bottom'
@@ -255,9 +353,22 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Next',
+          text: 'Search for Database Assets',
           classes: 'shepherd-button-primary',
-          action: () => this.tour.next()
+          action: () => {
+            // Fill search and trigger search
+            const searchInput = document.getElementById('asset-search-input');
+            if (searchInput) {
+              searchInput.value = 'database';
+              searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+              // Trigger search button if available
+              const searchBtn = document.querySelector('#asset-search-form .btn');
+              if (searchBtn) {
+                setTimeout(() => searchBtn.click(), 500);
+              }
+            }
+            this.tour.next();
+          }
         }
       ]
     });
@@ -316,8 +427,8 @@ class GuidedTourManager {
 
     // Risk questions
     this.tour.addStep({
-      title: 'Risk Questions',
-      text: 'Answer these questions to calculate the risk score. The system automatically determines approval requirements based on your responses.',
+      title: 'Complete Risk Assessment',
+      text: 'Now let\'s complete the risk assessment. I\'ll fill in typical answers for a security patch scenario.',
       attachTo: {
         element: '.risk-question',
         on: 'right'
@@ -329,17 +440,46 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Next',
+          text: 'Fill Risk Assessment',
           classes: 'shepherd-button-primary',
-          action: () => this.tour.next()
+          action: () => {
+            // Fill risk assessment with typical values for security patch
+            // Business Impact: Limited (1)
+            const businessImpact1 = document.getElementById('business-impact-1');
+            if (businessImpact1) businessImpact1.checked = true;
+            
+            // Affected Users: Few (1)
+            const users1 = document.getElementById('users-1');
+            if (users1) users1.checked = true;
+            
+            // Complexity: Simple (1)
+            const complexity1 = document.getElementById('complexity-1');
+            if (complexity1) complexity1.checked = true;
+            
+            // Testing: Comprehensive (1)
+            const testing1 = document.getElementById('testing-1');
+            if (testing1) testing1.checked = true;
+            
+            // Rollback: Yes (1)
+            const rollback1 = document.getElementById('rollback-1');
+            if (rollback1) rollback1.checked = true;
+            
+            // Calculate risk
+            setTimeout(() => {
+              const calculateBtn = document.getElementById('calculate-risk');
+              if (calculateBtn) calculateBtn.click();
+            }, 500);
+            
+            this.tour.next();
+          }
         }
       ]
     });
 
     // Submit button
     this.tour.addStep({
-      title: 'Submit Change Request',
-      text: 'Once all sections are complete, click here to submit your change request. You\'ll see a detailed progress indicator during submission.',
+      title: 'Ready to Submit!',
+      text: 'Perfect! Your sample change request is now complete. In a real scenario, you would click "Submit Change Request" to send it for approval. You\'ll see a detailed progress indicator during submission.',
       attachTo: {
         element: '#submit-change-btn',
         on: 'top'
@@ -351,7 +491,7 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Next',
+          text: 'See Final Tips',
           classes: 'shepherd-button-primary',
           action: () => this.tour.next()
         }
@@ -360,16 +500,18 @@ class GuidedTourManager {
 
     // Final step
     this.tour.addStep({
-      title: 'Tour Complete!',
-      text: `You're now ready to create change requests efficiently! 
-             <br><br><strong>Key Tips:</strong>
+      title: 'Congratulations! 🎉',
+      text: `You've successfully learned how to create a complete change request! 
+             <br><br><strong>What you accomplished:</strong>
              <ul style="text-align: left; margin-top: 10px;">
-               <li>Fill out all sections for better approval chances</li>
-               <li>Use live search for quick user and asset selection</li>
-               <li>Review the risk assessment carefully</li>
-               <li>The system saves your progress automatically</li>
+               <li>✅ Filled out change details with clear title and description</li>
+               <li>✅ Selected appropriate change type and filled implementation plan</li>
+               <li>✅ Learned about asset association and search functionality</li>
+               <li>✅ Completed a comprehensive risk assessment</li>
+               <li>✅ Prepared a change request ready for submission</li>
              </ul>
-             <br>Click the Help button anytime to restart this tour.`,
+             <br><strong>Remember:</strong> The system automatically saves your progress, so you can always come back to finish a request later.
+             <br><br>Click the <strong>Help button</strong> anytime to restart this tutorial!`,
       buttons: [
         {
           text: 'Previous',
@@ -377,7 +519,7 @@ class GuidedTourManager {
           action: () => this.tour.back()
         },
         {
-          text: 'Finish Tour',
+          text: 'Finish & Start Creating!',
           classes: 'shepherd-button-primary',
           action: () => this.tour.complete()
         }
@@ -433,24 +575,76 @@ class GuidedTourManager {
    * Show tour completion message
    */
   showTourCompletionMessage() {
+    // Clear sample data from the tour
+    this.clearSampleData();
+    
     // Show a brief notification
     const notification = document.createElement('div');
     notification.className = 'alert alert-success alert-dismissible fade show position-fixed';
-    notification.style.cssText = 'top: 20px; right: 20px; z-index: 10001; max-width: 300px;';
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 10001; max-width: 350px;';
     notification.innerHTML = `
-      <i class="fas fa-check-circle me-2"></i>
-      <strong>Tour Complete!</strong> You're ready to create change requests.
+      <i class="fas fa-graduation-cap me-2"></i>
+      <strong>Tutorial Complete!</strong> Sample data cleared. Ready to create your real change request!
       <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
     document.body.appendChild(notification);
     
-    // Auto-remove after 5 seconds
+    // Auto-remove after 7 seconds
     setTimeout(() => {
       if (notification.parentNode) {
         notification.remove();
       }
-    }, 5000);
+    }, 7000);
+  }
+
+  /**
+   * Clear sample data added during the tour
+   */
+  clearSampleData() {
+    // Clear form fields that were filled during the tour
+    const fieldsTooClear = [
+      'change-title',
+      'change-description', 
+      'implementation-plan',
+      'backout-plan',
+      'asset-search-input'
+    ];
+    
+    fieldsTooClear.forEach(fieldId => {
+      const field = document.getElementById(fieldId);
+      if (field) {
+        field.value = '';
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    // Clear change type selection
+    const changeType = document.getElementById('change-type');
+    if (changeType) {
+      changeType.value = '';
+      changeType.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Clear risk assessment radio buttons
+    const riskInputs = document.querySelectorAll('input[type="radio"][name^="business-impact"], input[type="radio"][name^="affected-users"], input[type="radio"][name^="complexity"], input[type="radio"][name^="testing"], input[type="radio"][name^="rollback"]');
+    riskInputs.forEach(input => {
+      input.checked = false;
+    });
+
+    // Hide risk results if visible
+    const riskResult = document.getElementById('risk-result');
+    if (riskResult) {
+      riskResult.classList.add('hidden');
+    }
+
+    // Return to first tab
+    const firstTab = document.getElementById('details-tab');
+    if (firstTab) {
+      firstTab.click();
+    }
+
+    console.log('🧹 Sample data cleared after tour completion');
   }
 
   /**
