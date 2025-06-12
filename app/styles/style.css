@@ -404,6 +404,8 @@ html {
   border: 1px solid #dee2e6;
   border-radius: 0.5rem;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  padding: 1rem;
+  margin: 1rem 0;
 }
 
 /* Button improvements */
@@ -1653,11 +1655,53 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   background-color: #374151 !important;
   border-color: #4a5568 !important;
   color: #e2e8f0 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-bs-theme="dark"] .risk-question:hover {
+  background-color: #4b5563 !important;
+  transform: translateY(-1px);
+}
+
+[data-bs-theme="dark"] .risk-question label {
+  color: #f3f4f6 !important;
+}
+
+[data-bs-theme="dark"] .risk-options .form-check-label {
+  color: #e2e8f0 !important;
+}
+
+[data-bs-theme="dark"] .risk-options .form-check-input:checked {
+  background-color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+}
+
+[data-bs-theme="dark"] .risk-options .form-check-input:focus {
+  box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25) !important;
+}
+
+[data-bs-theme="dark"] .risk-options .form-check-input {
+  background-color: #4b5563 !important;
+  border-color: #6b7280 !important;
 }
 
 [data-bs-theme="dark"] .risk-result {
-  background-color: #374151 !important;
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%) !important;
+  border-color: #4a5568 !important;
   color: #e2e8f0 !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-bs-theme="dark"] .risk-result h4 {
+  color: #f3f4f6 !important;
+}
+
+[data-bs-theme="dark"] .risk-result .fw-bold {
+  color: #f3f4f6 !important;
+}
+
+[data-bs-theme="dark"] .risk-result #risk-explanation {
+  color: #d1d5db !important;
 }
 
 [data-bs-theme="dark"] .selected-result {
@@ -1710,6 +1754,11 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 
 [data-bs-theme="dark"] small {
   color: #9ca3af !important;
+}
+
+/* Hide Calculate Risk button since calculation is automatic */
+#calculate-risk {
+  display: none !important;
 }
 
 /* Loading states */
