@@ -162,6 +162,9 @@ const ChangeSubmission = {
   setupEventListeners() {
     console.log('🔧 Setting up Change Submission event listeners...');
     
+    // Setup universal modal cleanup first
+    this.setupUniversalModalCleanup();
+    
     // Submit button - now shows summary first
     const submitBtn = document.getElementById('submit-change-btn');
     if (submitBtn) {
@@ -4230,40 +4233,101 @@ const ChangeSubmission = {
   forceCleanupModals() {
     console.log('🧹 Force cleaning up modals and overlays...');
     
-    // Remove all modal backdrops
-    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-    
-    // Remove modal-open from body and html
-    document.body.classList.remove('modal-open');
-    document.documentElement.classList.remove('modal-open');
-    
-    // Reset body styles
-    document.body.style.overflow = '';
-    document.body.style.paddingRight = '';
-    
-    // Hide all modals
-    document.querySelectorAll('.modal.show').forEach(modal => {
-      modal.classList.remove('show');
-      modal.style.display = 'none';
-      modal.setAttribute('aria-hidden', 'true');
+    // Remove ALL modal backdrops (including any stuck ones)
+    document.querySelectorAll('.modal-backdrop, .modal-backdrop.show, .modal-backdrop.fade').forEach(el => {
+      console.log('🗑️ Removing backdrop:', el);
+      el.remove();
     });
     
-    // Force hide initialization overlay
-    const initOverlay = document.getElementById('initialization-overlay');
-    if (initOverlay) {
-      initOverlay.style.display = 'none !important';
-      initOverlay.remove();
-    }
+    // Remove modal-open from body and html
+    document.body.classList.remove('modal-open', 'overflow-hidden');
+    document.documentElement.classList.remove('modal-open', 'overflow-hidden');
     
-    // Re-enable app content
+    // Reset ALL body styles that might interfere
+    document.body.style.cssText = '';
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+    document.body.style.height = '';
+    
+    // Reset html styles
+    document.documentElement.style.overflow = '';
+    document.documentElement.style.paddingRight = '';
+    
+    // Force hide ALL modals regardless of state
+    document.querySelectorAll('.modal').forEach(modal => {
+      modal.classList.remove('show', 'in');
+      modal.style.display = 'none';
+      modal.style.visibility = 'hidden';
+      modal.style.opacity = '0';
+      modal.setAttribute('aria-hidden', 'true');
+      modal.setAttribute('aria-modal', 'false');
+      
+      // Remove any Bootstrap modal instances
+      const modalInstance = bootstrap.Modal.getInstance(modal);
+      if (modalInstance) {
+        try {
+          modalInstance.dispose();
+        } catch (e) {
+          console.warn('⚠️ Could not dispose modal instance:', e);
+        }
+      }
+    });
+    
+    // Force hide initialization overlay with multiple methods
+    const initOverlays = document.querySelectorAll('#initialization-overlay, .initialization-overlay');
+    initOverlays.forEach(overlay => {
+      if (overlay) {
+        overlay.style.display = 'none !important';
+        overlay.style.visibility = 'hidden !important';
+        overlay.style.opacity = '0 !important';
+        overlay.style.zIndex = '-1 !important';
+        overlay.style.pointerEvents = 'none !important';
+        overlay.classList.add('fade-out');
+        // Remove after animation
+        setTimeout(() => {
+          if (overlay.parentNode) {
+            overlay.remove();
+          }
+        }, 500);
+      }
+    });
+    
+    // Re-enable app content with multiple approaches
     const appContent = document.getElementById('app-content');
     if (appContent) {
+      appContent.classList.remove('app-initializing');
+      appContent.classList.add('app-ready');
       appContent.style.pointerEvents = 'auto';
       appContent.style.filter = 'none';
       appContent.style.opacity = '1';
+      appContent.style.visibility = 'visible';
     }
     
-    console.log('✅ Force cleanup complete');
+    // Re-enable main wrapper
+    const mainWrapper = document.querySelector('.fw-widget-wrapper');
+    if (mainWrapper) {
+      mainWrapper.style.pointerEvents = 'auto';
+      mainWrapper.style.filter = 'none';
+      mainWrapper.style.opacity = '1';
+      mainWrapper.style.visibility = 'visible';
+    }
+    
+    // Remove any lingering overlay elements
+    document.querySelectorAll('[class*="overlay"], [class*="backdrop"], [id*="overlay"]').forEach(el => {
+      if (el.style.position === 'fixed' && el.style.zIndex > 1000) {
+        console.log('🗑️ Removing potential overlay element:', el);
+        el.remove();
+      }
+    });
+    
+    // Force focus back to body to ensure interaction
+    if (document.activeElement && document.activeElement.tagName === 'BODY') {
+      document.body.focus();
+    }
+    
+    console.log('✅ Aggressive force cleanup complete');
   },
 
   /**
@@ -5049,6 +5113,9 @@ const ChangeSubmission = {
   setupModalEventListeners() {
     console.log('🔧 Setting up modal event listeners...');
     
+    // Universal modal cleanup handler for ALL modals
+    this.setupUniversalModalCleanup();
+    
     // Edit request button
     const editBtn = document.getElementById('edit-request');
     if (editBtn) {
@@ -5060,6 +5127,7 @@ const ChangeSubmission = {
         // Re-enable the page so user can edit
         setTimeout(() => {
           this.ensurePageEnabled();
+          this.forceCleanupModals();
           console.log('✅ Page re-enabled for editing');
         }, 300); // Small delay to ensure modal closes properly
       };
@@ -5077,7 +5145,154 @@ const ChangeSubmission = {
       };
     }
     
+    // Close progress modal button
+    const closeProgressBtn = document.getElementById('close-progress');
+    if (closeProgressBtn) {
+      closeProgressBtn.onclick = () => {
+        console.log('📋 Progress modal close button clicked');
+        setTimeout(() => {
+          this.ensurePageEnabled();
+          this.forceCleanupModals();
+        }, 100);
+      };
+    }
+    
     console.log('✅ Modal event listeners setup complete');
+  },
+
+  /**
+   * Setup universal modal cleanup for ALL modals
+   */
+  setupUniversalModalCleanup() {
+    console.log('🌐 Setting up universal modal cleanup handlers...');
+    
+    // Get all modal elements
+    const modalElements = document.querySelectorAll('.modal');
+    
+    modalElements.forEach(modal => {
+      console.log(`🔧 Setting up cleanup for modal: ${modal.id || 'unnamed'}`);
+      
+      // Listen for Bootstrap modal hidden event (when modal is fully closed)
+      modal.addEventListener('hidden.bs.modal', () => {
+        console.log(`🧹 Modal closed: ${modal.id || 'unnamed'} - running cleanup`);
+        
+        setTimeout(() => {
+          this.ensurePageEnabled();
+          this.forceCleanupModals();
+        }, 50); // Small delay to ensure modal close animation completes
+      });
+      
+      // Listen for modal hide event (when modal starts closing)
+      modal.addEventListener('hide.bs.modal', () => {
+        console.log(`⏬ Modal hiding: ${modal.id || 'unnamed'} - preparing cleanup`);
+      });
+      
+      // Handle close button clicks
+      const closeButtons = modal.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
+      closeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          console.log(`❌ Close button clicked in modal: ${modal.id || 'unnamed'}`);
+          setTimeout(() => {
+            this.ensurePageEnabled();
+            this.forceCleanupModals();
+          }, 100);
+        });
+      });
+    });
+    
+    // Handle ESC key presses that might close modals
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        // Check if any modal is currently shown
+        const shownModal = document.querySelector('.modal.show');
+        if (shownModal) {
+          console.log('⌨️ ESC key pressed - modal will close, preparing cleanup');
+          setTimeout(() => {
+            this.ensurePageEnabled();
+            this.forceCleanupModals();
+          }, 200);
+        }
+      }
+    });
+    
+    // Global click handler for any modal backdrop clicks
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.classList.contains('modal-backdrop')) {
+        console.log('🖱️ Modal backdrop clicked - preparing cleanup');
+        setTimeout(() => {
+          this.ensurePageEnabled();
+          this.forceCleanupModals();
+        }, 200);
+      }
+    });
+    
+    // Monitor for any DOM mutations that might add modals or backdrops
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+          // Check for newly added modals
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === 1 && node.classList && node.classList.contains('modal')) {
+              console.log('🆕 New modal detected, setting up cleanup handlers...');
+              this.setupModalCleanupForElement(node);
+            }
+          });
+          
+          // Clean up if modal backdrops are removed (might indicate modal closed)
+          mutation.removedNodes.forEach((node) => {
+            if (node.nodeType === 1 && node.classList && node.classList.contains('modal-backdrop')) {
+              console.log('🗑️ Modal backdrop removed, ensuring page is enabled...');
+              setTimeout(() => {
+                this.ensurePageEnabled();
+              }, 50);
+            }
+          });
+        }
+      });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    console.log('✅ Universal modal cleanup handlers setup complete');
+  },
+
+  /**
+   * Setup cleanup handlers for a specific modal element
+   */
+  setupModalCleanupForElement(modal) {
+    if (!modal || modal.dataset.cleanupSetup === 'true') {
+      return; // Already setup
+    }
+    
+    console.log(`🔧 Setting up cleanup for modal element: ${modal.id || 'unnamed'}`);
+    
+    // Mark as setup to avoid duplicate handlers
+    modal.dataset.cleanupSetup = 'true';
+    
+    // Listen for Bootstrap modal events
+    modal.addEventListener('hidden.bs.modal', () => {
+      console.log(`🧹 Modal hidden: ${modal.id || 'unnamed'} - running cleanup`);
+      setTimeout(() => {
+        this.ensurePageEnabled();
+        this.forceCleanupModals();
+      }, 50);
+    });
+    
+    modal.addEventListener('hide.bs.modal', () => {
+      console.log(`⏬ Modal hiding: ${modal.id || 'unnamed'} - preparing cleanup`);
+    });
+    
+    // Handle close button clicks
+    const closeButtons = modal.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
+    closeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        console.log(`❌ Close button clicked in modal: ${modal.id || 'unnamed'}`);
+        setTimeout(() => {
+          this.ensurePageEnabled();
+          this.forceCleanupModals();
+        }, 100);
+      });
+    });
   },
 
   /**
