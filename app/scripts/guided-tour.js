@@ -312,6 +312,36 @@ class GuidedTourManager {
       ]
     });
 
+    // Validation plan
+    this.tour.addStep({
+      title: 'Add Validation Plan',
+      text: 'A validation plan helps ensure the change works correctly. Let\'s add testing steps for our security patch.',
+      attachTo: {
+        element: '#validation-plan',
+        on: 'right'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Fill Validation Plan',
+          classes: 'shepherd-button-primary',
+          action: () => {
+            // Fill validation plan
+            const validationPlan = document.getElementById('validation-plan');
+            if (validationPlan) {
+              validationPlan.value = '1. Verify database connectivity and performance\n2. Run automated security scan to confirm patches applied\n3. Test critical business applications\n4. Monitor system logs for errors\n5. Validate backup and recovery procedures\n6. Confirm all security vulnerabilities are addressed';
+              validationPlan.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            this.tour.next();
+          }
+        }
+      ]
+    });
+
     // Asset Association tab
     this.tour.addStep({
       title: 'Time for Asset Association',
@@ -369,6 +399,50 @@ class GuidedTourManager {
             }
             this.tour.next();
           }
+        }
+      ]
+    });
+
+    // Services selection in asset association
+    this.tour.addStep({
+      title: 'Select Related Services',
+      text: 'In addition to assets, you can also select services that will be impacted. This helps with comprehensive change planning and stakeholder notifications.',
+      attachTo: {
+        element: '.services-selection-section',
+        on: 'top'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'I Understand',
+          classes: 'shepherd-button-primary',
+          action: () => this.tour.next()
+        }
+      ]
+    });
+
+    // Services search and filters
+    this.tour.addStep({
+      title: 'Services Search & Filters',
+      text: 'Use the search box and filters to find relevant services. You can filter by service type to narrow down results.',
+      attachTo: {
+        element: '#services-search',
+        on: 'bottom'
+      },
+      buttons: [
+        {
+          text: 'Previous',
+          classes: 'shepherd-button-secondary',
+          action: () => this.tour.back()
+        },
+        {
+          text: 'Next',
+          classes: 'shepherd-button-primary',
+          action: () => this.tour.next()
         }
       ]
     });
@@ -608,6 +682,7 @@ class GuidedTourManager {
       'change-description', 
       'implementation-plan',
       'backout-plan',
+      'validation-plan',
       'asset-search-input'
     ];
     

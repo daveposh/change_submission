@@ -3,7 +3,7 @@
 // Force refresh timestamp: <?= new Date().getTime() ?>
 
 console.log('🔄 Cache buster loaded - forcing fresh script execution');
-console.log('📋 Change Submission Version: 2.8.8 - Fixed Asset Association Checkbox Dark Mode');
+console.log('📋 Change Submission Version: 2.8.9 - Fixed Asset Hover Contrast & Added Validation Plan to Tour');
 
 // Clear any cached stakeholder notification functions
 if (window.ChangeSubmission) {
