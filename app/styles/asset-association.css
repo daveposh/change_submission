@@ -1148,18 +1148,84 @@
 }
 
 [data-bs-theme="dark"] .service-item-checkbox {
-  background-color: #374151;
-  border-color: #6b7280;
-  color: #e2e8f0;
+  background-color: #374151 !important;
+  border-color: #6b7280 !important;
+  color: #e2e8f0 !important;
 }
 
 [data-bs-theme="dark"] .service-item-checkbox:checked {
-  background-color: #3b82f6;
-  border-color: #3b82f6;
+  background-color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
 }
 
 [data-bs-theme="dark"] .service-item-checkbox:focus {
-  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25) !important;
+}
+
+/* Ensure all form checkboxes in asset association have proper dark mode styling */
+[data-bs-theme="dark"] .asset-association-container .form-check-input {
+  background-color: #374151 !important;
+  border-color: #6b7280 !important;
+}
+
+[data-bs-theme="dark"] .asset-association-container .form-check-input:checked {
+  background-color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .asset-association-container .form-check-input:focus {
+  box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25) !important;
+}
+
+[data-bs-theme="dark"] .asset-association-container .form-check-input:hover {
+  border-color: #9ca3af !important;
+}
+
+/* Fix any checkboxes in asset search results */
+[data-bs-theme="dark"] .asset-result-item input[type="checkbox"] {
+  background-color: #374151 !important;
+  border-color: #6b7280 !important;
+}
+
+[data-bs-theme="dark"] .asset-result-item input[type="checkbox"]:checked {
+  background-color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] .asset-result-item input[type="checkbox"]:focus {
+  box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25) !important;
+}
+
+/* Universal checkbox fix for all checkboxes in asset association tab */
+[data-bs-theme="dark"] #asset-association input[type="checkbox"],
+[data-bs-theme="dark"] .tab-pane#asset-association input[type="checkbox"],
+[data-bs-theme="dark"] .asset-association-container input[type="checkbox"] {
+  background-color: #374151 !important;
+  border: 2px solid #6b7280 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] #asset-association input[type="checkbox"]:checked,
+[data-bs-theme="dark"] .tab-pane#asset-association input[type="checkbox"]:checked,
+[data-bs-theme="dark"] .asset-association-container input[type="checkbox"]:checked {
+  background-color: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+[data-bs-theme="dark"] #asset-association input[type="checkbox"]:hover,
+[data-bs-theme="dark"] .tab-pane#asset-association input[type="checkbox"]:hover,
+[data-bs-theme="dark"] .asset-association-container input[type="checkbox"]:hover {
+  border-color: #9ca3af !important;
+}
+
+[data-bs-theme="dark"] #asset-association input[type="checkbox"]:focus,
+[data-bs-theme="dark"] .tab-pane#asset-association input[type="checkbox"]:focus,
+[data-bs-theme="dark"] .asset-association-container input[type="checkbox"]:focus {
+  box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25) !important;
 }
 
 /* Service Loading and Empty States */
