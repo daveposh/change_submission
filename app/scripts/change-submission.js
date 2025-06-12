@@ -3506,14 +3506,229 @@ For questions about this process, please refer to the Change Management procedur
           }
         }
        
-     } catch (error) {
-       console.error('❌ Error showing submission success:', error);
-     }
-   }
+           } catch (error) {
+        console.error('❌ Error showing submission success:', error);
+      }
+    },
+
+    /**
+     * Show submission summary before actual submission
+     */
+    showSubmissionSummary() {
+      console.log('📋 Showing submission summary...');
+      
+      try {
+        // Prepare consolidated change request data
+        this.prepareConsolidatedData();
+        
+        // Check if confirmation modal exists
+        const confirmModal = document.getElementById('confirmation-modal');
+        if (confirmModal) {
+          console.log('📊 Using confirmation modal for submission summary');
+          
+          // Generate summary content
+          const summaryContent = this.generateSubmissionSummary();
+          
+          // Update modal content
+          const summaryContentElement = document.getElementById('summary-content');
+          if (summaryContentElement) {
+            summaryContentElement.innerHTML = summaryContent;
+          }
+          
+          // Show modal
+          const modal = new bootstrap.Modal(confirmModal);
+          modal.show();
+          
+          // Ensure confirm button works
+          this.setupConfirmSubmissionButton();
+          
+        } else {
+          console.warn('⚠️ Confirmation modal not found, proceeding directly to submission');
+          // Fallback: go directly to submission
+          this.handleSubmission();
+        }
+        
+      } catch (error) {
+        console.error('❌ Error showing submission summary:', error);
+        // Fallback to direct submission
+        this.handleSubmission();
+      }
+    },
+
+    /**
+     * Prepare consolidated data for submission
+     */
+    prepareConsolidatedData() {
+      console.log('📦 Preparing consolidated change request data...');
+      
+      try {
+        // Ensure window.changeRequestData exists
+        if (!window.changeRequestData) {
+          window.changeRequestData = {};
+        }
+        
+        // Get form data if available
+        const formData = window.formData || {};
+        
+        // Collect data from various sources
+        const consolidatedData = {
+          // Basic change details
+          changeTitle: this.getFieldValue('change-title') || formData.changeDetails?.title || '',
+          changeDescription: this.getFieldValue('change-description') || formData.changeDetails?.description || '',
+          changeType: this.getFieldValue('change-type') || formData.changeDetails?.changeType || '',
+          reasonForChange: this.getFieldValue('reason-for-change') || formData.changeDetails?.reasonForChange || '',
+          
+          // Timing
+          plannedStart: this.getFieldValue('planned-start') || formData.changeDetails?.plannedStart || '',
+          plannedEnd: this.getFieldValue('planned-end') || formData.changeDetails?.plannedEnd || '',
+          
+          // Plans
+          implementationPlan: this.getFieldValue('implementation-plan') || formData.changeDetails?.implementationPlan || '',
+          backoutPlan: this.getFieldValue('backout-plan') || formData.changeDetails?.backoutPlan || '',
+          validationPlan: this.getFieldValue('validation-plan') || formData.changeDetails?.validationPlan || '',
+          
+          // Selections from other modules
+          selectedRequester: window.selectedRequester || null,
+          selectedAgent: window.selectedAgent || null,
+          selectedAssets: window.AssetAssociation?.getSelectedAssets() || [],
+          
+          // Risk assessment
+          riskAssessment: window.formData?.riskAssessment || null
+        };
+        
+        // Store in global variable for submission
+        window.changeRequestData = consolidatedData;
+        
+        console.log('📋 Consolidated data prepared:', {
+          hasTitle: !!consolidatedData.changeTitle,
+          hasDescription: !!consolidatedData.changeDescription,
+          hasRequester: !!consolidatedData.selectedRequester,
+          hasAgent: !!consolidatedData.selectedAgent,
+          assetCount: consolidatedData.selectedAssets?.length || 0,
+          hasRiskAssessment: !!consolidatedData.riskAssessment
+        });
+        
+        return consolidatedData;
+        
+      } catch (error) {
+        console.error('❌ Error preparing consolidated data:', error);
+        return window.changeRequestData || {};
+      }
+    },
+
+    /**
+     * Get field value from DOM
+     */
+    getFieldValue(fieldId) {
+      try {
+        const field = document.getElementById(fieldId);
+        return field ? field.value.trim() : '';
+      } catch (error) {
+        console.warn(`⚠️ Could not get value for field: ${fieldId}`);
+        return '';
+      }
+    },
+
+    /**
+     * Generate submission summary HTML
+     */
+    generateSubmissionSummary() {
+      const data = window.changeRequestData;
+      const riskAssessment = data?.riskAssessment;
+      
+      return `
+        <div class="submission-summary">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <h6><i class="fas fa-edit me-2"></i>Change Details</h6>
+              <p><strong>Title:</strong> ${data.changeTitle || 'Not specified'}</p>
+              <p><strong>Type:</strong> ${data.changeType || 'Not selected'}</p>
+              <p><strong>Description:</strong> ${data.changeDescription ? 'Provided' : 'Not provided'}</p>
+            </div>
+            <div class="col-md-6">
+              <h6><i class="fas fa-users me-2"></i>Assignment</h6>
+              <p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Not selected'}</p>
+              <p><strong>Agent:</strong> ${data.selectedAgent?.name || 'Not selected'}</p>
+              <p><strong>Assets:</strong> ${data.selectedAssets?.length || 0} selected</p>
+            </div>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <h6><i class="fas fa-clock me-2"></i>Timeline</h6>
+              <p><strong>Planned Start:</strong> ${data.plannedStart ? new Date(data.plannedStart).toLocaleString() : 'Not scheduled'}</p>
+              <p><strong>Planned End:</strong> ${data.plannedEnd ? new Date(data.plannedEnd).toLocaleString() : 'Not scheduled'}</p>
+            </div>
+            <div class="col-md-6">
+              <h6><i class="fas fa-chart-line me-2"></i>Risk Assessment</h6>
+              <p><strong>Risk Level:</strong> ${riskAssessment?.riskLevel || 'Not assessed'}</p>
+              <p><strong>Risk Score:</strong> ${riskAssessment?.totalScore || 'N/A'}/15</p>
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-12">
+              <h6><i class="fas fa-list-check me-2"></i>Implementation Plans</h6>
+              <div class="d-flex gap-3">
+                <span class="badge ${data.implementationPlan ? 'bg-success' : 'bg-warning'}">
+                  Implementation: ${data.implementationPlan ? 'Complete' : 'Missing'}
+                </span>
+                <span class="badge ${data.backoutPlan ? 'bg-success' : 'bg-warning'}">
+                  Backout: ${data.backoutPlan ? 'Complete' : 'Missing'}
+                </span>
+                <span class="badge ${data.validationPlan ? 'bg-success' : 'bg-warning'}">
+                  Validation: ${data.validationPlan ? 'Complete' : 'Missing'}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i>
+            Review the details above before submitting. Once submitted, the change request will enter the approval workflow.
+          </div>
+        </div>
+      `;
+    },
+
+    /**
+     * Setup confirm submission button event listener
+     */
+    setupConfirmSubmissionButton() {
+      const confirmBtn = document.getElementById('confirm-submit');
+      if (confirmBtn) {
+        // Remove any existing listeners
+        const newBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+        
+        // Add new listener
+        newBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          
+          // Hide confirmation modal
+          const confirmModal = bootstrap.Modal.getInstance(document.getElementById('confirmation-modal'));
+          if (confirmModal) {
+            confirmModal.hide();
+          }
+          
+          // Start submission
+          setTimeout(() => {
+            this.handleSubmission();
+          }, 300);
+        });
+        
+        console.log('✅ Confirm submission button listener setup');
+      }
+    }
 };
 
-// Initialize the module when DOM is ready
+// Expose the module to the window object
 if (typeof window !== 'undefined') {
+  window.ChangeSubmission = ChangeSubmission;
+  console.log('✅ ChangeSubmission module exposed to window object');
+  console.log('🔍 ChangeSubmission methods available:', Object.keys(ChangeSubmission));
+  
+  // Initialize the module when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       console.log('🔧 ChangeSubmission: DOM loaded, initializing...');
