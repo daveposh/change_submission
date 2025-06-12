@@ -263,6 +263,24 @@ const ChangeSubmission = {
     this.showSubmissionProgressModal();
 
     try {
+      // Step 0: Ensure data is properly consolidated
+      console.log('📦 Step 0: Consolidating form data...');
+      const consolidatedData = this.prepareConsolidatedData();
+      
+      // Debug: Log what we have for validation
+      console.log('📋 Data ready for validation:', {
+        hasTitle: !!consolidatedData.changeTitle,
+        title: consolidatedData.changeTitle,
+        hasChangeType: !!consolidatedData.changeType,
+        changeType: consolidatedData.changeType,
+        hasRequester: !!consolidatedData.selectedRequester,
+        requesterName: consolidatedData.selectedRequester?.name,
+        requesterId: consolidatedData.selectedRequester?.id,
+        hasAgent: !!consolidatedData.selectedAgent,
+        agentName: consolidatedData.selectedAgent?.name || consolidatedData.selectedAgent?.email,
+        agentId: consolidatedData.selectedAgent?.id
+      });
+
       // Step 1: Validate all form data
       this.updateSubmissionProgress('validation', 'active', 'Validating request data...');
       console.log('📋 Step 1: Validating form data...');
@@ -3575,8 +3593,19 @@ For questions about this process, please refer to the Change Management procedur
       console.log('📋 Showing submission summary...');
       
       try {
-        // Prepare consolidated change request data
-        this.prepareConsolidatedData();
+        // Prepare consolidated change request data FIRST
+        const consolidatedData = this.prepareConsolidatedData();
+        
+        // Validate that we have the required data for summary
+        if (!consolidatedData.changeTitle && !consolidatedData.changeType && !consolidatedData.selectedRequester) {
+          console.warn('⚠️ No data available for summary, user may need to fill out the form first');
+          
+          // Show a helpful message
+          if (typeof showNotification === 'function') {
+            showNotification('warning', 'Please fill out the change request form before submitting.');
+          }
+          return;
+        }
         
         // Check if confirmation modal exists
         const confirmModal = document.getElementById('confirmation-modal');
@@ -3627,14 +3656,27 @@ For questions about this process, please refer to the Change Management procedur
         // Get form data if available
         const formData = window.formData || {};
         
+        // Get change type from form
+        const changeTypeField = document.getElementById('change-type');
+        const changeTypeValue = changeTypeField ? changeTypeField.value : '';
+        
         // Debug: Log available global variables
         console.log('🔍 Available global variables:', {
           hasSelectedRequester: !!window.selectedRequester,
           hasSelectedAgent: !!window.selectedAgent,
           hasFormData: !!formData,
           hasChangeRequestData: !!window.changeRequestData,
+          changeTypeValue: changeTypeValue,
           selectedRequesterKeys: window.selectedRequester ? Object.keys(window.selectedRequester) : [],
           selectedAgentKeys: window.selectedAgent ? Object.keys(window.selectedAgent) : []
+        });
+        
+        // Log form field values for debugging
+        console.log('📋 Form field values:', {
+          changeTitle: this.getFieldValue('change-title'),
+          changeType: changeTypeValue,
+          requesterDisplay: document.getElementById('selected-requester-display')?.textContent,
+          agentDisplay: document.getElementById('selected-agent-display')?.textContent
         });
         
         // Collect data from various sources with better fallbacks
@@ -3642,7 +3684,7 @@ For questions about this process, please refer to the Change Management procedur
           // Basic change details
           changeTitle: this.getFieldValue('change-title') || formData.changeDetails?.title || '',
           changeDescription: this.getFieldValue('change-description') || formData.changeDetails?.description || '',
-          changeType: this.getFieldValue('change-type') || formData.changeDetails?.changeType || '',
+          changeType: changeTypeValue || formData.changeDetails?.changeType || '',
           reasonForChange: this.getFieldValue('reason-for-change') || formData.changeDetails?.reasonForChange || '',
           
           // Timing
@@ -3654,9 +3696,9 @@ For questions about this process, please refer to the Change Management procedur
           backoutPlan: this.getFieldValue('backout-plan') || formData.changeDetails?.backoutPlan || '',
           validationPlan: this.getFieldValue('validation-plan') || formData.changeDetails?.validationPlan || '',
           
-          // Selections - try multiple sources
-          selectedRequester: window.selectedRequester || window.changeRequestData?.selectedRequester || formData.selectedRequester || null,
-          selectedAgent: window.selectedAgent || window.changeRequestData?.selectedAgent || formData.selectedAgent || null,
+          // Selections - try multiple sources with enhanced checking
+          selectedRequester: this.getSelectedRequester(formData),
+          selectedAgent: this.getSelectedAgent(formData),
           selectedAssets: window.AssetAssociation?.getSelectedAssets() || window.changeRequestData?.selectedAssets || formData.selectedAssets || [],
           
           // Risk assessment
@@ -3669,6 +3711,8 @@ For questions about this process, please refer to the Change Management procedur
         console.log('📋 Consolidated data prepared:', {
           hasTitle: !!consolidatedData.changeTitle,
           hasDescription: !!consolidatedData.changeDescription,
+          hasChangeType: !!consolidatedData.changeType,
+          changeType: consolidatedData.changeType,
           hasRequester: !!consolidatedData.selectedRequester,
           hasAgent: !!consolidatedData.selectedAgent,
           requesterName: consolidatedData.selectedRequester?.name || 'Not found',
@@ -3684,6 +3728,78 @@ For questions about this process, please refer to the Change Management procedur
         console.error('❌ Error preparing consolidated data:', error);
         return window.changeRequestData || {};
       }
+    },
+
+    /**
+     * Get selected requester from various sources
+     */
+    getSelectedRequester(formData) {
+      // Try global variable first
+      if (window.selectedRequester && window.selectedRequester.id) {
+        console.log('✅ Found requester in window.selectedRequester:', window.selectedRequester.name);
+        return window.selectedRequester;
+      }
+      
+      // Try existing change request data
+      if (window.changeRequestData?.selectedRequester?.id) {
+        console.log('✅ Found requester in window.changeRequestData');
+        return window.changeRequestData.selectedRequester;
+      }
+      
+      // Try form data
+      if (formData.selectedRequester?.id) {
+        console.log('✅ Found requester in formData');
+        return formData.selectedRequester;
+      }
+      
+      // Try to extract from display element (fallback)
+      const requesterDisplay = document.getElementById('selected-requester-display');
+      if (requesterDisplay && requesterDisplay.textContent && !requesterDisplay.textContent.includes('Select')) {
+        console.log('⚠️ Found requester in display element, but no ID available');
+        return {
+          name: requesterDisplay.textContent.trim(),
+          id: null // This will still fail validation, but shows we found something
+        };
+      }
+      
+      console.warn('❌ No requester found in any source');
+      return null;
+    },
+
+    /**
+     * Get selected agent from various sources
+     */
+    getSelectedAgent(formData) {
+      // Try global variable first
+      if (window.selectedAgent && window.selectedAgent.id) {
+        console.log('✅ Found agent in window.selectedAgent:', window.selectedAgent.name || window.selectedAgent.email);
+        return window.selectedAgent;
+      }
+      
+      // Try existing change request data
+      if (window.changeRequestData?.selectedAgent?.id) {
+        console.log('✅ Found agent in window.changeRequestData');
+        return window.changeRequestData.selectedAgent;
+      }
+      
+      // Try form data
+      if (formData.selectedAgent?.id) {
+        console.log('✅ Found agent in formData');
+        return formData.selectedAgent;
+      }
+      
+      // Try to extract from display element (fallback)
+      const agentDisplay = document.getElementById('selected-agent-display');
+      if (agentDisplay && agentDisplay.textContent && !agentDisplay.textContent.includes('Select')) {
+        console.log('⚠️ Found agent in display element, but no ID available');
+        return {
+          name: agentDisplay.textContent.trim(),
+          id: null // This will still fail validation, but shows we found something
+        };
+      }
+      
+      console.warn('❌ No agent found in any source');
+      return null;
     },
 
     /**
