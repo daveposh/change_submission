@@ -600,17 +600,65 @@ const CacheManager = {
   },
 
   /**
-   * Save services to cache
+   * Save services to cache with data optimization
    * @param {Array} services - Services array to cache
    * @returns {Promise<boolean>} - Success status
    */
   async saveServicesCache(services) {
     try {
-      await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, services);
-      console.log('Services cache updated');
+      // Optimize data before storing to prevent 413 errors
+      const optimizedServices = services.map(service => ({
+        id: service.id,
+        display_id: service.display_id,
+        name: service.name,
+        description: service.description ? service.description.substring(0, 100) : '', // Limit description length
+        category: service.category,
+        visibility: service.visibility,
+        created_at: service.created_at,
+        updated_at: service.updated_at,
+        // Store only essential asset data instead of full original_asset
+        asset_type_id: service.original_asset?.asset_type_id,
+        asset_type_name: service.original_asset?.asset_type_name,
+        managed_by: service.original_asset?.managed_by,
+        timestamp: service.timestamp
+      }));
+
+      // Check payload size before storing
+      const payloadSize = JSON.stringify(optimizedServices).length;
+      console.log(`📏 Services cache payload size: ${payloadSize} bytes (${optimizedServices.length} services)`);
+      
+      // If still too large, store only first 20 services
+      let servicesToStore = optimizedServices;
+      if (payloadSize > 100000) { // 100KB limit
+        console.warn(`⚠️ Payload too large (${payloadSize} bytes), limiting to 20 services`);
+        servicesToStore = optimizedServices.slice(0, 20);
+      }
+      
+      await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, servicesToStore);
+      console.log(`✅ Services cache updated with ${servicesToStore.length} services`);
       return true;
     } catch (error) {
       console.error('Failed to save services cache:', error);
+      
+      // Try with even smaller dataset as fallback
+      if (services.length > 10) {
+        console.log('🔄 Attempting to save first 10 services only...');
+        try {
+          const minimalServices = services.slice(0, 10).map(service => ({
+            id: service.id,
+            name: service.name,
+            category: service.category,
+            timestamp: service.timestamp
+          }));
+          
+          await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, minimalServices);
+          console.log('✅ Saved minimal services cache (10 services)');
+          return true;
+        } catch (fallbackError) {
+          console.error('❌ Even minimal cache save failed:', fallbackError);
+        }
+      }
+      
       return false;
     }
   },

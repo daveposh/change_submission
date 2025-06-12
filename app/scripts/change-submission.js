@@ -193,6 +193,63 @@ const ChangeSubmission = {
   },
 
   /**
+   * Setup universal modal cleanup to prevent stuck modals
+   */
+  setupUniversalModalCleanup() {
+    console.log('🔧 Setting up universal modal cleanup...');
+    
+    try {
+      // Add ESC key handler for all modals
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          this.ensurePageEnabled();
+        }
+      });
+      
+      // Clean up on page visibility change
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          setTimeout(() => {
+            this.ensurePageEnabled();
+          }, 100);
+        }
+      });
+      
+      console.log('✅ Universal modal cleanup setup complete');
+    } catch (error) {
+      console.error('❌ Error setting up universal modal cleanup:', error);
+    }
+  },
+
+  /**
+   * Ensure page is enabled and no stuck modals exist
+   */
+  ensurePageEnabled() {
+    try {
+      // Remove modal-open class from body
+      document.body.classList.remove('modal-open');
+      
+      // Remove any backdrop elements
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      backdrops.forEach(backdrop => {
+        if (backdrop.parentNode) {
+          backdrop.parentNode.removeChild(backdrop);
+        }
+      });
+      
+      // Reset body styles
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+      
+      // Enable scrolling
+      document.documentElement.style.overflow = '';
+      
+    } catch (error) {
+      console.warn('⚠️ Error in ensurePageEnabled:', error);
+    }
+  },
+
+  /**
    * Handle the complete change request submission workflow
    */
   async handleSubmission() {
