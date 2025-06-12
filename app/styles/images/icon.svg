@@ -1,23 +1,76 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <!-- Change request icon with document and gear -->
-  <g fill="#FFF">
-    <!-- Document background -->
-    <path d="M16 8 L16 56 L48 56 L48 20 L36 8 Z"/>
-    <!-- Document corner fold -->
-    <path d="M36 8 L36 20 L48 20 Z" fill="#E0E0E0"/>
+  <defs>
+    <!-- Gradients for modern look -->
+    <linearGradient id="docGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="cxiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10B981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="gearGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F59E0B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D97706;stop-opacity:1" />
+    </linearGradient>
     
-    <!-- Gear/Settings icon -->
-    <circle cx="32" cy="36" r="8" fill="none" stroke="#FFF" stroke-width="2"/>
-    <circle cx="32" cy="36" r="3"/>
+    <!-- Drop shadow filter -->
+    <filter id="dropShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Main document background with gradient -->
+  <g class="document-group" filter="url(#dropShadow)">
+    <path d="M14 6 L14 58 L50 58 L50 18 L38 6 Z" fill="url(#docGradient)" stroke="#3730A3" stroke-width="1"/>
+    <!-- Document corner fold -->
+    <path d="M38 6 L38 18 L50 18 Z" fill="#C7D2FE" stroke="#3730A3" stroke-width="1"/>
+  </g>
+  
+  <!-- CXI Logo/Badge -->
+  <g class="cxi-badge">
+    <circle cx="20" cy="18" r="8" fill="url(#cxiGradient)" stroke="#047857" stroke-width="1"/>
+    <text x="20" y="22" font-family="Arial, sans-serif" font-size="8" font-weight="bold" text-anchor="middle" fill="white">CXI</text>
+  </g>
+  
+  <!-- Change request lines (document content) -->
+  <g class="document-lines" stroke="#E0E7FF" stroke-width="1" opacity="0.8">
+    <line x1="18" y1="28" x2="42" y2="28"/>
+    <line x1="18" y1="32" x2="40" y2="32"/>
+    <line x1="18" y1="36" x2="44" y2="36"/>
+    <line x1="18" y1="40" x2="38" y2="40"/>
+  </g>
+  
+  <!-- Gear/Settings icon for change -->
+  <g class="gear-group">
+    <circle cx="44" cy="44" r="10" fill="url(#gearGradient)" stroke="#B45309" stroke-width="2"/>
+    <circle cx="44" cy="44" r="4" fill="#FED7AA"/>
     
     <!-- Gear teeth -->
-    <rect x="31" y="26" width="2" height="4"/>
-    <rect x="31" y="46" width="2" height="4"/>
-    <rect x="26" y="35" width="4" height="2"/>
-    <rect x="46" y="35" width="4" height="2"/>
-    
-    <!-- Arrow indicating change -->
-    <path d="M20 24 L28 24 L26 20 L30 26 L26 32 L28 28 L20 28 Z"/>
+    <g class="gear-teeth" fill="url(#gearGradient)">
+      <rect x="43" y="32" width="2" height="4" rx="1"/>
+      <rect x="43" y="52" width="2" height="4" rx="1"/>
+      <rect x="32" y="43" width="4" height="2" rx="1"/>
+      <rect x="52" y="43" width="4" height="2" rx="1"/>
+      
+      <!-- Diagonal teeth -->
+      <rect x="37" y="36" width="2" height="3" rx="1" transform="rotate(45 38 37.5)"/>
+      <rect x="49" y="48" width="2" height="3" rx="1" transform="rotate(45 50 49.5)"/>
+      <rect x="49" y="36" width="2" height="3" rx="1" transform="rotate(-45 50 37.5)"/>
+      <rect x="37" y="48" width="2" height="3" rx="1" transform="rotate(-45 38 49.5)"/>
+    </g>
+  </g>
+  
+  <!-- Change arrow -->
+  <g class="change-arrow" fill="url(#cxiGradient)" stroke="#047857" stroke-width="1">
+    <path d="M16 24 L26 24 L24 20 L30 26 L24 32 L26 28 L16 28 Z"/>
+  </g>
+  
+  <!-- Status indicators -->
+  <g class="status-dots">
+    <circle cx="46" cy="14" r="2" fill="#10B981" opacity="0.8"/>
+    <circle cx="46" cy="20" r="2" fill="#F59E0B" opacity="0.8"/>
+    <circle cx="46" cy="26" r="2" fill="#EF4444" opacity="0.8"/>
   </g>
 </svg> 
