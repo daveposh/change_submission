@@ -2829,7 +2829,7 @@ window.debugServiceFilter = async function() {
     console.log('🎯 Configured service asset type IDs:', configuredIds);
     
     // Build the filter query
-    const filterQuery = configuredIds.map(id => `asset_type_id: ${id}`).join(' OR ');
+    const filterQuery = configuredIds.map(id => `asset_type_id:${id}`).join(' OR ');
     console.log('📝 Filter query that will be used:', filterQuery);
     
     // Show the full API URL

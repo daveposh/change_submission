@@ -261,7 +261,7 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/assets",
       "query": {
-        "query": "<%= encode(context.filter_query) %>",
+        "filter": "<%= context.filter_query %>",
         "include": "<%= context.include %>",
         "page": "<%= context.page || '1' %>"
       },
