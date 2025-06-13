@@ -206,10 +206,6 @@ custom_fields: {
 }
 ```
 
-**Note**: Planning details such as implementation plans, backout plans, and validation plans are included in the main description field rather than custom fields, as the specific custom fields for these do not exist in this Freshservice instance.
-
-The `lf_technical_owner` field is automatically populated with the primary technical owner identified through the **Impacted Services** analysis - specifically the user who has direct access management responsibilities for the most critical asset in the change scope.
-
 ### 7.3 API Integration
 
 #### 7.3.1 Field Mappings
@@ -251,7 +247,7 @@ The system populates the following standard Freshservice planning fields:
 - `backout_plan` - Backout procedures
 
 #### 7.3.3 Required Fields
-- `workspace_id: 2` - "CXI Change Management" workspace (required)
+- `workspace_id: 2` - "Change Management" workspace (required)
 - `subject` - Change title (required)
 - `description` - Change description (required)
 - `change_type` - Change type (required)
@@ -260,52 +256,9 @@ The system populates the following standard Freshservice planning fields:
 - `risk` - Risk level (required)
 - `impact` - Impact level (required)
 
-### 7.4 Technical Owner Identification
+## 8. Maintenance and Updates
 
-The system automatically identifies **technical owners** through the **Impacted Services** analysis:
-
-#### 7.4.1 Technical Owner Definition
-A **technical owner** is a user who has **direct access management** responsibilities for an asset, identified through the following asset fields:
-- `managed_by` - Primary technical owner/manager
-- `agent_id` - Assigned agent with management responsibilities  
-- `user_id` - User with direct access/ownership
-
-#### 7.4.2 Technical Owner Processing
-```javascript
-// Technical Owner Identification Logic (from impacted-services.js)
-let managedById = null;
-
-if (asset.agent_id) {
-    managedById = asset.agent_id;
-} else if (asset.user_id) {
-    managedById = asset.user_id;
-} else if (asset.managed_by) {
-    managedById = asset.managed_by;
-}
-
-// Resolve to user details and add as approver
-if (managedById && !isNaN(managedById)) {
-    const userDetails = await getUserDetails(managedById);
-    // Add as approver with source: "Direct asset: [asset_name]"
-}
-```
-
-#### 7.4.3 Integration with Change Request
-- Technical owners identified from **direct assets** become **required approvers**
-- Technical owners from **related assets** become **stakeholders** (unless already approvers)  
-- The `lf_technical_owner` custom field stores the primary technical owner reference
-- This information is included in the change request description and workflow routing
-
-#### 7.4.4 Approval Workflow Impact
-The number and role of identified technical owners affects:
-- **Workflow complexity**: More technical owners → more complex approval process
-- **Risk assessment validation**: Changes affecting critical systems with multiple technical owners may require higher approval levels
-- **Notification distribution**: All technical owners receive change notifications
-
-## 8. Governance and Compliance
-
-### 8.1 Audit Trail
-- All risk assessments are logged with timestamps
+### 8.1 Data Retention
 - Risk scores and levels are included in change request descriptions
 - Assessment data is preserved for compliance and reporting
 
@@ -318,7 +271,7 @@ The number and role of identified technical owners affects:
 
 ### 9.1 Technical Implementation Reference
 
-The risk calculation is implemented in `app/scripts/app.js` in the `calculateRisk()` function (lines 4625-4695).
+The risk calculation is implemented in `app/scripts/app.js` in the `calculateRisk()` function.
 
 ### 9.2 Related Documents
 - Change Management Process Policy

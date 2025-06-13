@@ -887,30 +887,22 @@ graph TD
 - Save progress frequently
 - Contact support if data loss occurs
 
-### Support and Assistance
+### Support and Contact Information
 
-#### Help Desk Contact
-- **Email**: it-helpdesk@company.com
-- **Phone**: (555) 123-4567
-- **Hours**: Monday-Friday, 8:00 AM - 6:00 PM
+For assistance with the Change Management application:
 
-#### Change Management Team
-- **Change Manager**: John Smith (john.smith@company.com)
-- **CAB Chair**: Jane Doe (jane.doe@company.com)
-- **Process Owner**: Bob Wilson (bob.wilson@company.com)
+- **Help Desk**: helpdesk@example.com
+- **Change Management Team**: change-management@example.com
 
-#### Training Resources
-- **User Training Sessions**: Monthly training available
-- **Documentation**: Available in company knowledge base
-- **Video Tutorials**: Accessible through learning management system
-- **Process Workshops**: Quarterly process improvement sessions
+### Key Contacts
 
-#### Escalation Path
-1. **Level 1**: Application Help Desk
-2. **Level 2**: Change Management Team
-3. **Level 3**: IT Management
-4. **Level 4**: Business Leadership
+- **Change Manager**: [Your Change Manager Name]
+- **CAB Chair**: [Your CAB Chair Name]
+- **Process Owner**: [Your Process Owner Name]
 
----
+### Additional Resources
 
-*This guide is updated regularly. For the latest version, please check the company knowledge base or contact the Change Management team.* 
+- **Documentation**: Available in your organization's knowledge base
+- **Training Materials**: Contact your Change Management team for access
+
+*This guide is updated regularly. For the latest version, please check your organization's knowledge base or contact the Change Management team.* 

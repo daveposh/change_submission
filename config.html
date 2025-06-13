@@ -69,12 +69,77 @@
     .alert {
       margin-top: 20px;
     }
+    .logo-preview {
+      max-width: 200px;
+      max-height: 50px;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+      padding: 5px;
+      border-radius: 4px;
+    }
+    
+    .logo-upload-container {
+      position: relative;
+      margin-bottom: 15px;
+    }
+    
+    .logo-upload-container .btn-remove-logo {
+      position: absolute;
+      top: 0;
+      right: 0;
+      padding: 2px 8px;
+      font-size: 12px;
+    }
   </style>
 </head>
 
 <body>
   <div class="container">
     <h1>Change Request App Configuration</h1>
+    
+    <div class="card mb-4">
+      <h5>Company Branding</h5>
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <div class="settings-label">Company Name</div>
+          <div class="input-group">
+            <input type="text" class="form-control" id="company_name" placeholder="Your Company Name">
+          </div>
+          <div class="info-text">This will be displayed in the app header</div>
+        </div>
+      </div>
+      
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <div class="settings-label">Header Logo</div>
+          <div class="logo-upload-container">
+            <input type="file" class="form-control" id="company_logo" accept="image/png,image/svg+xml">
+            <div class="info-text">Recommended size: 200x50px, formats: PNG or SVG</div>
+            <img id="logo_preview" class="logo-preview d-none" alt="Header Logo Preview">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-logo d-none" id="remove_logo">
+              Remove Logo
+            </button>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="settings-label">Sidebar Icon</div>
+          <div class="logo-upload-container">
+            <input type="file" class="form-control" id="sidebar_icon" accept="image/svg+xml">
+            <div class="info-text">Must be 24x24px SVG format</div>
+            <img id="sidebar_icon_preview" class="logo-preview d-none" alt="Sidebar Icon Preview">
+            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-logo d-none" id="remove_sidebar_icon">
+              Remove Icon
+            </button>
+          </div>
+          <div class="alert alert-info mt-2">
+            <small>
+              <i class="fas fa-info-circle"></i>
+              Note: The sidebar icon is managed through the app's static assets. The uploaded icon will be used as a reference for updating the app's sidebar icon.
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
     
     <div class="card mb-4">
       <h5>API Connection Settings</h5>
@@ -280,115 +345,153 @@
         }
       });
       
-      // Save settings button handler
-      document.getElementById('save-settings').addEventListener('click', function() {
-        // Show spinner
-        document.getElementById('save-spinner').classList.remove('d-none');
-        document.getElementById('success-alert').classList.add('d-none');
-        document.getElementById('error-alert').classList.add('d-none');
-        
-        // Get all settings
-        const settings = {
-          freshservice_domain: document.getElementById('freshservice_domain').value,
-          api_key: document.getElementById('api_key').value,
-          plan_type: document.getElementById('plan_type').value,
-          api_safety_margin: document.getElementById('api_safety_margin').value,
-          rate_limit_overall: document.getElementById('rate_limit_overall').value,
-          rate_limit_list_tickets: document.getElementById('rate_limit_list_tickets').value,
-          rate_limit_list_assets: document.getElementById('rate_limit_list_assets').value,
-          rate_limit_list_agents: document.getElementById('rate_limit_list_agents').value,
-          rate_limit_list_requesters: document.getElementById('rate_limit_list_requesters').value,
-          search_cache_timeout: document.getElementById('search_cache_timeout').value
-        };
-        
-        // Save settings
-        client.iparams.set(settings)
-          .then(function() {
-            document.getElementById('save-spinner').classList.add('d-none');
-            document.getElementById('success-alert').classList.remove('d-none');
-            setTimeout(() => {
-              document.getElementById('success-alert').classList.add('d-none');
-            }, 5000);
-          })
-          .catch(function(error) {
-            console.error('Error saving settings:', error);
-            document.getElementById('save-spinner').classList.add('d-none');
-            document.getElementById('error-alert').classList.remove('d-none');
-            document.getElementById('error-alert').textContent = 'Error saving configuration: ' + (error.message || 'Unknown error');
-          });
+      // Add logo preview functionality
+      document.getElementById('company_logo').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const preview = document.getElementById('logo_preview');
+            preview.src = e.target.result;
+            preview.classList.remove('d-none');
+            document.getElementById('remove_logo').classList.remove('d-none');
+          };
+          reader.readAsDataURL(file);
+        }
       });
       
-      // Initialize the client and load existing settings
-      app.initialized()
-        .then(function(_client) {
-          client = _client;
-          client.instance.resize({ height: "700px" });
+      // Add sidebar icon preview functionality
+      document.getElementById('sidebar_icon').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const preview = document.getElementById('sidebar_icon_preview');
+            preview.src = e.target.result;
+            preview.classList.remove('d-none');
+            document.getElementById('remove_sidebar_icon').classList.remove('d-none');
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+      
+      // Add logo removal functionality
+      document.getElementById('remove_logo').addEventListener('click', function() {
+        document.getElementById('company_logo').value = '';
+        document.getElementById('logo_preview').classList.add('d-none');
+        this.classList.add('d-none');
+      });
+      
+      // Add sidebar icon removal functionality
+      document.getElementById('remove_sidebar_icon').addEventListener('click', function() {
+        document.getElementById('sidebar_icon').value = '';
+        document.getElementById('sidebar_icon_preview').classList.add('d-none');
+        this.classList.add('d-none');
+      });
+      
+      // Modify the save function to handle both logos
+      document.getElementById('save-settings').addEventListener('click', async function() {
+        const spinner = document.getElementById('save-spinner');
+        const successAlert = document.getElementById('success-alert');
+        
+        try {
+          spinner.classList.remove('d-none');
           
-          // Load existing settings
-          return client.iparams.get();
-        })
-        .then(function(iparams) {
-          // Set values in form
-          if (iparams.freshservice_domain) {
-            document.getElementById('freshservice_domain').value = iparams.freshservice_domain;
-          }
+          // Get all form values
+          const formData = {
+            company_name: document.getElementById('company_name').value,
+            freshservice_domain: document.getElementById('freshservice_domain').value,
+            api_key: document.getElementById('api_key').value,
+            plan_type: document.getElementById('plan_type').value,
+            api_safety_margin: document.getElementById('api_safety_margin').value,
+            rate_limit_overall: document.getElementById('rate_limit_overall').value,
+            rate_limit_list_tickets: document.getElementById('rate_limit_list_tickets').value,
+            rate_limit_list_assets: document.getElementById('rate_limit_list_assets').value,
+            rate_limit_list_agents: document.getElementById('rate_limit_list_agents').value,
+            rate_limit_list_requesters: document.getElementById('rate_limit_list_requesters').value,
+            search_cache_timeout: document.getElementById('search_cache_timeout').value
+          };
           
-          if (iparams.api_key) {
-            document.getElementById('api_key').value = iparams.api_key;
-          }
-          
-          // First set plan_type
-          let planType = 'starter';
-          if (iparams.plan_type) {
-            planType = iparams.plan_type;
-            document.getElementById('plan_type').value = planType;
-          }
-          
-          // Apply default rate limits if values are not set
-          const shouldApplyDefaults = 
-            !iparams.rate_limit_overall ||
-            !iparams.rate_limit_list_tickets ||
-            !iparams.rate_limit_list_assets ||
-            !iparams.rate_limit_list_agents ||
-            !iparams.rate_limit_list_requesters;
-            
-          if (shouldApplyDefaults) {
-            // Apply defaults based on selected plan
-            applyRateLimitsByPlan(planType);
+          // Handle header logo if selected
+          const logoFile = document.getElementById('company_logo').files[0];
+          if (logoFile) {
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+              formData.company_logo = e.target.result;
+              
+              // Handle sidebar icon if selected
+              const sidebarIconFile = document.getElementById('sidebar_icon').files[0];
+              if (sidebarIconFile) {
+                const iconReader = new FileReader();
+                iconReader.onload = async function(e) {
+                  formData.sidebar_icon = e.target.result;
+                  await saveSettings(formData);
+                };
+                iconReader.readAsDataURL(sidebarIconFile);
+              } else {
+                await saveSettings(formData);
+              }
+            };
+            reader.readAsDataURL(logoFile);
           } else {
-            // Set individual values from saved settings
-            if (iparams.rate_limit_overall) {
-              document.getElementById('rate_limit_overall').value = iparams.rate_limit_overall;
-            }
-            
-            if (iparams.rate_limit_list_tickets) {
-              document.getElementById('rate_limit_list_tickets').value = iparams.rate_limit_list_tickets;
-            }
-            
-            if (iparams.rate_limit_list_assets) {
-              document.getElementById('rate_limit_list_assets').value = iparams.rate_limit_list_assets;
-            }
-            
-            if (iparams.rate_limit_list_agents) {
-              document.getElementById('rate_limit_list_agents').value = iparams.rate_limit_list_agents;
-            }
-            
-            if (iparams.rate_limit_list_requesters) {
-              document.getElementById('rate_limit_list_requesters').value = iparams.rate_limit_list_requesters;
+            // Handle sidebar icon if selected (without header logo)
+            const sidebarIconFile = document.getElementById('sidebar_icon').files[0];
+            if (sidebarIconFile) {
+              const iconReader = new FileReader();
+              iconReader.onload = async function(e) {
+                formData.sidebar_icon = e.target.result;
+                await saveSettings(formData);
+              };
+              iconReader.readAsDataURL(sidebarIconFile);
+            } else {
+              await saveSettings(formData);
             }
           }
           
-          if (iparams.api_safety_margin) {
-            document.getElementById('api_safety_margin').value = iparams.api_safety_margin;
+          successAlert.classList.remove('d-none');
+          setTimeout(() => {
+            successAlert.classList.add('d-none');
+          }, 3000);
+        } catch (error) {
+          console.error('Error saving settings:', error);
+          alert('Error saving settings: ' + error.message);
+        } finally {
+          spinner.classList.add('d-none');
+        }
+      });
+      
+      // Function to save settings
+      async function saveSettings(formData) {
+        const client = await app.initialized();
+        await client.iparams.set(formData);
+      }
+      
+      // Load saved settings
+      async function loadSettings() {
+        const client = await app.initialized();
+        const settings = await client.iparams.get();
+        
+        // Set form values
+        Object.keys(settings).forEach(key => {
+          const element = document.getElementById(key);
+          if (element) {
+            if (element.type === 'file') {
+              // Handle logo preview if exists
+              if (settings[key]) {
+                const preview = document.getElementById('logo_preview');
+                preview.src = settings[key];
+                preview.classList.remove('d-none');
+                document.getElementById('remove_logo').classList.remove('d-none');
+              }
+            } else {
+              element.value = settings[key];
+            }
           }
-          
-          if (iparams.search_cache_timeout) {
-            document.getElementById('search_cache_timeout').value = iparams.search_cache_timeout;
-          }
-        })
-        .catch(function(error) {
-          console.error('Error during app initialization:', error);
         });
+      }
+      
+      // Load settings when page loads
+      loadSettings();
     });
   </script>
 </body>

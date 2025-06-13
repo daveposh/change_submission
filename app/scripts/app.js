@@ -406,14 +406,36 @@ const DEFAULT_RATE_LIMITS = {
 // Company name configuration
 let companyName = 'Change Management'; // Default value
 
-// Update company name when iparams are loaded
+// Update company name and logos when iparams are loaded
 async function updateCompanyName() {
   try {
     const params = await window.client.iparams.get();
     companyName = params.company_name || 'Change Management';
     console.log('🏢 Company name loaded:', companyName);
+    
+    // Update company name in UI
+    const companyNameElement = document.querySelector('.cxi-text');
+    if (companyNameElement) {
+      companyNameElement.textContent = companyName;
+    }
+    
+    // Update header logo if configured
+    if (params.company_logo) {
+      const logoElement = document.querySelector('.app-icon img');
+      if (logoElement) {
+        logoElement.src = params.company_logo;
+        logoElement.alt = `${companyName} Logo`;
+        console.log('🎨 Company logo loaded');
+      }
+    }
+    
+    // Note: Sidebar icon is managed through manifest.json and static assets
+    // The uploaded sidebar_icon in iparams is for reference only
+    if (params.sidebar_icon) {
+      console.log('ℹ️ Sidebar icon uploaded. Note: To update the sidebar icon, please contact your app administrator.');
+    }
   } catch (error) {
-    console.warn('⚠️ Could not retrieve company name from iparams:', error);
+    console.warn('⚠️ Could not retrieve company branding from iparams:', error);
   }
 }
 

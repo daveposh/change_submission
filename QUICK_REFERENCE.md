@@ -68,10 +68,15 @@ Med/High:    Submitted → Pending Review → Pending Approval → Scheduled
 - Mandatory post-implementation review within 48 hours
 - All emergency changes reviewed at next CAB meeting
 
-## Contact Information
-- **Help Desk**: it-helpdesk@company.com | (555) 123-4567
-- **Change Manager**: John Smith (john.smith@company.com)
-- **CAB Chair**: Jane Doe (jane.doe@company.com)
+## Support Contacts
+- **Help Desk**: helpdesk@example.com
+- **Change Management**: change-management@example.com
+- **Emergency Support**: emergency-support@example.com
+
+## Additional Resources
+- **Documentation**: Available in your organization's knowledge base
+- **Training**: Contact your Change Management team
+- **Process Guide**: See full User Guide for detailed procedures
 
 ## Common Issues & Quick Fixes
 - **Validation Errors**: Check all required fields, risk assessment completion

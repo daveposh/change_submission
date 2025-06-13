@@ -6,6 +6,26 @@
     "required": true,
     "default_value": "Change Management"
   },
+  "company_logo": {
+    "display_name": "Company Logo",
+    "description": "Upload your company logo (recommended size: 200x50px, format: PNG or SVG). Note: This is for the app header only. The sidebar icon must be 24x24px SVG.",
+    "type": "file",
+    "required": false,
+    "file_upload": {
+      "allowed_types": ["image/png", "image/svg+xml"],
+      "max_size": 1024
+    }
+  },
+  "sidebar_icon": {
+    "display_name": "Sidebar Icon",
+    "description": "Upload your sidebar icon (must be 24x24px SVG format)",
+    "type": "file",
+    "required": false,
+    "file_upload": {
+      "allowed_types": ["image/svg+xml"],
+      "max_size": 50
+    }
+  },
   "freshservice_domain": {
     "display_name": "Freshservice Domain",
     "description": "Please enter your Freshservice domain (e.g., your-domain.freshservice.com)",
