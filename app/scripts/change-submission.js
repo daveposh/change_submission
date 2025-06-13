@@ -1160,7 +1160,7 @@ const ChangeSubmission = {
       description: data.changeDescription || data.reasonForChange || 'Change request created via app',
       
       // REQUIRED: Workspace
-      workspace_id: 2, // Required field - "CXI Change Management" workspace
+      workspace_id: 2, // Required field - Change Management workspace
       
       // REQUIRED: Requester
       requester_id: data.selectedRequester?.id,

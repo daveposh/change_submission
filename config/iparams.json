@@ -1,4 +1,11 @@
 {
+  "company_name": {
+    "display_name": "Company Name",
+    "description": "Your company or organization name (used for branding and display purposes)",
+    "type": "text",
+    "required": true,
+    "default_value": "Change Management"
+  },
   "freshservice_domain": {
     "display_name": "Freshservice Domain",
     "description": "Please enter your Freshservice domain (e.g., your-domain.freshservice.com)",
@@ -14,7 +21,7 @@
   },
   "workspace_id": {
     "display_name": "Workspace ID",
-    "description": "Freshservice Workspace ID (default: 2 for 'CXI Change Management')",
+    "description": "Freshservice Workspace ID (default: 2 for 'Change Management')",
     "type": "number",
     "required": false,
     "default_value": 2

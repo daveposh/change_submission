@@ -403,8 +403,22 @@ const DEFAULT_RATE_LIMITS = {
   }
 };
 
+// Company name configuration
+let companyName = 'Change Management'; // Default value
+
+// Update company name when iparams are loaded
+async function updateCompanyName() {
+  try {
+    const params = await window.client.iparams.get();
+    companyName = params.company_name || 'Change Management';
+    console.log('🏢 Company name loaded:', companyName);
+  } catch (error) {
+    console.warn('⚠️ Could not retrieve company name from iparams:', error);
+  }
+}
+
 const changeTypeTooltips = {
-  'normal': 'Normal Change: All Changes to systems that are managed by CXI IT in the production environment and go through peer and approval process',
+  'normal': `Normal Change: All Changes to systems that are managed by ${companyName} IT in the production environment and go through peer and approval process`,
   'emergency': 'Emergency Changes: Changes arise from an unexpected error/issue and need to be addressed immediately to restore service for customers or employees, or to secure a system against a threat'
 };
 
@@ -5892,6 +5906,12 @@ function hideInitializationOverlay() {
  */
 async function initializeAppWithProgress() {
   try {
+    // Update initialization progress
+    updateInitializationProgress(10, 'Loading configuration...');
+    
+    // Get installation parameters including company name
+    await updateCompanyName();
+    
     console.log('🚀 Starting app initialization with progress tracking...');
     
     updateInitializationProgress(5, '🎨 Loading FontAwesome styles...');
