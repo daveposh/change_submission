@@ -410,7 +410,7 @@ let companyName = 'Change Management'; // Default value
 async function updateCompanyName() {
   try {
     const params = await window.client.iparams.get();
-    companyName = params.company_name || 'Change Management';
+    companyName = params.company_name || 'IT Change Management';
     console.log('🏢 Company name loaded:', companyName);
     
     // Update company name in UI
@@ -440,7 +440,7 @@ async function updateCompanyName() {
 }
 
 const changeTypeTooltips = {
-  'normal': `Normal Change: All Changes to systems that are managed by ${companyName} IT in the production environment and go through peer and approval process`,
+  'normal': `Normal Change: All Changes to systems that are managed by IT in the production environment and go through peer and approval process`,
   'emergency': 'Emergency Changes: Changes arise from an unexpected error/issue and need to be addressed immediately to restore service for customers or employees, or to secure a system against a threat'
 };
 

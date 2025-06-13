@@ -4,7 +4,7 @@
     "description": "Your company or organization name (used for branding and display purposes)",
     "type": "text",
     "required": true,
-    "default_value": "Change Management"
+    "default_value": "IT Change Management"
   },
   "company_logo": {
     "display_name": "Company Logo",

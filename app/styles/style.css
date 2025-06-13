@@ -1900,7 +1900,7 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   margin-bottom: 2rem;
   padding: 1rem 0;
   border-bottom: 2px solid transparent;
-  background: linear-gradient(135deg, transparent 0%, rgba(79, 70, 229, 0.05) 50%, transparent 100%);
+  background: linear-gradient(135deg, transparent 0%, rgba(37, 99, 235, 0.05) 50%, transparent 100%);
   border-radius: 12px;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -1914,7 +1914,7 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.1), transparent);
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.1), transparent);
   transition: left 0.6s ease;
 }
 
@@ -1924,8 +1924,8 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 
 .app-header:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(79, 70, 229, 0.15);
-  border-bottom-color: rgba(79, 70, 229, 0.3);
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.15);
+  border-bottom-color: rgba(37, 99, 235, 0.3);
 }
 
 /* App Icon with Hover Animations */
@@ -1944,7 +1944,7 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 }
 
 .app-header:hover .app-icon-svg {
-  filter: drop-shadow(0 4px 12px rgba(79, 70, 229, 0.3));
+  filter: drop-shadow(0 4px 12px rgba(37, 99, 235, 0.3));
 }
 
 /* Gear rotation animation on hover */
@@ -2003,19 +2003,19 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Color shifting animation using CXI brand colors */
+/* Color shifting animation using generic brand colors */
 @keyframes colorShift {
-  0%, 100% { color: #1e40af; }
-  25% { color: #1e3a8a; }
-  50% { color: #f59e0b; }
-  75% { color: #d97706; }
+  0%, 100% { color: #2563eb; }
+  25% { color: #1d4ed8; }
+  50% { color: #0ea5e9; }
+  75% { color: #0284c7; }
 }
 
 .cxi-text {
   font-weight: 900;
   position: relative;
   margin-right: 0.5rem;
-  color: #1e40af;
+  color: #2563eb;
   animation: colorShift 8s ease infinite;
 }
 
@@ -2026,7 +2026,7 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   left: 0;
   width: 0;
   height: 3px;
-  background: linear-gradient(90deg, #10B981, #059669);
+  background: linear-gradient(90deg, #0ea5e9, #0284c7);
   transition: width 0.4s ease;
   border-radius: 2px;
 }
@@ -2042,12 +2042,12 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 
 .app-header:hover .app-title {
   transform: scale(1.02);
-  text-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+  text-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
 }
 
 .app-header:hover .cxi-text {
-  color: #f59e0b;
-  text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+  color: #0ea5e9;
+  text-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
 }
 
 /* Letter hover animations */
@@ -2069,13 +2069,13 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 
 /* Dark mode adjustments */
 [data-bs-theme="dark"] .app-header {
-  background: linear-gradient(135deg, transparent 0%, rgba(30, 64, 175, 0.1) 50%, transparent 100%);
-  border-bottom-color: rgba(30, 64, 175, 0.2);
+  background: linear-gradient(135deg, transparent 0%, rgba(37, 99, 235, 0.1) 50%, transparent 100%);
+  border-bottom-color: rgba(37, 99, 235, 0.2);
 }
 
 [data-bs-theme="dark"] .app-header:hover {
-  box-shadow: 0 8px 25px rgba(30, 64, 175, 0.25);
-  border-bottom-color: rgba(30, 64, 175, 0.5);
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.25);
+  border-bottom-color: rgba(37, 99, 235, 0.5);
 }
 
 [data-bs-theme="dark"] .app-title {
@@ -2091,16 +2091,16 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 }
 
 [data-bs-theme="dark"] .app-header:hover .cxi-text {
-  color: #fbbf24;
-  text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+  color: #0ea5e9;
+  text-shadow: 0 0 10px rgba(14, 165, 233, 0.5);
 }
 
 /* Dark mode color animation */
 @keyframes colorShiftDark {
   0%, 100% { color: #3b82f6; }
-  25% { color: #1e40af; }
-  50% { color: #fbbf24; }
-  75% { color: #f59e0b; }
+  25% { color: #2563eb; }
+  50% { color: #0ea5e9; }
+  75% { color: #0284c7; }
 }
 
 [data-bs-theme="dark"] .cxi-text {
