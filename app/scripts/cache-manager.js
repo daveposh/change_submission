@@ -397,7 +397,7 @@ const CacheManager = {
       console.log(`📦 Fetching assets for ${matchingTypeIds.length} matching asset types using single filter request...`);
       
       // Build OR filter query exactly like Postman: "asset_type_id: ID1 OR asset_type_id: ID2 OR ..."
-      const filterParts = matchingTypeIds.map(typeId => `asset_type_id: ${typeId}`);
+      const filterParts = matchingTypeIds.map(typeId => `asset_type_id:${typeId}`);
       const filterQuery = filterParts.join(' OR ');
       
       console.log(`🔍 Using filter query: "${filterQuery}"`);
@@ -406,7 +406,7 @@ const CacheManager = {
         // Use the getAssetsByType template with proper filter format
         const response = await window.client.request.invokeTemplate('getAssetsByType', {
           context: {
-            filter_query: filterQuery,  // Remove the extra quotes around the filter
+            filter_query: filterQuery,
             include: 'type_fields',
             page: '1'
           },
@@ -438,7 +438,7 @@ const CacheManager = {
             // Use single asset type filter
             const response = await window.client.request.invokeTemplate('getAssetsByType', {
               context: {
-                filter_query: `asset_type_id: ${typeId}`,  // Remove the extra quotes around the filter
+                filter_query: `asset_type_id:${typeId}`,
                 include: 'type_fields',
                 page: '1'
               },
