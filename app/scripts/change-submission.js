@@ -2455,12 +2455,10 @@ const ChangeSubmission = {
       
       // Check if risk level requires peer review (now required for all risk levels)
       // Risk scoring: 5-7 = Low, 8-11 = Medium, 12-15 = High
-      const requiresPeerReview = true; // All changes require peer review
       
       console.log(`📊 Risk threshold analysis:`, {
         totalScore: riskAssessment.totalScore,
         riskLevel: riskAssessment.riskLevel,
-        requiresPeerReview: true,
         reasoning: `All changes require peer review regardless of risk level`
       });
       
