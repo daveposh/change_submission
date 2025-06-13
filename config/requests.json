@@ -129,6 +129,9 @@
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
+    },
+    "options": {
+      "isOAuth": false
     }
   },
   "createChange": {
