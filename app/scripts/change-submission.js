@@ -2453,27 +2453,19 @@ const ChangeSubmission = {
         return;
       }
       
-      // Check if risk level requires peer review (score 8+ = Medium/High risk)
+      // Check if risk level requires peer review (now required for all risk levels)
       // Risk scoring: 5-7 = Low, 8-11 = Medium, 12-15 = High
-      // Peer review required for score 8+ (Medium and High risk changes)
-      const requiresPeerReview = riskAssessment.totalScore >= 8;
+      const requiresPeerReview = true; // All changes require peer review
       
-              console.log(`📊 Risk threshold analysis:`, {
-          totalScore: riskAssessment.totalScore,
-          riskLevel: riskAssessment.riskLevel,
-          threshold: 8,
-          requiresPeerReview: requiresPeerReview,
-          reasoning: requiresPeerReview 
-            ? `Score ${riskAssessment.totalScore} >= 8 (${riskAssessment.riskLevel} risk) - Peer review required`
-            : `Score ${riskAssessment.totalScore} < 8 (${riskAssessment.riskLevel} risk) - No peer review needed`
-        });
+      console.log(`📊 Risk threshold analysis:`, {
+        totalScore: riskAssessment.totalScore,
+        riskLevel: riskAssessment.riskLevel,
+        requiresPeerReview: true,
+        reasoning: `All changes require peer review regardless of risk level`
+      });
       
-              if (!requiresPeerReview) {
-          console.log(`ℹ️ Risk score ${riskAssessment.totalScore} is below threshold (8+), no peer review required`);
-          return;
-        }
-        
-        console.log(`🎯 Risk score ${riskAssessment.totalScore} requires peer review task creation`);
+      // Create peer review task for all changes
+      console.log(`ℹ️ Creating peer review task for ${riskAssessment.riskLevel} risk change (Score: ${riskAssessment.totalScore})`);
       
       // Identify the agent SME who will coordinate peer review
       const agentSME = this.identifyAgentSME(data, changeRequest);
@@ -4904,15 +4896,9 @@ const ChangeSubmission = {
     
     // Risk-based status assignment
     if (riskAssessment) {
-      if (riskAssessment.totalScore >= 8) {
-        summaryHtml += `<li class="mb-2"><i class="fas fa-clock text-warning me-2"></i>Status: "Pending Review" (${riskAssessment.riskLevel} risk)</li>`;
-        summaryHtml += `<li class="mb-2"><i class="fas fa-user-cog text-info me-2"></i>Peer review task assigned to agent SME</li>`;
-      } else {
-        summaryHtml += `<li class="mb-2"><i class="fas fa-arrow-right text-success me-2"></i>Status: "Pending Approval" (${riskAssessment.riskLevel} risk)</li>`;
-        if (impactedData.approvers && impactedData.approvers.length > 0) {
-          summaryHtml += `<li class="mb-2"><i class="fas fa-check text-success me-2"></i>Approval tickets created immediately for ${impactedData.approvers.length} approver(s)</li>`;
-        }
-      }
+      // All changes now go through peer review
+      summaryHtml += `<li class="mb-2"><i class="fas fa-clock text-warning me-2"></i>Status: "Pending Review" (${riskAssessment.riskLevel} risk)</li>`;
+      summaryHtml += `<li class="mb-2"><i class="fas fa-user-cog text-info me-2"></i>Peer review task assigned to agent SME</li>`;
     }
     
     summaryHtml += `</ul>
@@ -4924,16 +4910,13 @@ const ChangeSubmission = {
       summaryHtml += `<li class="mb-2"><i class="fas fa-envelope text-primary me-2"></i>Stakeholder notification note will be created for ${totalStakeholders} recipient(s)</li>`;
     }
     
-    if (riskAssessment && riskAssessment.totalScore >= 8) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-robot text-info me-2"></i>Upon peer review completion: Workflow automator will transition to "Pending Approval"</li>`;
-      if (impactedData.approvers && impactedData.approvers.length > 0) {
-        const approverText = riskAssessment.riskLevel === 'High' ? `${impactedData.approvers.length} technical owner(s) + CAB` : `${impactedData.approvers.length} technical owner(s)`;
-        summaryHtml += `<li class="mb-2"><i class="fas fa-check text-warning me-2"></i>Approval tickets will be created for ${approverText}</li>`;
-      }
-      summaryHtml += `<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Final status: "Scheduled" when all approvals obtained</li>`;
-    } else if (impactedData.approvers && impactedData.approvers.length > 0) {
-      summaryHtml += `<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Status: "Scheduled" when approvals complete</li>`;
+    // All changes follow the same workflow after peer review
+    summaryHtml += `<li class="mb-2"><i class="fas fa-robot text-info me-2"></i>Upon peer review completion: Workflow automator will transition to "Pending Approval"</li>`;
+    if (impactedData.approvers && impactedData.approvers.length > 0) {
+      const approverText = riskAssessment.riskLevel === 'High' ? `${impactedData.approvers.length} technical owner(s) + CAB` : `${impactedData.approvers.length} technical owner(s)`;
+      summaryHtml += `<li class="mb-2"><i class="fas fa-check text-warning me-2"></i>Approval tickets will be created for ${approverText}</li>`;
     }
+    summaryHtml += `<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Final status: "Scheduled" when all approvals obtained</li>`;
     
     summaryHtml += `<li class="mb-2"><i class="fas fa-bell text-info me-2"></i>You will receive confirmation and tracking information</li>
                 </ul>
