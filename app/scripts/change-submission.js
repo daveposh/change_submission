@@ -1648,7 +1648,8 @@ const ChangeSubmission = {
       actions.push('🟡 MEDIUM RISK - Standard approval workflow');
       actions.push('👥 Peer review coordination will be initiated');
     } else {
-      actions.push('🟢 LOW RISK - Standard approval process');
+      actions.push('🟢 LOW RISK - Standard approval workflow');
+      actions.push('👥 Peer review coordination will be initiated');
     }
     
     if (riskAssessment.testing >= 3) {
@@ -1703,8 +1704,13 @@ const ChangeSubmission = {
     } else {
       actions.push({
         icon: '🟢',
-        text: 'LOW RISK - Standard approval process',
+        text: 'LOW RISK - Standard approval workflow',
         color: '#28a745'
+      });
+      actions.push({
+        icon: '👥',
+        text: 'Peer review coordination will be initiated',
+        color: '#17a2b8'
       });
     }
     
@@ -2359,7 +2365,7 @@ const ChangeSubmission = {
       } else if (riskAssessment.riskLevel === 'Medium') {
         body += `<strong>Medium Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
       } else {
-        body += `<strong>Low Risk:</strong> This change goes directly to "Pending Approval" status for technical owner approval, then to "Scheduled" status when ready for implementation.`;
+        body += `<strong>Low Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
       }
       body += `</div></div>`;
     }
@@ -4851,12 +4857,9 @@ const ChangeSubmission = {
               
       // Risk-based initial status assignment
       if (riskAssessment) {
-        if (riskAssessment.totalScore >= 8) {
-          summaryHtml += `<li>Initial status: "Pending Review" (${riskAssessment.riskLevel} risk requires peer review first)</li>`;
-          summaryHtml += `<li>Peer review coordination task will be assigned to agent SME</li>`;
-        } else {
-          summaryHtml += `<li>Initial status: "Pending Approval" (${riskAssessment.riskLevel} risk - direct to approval)</li>`;
-        }
+        // All changes now go through peer review
+        summaryHtml += `<li>Initial status: "Pending Review" (${riskAssessment.riskLevel} risk)</li>`;
+        summaryHtml += `<li>Peer review coordination task will be assigned to agent SME</li>`;
       }
       
       if (totalStakeholders > 0) {
@@ -4868,7 +4871,7 @@ const ChangeSubmission = {
       }
               
       if (impactedData.approvers && impactedData.approvers.length > 0) {
-        const when = riskAssessment && riskAssessment.totalScore >= 8 ? 'after peer review completion' : 'immediately';
+        const when = 'after peer review completion';
         summaryHtml += `<li>Approval tickets will be created ${when} for ${impactedData.approvers.length} approver(s)</li>`;
       }
       
