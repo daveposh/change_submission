@@ -7,17 +7,16 @@
 
 ### Status Flow Overview
 ```
-Low Risk:    Submitted → Pending Approval → Scheduled
-Med/High:    Submitted → Pending Review → Pending Approval → Scheduled
+All Changes: Submitted → Pending Review → Pending Approval → Scheduled
 ```
 
 ### State Definitions
-- **Pending Review**: Requires peer review coordination (Medium/High risk only)
+- **Pending Review**: Requires peer review coordination (All risk levels)
 - **Pending Approval**: Awaiting technical owner/CAB approval  
 - **Scheduled**: All approvals obtained, ready for implementation
 
 ### Risk-Based Routing
-- **Low Risk (5-7)**: Direct to approval (Technical owners only)
+- **Low Risk (5-7)**: Peer review → Technical owners
 - **Medium Risk (8-11)**: Peer review → Technical owners
 - **High Risk (12-15)**: Peer review → Technical owners + CAB
 
@@ -36,7 +35,7 @@ Med/High:    Submitted → Pending Review → Pending Approval → Scheduled
 | **Rollback Risk** | Easy/automated | Moderate difficulty | Difficult/data loss risk |
 
 ## Risk Levels & Requirements
-- **Low Risk (5-7)**: Status "Pending Approval" → Technical owner approval only, 2 days lead time
+- **Low Risk (5-7)**: Status "Pending Review" → Peer review → Technical owner approval, 2 days lead time
 - **Medium Risk (8-11)**: Status "Pending Review" → Peer review → Technical owner approval, 5 days lead time  
 - **High Risk (12-15)**: Status "Pending Review" → Peer review → Technical owner + CAB approval, 10 days lead time
 

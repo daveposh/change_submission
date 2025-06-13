@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the updated change approval workflow implemented in the Freshservice Change Management Application. The workflow uses risk-based routing with automated state transitions to ensure appropriate review and approval levels for different types of changes.
+This document describes the updated change approval workflow implemented in the Freshservice Change Management Application. The workflow uses risk-based routing with automated state transitions to ensure appropriate review and approval levels for different types of changes. All changes now require peer review before proceeding to the approval phase.
 
 ## Workflow States
 
@@ -13,15 +13,13 @@ This document describes the updated change approval workflow implemented in the 
 
 ### 2. Pending Review
 - **Definition**: Change requires peer review before approval process can begin
-- **Applies to**: Medium Risk (8-11) and High Risk (12-15) changes
+- **Applies to**: All changes (Low, Medium, and High Risk)
 - **Duration**: Until peer review coordination task is completed (target: 24 hours)
 - **Responsible Party**: Agent SME (Subject Matter Expert)
 
 ### 3. Pending Approval  
 - **Definition**: Change is awaiting approval from technical owners and/or CAB
-- **Applies to**: 
-  - Low Risk changes (immediately after submission)
-  - Medium/High Risk changes (after peer review completion)
+- **Applies to**: All changes after peer review completion
 - **Duration**: Until all required approvals are obtained
 - **Responsible Party**: Technical owners and/or CAB members
 
@@ -34,10 +32,10 @@ This document describes the updated change approval workflow implemented in the 
 
 ### Low Risk Changes (Score 5-7)
 ```
-Submitted → Pending Approval → Scheduled
+Submitted → Pending Review → Pending Approval → Scheduled
 ```
-- **Initial Status**: "Pending Approval"
-- **Process**: Direct routing to technical owner approval
+- **Initial Status**: "Pending Review"
+- **Process**: Peer review → Workflow automation → Technical owner approval
 - **Approvers**: Technical owners only
 - **Timeline**: 2+ business days lead time
 
@@ -74,7 +72,7 @@ Submitted → Pending Review → Pending Approval → Scheduled
 - Coordinate with technical teams for implementation
 
 ### Agent SMEs (Subject Matter Experts)
-**Triggered When**: Medium/High risk change submitted (Status: "Pending Review")
+**Triggered When**: Any change is submitted (Status: "Pending Review")
 
 **Responsibilities**:
 1. **Review Change Details**: Understand scope and technical requirements
@@ -99,9 +97,7 @@ Submitted → Pending Review → Pending Approval → Scheduled
 6. **Evidence**: Document review findings for audit trail
 
 ### Technical Owners
-**Triggered When**: 
-- Low risk changes: Immediately after submission
-- Medium/High risk changes: After peer review completion (via workflow automation)
+**Triggered When**: After peer review completion (via workflow automation)
 
 **Responsibilities**:
 1. **Technical Validation**: Confirm change is technically sound
@@ -126,7 +122,7 @@ Submitted → Pending Review → Pending Approval → Scheduled
 **Automated Actions**:
 1. **Status Update**: Change "Pending Review" to "Pending Approval"
 2. **Approval Creation**: Create approval tickets for:
-   - Technical owners (all medium/high risk changes)
+   - Technical owners (all changes)
    - CAB members (high risk changes only)
 3. **Notification**: Send approval notifications to designated approvers
 4. **Monitoring**: Track approval progress and escalate if overdue
@@ -135,11 +131,14 @@ Submitted → Pending Review → Pending Approval → Scheduled
 
 ### Low Risk Change Process
 1. **Submission**: Requester submits change (Risk Score 5-7)
-2. **Auto-Routing**: System sets status to "Pending Approval"
-3. **Approval Creation**: Technical owner approval tickets created immediately
-4. **Stakeholder Notification**: Notifications sent to all impacted parties
-5. **Technical Review**: Technical owners review and approve/reject
-6. **Completion**: All approvals obtained → Status: "Scheduled"
+2. **Initial Status**: System sets status to "Pending Review"
+3. **SME Assignment**: Peer review coordination task assigned to agent SME
+4. **Peer Review Coordination**: SME coordinates peer review (24-hour target)
+5. **Workflow Trigger**: Task completion triggers automation
+6. **Status Transition**: Automated change to "Pending Approval"
+7. **Approval Creation**: Technical owner approval tickets created
+8. **Technical Review**: Technical owners review and approve/reject
+9. **Completion**: All approvals obtained → Status: "Scheduled"
 
 **Timeline**: Typically 2-5 business days
 
@@ -185,7 +184,7 @@ When triggered, the system automatically:
    - To: "Pending Approval"
 
 2. **Creates Approval Tickets**:
-   - **Medium Risk**: Technical owner approvals only
+   - **Low/Medium Risk**: Technical owner approvals only
    - **High Risk**: Technical owner + CAB approvals
 
 3. **Sends Notifications**:
@@ -221,8 +220,7 @@ If automation fails:
 - **Resources**: Access to all change documentation and contact info
 
 ### For Technical Owners
-- **Low Risk**: Immediate notification after submission
-- **Medium/High Risk**: Notification after peer review completion
+- **All Changes**: Notification after peer review completion
 - **Reminders**: Regular reminders until approval provided
 - **Escalation**: Management notification if approval overdue
 
