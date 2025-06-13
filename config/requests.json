@@ -70,7 +70,7 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/assets",
       "query": {
-        "search": "\"<%= context.search_query %>\"",
+        "search": "<%= context.search_query %>",
         "include": "<%= context.include_fields %>"
       },
       "headers": {
@@ -258,17 +258,14 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/assets",
       "query": {
-        "filter": "\"<%= context.filter_query %>\"",
-        "page": "<%= context.page || '1' %>",
-        "include": "<%= context.include %>"
+        "filter": "<%= context.filter_query %>",
+        "include": "<%= context.include %>",
+        "page": "<%= context.page || '1' %>"
       },
       "headers": {
         "Content-Type": "application/json",
         "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
       }
-    },
-    "options": {
-      "isOAuth": false
     }
   },
   "createChangeTask": {
