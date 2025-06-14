@@ -6318,3 +6318,63 @@ window.testEnhancedUserCache = async function() {
     return null;
   }
 };
+
+// Initialize TinyMCE for rich text editors
+function initializeRichTextEditors() {
+  const editorConfig = {
+    selector: '.rich-text-editor',
+    height: 300,
+    menubar: false,
+    plugins: [
+      'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+      'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+      'insertdatetime', 'table', 'code', 'codesample', 'help', 'wordcount'
+    ],
+    toolbar: 'undo redo | blocks | ' +
+      'bold italic backcolor | alignleft aligncenter ' +
+      'alignright alignjustify | bullist numlist outdent indent | ' +
+      'removeformat | codesample code | help',
+    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }',
+    codesample_languages: [
+      { text: 'Bash', value: 'bash' },
+      { text: 'PowerShell', value: 'powershell' },
+      { text: 'SQL', value: 'sql' },
+      { text: 'JSON', value: 'json' },
+      { text: 'XML', value: 'xml' },
+      { text: 'HTML', value: 'html' },
+      { text: 'CSS', value: 'css' },
+      { text: 'JavaScript', value: 'javascript' }
+    ],
+    setup: function(editor) {
+      editor.on('change', function() {
+        // Update the corresponding data in changeRequestData
+        const fieldId = editor.getElement().id;
+        const content = editor.getContent();
+        
+        switch(fieldId) {
+          case 'implementation-plan':
+            window.changeRequestData.implementationPlan = content;
+            break;
+          case 'backout-plan':
+            window.changeRequestData.backoutPlan = content;
+            break;
+          case 'validation-plan':
+            window.changeRequestData.validationPlan = content;
+            break;
+        }
+      });
+    }
+  };
+
+  tinymce.init(editorConfig);
+}
+
+// Add to the initialization process
+document.addEventListener('DOMContentLoaded', function() {
+  // ... existing initialization code ...
+  
+  // Initialize rich text editors
+  initializeRichTextEditors();
+  
+  // ... rest of initialization code ...
+});
