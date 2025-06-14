@@ -6319,89 +6319,100 @@ window.testEnhancedUserCache = async function() {
   }
 };
 
-// Initialize TinyMCE for rich text editors
+// Initialize CKEditor for rich text editors
 function initializeRichTextEditors() {
+  const editors = {};
   const editorConfig = {
-    selector: '.rich-text-editor',
-    height: 300,
-    menubar: false,
-    skin: 'oxide',
-    content_css: 'default',
-    plugins: [
-      'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-      'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-      'insertdatetime', 'table', 'code', 'codesample', 'help', 'wordcount'
-    ],
-    toolbar: 'undo redo | blocks | ' +
-      'bold italic backcolor | alignleft aligncenter ' +
-      'alignright alignjustify | bullist numlist outdent indent | ' +
-      'removeformat | codesample code | help',
-    content_style: `
-      body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        font-size: 14px;
-        color: var(--bs-body-color);
-        background-color: var(--bs-body-bg);
-      }
-      pre {
-        background-color: var(--bs-light);
-        border-radius: 0.375rem;
-        padding: 1rem;
-        margin: 1rem 0;
-        border: 1px solid var(--bs-border-color);
-      }
-      [data-bs-theme="dark"] pre {
-        background-color: #1a1a1a;
-      }
-    `,
-    codesample_languages: [
-      { text: 'Bash', value: 'bash' },
-      { text: 'PowerShell', value: 'powershell' },
-      { text: 'SQL', value: 'sql' },
-      { text: 'JSON', value: 'json' },
-      { text: 'XML', value: 'xml' },
-      { text: 'HTML', value: 'html' },
-      { text: 'CSS', value: 'css' },
-      { text: 'JavaScript', value: 'javascript' }
-    ],
-    setup: function(editor) {
-      editor.on('change', function() {
-        // Update the corresponding data in changeRequestData
-        const fieldId = editor.getElement().id;
-        const content = editor.getContent();
-        
-        switch(fieldId) {
-          case 'implementation-plan':
-            window.changeRequestData.implementationPlan = content;
-            break;
-          case 'backout-plan':
-            window.changeRequestData.backoutPlan = content;
-            break;
-          case 'validation-plan':
-            window.changeRequestData.validationPlan = content;
-            break;
-        }
-      });
-
-      // Handle theme changes
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.attributeName === 'data-bs-theme') {
-            const theme = document.documentElement.getAttribute('data-bs-theme');
-            editor.getBody().style.backgroundColor = theme === 'dark' ? '#212529' : '#ffffff';
-            editor.getBody().style.color = theme === 'dark' ? '#f8f9fa' : '#212529';
-          }
-        });
-      });
-
-      observer.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['data-bs-theme']
-      });
+    toolbar: {
+      items: [
+        'heading',
+        '|',
+        'bold',
+        'italic',
+        'link',
+        'bulletedList',
+        'numberedList',
+        '|',
+        'outdent',
+        'indent',
+        '|',
+        'code',
+        'codeBlock',
+        'blockQuote',
+        'insertTable',
+        'undo',
+        'redo'
+      ]
+    },
+    language: 'en',
+    codeBlock: {
+      languages: [
+        { language: 'bash', label: 'Bash' },
+        { language: 'powershell', label: 'PowerShell' },
+        { language: 'sql', label: 'SQL' },
+        { language: 'json', label: 'JSON' },
+        { language: 'xml', label: 'XML' },
+        { language: 'html', label: 'HTML' },
+        { language: 'css', label: 'CSS' },
+        { language: 'javascript', label: 'JavaScript' }
+      ]
+    },
+    table: {
+      contentToolbar: [
+        'tableColumn',
+        'tableRow',
+        'mergeTableCells'
+      ]
     }
   };
 
-  tinymce.init(editorConfig);
+  // Initialize each editor
+  document.querySelectorAll('.rich-text-editor').forEach(element => {
+    ClassicEditor
+      .create(element, editorConfig)
+      .then(editor => {
+        editors[element.id] = editor;
+        
+        // Update changeRequestData when content changes
+        editor.model.document.on('change:data', () => {
+          const content = editor.getData();
+          switch(element.id) {
+            case 'implementation-plan':
+              window.changeRequestData.implementationPlan = content;
+              break;
+            case 'backout-plan':
+              window.changeRequestData.backoutPlan = content;
+              break;
+            case 'validation-plan':
+              window.changeRequestData.validationPlan = content;
+              break;
+          }
+        });
+
+        // Handle theme changes
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'data-bs-theme') {
+              const theme = document.documentElement.getAttribute('data-bs-theme');
+              const editorElement = editor.editing.view.domConverter.viewToDom(editor.editing.view.document.getRoot());
+              editorElement.style.backgroundColor = theme === 'dark' ? '#212529' : '#ffffff';
+              editorElement.style.color = theme === 'dark' ? '#f8f9fa' : '#212529';
+            }
+          });
+        });
+
+        observer.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['data-bs-theme']
+        });
+      })
+      .catch(error => {
+        console.error('Error initializing CKEditor:', error);
+      });
+  });
+
+  // Store editors in window object for access
+  window.richTextEditors = editors;
 }
 
 // Add to the initialization process

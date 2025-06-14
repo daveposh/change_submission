@@ -2126,91 +2126,78 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 /* Loading states */
 
 /* Rich Text Editor Styles */
-.tox-tinymce {
+.ck-editor__editable {
+  min-height: 200px;
+  max-height: 400px;
   border-radius: 0.375rem !important;
   border-color: var(--bs-border-color) !important;
   transition: background-color 0.3s ease, border-color 0.3s ease !important;
 }
 
-.tox .tox-toolbar__group {
-  border-color: var(--bs-border-color) !important;
-  transition: border-color 0.3s ease !important;
+.ck.ck-editor {
+  width: 100%;
 }
 
-.tox .tox-tbtn {
+.ck.ck-toolbar {
+  border-radius: 0.375rem 0.375rem 0 0 !important;
+  border-color: var(--bs-border-color) !important;
+  background-color: var(--bs-body-bg) !important;
+  transition: background-color 0.3s ease, border-color 0.3s ease !important;
+}
+
+.ck.ck-toolbar .ck-toolbar__items {
+  flex-wrap: wrap;
+}
+
+.ck.ck-button {
   color: var(--bs-body-color) !important;
   transition: background-color 0.3s ease, color 0.3s ease !important;
 }
 
-.tox .tox-tbtn:hover {
+.ck.ck-button:hover {
   background-color: var(--bs-light) !important;
 }
 
-.tox .tox-tbtn--enabled {
+.ck.ck-button.ck-on {
   background-color: var(--bs-primary) !important;
   color: white !important;
 }
 
-.tox .tox-tbtn--enabled:hover {
+.ck.ck-button.ck-on:hover {
   background-color: var(--bs-primary-dark) !important;
 }
 
 /* Dark mode support */
-[data-bs-theme="dark"] .tox-tinymce {
+[data-bs-theme="dark"] .ck.ck-toolbar {
   background-color: var(--bs-dark) !important;
   border-color: var(--bs-border-color) !important;
 }
 
-[data-bs-theme="dark"] .tox .tox-toolbar {
+[data-bs-theme="dark"] .ck.ck-editor__editable {
   background-color: var(--bs-dark) !important;
   border-color: var(--bs-border-color) !important;
-}
-
-[data-bs-theme="dark"] .tox .tox-toolbar__group {
-  border-color: var(--bs-border-color) !important;
-}
-
-[data-bs-theme="dark"] .tox .tox-tbtn {
   color: var(--bs-light) !important;
 }
 
-[data-bs-theme="dark"] .tox .tox-tbtn:hover {
+[data-bs-theme="dark"] .ck.ck-button {
+  color: var(--bs-light) !important;
+}
+
+[data-bs-theme="dark"] .ck.ck-button:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-[data-bs-theme="dark"] .tox .tox-tbtn--enabled {
+[data-bs-theme="dark"] .ck.ck-button.ck-on {
   background-color: var(--bs-primary) !important;
   color: white !important;
 }
 
-[data-bs-theme="dark"] .tox .tox-tbtn--enabled:hover {
+[data-bs-theme="dark"] .ck.ck-button.ck-on:hover {
   background-color: var(--bs-primary-dark) !important;
 }
 
-/* Editor content area */
-.tox .tox-edit-area__iframe {
-  background-color: var(--bs-body-bg) !important;
-  transition: background-color 0.3s ease !important;
-}
-
-[data-bs-theme="dark"] .tox .tox-edit-area__iframe {
-  background-color: var(--bs-dark) !important;
-}
-
-/* Editor content */
-.tox .mce-content-body {
-  color: var(--bs-body-color) !important;
-  background-color: var(--bs-body-bg) !important;
-  transition: color 0.3s ease, background-color 0.3s ease !important;
-}
-
-[data-bs-theme="dark"] .tox .mce-content-body {
-  color: var(--bs-light) !important;
-  background-color: var(--bs-dark) !important;
-}
-
 /* Code block styling */
-.tox .mce-content-body pre {
+.ck-content pre {
   background-color: var(--bs-light) !important;
   border-radius: 0.375rem !important;
   padding: 1rem !important;
@@ -2219,57 +2206,37 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
   transition: background-color 0.3s ease, border-color 0.3s ease !important;
 }
 
-[data-bs-theme="dark"] .tox .mce-content-body pre {
+[data-bs-theme="dark"] .ck-content pre {
   background-color: #1a1a1a !important;
   border-color: var(--bs-border-color) !important;
 }
 
-/* Status bar */
-.tox .tox-statusbar {
+/* Dropdown styling */
+.ck.ck-dropdown__panel {
   background-color: var(--bs-body-bg) !important;
   border-color: var(--bs-border-color) !important;
   color: var(--bs-body-color) !important;
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
 }
 
-[data-bs-theme="dark"] .tox .tox-statusbar {
+[data-bs-theme="dark"] .ck.ck-dropdown__panel {
   background-color: var(--bs-dark) !important;
   border-color: var(--bs-border-color) !important;
   color: var(--bs-light) !important;
 }
 
-/* Dialog styling */
-.tox .tox-dialog {
-  background-color: var(--bs-body-bg) !important;
-  border-color: var(--bs-border-color) !important;
-  transition: background-color 0.3s ease, border-color 0.3s ease !important;
-}
-
-[data-bs-theme="dark"] .tox .tox-dialog {
-  background-color: var(--bs-dark) !important;
-  border-color: var(--bs-border-color) !important;
-}
-
-.tox .tox-dialog__header {
-  background-color: var(--bs-body-bg) !important;
-  border-color: var(--bs-border-color) !important;
+.ck.ck-dropdown__panel .ck-button {
   color: var(--bs-body-color) !important;
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
 }
 
-[data-bs-theme="dark"] .tox .tox-dialog__header {
-  background-color: var(--bs-dark) !important;
-  border-color: var(--bs-border-color) !important;
+[data-bs-theme="dark"] .ck.ck-dropdown__panel .ck-button {
   color: var(--bs-light) !important;
 }
 
-.tox .tox-dialog__body {
-  background-color: var(--bs-body-bg) !important;
-  color: var(--bs-body-color) !important;
-  transition: background-color 0.3s ease, color 0.3s ease !important;
+.ck.ck-dropdown__panel .ck-button:hover {
+  background-color: var(--bs-light) !important;
 }
 
-[data-bs-theme="dark"] .tox .tox-dialog__body {
-  background-color: var(--bs-dark) !important;
-  color: var(--bs-light) !important;
+[data-bs-theme="dark"] .ck.ck-dropdown__panel .ck-button:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
