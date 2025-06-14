@@ -2499,7 +2499,7 @@ const ChangeSubmission = {
             responder_id: agentSME.id,
             due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             fr_due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            assoc_change_id: changeRequest.id, // Associate with the change request
+            change_id: changeRequest.id, // Use change_id instead of assoc_change_id
             tags: ['peer-review-coordination', 'change-management', `change-${changeRequest.id}`, 'sme-task']
           };
 
@@ -2510,32 +2510,6 @@ const ChangeSubmission = {
           if (response && response.response) {
             const task = JSON.parse(response.response);
             console.log('✅ Peer review coordination task created:', task);
-            
-            // Associate the task with the change request using the correct API
-            try {
-              const associationData = {
-                ticket: {
-                  id: task.id,
-                  change_id: changeRequest.id
-                }
-              };
-              
-              console.log('🔗 Associating task with change request:', associationData);
-              
-              const associationResponse = await window.client.request.invokeTemplate('updateChangeRequest', {
-                body: JSON.stringify(associationData)
-              });
-              
-              if (associationResponse && associationResponse.response) {
-                console.log('✅ Successfully associated task with change request');
-              } else {
-                console.warn('⚠️ Failed to associate task with change request - no response data');
-              }
-            } catch (associationError) {
-              console.error('❌ Error associating task with change request:', associationError);
-              // Don't throw here - we still want to track the created task even if association fails
-            }
-            
             this.state.createdTasks.push(task);
             taskCreated = true;
           } else {
