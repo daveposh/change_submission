@@ -2781,7 +2781,6 @@ const ChangeSubmission = {
     };
     
     const freshserviceDomain = await getFreshserviceDomain();
-    const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
     
     let description = `Peer Review Coordination Required
 
