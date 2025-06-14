@@ -2128,7 +2128,7 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 /* Rich Text Editor Styles */
 .rich-text-editor {
   height: 300px;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
   border-radius: 0.375rem;
   border: 1px solid var(--bs-border-color);
   background-color: var(--bs-body-bg);
@@ -2138,6 +2138,8 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 }
 
 .rich-text-editor .ql-toolbar {
+  position: relative;
+  z-index: 1;
   border-top-left-radius: 0.375rem;
   border-top-right-radius: 0.375rem;
   border-color: var(--bs-border-color);
