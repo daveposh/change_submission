@@ -2634,33 +2634,35 @@ const ChangeSubmission = {
                                         .replace(/"/g, '\\"');
     
     const taskData = {
-      title: `Peer Review Coordination Required: ${changeRequest.subject}`,
-      description: escapedDescription,
-      agent_id: parseInt(agentSME.id),
-      status: 1, // 1-Open, 2-In Progress, 3-Completed
-      due_date: dueDate.toISOString(),
-      notify_before: 0, // Time in seconds before which notification is sent
-      workspace_id: changeRequest.workspace_id ? parseInt(changeRequest.workspace_id) : undefined,
-      group_id: undefined // Optional group ID if needed
+      task: {
+        title: `Peer Review Coordination Required: ${changeRequest.subject}`,
+        description: escapedDescription,
+        agent_id: parseInt(agentSME.id),
+        status: 1, // 1-Open, 2-In Progress, 3-Completed
+        due_date: dueDate.toISOString(),
+        notify_before: 0, // Time in seconds before which notification is sent
+        workspace_id: changeRequest.workspace_id ? parseInt(changeRequest.workspace_id) : undefined,
+        group_id: undefined // Optional group ID if needed
+      }
     };
     
     try {
       // Add workspace_id if the change request has one (for Employee Support Mode accounts)
       if (changeRequest.workspace_id) {
-        taskData.workspace_id = parseInt(changeRequest.workspace_id);
+        taskData.task.workspace_id = parseInt(changeRequest.workspace_id);
       }
       
       console.log('📋 Peer review coordination task data prepared:', {
-        title: taskData.title,
+        title: taskData.task.title,
         agentSMEId: agentSME.id,
         agentSMEName: agentSME.name,
-        status: taskData.status,
+        status: taskData.task.status,
         riskLevel: riskAssessment?.riskLevel || riskAssessment?.level,
-        dueDate: taskData.due_date,
+        dueDate: taskData.task.due_date,
         changeId: changeRequest.id,
-        agentId: taskData.agent_id,
-        notifyBefore: taskData.notify_before,
-        workspaceId: taskData.workspace_id,
+        agentId: taskData.task.agent_id,
+        notifyBefore: taskData.task.notify_before,
+        workspaceId: taskData.task.workspace_id,
         fullTaskData: taskData
       });
       
