@@ -2766,22 +2766,6 @@ const ChangeSubmission = {
   async generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
     const data = window.changeRequestData;
     
-    // Get Freshservice domain for creating clickable links
-    const getFreshserviceDomain = async () => {
-      try {
-        const params = await window.client.iparams.get();
-        if (params && params.freshservice_domain) {
-          return params.freshservice_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        }
-        return 'your-domain.freshservice.com';
-      } catch (error) {
-        console.error('❌ Could not retrieve installation parameters:', error);
-        return 'your-domain.freshservice.com';
-      }
-    };
-    
-    const freshserviceDomain = await getFreshserviceDomain();
-    
     let description = `Peer Review Coordination Required
 
 SME Assignment:
