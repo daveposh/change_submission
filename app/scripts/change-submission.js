@@ -2501,7 +2501,7 @@ const ChangeSubmission = {
             tags: ['peer-review-coordination', 'change-management', `change-${changeRequest.id}`, 'sme-task']
           };
 
-          const response = await window.client.request.invokeTemplate('createTask', {
+          const response = await window.client.request.invokeTemplate('createTicket', {
             body: JSON.stringify(taskData)
           });
 
