@@ -2639,7 +2639,9 @@ const ChangeSubmission = {
       agent_id: parseInt(agentSME.id),
       status: 1, // 1-Open, 2-In Progress, 3-Completed
       due_date: dueDate.toISOString(),
-      notify_before: 0 // Time in seconds before which notification is sent
+      notify_before: 0, // Time in seconds before which notification is sent
+      workspace_id: changeRequest.workspace_id ? parseInt(changeRequest.workspace_id) : undefined,
+      group_id: undefined // Optional group ID if needed
     };
     
     try {
