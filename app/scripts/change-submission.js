@@ -2488,34 +2488,15 @@ const ChangeSubmission = {
 
       while (!taskCreated && retryCount < maxRetries) {
         try {
-          // Create the peer review coordination task
-          const taskData = {
-            subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
-            description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
-            priority: riskAssessment.riskLevel === 'High' ? 3 : 2,
-            status: 2, // Open
-            type: 'Task',
-            requester_id: changeRequest.requester_id,
-            responder_id: agentSME.id,
-            due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            fr_due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            tags: ['peer-review-coordination', 'change-management', `change-${changeRequest.id}`, 'sme-task']
-          };
-
-          const response = await window.client.request.invokeTemplate('createChangeTask', {
-            body: JSON.stringify({
-              change_id: changeRequest.id,
-              task: taskData
-            })
-          });
-
-          if (response && response.response) {
-            const task = JSON.parse(response.response);
+          // Create the peer review coordination task using the helper function
+          const task = await this.createPeerReviewCoordinationTask(changeRequest, agentSME, riskAssessment);
+          
+          if (task) {
             console.log('✅ Peer review coordination task created:', task);
             this.state.createdTasks.push(task);
             taskCreated = true;
           } else {
-            throw new Error('No response data received');
+            throw new Error('No task data received from createPeerReviewCoordinationTask');
           }
         } catch (error) {
           retryCount++;
