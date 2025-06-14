@@ -658,7 +658,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
           const response = await window.client.request.invokeTemplate("getAssetTypes", {
-            path_suffix: `?page=${page}&per_page=30`
+            context: {
+              page: page.toString(),
+              per_page: '30'
+            }
           });
           
           if (!response || !response.response) {
@@ -736,8 +739,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           const response = await window.client.request.invokeTemplate("getLocations", {
             context: {
-              page: page,
-              per_page: 30
+              page: page.toString(),
+              per_page: '30'
             }
           });
           
@@ -850,8 +853,8 @@ async function fetchAllLocations() {
         // Use invokeTemplate to access locations API with proper pagination
         const response = await window.client.request.invokeTemplate("getLocations", {
           context: {
-            page: page,
-            per_page: 30
+            page: page.toString(),
+            per_page: '30'
           }
         });
         
@@ -976,8 +979,8 @@ async function fetchAllAssetTypes() {
         // Use invokeTemplate to access asset types API with proper pagination
         const response = await window.client.request.invokeTemplate("getAssetTypes", {
           context: {
-            page: page,
-            per_page: 30
+            page: page.toString(),
+            per_page: '30'
           }
         });
         
