@@ -1617,7 +1617,10 @@ async function fetchUsers() {
       try {
         // Use invokeTemplate which is more reliable in Freshservice
         const response = await window.client.request.invokeTemplate("getRequesters", {
-          path_suffix: `?page=${pageNum}&per_page=100`
+          context: {
+            page: pageNum.toString(),
+            per_page: '100'
+          }
         });
         
         if (!response || !response.response) {
@@ -1652,7 +1655,10 @@ async function fetchUsers() {
       try {
         // Use invokeTemplate to access agents API
         const response = await window.client.request.invokeTemplate("getAgents", {
-          path_suffix: `?page=${pageNum}&per_page=100`
+          context: {
+            page: pageNum.toString(),
+            per_page: '100'
+          }
         });
         
         if (!response || !response.response) {
