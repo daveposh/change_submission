@@ -1646,10 +1646,10 @@ const ChangeSubmission = {
       actions.push('📋 Additional stakeholder review recommended');
     } else if (riskLevel === 'medium') {
       actions.push('🟡 MEDIUM RISK - Standard approval workflow');
-      actions.push('👥 Peer review coordination will be initiated');
+      actions.push('⏰ Mandatory 24-hour peer review period');
     } else {
       actions.push('🟢 LOW RISK - Standard approval workflow');
-      actions.push('👥 Peer review coordination will be initiated');
+      actions.push('⏰ Mandatory 24-hour peer review period');
     }
     
     if (riskAssessment.testing >= 3) {
@@ -2458,10 +2458,12 @@ const ChangeSubmission = {
         console.log('ℹ️ No risk assessment data available, skipping peer review task creation');
         return;
       }
+
+      // Add delay to allow change request to be fully created in Freshservice
+      console.log('⏳ Waiting for change request to be fully created in Freshservice...');
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second delay
       
-      // Check if risk level requires peer review (now required for all risk levels)
-      // Risk scoring: 5-7 = Low, 8-11 = Medium, 12-15 = High
-      
+      // All changes require peer review regardless of risk level
       console.log(`📊 Risk threshold analysis:`, {
         totalScore: riskAssessment.totalScore,
         riskLevel: riskAssessment.riskLevel,
@@ -2478,21 +2480,53 @@ const ChangeSubmission = {
         console.warn('⚠️ No agent SME identified, skipping peer review task creation');
         return;
       }
-      
-      // Create a single peer review coordination task for the agent SME
-      try {
-        const task = await this.createPeerReviewCoordinationTask(changeRequest, agentSME, riskAssessment);
-        if (task) {
-          this.state.createdTasks.push(task);
-          console.log(`✅ Created peer review coordination task for agent SME ${agentSME.id}: Task ${task.id}`);
-          return [task];
-        } else {
-          console.warn(`⚠️ Task creation returned null for agent SME ${agentSME.id}, but no error was thrown`);
-          return [];
+
+      // Retry mechanism for task creation
+      let retryCount = 0;
+      const maxRetries = 3;
+      let taskCreated = false;
+
+      while (!taskCreated && retryCount < maxRetries) {
+        try {
+          // Create the peer review coordination task
+          const taskData = {
+            subject: `Peer Review Coordination Required: ${changeRequest.subject}`,
+            description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
+            priority: riskAssessment.riskLevel === 'High' ? 3 : 2,
+            status: 2, // Open
+            type: 2, // Task
+            requester_id: changeRequest.requester_id,
+            responder_id: agentSME.id,
+            due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+            tags: ['peer-review-coordination', 'change-management', `change-${changeRequest.id}`, 'sme-task']
+          };
+
+          const response = await window.client.request.invokeTemplate('createTask', {
+            body: JSON.stringify(taskData)
+          });
+
+          if (response && response.response) {
+            const task = JSON.parse(response.response);
+            console.log('✅ Peer review coordination task created:', task);
+            this.state.createdTasks.push(task);
+            taskCreated = true;
+          } else {
+            throw new Error('No response data received');
+          }
+        } catch (error) {
+          retryCount++;
+          console.warn(`⚠️ Failed to create peer review task (attempt ${retryCount}/${maxRetries}):`, error);
+          
+          if (retryCount < maxRetries) {
+            // Exponential backoff: 5s, 10s, 20s
+            const delay = 5000 * Math.pow(2, retryCount - 1);
+            console.log(`⏳ Retrying in ${delay/1000} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          } else {
+            console.error('❌ Failed to create peer review task after all retries');
+            throw error;
+          }
         }
-      } catch (error) {
-        console.error(`❌ Failed to create peer review coordination task for agent SME ${agentSME.id}:`, error);
-        throw error;
       }
       
     } catch (error) {
