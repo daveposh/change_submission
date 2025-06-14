@@ -2666,7 +2666,7 @@ const ChangeSubmission = {
       
       // Create the task using the v2 change tasks API endpoint
       console.log('📡 Sending change task creation request...');
-      const response = await window.client.request.invokeTemplate('createChangeTask', {
+      const response = await window.client.request.invokeTemplate('createTask', {
         context: {
           change_id: changeRequest.id
         },
