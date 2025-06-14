@@ -2463,21 +2463,24 @@ const ChangeSubmission = {
       console.log('⏳ Waiting for change request to be fully created in Freshservice...');
       await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second delay
       
-      // Determine if peer review is required for this risk level
-      const requiresPeerReview = ['Low', 'Medium', 'High'].includes(riskAssessment.riskLevel);
+      // All changes require peer review regardless of risk level
       console.log(`📊 Risk threshold analysis:`, {
         totalScore: riskAssessment.totalScore,
         riskLevel: riskAssessment.riskLevel,
-        requiresPeerReview,
-        reasoning: `Peer review required for Low, Medium, and High risk changes.`
+        reasoning: `All changes require peer review regardless of risk level`
       });
-
-      if (!requiresPeerReview) {
-        console.log(`ℹ️ Risk level ${riskAssessment.riskLevel} does not require peer review.`);
+      
+      // Create peer review task for all changes
+      console.log(`ℹ️ Creating peer review task for ${riskAssessment.riskLevel} risk change (Score: ${riskAssessment.totalScore})`);
+      
+      // Identify the agent SME who will coordinate peer review
+      const agentSME = this.identifyAgentSME(data, changeRequest);
+      
+      if (!agentSME) {
+        console.warn('⚠️ No agent SME identified, skipping peer review task creation');
         return;
       }
 
-      // Create peer review task for all required changes
       // Retry mechanism for task creation
       let retryCount = 0;
       const maxRetries = 3;

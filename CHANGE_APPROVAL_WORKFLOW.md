@@ -36,10 +36,10 @@ Submitted → Pending Review → Pending Approval → Scheduled
 ```
 - **Initial Status**: "Pending Review"
 - **Process**: Peer review → Workflow automation → Technical owner approval
-- **Approvers**: Technical owners (after peer review)
+- **Approvers**: Technical owners only
 - **Timeline**: 2+ business days lead time
 
-### Medium Risk Changes (Score 8-11)
+### Medium Risk Changes (Score 8-11)  
 ```
 Submitted → Pending Review → Pending Approval → Scheduled
 ```
@@ -53,7 +53,7 @@ Submitted → Pending Review → Pending Approval → Scheduled
 Submitted → Pending Review → Pending Approval → Scheduled
 ```
 - **Initial Status**: "Pending Review"
-- **Process**: Peer review → Workflow automation → technical owner + CAB approval
+- **Process**: Peer review → Workflow automation → Technical owner + CAB approval
 - **Approvers**: Technical owners AND Change Advisory Board
 - **Timeline**: 10+ business days lead time
 
@@ -129,16 +129,44 @@ Submitted → Pending Review → Pending Approval → Scheduled
 
 ## Detailed Process Flows
 
-### All Risk Change Process
-1. **Submission**: Requester submits change (Risk Score 5-15)
+### Low Risk Change Process
+1. **Submission**: Requester submits change (Risk Score 5-7)
 2. **Initial Status**: System sets status to "Pending Review"
 3. **SME Assignment**: Peer review coordination task assigned to agent SME
-4. **Peer Review Completion**: SME coordinates and documents peer review
-5. **Workflow Automation**: Status changes to "Pending Approval" and approval tickets are created
-6. **CAB Approval**: For high risk, CAB approval is required
-7. **Final Status**: When all approvals received, status changes to "Scheduled"
+4. **Peer Review Coordination**: SME coordinates peer review (24-hour target)
+5. **Workflow Trigger**: Task completion triggers automation
+6. **Status Transition**: Automated change to "Pending Approval"
+7. **Approval Creation**: Technical owner approval tickets created
+8. **Technical Review**: Technical owners review and approve/reject
+9. **Completion**: All approvals obtained → Status: "Scheduled"
 
-**Timeline**: Typically 2-10 business days
+**Timeline**: Typically 2-5 business days
+
+### Medium Risk Change Process
+1. **Submission**: Requester submits change (Risk Score 8-11)
+2. **Initial Status**: System sets status to "Pending Review"
+3. **SME Assignment**: Peer review coordination task assigned to agent SME
+4. **Peer Review Coordination**: SME coordinates peer review (24-hour target)
+5. **Workflow Trigger**: Task completion triggers automation
+6. **Status Transition**: Automated change to "Pending Approval"
+7. **Approval Creation**: Technical owner approval tickets created
+8. **Technical Review**: Technical owners review and approve/reject
+9. **Completion**: All approvals obtained → Status: "Scheduled"
+
+**Timeline**: Typically 5-10 business days
+
+### High Risk Change Process
+1. **Submission**: Requester submits change (Risk Score 12-15)
+2. **Initial Status**: System sets status to "Pending Review"
+3. **SME Assignment**: Peer review coordination task assigned to agent SME
+4. **Peer Review Coordination**: SME coordinates peer review (24-hour target)
+5. **Workflow Trigger**: Task completion triggers automation
+6. **Status Transition**: Automated change to "Pending Approval"
+7. **Approval Creation**: Technical owner AND CAB approval tickets created
+8. **Dual Review**: Technical owners and CAB review simultaneously
+9. **Completion**: All approvals obtained → Status: "Scheduled"
+
+**Timeline**: Typically 10-15 business days
 
 ## Workflow Automation Details
 

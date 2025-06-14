@@ -315,16 +315,16 @@ The Change Management Application is a comprehensive tool for submitting, review
 
 #### Risk-Based Classification
 **Low Risk Changes (Score 5-7)**:
-- **Initial Status**: "Pending Review"
-- **Approval Requirements**: Peer review + technical owner approval
+- **Initial Status**: "Pending Approval"
+- **Approval Requirements**: Technical owner approval only
 - **Lead Time**: Minimum 2 business days
 - **Documentation**: Standard implementation plan required
-- **Review Process**: Peer review coordination → Workflow automator → Technical owner approval
+- **Review Process**: Direct to technical owner approval
 - **Examples**: Routine updates, minor configuration changes
 
 **Medium Risk Changes (Score 8-11)**:
 - **Initial Status**: "Pending Review"
-- **Approval Requirements**: Peer review + technical owner approval
+- **Approval Requirements**: Peer review → Technical owner approval
 - **Lead Time**: Minimum 5 business days
 - **Documentation**: Implementation, validation, and backout plans required
 - **Review Process**: Peer review coordination → Workflow automator → Technical owner approval
@@ -332,7 +332,7 @@ The Change Management Application is a comprehensive tool for submitting, review
 
 **High Risk Changes (Score 12-15)**:
 - **Initial Status**: "Pending Review"
-- **Approval Requirements**: Peer review + technical owner approval + CAB approval
+- **Approval Requirements**: Peer review → Technical owner + CAB approval
 - **Lead Time**: Minimum 10 business days
 - **Documentation**: Comprehensive planning including detailed risk mitigation
 - **Review Process**: Peer review coordination → Workflow automator → Technical owner + CAB approval
@@ -360,21 +360,26 @@ The Change Management Application is a comprehensive tool for submitting, review
 #### Risk-Based Status Assignment
 Upon submission, changes are assigned an initial status based on risk level:
 
-**Low/Medium/High Risk Changes (Score 5-15)**:
-- **Initial Status**: "Pending Review"
+**Low Risk Changes (Score 5-7)**:
+- **Initial Status**: "Pending Approval"
+- **Immediate Action**: Technical owner approval tickets created
+- **Process**: Standard approval workflow begins immediately
+
+**Medium/High Risk Changes (Score 8-15)**:
+- **Initial Status**: "Pending Review"  
 - **Immediate Action**: Peer review coordination task created
 - **Process**: Must complete peer review before moving to approval phase
 
-#### Standard Approval Process (All Risk Levels)
+#### Standard Approval Process (Low Risk)
 1. **Automatic Stakeholder Identification**: System identifies technical owners and stakeholders
-2. **Status Assignment**: Change status set to "Pending Approval" after peer review
+2. **Status Assignment**: Change status set to "Pending Approval"
 3. **Approval Ticket Creation**: Individual approval tickets created for each technical owner
 4. **Stakeholder Notification**: Notification sent to all impacted stakeholders
 5. **Parallel Approvals**: All approvals processed simultaneously
 6. **Status Update**: When all approvals received, status changes to "Scheduled"
 
-#### Peer Review Coordination Process (All Risk Levels)
-**Triggered For**: All changes (score 5-15)
+#### Peer Review Coordination Process (Medium/High Risk)
+**Triggered For**: Medium and High risk changes (score ≥ 8)
 
 **Phase 1: Peer Review (Status: "Pending Review")**:
 1. **SME Assignment**: Agent SME identified (assigned agent → technical owner → asset manager)
