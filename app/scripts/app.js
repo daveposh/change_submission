@@ -6357,7 +6357,18 @@ function initializeRichTextEditors() {
     // Handle content changes
     editor.on('text-change', function() {
       const content = editor.root.innerHTML;
-      $(`#${id}`).val(content);
+      // Update the changeRequestData object
+      switch(id) {
+        case 'implementation-plan':
+          window.changeRequestData.implementationPlan = content;
+          break;
+        case 'backout-plan':
+          window.changeRequestData.backoutPlan = content;
+          break;
+        case 'validation-plan':
+          window.changeRequestData.validationPlan = content;
+          break;
+      }
     });
 
     // Handle dark mode
@@ -6379,6 +6390,8 @@ function initializeRichTextEditors() {
     });
   });
 
+  // Store editors in window object for access
+  window.richTextEditors = editors;
   return editors;
 }
 
@@ -6394,6 +6407,14 @@ function getPlaceholderText(id) {
 // Initialize highlight.js for code blocks
 hljs.configure({
   languages: ['javascript', 'python', 'java', 'csharp', 'php', 'ruby', 'go', 'rust', 'sql', 'html', 'css', 'bash', 'powershell']
+});
+
+// Add to the initialization process
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize rich text editors
+  initializeRichTextEditors();
+  
+  // ... rest of initialization code ...
 });
 
 // ... existing code ...
