@@ -2269,7 +2269,8 @@ function setupEventListeners() {
       // Clear any existing timer
       if (liveSearchState.requester.timer) {
         clearTimeout(liveSearchState.requester.timer);
-        liveSearchState.requester.timer = null;
+        liveSearchState.requester.isActive = false;
+        return;
       }
       
       // Clear results if input is empty
@@ -2326,7 +2327,8 @@ function setupEventListeners() {
       // Clear any existing timer
       if (liveSearchState.agent.timer) {
         clearTimeout(liveSearchState.agent.timer);
-        liveSearchState.agent.timer = null;
+        liveSearchState.agent.isActive = false;
+        return;
       }
       
       // Clear results if input is empty
@@ -6433,7 +6435,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Dark mode support for Trumbowyg
   function updateTrumbowygTheme() {
-    var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
     $('.trumbowyg-box').toggleClass('trumbowyg-dark', isDark);
   }
   updateTrumbowygTheme();
