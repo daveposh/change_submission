@@ -6325,6 +6325,8 @@ function initializeRichTextEditors() {
     selector: '.rich-text-editor',
     height: 300,
     menubar: false,
+    skin: 'oxide',
+    content_css: 'default',
     plugins: [
       'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
       'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
@@ -6334,7 +6336,24 @@ function initializeRichTextEditors() {
       'bold italic backcolor | alignleft aligncenter ' +
       'alignright alignjustify | bullist numlist outdent indent | ' +
       'removeformat | codesample code | help',
-    content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }',
+    content_style: `
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 14px;
+        color: var(--bs-body-color);
+        background-color: var(--bs-body-bg);
+      }
+      pre {
+        background-color: var(--bs-light);
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin: 1rem 0;
+        border: 1px solid var(--bs-border-color);
+      }
+      [data-bs-theme="dark"] pre {
+        background-color: #1a1a1a;
+      }
+    `,
     codesample_languages: [
       { text: 'Bash', value: 'bash' },
       { text: 'PowerShell', value: 'powershell' },
@@ -6362,6 +6381,22 @@ function initializeRichTextEditors() {
             window.changeRequestData.validationPlan = content;
             break;
         }
+      });
+
+      // Handle theme changes
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.attributeName === 'data-bs-theme') {
+            const theme = document.documentElement.getAttribute('data-bs-theme');
+            editor.getBody().style.backgroundColor = theme === 'dark' ? '#212529' : '#ffffff';
+            editor.getBody().style.color = theme === 'dark' ? '#f8f9fa' : '#212529';
+          }
+        });
+      });
+
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-bs-theme']
       });
     }
   };
