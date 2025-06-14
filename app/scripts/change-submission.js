@@ -2509,6 +2509,31 @@ const ChangeSubmission = {
           if (response && response.response) {
             const task = JSON.parse(response.response);
             console.log('✅ Peer review coordination task created:', task);
+            
+            // Associate the task with the change request
+            try {
+              const associationData = {
+                ticket_id: task.id,
+                change_id: changeRequest.id,
+                association_type: 'related_to'
+              };
+              
+              console.log('🔗 Associating task with change request:', associationData);
+              
+              const associationResponse = await window.client.request.invokeTemplate('createChangeTask', {
+                body: JSON.stringify(associationData)
+              });
+              
+              if (associationResponse && associationResponse.response) {
+                console.log('✅ Successfully associated task with change request');
+              } else {
+                console.warn('⚠️ Failed to associate task with change request - no response data');
+              }
+            } catch (associationError) {
+              console.error('❌ Error associating task with change request:', associationError);
+              // Don't throw here - we still want to track the created task even if association fails
+            }
+            
             this.state.createdTasks.push(task);
             taskCreated = true;
           } else {
