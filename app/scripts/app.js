@@ -6412,7 +6412,34 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize rich text editors
   initializeRichTextEditors();
   
-  // ... rest of initialization code ...
-});
+  // Initialize Trumbowyg editors
+  $('.trumbowyg-editor').trumbowyg({
+    autogrow: true,
+    btns: [
+      ['viewHTML'],
+      ['undo', 'redo'],
+      ['formatting'],
+      ['strong', 'em', 'del'],
+      ['superscript', 'subscript'],
+      ['link'],
+      ['insertImage'],
+      ['unorderedList', 'orderedList'],
+      ['justifyLeft', 'justifyCenter', 'justifyRight', 'justifyFull'],
+      ['horizontalRule'],
+      ['removeformat'],
+      ['fullscreen']
+    ]
+  });
 
+  // Dark mode support for Trumbowyg
+  function updateTrumbowygTheme() {
+    var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    $('.trumbowyg-box').toggleClass('trumbowyg-dark', isDark);
+  }
+  updateTrumbowygTheme();
+  const observer = new MutationObserver(updateTrumbowygTheme);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-bs-theme'] });
+
+  // ...rest of your initialization code...
+});
 // ... existing code ...
