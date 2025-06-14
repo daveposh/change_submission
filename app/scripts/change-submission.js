@@ -2772,105 +2772,55 @@ const ChangeSubmission = {
     const freshserviceDomain = await getFreshserviceDomain();
     const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
     
-    let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6;">`;
-    
-    // Header
-    description += `<h3 style="color: #0066cc; margin-bottom: 20px;">🎯 Peer Review Coordination Required</h3>`;
-    
-    // SME Assignment Notice
-    description += `<div style="background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #0066cc;">`;
-    description += `<h4 style="margin-top: 0; color: #0066cc;">📋 SME Assignment</h4>`;
-    description += `<p><strong>Assigned SME:</strong> ${agentSME.name} (${agentSME.source})</p>`;
-    description += `<p><strong>Responsibility:</strong> You are responsible for coordinating the peer review process for this ${riskAssessment.riskLevel} risk change.</p>`;
-    description += `</div>`;
-    
-    // Change request details
-    description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">`;
-    description += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
-    description += `<p><strong>Change ID:</strong> <a href="${changeUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">CHN-${changeRequest.id}</a></p>`;
-    description += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
-    description += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || 'Unknown'}</p>`;
-    description += `<p><strong>Risk Level:</strong> <span style="background-color: ${this.getRiskColor(riskAssessment.riskLevel)}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
-    
-    if (data.plannedStart) {
-      description += `<p><strong>Planned Start:</strong> ${new Date(data.plannedStart).toLocaleString()}</p>`;
-    }
-    if (data.plannedEnd) {
-      description += `<p><strong>Planned End:</strong> ${new Date(data.plannedEnd).toLocaleString()}</p>`;
-    }
-    description += `</div>`;
-    
-    // Implementation details
-    if (data.implementationPlan) {
-      description += `<div style="margin-bottom: 20px;">`;
-      description += `<h4 style="color: #333;">Implementation Plan</h4>`;
-      description += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #0066cc;">${data.implementationPlan}</div>`;
-      description += `</div>`;
-    }
-    
-    // Validation plan
-    if (data.validationPlan) {
-      description += `<div style="margin-bottom: 20px;">`;
-      description += `<h4 style="color: #333;">Validation Plan</h4>`;
-      description += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #28a745;">${data.validationPlan}</div>`;
-      description += `</div>`;
-    }
-    
-    // SME Responsibilities - Different instructions for self-requested vs. assigned agent
-    const isSelfRequested = agentSME.source?.includes('Self') || agentSME.source?.includes('Self-Requested');
-    
-    description += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin-bottom: 20px;">`;
-    description += `<h4 style="margin-top: 0; color: #856404;">🎯 Your Responsibilities as SME Coordinator</h4>`;
-    
-    if (isSelfRequested) {
-      description += `<p>As the <strong>requester and assigned SME</strong>, you must obtain an <strong>independent peer review</strong> since you cannot review your own work. Choose <strong>ONE</strong> of the following options:</p>`;
-      description += `<ol style="margin-bottom: 0;">`;
-      description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review of your change plan.</li>`;
-      description += `<li><strong>Coordinate External Review:</strong> Ask a colleague to review your change and attach evidence of their completed review to this task.</li>`;
-      description += `<li><strong>Escalate for Review Assignment:</strong> Contact your manager to assign an appropriate independent peer reviewer.</li>`;
-      description += `</ol>`;
-      description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Important:</strong> Since you are both the requester and SME, independent review is mandatory. You cannot approve your own work.</p>`;
-    } else {
-      description += `<p>As the assigned Subject Matter Expert, you must coordinate an <strong>independent peer review</strong> by choosing <strong>ONE</strong> of the following options:</p>`;
-      description += `<ol style="margin-bottom: 0;">`;
-      description += `<li><strong>Assign to Peer Reviewer:</strong> Reassign this task to a qualified technical peer who can perform an independent review (must be someone other than yourself or the requester).</li>`;
-      description += `<li><strong>Coordinate External Review:</strong> Obtain peer review through other team members and attach evidence of the completed review.</li>`;
-      description += `<li><strong>Escalate for Review Assignment:</strong> Contact management to identify and assign an appropriate independent peer reviewer.</li>`;
-      description += `</ol>`;
-      description += `<p style="margin-top: 10px; margin-bottom: 0;"><strong>Important:</strong> Peer reviews must be conducted by someone independent from the change planning and SME coordination. You cannot review work you coordinated or were involved in planning.</p>`;
-    }
-    description += `</div>`;
-    
-    // Review checklist
-    description += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #6c757d; margin-bottom: 20px;">`;
-    description += `<h4 style="margin-top: 0; color: #495057;">📝 Peer Review Checklist</h4>`;
-    description += `<p>The peer review (conducted by an independent reviewer) should evaluate:</p>`;
-    description += `<ul style="margin-bottom: 0;">`;
-    description += `<li><strong>Technical Feasibility:</strong> Can this change be implemented as described?</li>`;
-    description += `<li><strong>Risk Assessment:</strong> Are there additional risks or issues not considered?</li>`;
-    description += `<li><strong>Alternative Approaches:</strong> Are there better or safer ways to achieve the same outcome?</li>`;
-    description += `<li><strong>Testing Strategy:</strong> Is the testing approach adequate for the risk level?</li>`;
-    description += `<li><strong>Rollback Plan:</strong> Is the rollback strategy sufficient and tested?</li>`;
-    description += `<li><strong>Implementation Timeline:</strong> Is the proposed timeline realistic and appropriate?</li>`;
-    description += `</ul>`;
-    description += `</div>`;
-    
-    // Instructions
-    description += `<div style="margin-top: 20px; padding: 15px; background-color: #d1ecf1; border-radius: 5px;">`;
-    description += `<h4 style="margin-top: 0; color: #0c5460;">📋 Completion Instructions</h4>`;
-    description += `<p><strong>Deadline:</strong> Complete peer review coordination within <strong>24 hours</strong>.</p>`;
-    description += `<p><strong>Required Actions:</strong></p>`;
-    description += `<ul>`;
-    description += `<li>Identify and assign a qualified peer reviewer (not yourself) to perform independent technical review</li>`;
-    description += `<li>Ensure the peer reviewer has access to all relevant documentation and plans</li>`;
-    description += `<li>Collect and attach evidence of completed peer review (review notes, findings, recommendations)</li>`;
-    description += `<li>Update this task with review results and any concerns identified</li>`;
-    description += `<li>Coordinate with the change requester if issues are found that need resolution</li>`;
-    description += `</ul>`;
-    description += `<p><strong>Important:</strong> The peer review must be conducted by someone other than the original SME or change requester to ensure independent validation of the technical approach.</p>`;
-    description += `</div>`;
-    
-    description += `</div>`;
+    let description = `Peer Review Coordination Required
+
+SME Assignment:
+Assigned SME: ${agentSME.name} (${agentSME.source})
+Responsibility: Coordinate peer review process for this ${riskAssessment.riskLevel} risk change.
+
+Change Request Details:
+Change ID: CHN-${changeRequest.id}
+Title: ${changeRequest.subject}
+Requester: ${data.selectedRequester?.name || 'Unknown'}
+Risk Level: ${riskAssessment.riskLevel?.toUpperCase()} (${riskAssessment.totalScore}/15)
+Planned Start: ${data.plannedStart ? new Date(data.plannedStart).toLocaleString() : 'Not specified'}
+Planned End: ${data.plannedEnd ? new Date(data.plannedEnd).toLocaleString() : 'Not specified'}
+
+Implementation Plan:
+${data.implementationPlan || 'Not specified'}
+
+Validation Plan:
+${data.validationPlan || 'Not specified'}
+
+Your Responsibilities as SME Coordinator:
+As the requester and assigned SME, you must obtain an independent peer review since you cannot review your own work. Choose ONE of the following options:
+
+1. Assign to Peer Reviewer: Reassign this task to a qualified technical peer who can perform an independent review of your change plan.
+2. Coordinate External Review: Ask a colleague to review your change and attach evidence of their completed review to this task.
+3. Escalate for Review Assignment: Contact your manager to assign an appropriate independent peer reviewer.
+
+Important: Since you are both the requester and SME, independent review is mandatory. You cannot approve your own work.
+
+Peer Review Checklist:
+The peer review (conducted by an independent reviewer) should evaluate:
+- Technical Feasibility: Can this change be implemented as described?
+- Risk Assessment: Are there additional risks or issues not considered?
+- Alternative Approaches: Are there better or safer ways to achieve the same outcome?
+- Testing Strategy: Is the testing approach adequate for the risk level?
+- Rollback Plan: Is the rollback strategy sufficient and tested?
+- Implementation Timeline: Is the proposed timeline realistic and appropriate?
+
+Completion Instructions:
+Deadline: Complete peer review coordination within 24 hours.
+
+Required Actions:
+- Identify and assign a qualified peer reviewer (not yourself) to perform independent technical review
+- Ensure the peer reviewer has access to all relevant documentation and plans
+- Collect and attach evidence of completed peer review (review notes, findings, recommendations)
+- Update this task with review results and any concerns identified
+- Coordinate with the change requester if issues are found that need resolution
+
+Important: The peer review must be conducted by someone other than the original SME or change requester to ensure independent validation of the technical approach.`;
     
     return description;
   },
