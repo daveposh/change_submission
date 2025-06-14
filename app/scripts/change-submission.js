@@ -2494,10 +2494,11 @@ const ChangeSubmission = {
             description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
             priority: riskAssessment.riskLevel === 'High' ? 3 : 2,
             status: 2, // Open
-            type: 2, // Task
+            type: 'Service Request', // Changed from numeric to string value
             requester_id: changeRequest.requester_id,
             responder_id: agentSME.id,
             due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+            fr_due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Added fr_due_by field
             tags: ['peer-review-coordination', 'change-management', `change-${changeRequest.id}`, 'sme-task']
           };
 
