@@ -2126,117 +2126,78 @@ html, body, .card, .form-control, .form-select, .btn, .modal-content, .list-grou
 /* Loading states */
 
 /* Rich Text Editor Styles */
-.ck-editor__editable {
+.rich-text-editor {
+  height: 300px;
+  margin-bottom: 1rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--bs-border-color);
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+.rich-text-editor .ql-toolbar {
+  border-top-left-radius: 0.375rem;
+  border-top-right-radius: 0.375rem;
+  border-color: var(--bs-border-color);
+  background-color: var(--bs-body-bg);
+}
+
+.rich-text-editor .ql-container {
+  border-bottom-left-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+  border-color: var(--bs-border-color);
+  font-family: var(--bs-body-font-family);
+  font-size: var(--bs-body-font-size);
+}
+
+.rich-text-editor .ql-editor {
   min-height: 200px;
-  max-height: 400px;
-  border-radius: 0.375rem !important;
-  border-color: var(--bs-border-color) !important;
-  transition: background-color 0.3s ease, border-color 0.3s ease !important;
+  padding: 1rem;
 }
 
-.ck.ck-editor {
-  width: 100%;
+/* Dark mode styles */
+[data-bs-theme="dark"] .rich-text-editor {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
 }
 
-.ck.ck-toolbar {
-  border-radius: 0.375rem 0.375rem 0 0 !important;
-  border-color: var(--bs-border-color) !important;
-  background-color: var(--bs-body-bg) !important;
-  transition: background-color 0.3s ease, border-color 0.3s ease !important;
+[data-bs-theme="dark"] .rich-text-editor .ql-toolbar {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
 }
 
-.ck.ck-toolbar .ck-toolbar__items {
-  flex-wrap: wrap;
+[data-bs-theme="dark"] .rich-text-editor .ql-container {
+  border-color: var(--bs-border-color);
 }
 
-.ck.ck-button {
-  color: var(--bs-body-color) !important;
-  transition: background-color 0.3s ease, color 0.3s ease !important;
+[data-bs-theme="dark"] .rich-text-editor .ql-editor {
+  color: var(--bs-light);
 }
 
-.ck.ck-button:hover {
-  background-color: var(--bs-light) !important;
+[data-bs-theme="dark"] .rich-text-editor .ql-stroke {
+  stroke: var(--bs-light);
 }
 
-.ck.ck-button.ck-on {
-  background-color: var(--bs-primary) !important;
-  color: white !important;
+[data-bs-theme="dark"] .rich-text-editor .ql-fill {
+  fill: var(--bs-light);
 }
 
-.ck.ck-button.ck-on:hover {
-  background-color: var(--bs-primary-dark) !important;
+[data-bs-theme="dark"] .rich-text-editor .ql-picker {
+  color: var(--bs-light);
 }
 
-/* Dark mode support */
-[data-bs-theme="dark"] .ck.ck-toolbar {
-  background-color: var(--bs-dark) !important;
-  border-color: var(--bs-border-color) !important;
+[data-bs-theme="dark"] .rich-text-editor .ql-picker-options {
+  background-color: var(--bs-dark);
+  border-color: var(--bs-border-color);
 }
 
-[data-bs-theme="dark"] .ck.ck-editor__editable {
-  background-color: var(--bs-dark) !important;
-  border-color: var(--bs-border-color) !important;
-  color: var(--bs-light) !important;
-}
-
-[data-bs-theme="dark"] .ck.ck-button {
-  color: var(--bs-light) !important;
-}
-
-[data-bs-theme="dark"] .ck.ck-button:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-[data-bs-theme="dark"] .ck.ck-button.ck-on {
-  background-color: var(--bs-primary) !important;
-  color: white !important;
-}
-
-[data-bs-theme="dark"] .ck.ck-button.ck-on:hover {
-  background-color: var(--bs-primary-dark) !important;
-}
-
-/* Code block styling */
-.ck-content pre {
-  background-color: var(--bs-light) !important;
-  border-radius: 0.375rem !important;
+/* Code block styles */
+.ql-syntax {
+  background-color: #282c34 !important;
+  color: #abb2bf !important;
   padding: 1rem !important;
-  margin: 1rem 0 !important;
-  border: 1px solid var(--bs-border-color) !important;
-  transition: background-color 0.3s ease, border-color 0.3s ease !important;
-}
-
-[data-bs-theme="dark"] .ck-content pre {
-  background-color: #1a1a1a !important;
-  border-color: var(--bs-border-color) !important;
-}
-
-/* Dropdown styling */
-.ck.ck-dropdown__panel {
-  background-color: var(--bs-body-bg) !important;
-  border-color: var(--bs-border-color) !important;
-  color: var(--bs-body-color) !important;
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
-}
-
-[data-bs-theme="dark"] .ck.ck-dropdown__panel {
-  background-color: var(--bs-dark) !important;
-  border-color: var(--bs-border-color) !important;
-  color: var(--bs-light) !important;
-}
-
-.ck.ck-dropdown__panel .ck-button {
-  color: var(--bs-body-color) !important;
-}
-
-[data-bs-theme="dark"] .ck.ck-dropdown__panel .ck-button {
-  color: var(--bs-light) !important;
-}
-
-.ck.ck-dropdown__panel .ck-button:hover {
-  background-color: var(--bs-light) !important;
-}
-
-[data-bs-theme="dark"] .ck.ck-dropdown__panel .ck-button:hover {
-  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 0.375rem !important;
+  font-family: 'Fira Code', monospace !important;
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
 }

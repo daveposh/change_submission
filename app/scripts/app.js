@@ -6322,105 +6322,78 @@ window.testEnhancedUserCache = async function() {
 // Initialize CKEditor for rich text editors
 function initializeRichTextEditors() {
   const editors = {};
-  const editorConfig = {
-    toolbar: {
-      items: [
-        'heading',
-        '|',
-        'bold',
-        'italic',
-        'link',
-        'bulletedList',
-        'numberedList',
-        '|',
-        'outdent',
-        'indent',
-        '|',
-        'code',
-        'codeBlock',
-        'blockQuote',
-        'insertTable',
-        'undo',
-        'redo'
-      ]
-    },
-    language: 'en',
-    codeBlock: {
-      languages: [
-        { language: 'bash', label: 'Bash' },
-        { language: 'powershell', label: 'PowerShell' },
-        { language: 'sql', label: 'SQL' },
-        { language: 'json', label: 'JSON' },
-        { language: 'xml', label: 'XML' },
-        { language: 'html', label: 'HTML' },
-        { language: 'css', label: 'CSS' },
-        { language: 'javascript', label: 'JavaScript' }
-      ]
-    },
-    table: {
-      contentToolbar: [
-        'tableColumn',
-        'tableRow',
-        'mergeTableCells'
-      ]
-    }
-  };
+  const editorIds = ['implementation-plan', 'backout-plan', 'validation-plan'];
+  
+  const toolbarOptions = [
+    ['bold', 'italic', 'underline', 'strike'],
+    ['blockquote', 'code-block'],
+    [{ 'header': 1 }, { 'header': 2 }],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    [{ 'script': 'sub'}, { 'script': 'super' }],
+    [{ 'indent': '-1'}, { 'indent': '+1' }],
+    [{ 'direction': 'rtl' }],
+    [{ 'size': ['small', false, 'large', 'huge'] }],
+    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+    [{ 'color': [] }, { 'background': [] }],
+    [{ 'font': [] }],
+    [{ 'align': [] }],
+    ['clean'],
+    ['link', 'image']
+  ];
 
-  // Initialize each editor
-  document.querySelectorAll('.rich-text-editor').forEach(element => {
-    ClassicEditor
-      .create(element, editorConfig)
-      .then(editor => {
-        editors[element.id] = editor;
-        
-        // Update changeRequestData when content changes
-        editor.model.document.on('change:data', () => {
-          const content = editor.getData();
-          switch(element.id) {
-            case 'implementation-plan':
-              window.changeRequestData.implementationPlan = content;
-              break;
-            case 'backout-plan':
-              window.changeRequestData.backoutPlan = content;
-              break;
-            case 'validation-plan':
-              window.changeRequestData.validationPlan = content;
-              break;
+  editorIds.forEach(id => {
+    const editor = new Quill(`#${id}`, {
+      modules: {
+        toolbar: toolbarOptions,
+        syntax: true
+      },
+      placeholder: getPlaceholderText(id),
+      theme: 'snow'
+    });
+
+    // Store editor instance
+    editors[id] = editor;
+
+    // Handle content changes
+    editor.on('text-change', function() {
+      const content = editor.root.innerHTML;
+      $(`#${id}`).val(content);
+    });
+
+    // Handle dark mode
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'data-bs-theme') {
+          const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+          const editorElement = document.querySelector(`#${id}`);
+          if (editorElement) {
+            editorElement.classList.toggle('dark-mode', isDark);
           }
-        });
-
-        // Handle theme changes
-        const observer = new MutationObserver((mutations) => {
-          mutations.forEach((mutation) => {
-            if (mutation.attributeName === 'data-bs-theme') {
-              const theme = document.documentElement.getAttribute('data-bs-theme');
-              const editorElement = editor.editing.view.domConverter.viewToDom(editor.editing.view.document.getRoot());
-              editorElement.style.backgroundColor = theme === 'dark' ? '#212529' : '#ffffff';
-              editorElement.style.color = theme === 'dark' ? '#f8f9fa' : '#212529';
-            }
-          });
-        });
-
-        observer.observe(document.documentElement, {
-          attributes: true,
-          attributeFilter: ['data-bs-theme']
-        });
-      })
-      .catch(error => {
-        console.error('Error initializing CKEditor:', error);
+        }
       });
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-bs-theme']
+    });
   });
 
-  // Store editors in window object for access
-  window.richTextEditors = editors;
+  return editors;
 }
 
-// Add to the initialization process
-document.addEventListener('DOMContentLoaded', function() {
-  // ... existing initialization code ...
-  
-  // Initialize rich text editors
-  initializeRichTextEditors();
-  
-  // ... rest of initialization code ...
+function getPlaceholderText(id) {
+  const placeholders = {
+    'implementation-plan': 'Describe the step-by-step implementation process...',
+    'backout-plan': 'Describe how to revert the change if issues occur...',
+    'validation-plan': 'Describe how to verify the change was successful...'
+  };
+  return placeholders[id] || '';
+}
+
+// Initialize highlight.js for code blocks
+hljs.configure({
+  languages: ['javascript', 'python', 'java', 'csharp', 'php', 'ruby', 'go', 'rust', 'sql', 'html', 'css', 'bash', 'powershell']
 });
+
+// ... existing code ...
