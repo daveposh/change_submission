@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Freshworks FDK Change Management Application implements a risk-based approval workflow with automated state transitions. Changes with risk scores of 8 or higher (Medium and High risk) enter a "Pending Review" state and require peer review coordination before moving to the approval phase. Upon peer review completion, the Freshservice workflow automator automatically transitions the change to "Pending Approval" status and releases approval tickets to technical owners and/or CAB members.
+The Freshworks FDK Change Management Application implements a risk-based approval workflow with automated state transitions. **All changes, regardless of risk level (Low, Medium, High), require peer review coordination before moving to the approval phase.** Upon peer review completion, the Freshservice workflow automator automatically transitions the change to "Pending Approval" status and releases approval tickets to technical owners and/or CAB members as appropriate.
 
 ## Risk Threshold Logic
 
@@ -14,8 +14,7 @@ The Freshworks FDK Change Management Application implements a risk-based approva
   - **High Risk**: 12-15 points
 
 ### Status Assignment
-- **Low Risk (5-7)**: Initial status "Pending Approval" - direct to technical owner approval
-- **Medium/High Risk (≥8)**: Initial status "Pending Review" - peer review required first
+- **All Risk Levels (5-15)**: Initial status "Pending Review" - peer review required first
 - **Rationale**: Risk-based routing ensures appropriate review level for change complexity
 
 ## Implementation Details
@@ -23,29 +22,30 @@ The Freshworks FDK Change Management Application implements a risk-based approva
 ### Risk-Based Workflow Process
 When a change request is submitted:
 
-**Low Risk Changes (Score 5-7)**:
-1. **Status Assignment**: "Pending Approval"
-2. **Immediate Action**: Technical owner approval tickets created automatically
-3. **Workflow**: Standard approval process begins immediately
-
-**Medium/High Risk Changes (Score ≥ 8)**:
+**Low Risk Changes (Score 5-7):**
 1. **Status Assignment**: "Pending Review"
-2. **SME Identification**: System automatically identifies an agent SME from:
-   - **Primary**: Assigned agent (if different from requester)
-   - **Fallback**: Primary technical owner from impacted services analysis
-   - **Last Resort**: Asset manager from selected assets
-3. **Task Creation**: Creates peer review coordination task assigned to the identified SME
-4. **SME Responsibilities**: The SME must choose one of three options:
-   - **Peer Assignment**: Reassign the task to a qualified technical peer (different from requester and SME)
-   - **External Coordination**: Obtain peer review through other means and attach evidence
-   - **Escalation**: Escalate for appropriate reviewer assignment
+2. **Peer Review**: Peer review coordination task assigned to agent SME
+3. **Upon completion**: Technical owner approval tickets created automatically
+4. **Workflow**: Standard approval process begins after peer review
+
+**Medium Risk Changes (Score 8-11):**
+1. **Status Assignment**: "Pending Review"
+2. **Peer Review**: Peer review coordination task assigned to agent SME
+3. **Upon completion**: Technical owner approval tickets created automatically
+4. **Workflow**: Standard approval process begins after peer review
+
+**High Risk Changes (Score 12-15):**
+1. **Status Assignment**: "Pending Review"
+2. **Peer Review**: Peer review coordination task assigned to agent SME
+3. **Upon completion**: Technical owner approval tickets and CAB approval tickets created
+4. **Workflow**: Approval process begins after peer review
 
 ### Workflow Automation Trigger
 When the peer review coordination task is marked complete:
 1. **Automatic Detection**: Freshservice workflow automator monitors task completion
 2. **Status Transition**: Change status automatically updates from "Pending Review" to "Pending Approval"
 3. **Approval Release**: System creates approval tickets for:
-   - Technical owners (for all medium/high risk changes)
+   - Technical owners (for all changes)
    - CAB members (for high risk changes only)
 4. **Final Approval**: When all approvals obtained, status changes to "Scheduled"
 
@@ -102,25 +102,12 @@ Standard evaluation criteria for the peer review:
 ### Submission Feedback
 After successful change submission, users see:
 
-#### For Low Risk Changes (Score 5-7):
+#### For Low/Medium Risk Changes (Score 5-11):
 ```
 ✅ Change Request Submitted Successfully!
 Change Request ID: CR-12345
 Title: Database Schema Update
-Risk Level: LOW (Score: 6/15)
-Status: PENDING APPROVAL
-
-🚀 Direct to Approval Process
-Your low risk change has been routed directly to technical owners for approval.
-No peer review is required for this risk level.
-```
-
-#### For Medium Risk Changes (Score 8-11):
-```
-✅ Change Request Submitted Successfully!
-Change Request ID: CR-12345
-Title: Database Schema Update
-Risk Level: MEDIUM (Score: 9/15)
+Risk Level: LOW or MEDIUM (Score: X/15)
 Status: PENDING REVIEW
 
 🎯 Peer Review Required
@@ -136,7 +123,7 @@ Upon completion of peer review, the Freshservice workflow automator will:
 ✅ Change Request Submitted Successfully!
 Change Request ID: CR-12345
 Title: Database Schema Update
-Risk Level: HIGH (Score: 13/15)
+Risk Level: HIGH (Score: X/15)
 Status: PENDING REVIEW
 
 🏛️ Peer Review + CAB Required
@@ -147,10 +134,10 @@ Upon completion of peer review, the Freshservice workflow automator will:
 - Change will move to "Scheduled" status once all approvals obtained
 ```
 
-#### For Medium/High Risk (no SME identified):
+#### For Any Risk (no SME identified):
 ```
 ⚠️ Peer Review Required
-Due to the risk level, peer review is required but no agent SME could be 
+Peer review is required but no agent SME could be 
 automatically identified. Please manually assign a Subject Matter Expert to 
 coordinate the peer review process. Change status: PENDING REVIEW
 ```
@@ -205,7 +192,7 @@ To modify peer review behavior:
 
 1. **Risk Threshold**: Change the threshold in `createPeerReviewTasks()`:
    ```javascript
-   const requiresPeerReview = riskAssessment.totalScore >= 8; // Modify this value
+   const requiresPeerReview = ['Low', 'Medium', 'High'].includes(riskAssessment.riskLevel); // Peer review for all risk levels
    ```
 
 2. **Due Date**: Modify the 24-hour deadline:
