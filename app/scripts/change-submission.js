@@ -2494,17 +2494,19 @@ const ChangeSubmission = {
             description: await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment),
             priority: riskAssessment.riskLevel === 'High' ? 3 : 2,
             status: 2, // Open
-            type: 'Service Request',
+            type: 'Task',
             requester_id: changeRequest.requester_id,
             responder_id: agentSME.id,
             due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             fr_due_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            change_id: changeRequest.id, // Use change_id instead of assoc_change_id
             tags: ['peer-review-coordination', 'change-management', `change-${changeRequest.id}`, 'sme-task']
           };
 
-          const response = await window.client.request.invokeTemplate('createTicket', {
-            body: JSON.stringify(taskData)
+          const response = await window.client.request.invokeTemplate('createChangeTask', {
+            body: JSON.stringify({
+              change_id: changeRequest.id,
+              task: taskData
+            })
           });
 
           if (response && response.response) {
