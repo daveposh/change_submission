@@ -6342,14 +6342,28 @@ function initializeRichTextEditors() {
   ];
 
   editorIds.forEach(id => {
+    // Create a unique toolbar for each editor
+    const toolbarId = `${id}-toolbar`;
+    let toolbar = document.createElement('div');
+    toolbar.id = toolbarId;
+    toolbar.className = 'quill-toolbar';
+    document.getElementById(id).parentNode.insertBefore(toolbar, document.getElementById(id));
+
     const editor = new Quill(`#${id}`, {
       modules: {
-        toolbar: toolbarOptions,
+        toolbar: {
+          container: `#${toolbarId}`,
+          handlers: {}
+        },
         syntax: true
       },
       placeholder: getPlaceholderText(id),
       theme: 'snow'
     });
+
+    // Add toolbar options to the toolbar
+    const quillToolbar = Quill.import('ui/toolbar');
+    new quillToolbar(toolbar, toolbarOptions);
 
     // Store editor instance
     editors[id] = editor;
@@ -6357,7 +6371,6 @@ function initializeRichTextEditors() {
     // Handle content changes
     editor.on('text-change', function() {
       const content = editor.root.innerHTML;
-      // Update the changeRequestData object
       switch(id) {
         case 'implementation-plan':
           window.changeRequestData.implementationPlan = content;
@@ -6390,7 +6403,6 @@ function initializeRichTextEditors() {
     });
   });
 
-  // Store editors in window object for access
   window.richTextEditors = editors;
   return editors;
 }
