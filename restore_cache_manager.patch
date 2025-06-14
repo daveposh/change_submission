@@ -1,0 +1,46 @@
+diff --git a/app/scripts/cache-manager.js b/app/scripts/cache-manager.js
+index 930fcd8..7aa215a 100644
+--- a/app/scripts/cache-manager.js
++++ b/app/scripts/cache-manager.js
+@@ -396,8 +396,8 @@ const CacheManager = {
+       
+       console.log(`📦 Fetching assets for ${matchingTypeIds.length} matching asset types using single filter request...`);
+       
+-      // Build OR filter query exactly like Postman: "asset_type_id: ID1 OR asset_type_id: ID2 OR ..."
+-      const filterParts = matchingTypeIds.map(typeId => `asset_type_id: ${typeId}`);
++      // Build filter query according to Freshservice API format
++      const filterParts = matchingTypeIds.map(typeId => `asset_type_id:${typeId}`);
+       const filterQuery = filterParts.join(' OR ');
+       
+       console.log(`🔍 Using filter query: "${filterQuery}"`);
+@@ -406,7 +406,7 @@ const CacheManager = {
+         // Use the getAssetsByType template with proper filter format
+         const response = await window.client.request.invokeTemplate('getAssetsByType', {
+           context: {
+-            filter_query: filterQuery,  // Remove the extra quotes around the filter
++            filter_query: filterQuery,
+             include: 'type_fields',
+             page: '1'
+           },
+@@ -438,7 +438,7 @@ const CacheManager = {
+             // Use single asset type filter
+             const response = await window.client.request.invokeTemplate('getAssetsByType', {
+               context: {
+-                filter_query: `asset_type_id: ${typeId}`,  // Remove the extra quotes around the filter
++                filter_query: `asset_type_id:${typeId}`,
+                 include: 'type_fields',
+                 page: '1'
+               },
+diff --git a/config/requests.json b/config/requests.json
+index da660c1..17a9ea6 100644
+--- a/config/requests.json
++++ b/config/requests.json
+@@ -258,7 +258,7 @@
+       "host": "<%=iparam.freshservice_domain%>",
+       "path": "/api/v2/assets",
+       "query": {
+-        "filter": "\"<%= context.filter_query %>\"",
++        "search": "\"<%= context.filter_query %>\"",
+         "page": "<%= context.page || '1' %>",
+         "include": "<%= context.include %>"
+       },

@@ -1,0 +1,10 @@
+diff a/config/requests.json b/config/requests.json	(rejected hunks)
+@@ -258,7 +258,7 @@
+       "host": "<%=iparam.freshservice_domain%>",
+       "path": "/api/v2/assets",
+       "query": {
+-        "filter": "\"<%= context.filter_query %>\"",
++        "search": "\"<%= context.filter_query %>\"",
+         "page": "<%= context.page || '1' %>",
+         "include": "<%= context.include %>"
+       },
