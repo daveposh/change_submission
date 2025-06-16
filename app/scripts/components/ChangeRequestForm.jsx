@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+/* eslint-disable no-unused-vars */
+import { useState } from 'react';
 import RichTextEditor from './RichTextEditor';
+/* eslint-enable no-unused-vars */
 
 const ChangeRequestForm = () => {
   const [formData, setFormData] = useState({

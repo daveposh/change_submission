@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
@@ -10,6 +11,7 @@ import { HeadingNode } from '@lexical/rich-text';
 import { ListNode, ListItemNode } from '@lexical/list';
 import { LinkNode } from '@lexical/link';
 import { CodeNode } from '@lexical/code';
+/* eslint-enable no-unused-vars */
 
 const theme = {
   // Theme styling for the editor
@@ -28,19 +30,20 @@ const theme = {
   link: 'text-blue-500 underline',
 };
 
-function OnChangePlugin({ onChange }) {
-  const [editor] = useLexicalComposerContext();
-  React.useEffect(() => {
-    return editor.registerUpdateListener(({ editorState }) => {
-      editorState.read(() => {
-        const jsonString = JSON.stringify(editorState.toJSON());
-        onChange(jsonString);
+const RichTextEditor = ({ placeholder, onChange }) => {
+  const OnChangePlugin = React.memo(({ onChange }) => {
+    const [editor] = useLexicalComposerContext();
+    React.useEffect(() => {
+      return editor.registerUpdateListener(({ editorState }) => {
+        editorState.read(() => {
+          const jsonString = JSON.stringify(editorState.toJSON());
+          onChange(jsonString);
+        });
       });
-    });
-  }, [editor, onChange]);
-}
+    }, [editor, onChange]);
+    return null;
+  });
 
-const RichTextEditor = ({ placeholder, onChange, initialState }) => {
   const initialConfig = {
     namespace: 'ChangeRequestEditor',
     theme,

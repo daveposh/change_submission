@@ -357,7 +357,7 @@ const CacheManager = {
       console.log(`🎯 Looking for asset types: ${targetNames.join(', ')}`);
 
       // First, get all asset types to find the IDs for our target names
-      const assetTypesResponse = await window.client.request.invokeTemplate("getAssetTypes", {
+      const assetTypesResponse = await window.client.request.invokeTemplate('getAssetTypes', {
         context: {
           per_page: '100'
         },
@@ -415,7 +415,7 @@ const CacheManager = {
         });
 
         if (!response || !response.response) {
-          console.warn(`⚠️ No response from assets filter request`);
+          console.warn('⚠️ No response from assets filter request');
           return [];
         }
 
@@ -426,10 +426,10 @@ const CacheManager = {
         allServiceAssets.push(...assets);
         
       } catch (filterError) {
-        console.warn(`⚠️ Error fetching assets with filter:`, filterError);
+        console.warn('⚠️ Error fetching assets with filter:', filterError);
         
         // Fallback: try individual requests if the filter approach fails
-        console.log(`🔄 Falling back to individual asset type requests...`);
+        console.log('🔄 Falling back to individual asset type requests...');
         
         for (const typeId of matchingTypeIds) {
           try {
@@ -1581,11 +1581,11 @@ const CacheManager = {
         console.log(`📄 Fetching assets page ${page}...`);
         
         try {
-          const response = await window.client.request.invokeTemplate("getAssets", {
+          const response = await window.client.request.invokeTemplate('getAssets', {
             context: {
               page: page,
               per_page: 30,
-              include_fields: "type_fields"
+              include_fields: 'type_fields'
             },
             cache: true,
             ttl: 180000 // 3 minutes cache for asset pagination
@@ -1621,7 +1621,7 @@ const CacheManager = {
           
           // Stop if we didn't get a full page
           if (pageAssets.length < 30) {
-            console.log(`📄 Partial page received, stopping`);
+            console.log('📄 Partial page received, stopping');
             break;
           }
           
@@ -1767,7 +1767,7 @@ const CacheManager = {
         typeStats[type] = (typeStats[type] || 0) + 1;
       });
       
-      console.log(`📋 User types in cache:`);
+      console.log('📋 User types in cache:');
       Object.entries(typeStats).forEach(([type, count]) => {
         console.log(`   ${type}: ${count} users`);
       });
@@ -1815,14 +1815,14 @@ window.testAssetManagedByResolution = async function(testAsset) {
   }
   
   try {
-    console.log(`📋 Asset details:`);
+    console.log('📋 Asset details:');
     console.log(`   Name: ${testAsset.name}`);
     console.log(`   Asset Type ID: ${testAsset.asset_type_id}`);
     console.log(`   Agent ID (Managed By): ${testAsset.agent_id}`);
     console.log(`   User ID: ${testAsset.user_id}`);
     console.log(`   Asset Tag: ${testAsset.asset_tag}`);
     
-    console.log(`📋 Type fields structure:`, testAsset.type_fields);
+    console.log('📋 Type fields structure:', testAsset.type_fields);
     
     // Test environment extraction
     const environment = window.CacheManager.getEnvironmentInfo(testAsset);
@@ -1842,7 +1842,7 @@ window.testAssetManagedByResolution = async function(testAsset) {
     const hostingField = window.CacheManager.getAssetTypeField(testAsset, 'hosting_model');
     console.log(`🖥️ Hosting Model: "${hostingField}"`);
     
-    console.log(`✅ Sample asset test complete`);
+    console.log('✅ Sample asset test complete');
     
     return {
       environment,
@@ -1853,14 +1853,14 @@ window.testAssetManagedByResolution = async function(testAsset) {
     };
     
   } catch (error) {
-    console.error(`❌ Error testing sample asset:`, error);
+    console.error('❌ Error testing sample asset:', error);
     return null;
   }
 };
 
 // Test function for managed by resolution with both requesters and agents
 window.testManagedByResolution = async function() {
-  console.log(`🧪 Testing managed by resolution for both requesters and agents...`);
+  console.log('🧪 Testing managed by resolution for both requesters and agents...');
   
   if (!window.CacheManager) {
     console.error('❌ CacheManager not available');
@@ -1869,35 +1869,35 @@ window.testManagedByResolution = async function() {
   
   // Test asset with agent_id (most common case) - using generic test data
   const assetWithAgent = {
-    "name": "Test Server",
-    "asset_type_id": 12345,
-    "agent_id": 11111, // Generic test agent ID
-    "user_id": null,
-    "type_fields": {
-      "environment_12345": "PROD"
+    'name': 'Test Server',
+    'asset_type_id': 12345,
+    'agent_id': 11111, // Generic test agent ID
+    'user_id': null,
+    'type_fields': {
+      'environment_12345': 'PROD'
     }
   };
   
   // Test asset with user_id (requester managed asset) - using generic test data
   const assetWithUser = {
-    "name": "Test Laptop", 
-    "asset_type_id": 12345,
-    "agent_id": null,
-    "user_id": 22222, // Generic test user ID
-    "type_fields": {
-      "environment_12345": "DEV"
+    'name': 'Test Laptop', 
+    'asset_type_id': 12345,
+    'agent_id': null,
+    'user_id': 22222, // Generic test user ID
+    'type_fields': {
+      'environment_12345': 'DEV'
     }
   };
   
   // Test asset with managed_by in type_fields - using generic test data
   const assetWithTypeFieldsManaged = {
-    "name": "Test Application",
-    "asset_type_id": 12345, 
-    "agent_id": null,
-    "user_id": null,
-    "type_fields": {
-      "environment_12345": "TEST",
-      "managed_by_12345": "33333" // Generic test managed by ID
+    'name': 'Test Application',
+    'asset_type_id': 12345, 
+    'agent_id': null,
+    'user_id': null,
+    'type_fields': {
+      'environment_12345': 'TEST',
+      'managed_by_12345': '33333' // Generic test managed by ID
     }
   };
   
@@ -1915,7 +1915,7 @@ window.testManagedByResolution = async function() {
     console.log(`   Result: "${typeFieldsManagedBy}"`);
     
     // Test direct user resolution with generic test IDs
-    console.log(`\n🔍 Testing direct user ID resolution:`);
+    console.log('\n🔍 Testing direct user ID resolution:');
     const testUserIds = [11111, 22222, 33333]; // Generic test user IDs
     
     for (const userId of testUserIds) {
@@ -1924,7 +1924,7 @@ window.testManagedByResolution = async function() {
       console.log(`     Resolved to: "${resolvedName}"`);
     }
     
-    console.log(`\n✅ Managed by resolution test complete`);
+    console.log('\n✅ Managed by resolution test complete');
     
     return {
       agentManaged: agentManagedBy,
@@ -1933,15 +1933,15 @@ window.testManagedByResolution = async function() {
     };
     
   } catch (error) {
-    console.error(`❌ Error testing managed by resolution:`, error);
+    console.error('❌ Error testing managed by resolution:', error);
     return null;
   }
 };
 
 // Global convenience function to search assets with managed by information
 window.searchAssetsWithManagedBy = async function(searchTerm = '', searchField = 'name', maxResults = 50) {
-  console.log(`🔍 === ASSET MANAGED BY SEARCH ===`);
-  console.log(`🎯 This function will search for assets and resolve their managed by information`);
+  console.log('🔍 === ASSET MANAGED BY SEARCH ===');
+  console.log('🎯 This function will search for assets and resolve their managed by information');
   console.log(`📋 Parameters: searchTerm="${searchTerm}", searchField="${searchField}", maxResults=${maxResults}`);
   
   if (!window.CacheManager) {
@@ -1951,30 +1951,30 @@ window.searchAssetsWithManagedBy = async function(searchTerm = '', searchField =
   
   try {
     // First ensure user cache is populated
-    console.log(`👥 Checking user cache status...`);
+    console.log('👥 Checking user cache status...');
     await window.CacheManager.displayUserCacheStats();
     
     // Perform the search
     const results = await window.CacheManager.searchAssetsWithManagedBy(searchTerm, searchField, maxResults);
     
     console.log(`\n✅ Search complete! Found ${results.length} assets.`);
-    console.log(`💡 Results are displayed above with full managed by resolution.`);
+    console.log('💡 Results are displayed above with full managed by resolution.');
     
     return results;
     
   } catch (error) {
-    console.error(`❌ Error in asset managed by search:`, error);
+    console.error('❌ Error in asset managed by search:', error);
     return [];
   }
 };
 
 // Global convenience function to search for specific assets by name with managed by info
 window.findAssetManagedBy = async function(assetName) {
-  console.log(`🔍 === FIND SPECIFIC ASSET MANAGED BY ===`);
+  console.log('🔍 === FIND SPECIFIC ASSET MANAGED BY ===');
   console.log(`🎯 Searching for assets containing "${assetName}" and resolving managed by information`);
   
   if (!assetName || assetName.trim().length < 2) {
-    console.log(`⚠️ Please provide an asset name with at least 2 characters`);
+    console.log('⚠️ Please provide an asset name with at least 2 characters');
     return [];
   }
   
@@ -1983,7 +1983,7 @@ window.findAssetManagedBy = async function(assetName) {
 
 // Global convenience function to get all assets with managed by info (limited results)
 window.getAllAssetsManagedBy = async function(maxResults = 30) {
-  console.log(`🔍 === GET ALL ASSETS WITH MANAGED BY INFO ===`);
+  console.log('🔍 === GET ALL ASSETS WITH MANAGED BY INFO ===');
   console.log(`🎯 Retrieving up to ${maxResults} assets and resolving their managed by information`);
   
   return await window.searchAssetsWithManagedBy('', 'name', maxResults);
@@ -1991,7 +1991,7 @@ window.getAllAssetsManagedBy = async function(maxResults = 30) {
 
 // Global convenience function to populate user cache if needed
 window.ensureUserCache = async function() {
-  console.log(`👥 === ENSURING USER CACHE IS POPULATED ===`);
+  console.log('👥 === ENSURING USER CACHE IS POPULATED ===');
   
   try {
     // Check current cache status
@@ -2001,18 +2001,18 @@ window.ensureUserCache = async function() {
     console.log(`📊 Current user cache: ${userCount} users`);
     
     if (userCount < 10) {
-      console.log(`⚠️ User cache appears to be empty or sparse. Fetching users...`);
+      console.log('⚠️ User cache appears to be empty or sparse. Fetching users...');
       
       // Check if fetchUsers function is available
       if (typeof window.fetchUsers === 'function') {
         await window.fetchUsers();
-        console.log(`✅ User cache populated via fetchUsers()`);
+        console.log('✅ User cache populated via fetchUsers()');
       } else if (typeof fetchUsers === 'function') {
         await fetchUsers();
-        console.log(`✅ User cache populated via global fetchUsers()`);
+        console.log('✅ User cache populated via global fetchUsers()');
       } else {
-        console.log(`⚠️ fetchUsers() function not available. User resolution may be limited.`);
-        console.log(`💡 Try running the app initialization to populate user cache.`);
+        console.log('⚠️ fetchUsers() function not available. User resolution may be limited.');
+        console.log('💡 Try running the app initialization to populate user cache.');
       }
     } else {
       console.log(`✅ User cache appears to be populated with ${userCount} users`);
@@ -2022,7 +2022,7 @@ window.ensureUserCache = async function() {
     await window.CacheManager.displayUserCacheStats();
     
   } catch (error) {
-    console.error(`❌ Error ensuring user cache:`, error);
+    console.error('❌ Error ensuring user cache:', error);
   }
 };
 

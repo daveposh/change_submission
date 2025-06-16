@@ -183,7 +183,7 @@ const ImpactedServices = {
     const input = document.getElementById(`${type}-search`);
     const button = document.getElementById(`add-${type}-btn`);
     
-    console.log(`🔍 DOM elements found:`, {
+    console.log('🔍 DOM elements found:', {
       container: !!container,
       input: !!input,
       button: !!button,
@@ -207,7 +207,7 @@ const ImpactedServices = {
     const currentVisibility = container.style.visibility;
     const buttonState = button ? button.getAttribute('data-search-open') : null;
     
-    console.log(`📊 Current state:`, {
+    console.log('📊 Current state:', {
       containerDisplay: currentDisplay,
       containerVisibility: currentVisibility,
       buttonDataSearchOpen: buttonState,
@@ -232,7 +232,7 @@ const ImpactedServices = {
       // Update button state immediately to prevent rapid clicks
       if (button) {
         const oldText = button.innerHTML;
-        button.innerHTML = `<i class="fas fa-times me-1"></i>Cancel Search`;
+        button.innerHTML = '<i class="fas fa-times me-1"></i>Cancel Search';
         button.classList.remove('btn-outline-success', 'btn-outline-primary');
         button.classList.add('btn-outline-secondary');
         button.setAttribute('data-search-open', 'true');
@@ -264,13 +264,13 @@ const ImpactedServices = {
       container.style.display = 'none';
       input.value = '';
       
-      console.log(`✅ Hidden container and cleared input`);
+      console.log('✅ Hidden container and cleared input');
       
       // Clear search results
       const resultsContainer = document.getElementById(`${type}-results`);
       if (resultsContainer) {
         resultsContainer.innerHTML = '';
-        console.log(`✅ Cleared search results`);
+        console.log('✅ Cleared search results');
       }
       
       // Reset button state
@@ -384,7 +384,7 @@ const ImpactedServices = {
       const requestUrl = `?query=${userQuery}&page=1&per_page=30`;
 
       // Search in requesters
-      window.client.request.invokeTemplate("getRequesters", {
+      window.client.request.invokeTemplate('getRequesters', {
         path_suffix: requestUrl,
         cache: true,
         ttl: 300000
@@ -418,7 +418,7 @@ const ImpactedServices = {
       });
 
       // Search in agents
-      window.client.request.invokeTemplate("getAgents", {
+      window.client.request.invokeTemplate('getAgents', {
         path_suffix: requestUrl,
         cache: true,
         ttl: 300000
@@ -816,11 +816,11 @@ const ImpactedServices = {
           // Use the display_id for the API call - this is the key identifier for the relationships endpoint
           const assetId = directAsset.display_id || directAsset.id;
           console.log(`📡 Fetching relationships for asset ${directAsset.name} (Display ID: ${assetId})`);
-          console.log(`🔍 Asset details:`, { id: directAsset.id, display_id: directAsset.display_id, name: directAsset.name });
+          console.log('🔍 Asset details:', { id: directAsset.id, display_id: directAsset.display_id, name: directAsset.name });
           
           // Make API call using FDK invokeTemplate with proper context approach
           // The API endpoint is: /api/v2/assets/{asset_id}/relationships
-          const response = await window.client.request.invokeTemplate("getAssetRelationships", {
+          const response = await window.client.request.invokeTemplate('getAssetRelationships', {
             context: {
               asset_id: assetId
             },
@@ -830,7 +830,7 @@ const ImpactedServices = {
           
           if (!response || !response.response) {
             console.warn(`⚠️ Failed to fetch relationships for asset ${directAsset.name}: No response data`);
-            console.warn(`📊 Response details:`, response);
+            console.warn('📊 Response details:', response);
             continue;
           }
           
@@ -840,7 +840,7 @@ const ImpactedServices = {
             relationshipData = JSON.parse(response.response);
           } catch (parseError) {
             console.warn(`⚠️ Failed to parse relationship data for asset ${directAsset.name}:`, parseError);
-            console.warn(`📊 Raw response:`, response.response);
+            console.warn('📊 Raw response:', response.response);
             continue;
           }
           
@@ -853,7 +853,7 @@ const ImpactedServices = {
             
             for (const relationship of relationshipData.relationships) {
               try {
-                console.log(`🔗 Processing relationship:`, {
+                console.log('🔗 Processing relationship:', {
                   id: relationship.id,
                   relationship_type_id: relationship.relationship_type_id,
                   primary_id: relationship.primary_id,
@@ -961,7 +961,7 @@ const ImpactedServices = {
           
         } catch (error) {
           console.error(`❌ Error fetching relationships for asset ${directAsset.name}:`, error);
-          console.error(`📊 Error details:`, { 
+          console.error('📊 Error details:', { 
             status: error.status, 
             message: error.message, 
             response: error.response,
@@ -972,21 +972,21 @@ const ImpactedServices = {
           // Check for specific error types and handle appropriately
           if (error.status === 404) {
             console.log(`ℹ️ Asset relationships endpoint returned 404 for asset ${directAsset.name}`);
-            console.log(`ℹ️ This could mean:`);
+            console.log('ℹ️ This could mean:');
           } else if (error.status === 502) {
             console.log(`ℹ️ Server connectivity error (502) for asset ${directAsset.name}`);
-            console.log(`ℹ️ This is likely a temporary server issue - will try fallback methods`);
+            console.log('ℹ️ This is likely a temporary server issue - will try fallback methods');
           } else if (error.status === 500) {
             console.log(`ℹ️ Server error (500) for asset ${directAsset.name}`);
-            console.log(`ℹ️ This is likely a temporary server issue - will try fallback methods`);
+            console.log('ℹ️ This is likely a temporary server issue - will try fallback methods');
           } else if (error.response === 'Error in establishing connection') {
             console.log(`ℹ️ Connection error for asset ${directAsset.name}`);
-            console.log(`ℹ️ This is likely a network connectivity issue - will try fallback methods`);
+            console.log('ℹ️ This is likely a network connectivity issue - will try fallback methods');
           } else {
             console.log(`ℹ️ Other error occurred (status: ${error.status}), will continue trying for other assets`);
-            console.log(`   1. Asset has no relationships defined`);
-            console.log(`   2. Relationships feature not enabled for this asset type`);
-            console.log(`   3. Asset relationships endpoint not supported in this Freshservice instance`);
+            console.log('   1. Asset has no relationships defined');
+            console.log('   2. Relationships feature not enabled for this asset type');
+            console.log('   3. Asset relationships endpoint not supported in this Freshservice instance');
             relationshipsApiAvailable = false; // Don't try for other assets
           }
         }
@@ -1022,8 +1022,8 @@ const ImpactedServices = {
     });
     
     if (Object.keys(relationshipTypes).length > 0) {
-      console.log(` Relationship types found:`, relationshipTypes);
-      console.log(`📋 Detailed relationship information:`);
+      console.log(' Relationship types found:', relationshipTypes);
+      console.log('📋 Detailed relationship information:');
       relationshipDetails.forEach((detail, index) => {
         console.log(`   ${index + 1}. ${detail.asset_name} (ID: ${detail.asset_id})`);
         console.log(`      → Type: ${detail.relationship_type}`);
@@ -1050,7 +1050,7 @@ const ImpactedServices = {
     
     // If not in cache, fetch from API
     try {
-      const assetResponse = await window.client.request.invokeTemplate("getAssetDetails", {
+      const assetResponse = await window.client.request.invokeTemplate('getAssetDetails', {
         context: {
           asset_id: assetId
         },
@@ -1187,7 +1187,7 @@ const ImpactedServices = {
                   console.log(`🔄 Fallback search by environment found ${envFiltered.length} potential related assets`);
                 } catch (envSearchError) {
                   console.warn(`⚠️ Environment search API error for "${environment}":`, envSearchError.message || envSearchError);
-                  console.log(`ℹ️ Skipping environment-based search due to API constraints`);
+                  console.log('ℹ️ Skipping environment-based search due to API constraints');
                 }
               }
             }
@@ -1205,7 +1205,7 @@ const ImpactedServices = {
    * Complete fallback method when relationships API is not available
    */
   async findRelatedAssetsFallback(relatedAssets, processedAssetIds) {
-    console.log(`🔄 Using complete fallback approach for asset relationships...`);
+    console.log('🔄 Using complete fallback approach for asset relationships...');
     
     for (const directAsset of this.state.directAssets) {
       await this.findRelatedAssetsFallbackForAsset(directAsset, relatedAssets, processedAssetIds);
@@ -1508,20 +1508,20 @@ const ImpactedServices = {
     await debugUserCacheStatus(allAssets);
     
     // Show current analysis state
-    console.log(`\n📊 === CURRENT ANALYSIS STATE ===`);
+    console.log('\n📊 === CURRENT ANALYSIS STATE ===');
     console.log(`✅ Analysis complete: ${this.state.analysisComplete}`);
     console.log(`👥 Approvers found: ${this.state.approvers.length}`);
     console.log(`🤝 Stakeholders found: ${this.state.stakeholders.length}`);
     
     if (this.state.approvers.length > 0) {
-      console.log(`\n👥 === APPROVERS ===`);
+      console.log('\n👥 === APPROVERS ===');
       this.state.approvers.forEach((approver, index) => {
         console.log(`${index + 1}. ${approver.name} (${approver.email}) - ${approver.source}`);
       });
     }
     
     if (this.state.stakeholders.length > 0) {
-      console.log(`\n🤝 === STAKEHOLDERS ===`);
+      console.log('\n🤝 === STAKEHOLDERS ===');
       this.state.stakeholders.forEach((stakeholder, index) => {
         console.log(`${index + 1}. ${stakeholder.name} (${stakeholder.email}) - ${stakeholder.source}`);
       });
@@ -1529,9 +1529,7 @@ const ImpactedServices = {
   }
 };
 
-/**
- * Validate impacted services and proceed to next tab
- */
+/* eslint-disable no-unused-vars */
 function validateServicesAndNext() {
   console.log('🔍 Validating impacted services...');
   
@@ -1556,6 +1554,7 @@ function validateServicesAndNext() {
   console.log('✅ Impacted services validation passed');
   switchTab('risk-assessment');
 }
+/* eslint-enable no-unused-vars */
 
 // Make ImpactedServices available globally
 window.ImpactedServices = ImpactedServices; 

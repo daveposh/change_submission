@@ -488,12 +488,12 @@ const AssetAssociation = {
       if (error.response) {
         try {
           const errorData = JSON.parse(error.response);
-          console.error(`📄 Full API error response:`, errorData);
+          console.error('📄 Full API error response:', errorData);
           if (errorData.errors && errorData.errors.length > 0) {
-            console.error(`🔍 API error details:`, errorData.errors[0]);
+            console.error('🔍 API error details:', errorData.errors[0]);
           }
         } catch (parseError) {
-          console.error(`📄 Raw API error response:`, error.response);
+          console.error('📄 Raw API error response:', error.response);
         }
       }
       
@@ -562,17 +562,17 @@ const AssetAssociation = {
       
       const templateContext = {
         search_query: fieldQuery,
-        include_fields: "type_fields"
+        include_fields: 'type_fields'
       };
       
-      console.log(`📦 Template context:`, templateContext);
+      console.log('📦 Template context:', templateContext);
       
-      const response = await window.client.request.invokeTemplate("getAssets", {
+      const response = await window.client.request.invokeTemplate('getAssets', {
         context: templateContext
       });
 
       if (!response || !response.response) {
-        console.log(`⚠️ No response from asset search`);
+        console.log('⚠️ No response from asset search');
         return [];
       }
 
@@ -1755,7 +1755,7 @@ const AssetAssociation = {
   debugAssetTypeFields(asset) {
     console.log('🔧 === DEBUGGING ASSET TYPE FIELDS ===');
     console.log(`📦 Asset: ${asset.name} (ID: ${asset.id})`);
-    console.log(`📋 Raw asset object:`, asset);
+    console.log('📋 Raw asset object:', asset);
     
     if (asset.type_fields && Array.isArray(asset.type_fields)) {
       console.log(`✅ type_fields found with ${asset.type_fields.length} fields:`);
@@ -1770,11 +1770,11 @@ const AssetAssociation = {
         console.log(`      - display_value: "${field.display_value}"`);
       });
     } else {
-      console.log(`❌ No type_fields found or not an array`);
+      console.log('❌ No type_fields found or not an array');
     }
     
     // Test field extraction
-    console.log(`🔍 Testing field extraction:`);
+    console.log('🔍 Testing field extraction:');
     console.log(`   Environment: "${this.getEnvironmentInfo(asset)}"`);
     console.log(`   Managed By: "${this.getManagedByInfo(asset)}"`);
     
@@ -2378,7 +2378,7 @@ const AssetAssociation = {
         addBtn.classList.remove('btn-success');
         addBtn.classList.add('btn-primary');
       } else {
-        addBtn.innerHTML = `<i class="fas fa-plus me-1"></i>Add Selected`;
+        addBtn.innerHTML = '<i class="fas fa-plus me-1"></i>Add Selected';
         addBtn.classList.remove('btn-primary');
         addBtn.classList.add('btn-success');
       }
@@ -2466,149 +2466,8 @@ const AssetAssociation = {
   },
 };
 
-// Expose AssetAssociation module globally for debugging and external access
+// Make AssetAssociation available globally
 window.AssetAssociation = AssetAssociation;
 
-// Global debug function to test asset type fields extraction
-window.debugAssetTypeFields = function(assetId) {
-  if (!window.AssetAssociation) {
-    console.error('❌ AssetAssociation module not available');
-    return;
-  }
-  
-  // Find asset in search results or selected assets
-  const asset = window.AssetAssociation.state.searchResults.find(a => a.id === assetId) ||
-                window.AssetAssociation.state.selectedAssets.find(a => a.id === assetId);
-  
-  if (asset) {
-    window.AssetAssociation.debugAssetTypeFields(asset);
-  } else {
-    console.error(`❌ Asset with ID ${assetId} not found in current results or selected assets`);
-    console.log(`📋 Available search results:`, window.AssetAssociation.state.searchResults.map(a => `${a.id}: ${a.name}`));
-    console.log(`📋 Available selected assets:`, window.AssetAssociation.state.selectedAssets.map(a => `${a.id}: ${a.name}`));
-  }
-};
-
-// Test function to demonstrate enhanced asset display styling
-window.testEnhancedAssetDisplay = function() {
-  console.log('🎨 Testing Enhanced Asset Display with Badges and Icons...');
-  
-  if (!window.AssetAssociation) {
-    console.error('❌ AssetAssociation module not available');
-    return;
-  }
-  
-  console.log('🏷️ Testing Badge Generation Functions:');
-  
-  // Test impact badges
-  const impactLevels = ['high', 'medium', 'low', 'critical', 'unknown'];
-  impactLevels.forEach(impact => {
-    console.log(`   Impact "${impact}": ${window.AssetAssociation.getImpactBadge(impact)}`);
-  });
-  
-  // Test environment badges
-  const environments = ['PROD', 'DEV', 'TEST', 'STAGE', 'UAT'];
-  environments.forEach(env => {
-    console.log(`   Environment "${env}": ${window.AssetAssociation.getEnvironmentBadge(env)}`);
-  });
-  
-  // Test asset type icons
-  const assetTypes = ['Laptop', 'Server', 'Printer', 'Software License', 'Database'];
-  assetTypes.forEach(type => {
-    console.log(`   Asset Type "${type}": ${window.AssetAssociation.getAssetTypeIcon(type)}`);
-  });
-  
-  console.log('✅ Enhanced asset display styling test complete!');
-  console.log('💡 Use real asset search to see the enhanced display with badges and icons');
-};
-
-// Global debug function to check services state
-window.debugServicesState = function() {
-  console.log('🔍 === SERVICES DEBUG INFORMATION ===');
-  
-  if (!window.AssetAssociation) {
-    console.error('❌ AssetAssociation module not available');
-    return;
-  }
-  
-  const state = window.AssetAssociation.state;
-  console.log('📊 Services State:', {
-    servicesCount: state.services?.length || 0,
-    servicesLoaded: state.servicesLoaded,
-    isLoadingServices: state.isLoadingServices,
-    filteredServicesCount: state.filteredServices?.length || 0,
-    selectedServiceIds: state.selectedServiceIds?.size || 0,
-    serviceSearchTerm: state.serviceSearchTerm,
-    serviceTypeFilter: state.serviceTypeFilter
-  });
-  
-  // Check DOM elements
-  const servicesSearch = document.getElementById('services-search');
-  const servicesList = document.getElementById('services-list');
-  const servicesControls = document.querySelector('.services-controls');
-  const servicesSection = document.querySelector('.services-selection-section');
-  
-  console.log('🔍 DOM Elements:', {
-    servicesSearch: !!servicesSearch,
-    servicesList: !!servicesList,
-    servicesControls: !!servicesControls,
-    servicesSection: !!servicesSection
-  });
-  
-  if (servicesList) {
-    console.log('📄 Services list content preview:', servicesList.innerHTML.substring(0, 200) + '...');
-  }
-  
-  // Check if services are available
-  if (state.services && state.services.length > 0) {
-    console.log('📋 Sample services (first 3):');
-    state.services.slice(0, 3).forEach((service, index) => {
-      console.log(`   ${index + 1}. ${service.name} (ID: ${service.id})`);
-    });
-  } else {
-    console.log('⚠️ No services available');
-    
-    // Try to load services
-    console.log('🔄 Attempting to load services...');
-    if (window.AssetAssociation.loadServices) {
-      window.AssetAssociation.loadServices().then(() => {
-        console.log('✅ Services load attempt completed');
-        console.log('📊 Updated services count:', window.AssetAssociation.state.services?.length || 0);
-      }).catch(error => {
-        console.error('❌ Error loading services:', error);
-      });
-    }
-  }
-  
-  // Check CacheManager
-  if (window.CacheManager) {
-    console.log('✅ CacheManager is available');
-    if (window.CacheManager.getCachedServices) {
-      window.CacheManager.getCachedServices().then(cachedServices => {
-        console.log('📦 Cached services count:', cachedServices?.length || 0);
-      }).catch(error => {
-        console.error('❌ Error getting cached services:', error);
-      });
-    }
-  } else {
-    console.error('❌ CacheManager not available');
-  }
-  
-  console.log('🏁 === END SERVICES DEBUG ===');
-};
-
-// Auto-run debug if services seem to be missing
-setTimeout(() => {
-  const servicesList = document.getElementById('services-list');
-  if (servicesList && servicesList.innerHTML.includes('Loading services')) {
-    console.log('⚠️ Services still loading after 3 seconds, running debug...');
-    window.debugServicesState();
-  }
-}, 3000);
-
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = AssetAssociation;
-} else {
-  window.AssetAssociation = AssetAssociation;
-} 
+// Export the module
+export default AssetAssociation; 

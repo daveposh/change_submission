@@ -528,7 +528,7 @@ const ChangeSubmission = {
     console.log(`  Risk Level (Standard Field): ${risk} (${data.riskAssessment?.riskLevel})`);
     console.log(`  Risk Score (Custom Field): ${data.riskAssessment?.totalScore}`);
     console.log(`  Risk Summary Length: ${riskSummary?.length || 0} characters`);
-    console.log(`  Individual Risk Factors:`, {
+    console.log('  Individual Risk Factors:', {
       businessImpact: data.riskAssessment?.businessImpact,
       affectedUsers: data.riskAssessment?.affectedUsers,
       complexity: data.riskAssessment?.complexity,
@@ -692,16 +692,16 @@ const ChangeSubmission = {
     console.log('📝 Creating enhanced description with risk and impact information...');
     
     // Start with user-provided description
-    let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
+    let description = '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">';
     
     // Main description section
-    description += `<div style="margin-bottom: 20px;">`;
-    description += `<h3 style="color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 5px; margin-bottom: 15px;">📋 Change Description</h3>`;
+    description += '<div style="margin-bottom: 20px;">';
+    description += '<h3 style="color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 5px; margin-bottom: 15px;">📋 Change Description</h3>';
     description += `<p><strong>${data.changeDescription || data.reasonForChange || 'No description provided'}</strong></p>`;
     if (data.changeDescription && data.reasonForChange && data.changeDescription !== data.reasonForChange) {
       description += `<p><em>Reason for Change:</em> ${data.reasonForChange}</p>`;
     }
-    description += `</div>`;
+    description += '</div>';
 
     // PROMINENT SCHEDULE SECTION - NEW ADDITION
     if (data.plannedStart || data.plannedEnd) {
@@ -713,9 +713,9 @@ const ChangeSubmission = {
       description += `<div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, ${scheduleColor}15 0%, ${scheduleColor}25 100%); border-radius: 8px; border: 2px solid ${scheduleColor}; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">`;
       description += `<h3 style="color: ${scheduleColor}; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center; font-size: 18px;">`;
       description += `<span style="margin-right: 10px;">${isUrgent ? '⚡' : '📅'}</span>${isUrgent ? 'URGENT SCHEDULE' : 'CHANGE SCHEDULE'}`;
-      description += `</h3>`;
+      description += '</h3>';
       
-      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">`;
+      description += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">';
       
       // Calculate timeToStart outside the conditional block so it's available throughout
       const timeToStart = startDate ? Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
@@ -728,9 +728,9 @@ const ChangeSubmission = {
         if (timeToStart !== null && timeToStart >= 0) {
           description += `<div style="font-size: 12px; color: ${isUrgent ? '#dc3545' : '#28a745'}; font-weight: bold; margin-top: 5px;">`;
           description += `${timeToStart === 0 ? 'TODAY' : timeToStart === 1 ? 'TOMORROW' : `In ${timeToStart} days`}`;
-          description += `</div>`;
+          description += '</div>';
         }
-        description += `</div>`;
+        description += '</div>';
       }
       
       if (endDate) {
@@ -740,68 +740,68 @@ const ChangeSubmission = {
         description += `<div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 5px;">${endDate.toLocaleDateString()}</div>`;
         description += `<div style="font-size: 14px; color: #666;">${endDate.toLocaleTimeString()}</div>`;
         if (durationText) {
-          description += `<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">`;
+          description += '<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">';
           description += `Duration: ${durationText}`;
-          description += `</div>`;
+          description += '</div>';
         }
-        description += `</div>`;
+        description += '</div>';
       }
       
       if (isUrgent) {
-        description += `<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffc107;">`;
-        description += `<h4 style="margin: 0 0 8px 0; color: #856404; font-size: 14px;">⚠️ URGENT NOTICE</h4>`;
-        description += `<div style="font-size: 13px; color: #856404; line-height: 1.4;">`;
+        description += '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffc107;">';
+        description += '<h4 style="margin: 0 0 8px 0; color: #856404; font-size: 14px;">⚠️ URGENT NOTICE</h4>';
+        description += '<div style="font-size: 13px; color: #856404; line-height: 1.4;">';
         description += `This change is scheduled to begin ${timeToStart !== null && timeToStart <= 2 ? 'very soon' : 'within the next few days'}. `;
-        description += `Please review and approve promptly to avoid delays.`;
-        description += `</div></div>`;
+        description += 'Please review and approve promptly to avoid delays.';
+        description += '</div></div>';
       }
       
-      description += `</div></div>`;
+      description += '</div></div>';
     }
 
     // Comprehensive Review Section
-    description += `<div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6;">`;
-    description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center;">`;
-    description += `<span style="margin-right: 10px;">🔍</span>Comprehensive Change Review`;
-    description += `</h3>`;
+    description += '<div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6;">';
+    description += '<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center;">';
+    description += '<span style="margin-right: 10px;">🔍</span>Comprehensive Change Review';
+    description += '</h3>';
     
     // Change Summary Grid
-    description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">`;
+    description += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">';
     
     // Change Details Card
-    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff;">`;
-    description += `<h4 style="margin: 0 0 10px 0; color: #007bff; font-size: 14px;">📝 CHANGE DETAILS</h4>`;
-    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += '<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff;">';
+    description += '<h4 style="margin: 0 0 10px 0; color: #007bff; font-size: 14px;">📝 CHANGE DETAILS</h4>';
+    description += '<div style="font-size: 13px; line-height: 1.5;">';
     description += `<strong>Type:</strong> ${data.changeType?.charAt(0).toUpperCase() + data.changeType?.slice(1) || 'Normal'}<br>`;
     description += `<strong>Scope:</strong> ${data.selectedAssets?.length || 0} Asset(s) Affected<br>`;
     description += `<strong>Timing:</strong> ${data.plannedStart ? new Date(data.plannedStart).toLocaleDateString() : 'TBD'}<br>`;
     description += `<strong>Duration:</strong> ${data.plannedStart && data.plannedEnd ? 
       this.calculateDuration(new Date(data.plannedStart), new Date(data.plannedEnd)) : 'TBD'}`;
-    description += `</div></div>`;
+    description += '</div></div>';
     
     // Stakeholder Impact Card
     const approverCount = impactedData.approvers?.length || 0;
     const stakeholderCount = impactedData.stakeholders?.length || 0;
-    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">`;
-    description += `<h4 style="margin: 0 0 10px 0; color: #28a745; font-size: 14px;">👥 STAKEHOLDER IMPACT</h4>`;
-    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += '<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">';
+    description += '<h4 style="margin: 0 0 10px 0; color: #28a745; font-size: 14px;">👥 STAKEHOLDER IMPACT</h4>';
+    description += '<div style="font-size: 13px; line-height: 1.5;">';
     description += `<strong>Technical Approvers:</strong> ${approverCount}<br>`;
     description += `<strong>Stakeholders:</strong> ${stakeholderCount}<br>`;
     description += `<strong>Requester:</strong> ${data.selectedRequester?.first_name || ''} ${data.selectedRequester?.last_name || ''}<br>`;
     description += `<strong>Agent:</strong> ${data.selectedAgent?.first_name || 'Unassigned'} ${data.selectedAgent?.last_name || ''}`;
-    description += `</div></div>`;
+    description += '</div></div>';
     
     // Planning Overview Card
-    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107;">`;
-    description += `<h4 style="margin: 0 0 10px 0; color: #e69500; font-size: 14px;">📋 PLANNING STATUS</h4>`;
-    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += '<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107;">';
+    description += '<h4 style="margin: 0 0 10px 0; color: #e69500; font-size: 14px;">📋 PLANNING STATUS</h4>';
+    description += '<div style="font-size: 13px; line-height: 1.5;">';
     description += `<strong>Implementation Plan:</strong> ${data.implementationPlan ? '✅ Complete' : '❌ Pending'}<br>`;
     description += `<strong>Validation Plan:</strong> ${data.validationPlan ? '✅ Complete' : '❌ Pending'}<br>`;
     description += `<strong>Backout Plan:</strong> ${data.backoutPlan ? '✅ Complete' : '❌ Pending'}<br>`;
     description += `<strong>Risk Assessment:</strong> ${riskAssessment?.riskLevel ? '✅ Complete' : '❌ Pending'}`;
-    description += `</div></div>`;
+    description += '</div></div>';
     
-    description += `</div>`; // End grid
+    description += '</div>'; // End grid
     
     // Implementation Readiness Assessment
     const readinessScore = [
@@ -815,20 +815,20 @@ const ChangeSubmission = {
     const readinessPercent = (readinessScore / 5) * 100;
     const readinessColor = readinessPercent >= 80 ? '#28a745' : readinessPercent >= 60 ? '#ffc107' : '#dc3545';
     
-    description += `<div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">`;
-    description += `<h4 style="margin: 0 0 15px 0; color: #495057; font-size: 14px;">📊 IMPLEMENTATION READINESS</h4>`;
-    description += `<div style="display: flex; align-items: center; margin-bottom: 10px;">`;
-    description += `<div style="flex: 1; background: #e9ecef; height: 20px; border-radius: 10px; overflow: hidden; margin-right: 15px;">`;
+    description += '<div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">';
+    description += '<h4 style="margin: 0 0 15px 0; color: #495057; font-size: 14px;">📊 IMPLEMENTATION READINESS</h4>';
+    description += '<div style="display: flex; align-items: center; margin-bottom: 10px;">';
+    description += '<div style="flex: 1; background: #e9ecef; height: 20px; border-radius: 10px; overflow: hidden; margin-right: 15px;">';
     description += `<div style="height: 100%; background: ${readinessColor}; width: ${readinessPercent}%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">`;
     description += `${Math.round(readinessPercent)}%`;
-    description += `</div></div>`;
+    description += '</div></div>';
     description += `<span style="font-weight: bold; color: ${readinessColor};">${readinessScore}/5 Complete</span>`;
-    description += `</div>`;
-    description += `<div style="font-size: 12px; color: #6c757d; font-style: italic;">`;
-    description += `Assessment based on: Implementation Plan, Validation Plan, Backout Plan, Risk Assessment, and Stakeholder Identification`;
-    description += `</div></div>`;
+    description += '</div>';
+    description += '<div style="font-size: 12px; color: #6c757d; font-style: italic;">';
+    description += 'Assessment based on: Implementation Plan, Validation Plan, Backout Plan, Risk Assessment, and Stakeholder Identification';
+    description += '</div></div>';
     
-    description += `</div>`; // End comprehensive review section
+    description += '</div>'; // End comprehensive review section
 
     // Risk Assessment Section (Enhanced with detailed text descriptions)
     if (riskAssessment && riskAssessment.riskLevel) {
@@ -839,36 +839,36 @@ const ChangeSubmission = {
       }[riskAssessment.riskLevel] || '#6c757d';
       
       description += `<div style="margin-bottom: 20px; padding: 20px; background: white; border-radius: 8px; border: 1px solid ${riskColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
-      description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
-      description += `<span style="margin-right: 10px;">⚠️</span>Risk Assessment`;
-      description += `</h3>`;
-      description += `<div style="display: flex; align-items: center; margin-bottom: 20px;">`;
+      description += '<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">';
+      description += '<span style="margin-right: 10px;">⚠️</span>Risk Assessment';
+      description += '</h3>';
+      description += '<div style="display: flex; align-items: center; margin-bottom: 20px;">';
       description += `<span style="background: linear-gradient(135deg, ${riskColor} 0%, ${riskColor}dd 100%); color: white; padding: 8px 20px; border-radius: 25px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${riskAssessment.riskLevel?.toUpperCase()} RISK</span>`;
       description += `<span style="margin-left: 20px; padding: 8px 15px; background: #f8f9fa; border-radius: 20px; color: #495057; font-weight: bold;">Score: ${riskAssessment.totalScore || 0}/15</span>`;
-      description += `</div>`;
+      description += '</div>';
       
       // Add detailed risk level explanation
       description += `<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid ${riskColor};">`;
       description += `<h4 style="margin: 0 0 10px 0; color: ${riskColor}; font-size: 14px;">📝 RISK LEVEL EXPLANATION</h4>`;
-      description += `<div style="font-size: 13px; line-height: 1.5; color: #495057;">`;
+      description += '<div style="font-size: 13px; line-height: 1.5; color: #495057;">';
       
       if (riskAssessment.riskLevel === 'High') {
-        description += `<strong>High Risk Change:</strong> This change has significant potential for business disruption and requires enhanced oversight. `;
-        description += `Extended approval workflows, mandatory peer review periods, and additional stakeholder validation are required. `;
-        description += `Implementation should be carefully planned with comprehensive rollback procedures.`;
+        description += '<strong>High Risk Change:</strong> This change has significant potential for business disruption and requires enhanced oversight. ';
+        description += 'Extended approval workflows, mandatory peer review periods, and additional stakeholder validation are required. ';
+        description += 'Implementation should be carefully planned with comprehensive rollback procedures.';
       } else if (riskAssessment.riskLevel === 'Medium') {
-        description += `<strong>Medium Risk Change:</strong> This change has moderate potential for impact and requires standard approval processes. `;
-        description += `Peer review coordination will be initiated, and stakeholders will be notified for additional oversight. `;
-        description += `Proper testing and rollback planning should be completed before implementation.`;
+        description += '<strong>Medium Risk Change:</strong> This change has moderate potential for impact and requires standard approval processes. ';
+        description += 'Peer review coordination will be initiated, and stakeholders will be notified for additional oversight. ';
+        description += 'Proper testing and rollback planning should be completed before implementation.';
       } else {
-        description += `<strong>Low Risk Change:</strong> This change has minimal potential for business disruption and follows standard approval processes. `;
-        description += `While the risk is low, proper change management procedures will still be followed to ensure successful implementation.`;
+        description += '<strong>Low Risk Change:</strong> This change has minimal potential for business disruption and follows standard approval processes. ';
+        description += 'While the risk is low, proper change management procedures will still be followed to ensure successful implementation.';
       }
       
-      description += `</div></div>`;
+      description += '</div></div>';
       
       // Risk factors breakdown with enhanced visuals and descriptions
-      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 20px;">`;
+      description += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 20px;">';
       
       const riskFactors = [
         { key: 'businessImpact', label: 'Business Impact', value: riskAssessment.businessImpact, icon: '💼' },
@@ -881,20 +881,20 @@ const ChangeSubmission = {
       riskFactors.forEach(factor => {
         const score = factor.value || 0;
         const barColor = score >= 3 ? '#dc3545' : score >= 2 ? '#ffc107' : '#28a745';
-        description += `<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; transition: transform 0.2s ease;">`;
-        description += `<div style="display: flex; align-items: center; margin-bottom: 10px;">`;
+        description += '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; transition: transform 0.2s ease;">';
+        description += '<div style="display: flex; align-items: center; margin-bottom: 10px;">';
         description += `<span style="font-size: 16px; margin-right: 8px;">${factor.icon}</span>`;
         description += `<div style="font-size: 13px; color: #495057; font-weight: 600;">${factor.label}</div>`;
-        description += `</div>`;
-        description += `<div style="display: flex; align-items: center; margin-bottom: 8px;">`;
-        description += `<div style="flex: 1; background: #e9ecef; height: 8px; border-radius: 4px; margin-right: 10px; overflow: hidden;">`;
+        description += '</div>';
+        description += '<div style="display: flex; align-items: center; margin-bottom: 8px;">';
+        description += '<div style="flex: 1; background: #e9ecef; height: 8px; border-radius: 4px; margin-right: 10px; overflow: hidden;">';
         description += `<div style="height: 100%; background: linear-gradient(90deg, ${barColor} 0%, ${barColor}cc 100%); width: ${(score/3)*100}%; border-radius: 4px; transition: width 0.3s ease;"></div>`;
-        description += `</div>`;
+        description += '</div>';
         description += `<span style="font-size: 14px; font-weight: bold; color: ${barColor}; min-width: 30px;">${score}/3</span>`;
-        description += `</div>`;
+        description += '</div>';
         
         // Add text description for each factor
-        description += `<div style="font-size: 12px; color: #6c757d; line-height: 1.3;">`;
+        description += '<div style="font-size: 12px; color: #6c757d; line-height: 1.3;">';
         if (factor.key === 'businessImpact') {
           description += this.getBusinessImpactDescription(score);
         } else if (factor.key === 'affectedUsers') {
@@ -906,20 +906,20 @@ const ChangeSubmission = {
         } else if (factor.key === 'rollback') {
           description += this.getRollbackDescription(score);
         }
-        description += `</div>`;
-        description += `</div>`;
+        description += '</div>';
+        description += '</div>';
       });
       
-      description += `</div></div>`;
+      description += '</div></div>';
     }
 
     // Impacted Assets Section with detailed information and popovers
     if (data.selectedAssets && data.selectedAssets.length > 0) {
-      description += `<div style="margin-bottom: 25px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
-      description += `<h3 style="color: #007bff; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
-      description += `<span style="margin-right: 10px;">🎯</span>Impacted Assets & Services`;
+      description += '<div style="margin-bottom: 25px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">';
+      description += '<h3 style="color: #007bff; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">';
+      description += '<span style="margin-right: 10px;">🎯</span>Impacted Assets & Services';
       description += `<span style="margin-left: auto; background: #007bff; color: white; padding: 4px 12px; border-radius: 15px; font-size: 14px; font-weight: bold;">${data.selectedAssets.length} Asset${data.selectedAssets.length !== 1 ? 's' : ''}</span>`;
-      description += `</h3>`;
+      description += '</h3>';
       
       // Group assets by type for better organization
       const assetsByType = {};
@@ -953,14 +953,14 @@ const ChangeSubmission = {
       // Display assets grouped by type
       for (const assetType of Object.keys(assetsByType)) {
         const assets = assetsByType[assetType];
-        description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">`;
-        description += `<h4 style="margin: 0 0 15px 0; color: #007bff; font-size: 16px; display: flex; align-items: center;">`;
+        description += '<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">';
+        description += '<h4 style="margin: 0 0 15px 0; color: #007bff; font-size: 16px; display: flex; align-items: center;">';
         description += `<span style="margin-right: 8px;">📦</span>${assetType}`;
         description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${assets.length} asset${assets.length !== 1 ? 's' : ''}</span>`;
-        description += `</h4>`;
+        description += '</h4>';
         
         // Display each asset with enhanced information
-        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;">`;
+        description += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;">';
         for (const asset of assets) {
           // Get technical owner information with proper user resolution
           let technicalOwner = 'Unassigned';
@@ -991,20 +991,20 @@ const ChangeSubmission = {
             ? `${technicalOwner} (ID: ${technicalOwnerId})` 
             : technicalOwner;
           
-          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6; position: relative; cursor: pointer;" `;
-          description += `onmouseover="this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'; this.style.transform='translateY(-2px)'" `;
-          description += `onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'; this.style.transform='translateY(0)'">`;
+          description += '<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6; position: relative; cursor: pointer;" ';
+          description += 'onmouseover="this.style.boxShadow=\'0 4px 8px rgba(0,0,0,0.15)\'; this.style.transform=\'translateY(-2px)\'" ';
+          description += 'onmouseout="this.style.boxShadow=\'0 1px 3px rgba(0,0,0,0.1)\'; this.style.transform=\'translateY(0)\'">';
           
           // Asset name with enhanced styling
-          description += `<div style="font-weight: bold; font-size: 15px; color: #007bff; margin-bottom: 8px; display: flex; align-items: center;">`;
+          description += '<div style="font-weight: bold; font-size: 15px; color: #007bff; margin-bottom: 8px; display: flex; align-items: center;">';
           description += `<span style="margin-right: 8px;">🖥️</span>${asset.name || asset.display_id || 'Unknown Asset'}`;
           if (asset.display_id && asset.name !== asset.display_id) {
             description += `<span style="margin-left: 8px; font-size: 12px; color: #6c757d; font-weight: normal;">(${asset.display_id})</span>`;
           }
-          description += `</div>`;
+          description += '</div>';
           
           // Asset details grid
-          description += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 10px;">`;
+          description += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 10px;">';
           
           // Location
           if (asset.location_name) {
@@ -1027,109 +1027,109 @@ const ChangeSubmission = {
             description += `<div style="color: #6c757d;"><strong>🏷️ Asset Tag:</strong><br>${asset.asset_tag}</div>`;
           }
           
-          description += `</div>`;
+          description += '</div>';
           
           // Technical Owner section with enhanced visibility
-          description += `<div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 10px; border-radius: 4px; border-left: 3px solid #2196f3; margin-top: 10px;">`;
-          description += `<div style="font-size: 12px; font-weight: bold; color: #1976d2; margin-bottom: 4px; display: flex; align-items: center;">`;
-          description += `<span style="margin-right: 6px;">👤</span>Technical Owner`;
-          description += `</div>`;
+          description += '<div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 10px; border-radius: 4px; border-left: 3px solid #2196f3; margin-top: 10px;">';
+          description += '<div style="font-size: 12px; font-weight: bold; color: #1976d2; margin-bottom: 4px; display: flex; align-items: center;">';
+          description += '<span style="margin-right: 6px;">👤</span>Technical Owner';
+          description += '</div>';
           description += `<div style="font-size: 13px; color: #1565c0; font-weight: 600;">${ownerInfo}</div>`;
           if (asset.managed_by_email || asset.agent_email || asset.user_email) {
             const ownerEmail = asset.managed_by_email || asset.agent_email || asset.user_email;
             description += `<div style="font-size: 11px; color: #1976d2; margin-top: 2px;">📧 ${ownerEmail}</div>`;
           }
-          description += `</div>`;
+          description += '</div>';
           
           // Add detailed info button that triggers popover
-          description += `<div style="position: absolute; top: 8px; right: 8px;">`;
-          description += `<span style="background: #007bff; color: white; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer;" `;
+          description += '<div style="position: absolute; top: 8px; right: 8px;">';
+          description += '<span style="background: #007bff; color: white; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer;" ';
           description += `title="Asset Details: ${asset.name || asset.display_id}&#10;Type: ${asset.asset_type_name || 'Unknown'}&#10;Owner: ${ownerInfo}&#10;Location: ${asset.location_name || 'Not specified'}&#10;Status: ${asset.asset_state || 'Unknown'}">ℹ️</span>`;
-          description += `</div>`;
+          description += '</div>';
           
-          description += `</div>`;
+          description += '</div>';
         }
-        description += `</div>`;
-        description += `</div>`;
+        description += '</div>';
+        description += '</div>';
       }
-      description += `</div>`;
+      description += '</div>';
     }
 
     // Stakeholder & Approver Information with popovers
     if ((impactedData.approvers && impactedData.approvers.length > 0) || (impactedData.stakeholders && impactedData.stakeholders.length > 0)) {
-      description += `<div style="margin-bottom: 25px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
-      description += `<h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
-      description += `<span style="margin-right: 10px;">👥</span>Stakeholders & Approvers`;
-      description += `</h3>`;
+      description += '<div style="margin-bottom: 25px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">';
+      description += '<h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">';
+      description += '<span style="margin-right: 10px;">👥</span>Stakeholders & Approvers';
+      description += '</h3>';
       
       // Approvers section
       if (impactedData.approvers && impactedData.approvers.length > 0) {
-        description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #28a745;">`;
-        description += `<h4 style="margin: 0 0 15px 0; color: #28a745; font-size: 16px; display: flex; align-items: center;">`;
-        description += `<span style="margin-right: 8px;">✅</span>Technical Approvers`;
+        description += '<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #28a745;">';
+        description += '<h4 style="margin: 0 0 15px 0; color: #28a745; font-size: 16px; display: flex; align-items: center;">';
+        description += '<span style="margin-right: 8px;">✅</span>Technical Approvers';
         description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${impactedData.approvers.length} approver${impactedData.approvers.length !== 1 ? 's' : ''}</span>`;
-        description += `<span style="margin-left: 8px; background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer;" `;
+        description += '<span style="margin-left: 8px; background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer;" ';
         description += `title="Approver Details&#10;${impactedData.approvers.map(a => `• ${a.name || 'Unknown'} (${a.source || 'Technical Owner'})`).join('&#10;')}">ℹ️ Details</span>`;
-        description += `</h4>`;
+        description += '</h4>';
         
-        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">`;
+        description += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">';
         impactedData.approvers.slice(0, 6).forEach(approver => { // Limit to 6 for display
-          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6;">`;
+          description += '<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6;">';
           description += `<div style="font-weight: bold; font-size: 14px; color: #28a745; margin-bottom: 4px;">${approver.name || 'Unknown Name'}</div>`;
           if (approver.email) {
             description += `<div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">📧 ${approver.email}</div>`;
           }
           description += `<div style="font-size: 11px; background: #e8f5e8; color: #2d5a2d; padding: 2px 6px; border-radius: 8px; display: inline-block;">${approver.source || 'Technical Owner'}</div>`;
-          description += `</div>`;
+          description += '</div>';
         });
         if (impactedData.approvers.length > 6) {
-          description += `<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px dashed #dee2e6; display: flex; align-items: center; justify-content: center; color: #6c757d; font-style: italic;">`;
+          description += '<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px dashed #dee2e6; display: flex; align-items: center; justify-content: center; color: #6c757d; font-style: italic;">';
           description += `+${impactedData.approvers.length - 6} more approvers...`;
-          description += `</div>`;
+          description += '</div>';
         }
-        description += `</div>`;
-        description += `</div>`;
+        description += '</div>';
+        description += '</div>';
       }
       
       // Stakeholders section
       if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
-        description += `<div style="padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #17a2b8;">`;
-        description += `<h4 style="margin: 0 0 15px 0; color: #17a2b8; font-size: 16px; display: flex; align-items: center;">`;
-        description += `<span style="margin-right: 8px;">📢</span>Additional Stakeholders`;
+        description += '<div style="padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #17a2b8;">';
+        description += '<h4 style="margin: 0 0 15px 0; color: #17a2b8; font-size: 16px; display: flex; align-items: center;">';
+        description += '<span style="margin-right: 8px;">📢</span>Additional Stakeholders';
         description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${impactedData.stakeholders.length} stakeholder${impactedData.stakeholders.length !== 1 ? 's' : ''}</span>`;
-        description += `<span style="margin-left: 8px; background: #17a2b8; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer;" `;
+        description += '<span style="margin-left: 8px; background: #17a2b8; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer;" ';
         description += `title="Stakeholder Details&#10;${impactedData.stakeholders.map(s => `• ${s.name || 'Unknown'} (${s.source || 'Impacted Services'})`).join('&#10;')}">ℹ️ Details</span>`;
-        description += `</h4>`;
+        description += '</h4>';
         
-        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">`;
+        description += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">';
         impactedData.stakeholders.slice(0, 6).forEach(stakeholder => { // Limit to 6 for display
-          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6;">`;
+          description += '<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6;">';
           description += `<div style="font-weight: bold; font-size: 14px; color: #17a2b8; margin-bottom: 4px;">${stakeholder.name || 'Unknown Name'}</div>`;
           if (stakeholder.email) {
             description += `<div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">📧 ${stakeholder.email}</div>`;
           }
           description += `<div style="font-size: 11px; background: #e3f7f8; color: #2d5a5a; padding: 2px 6px; border-radius: 8px; display: inline-block;">${stakeholder.source || 'Impacted Services'}</div>`;
-          description += `</div>`;
+          description += '</div>';
         });
         if (impactedData.stakeholders.length > 6) {
-          description += `<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px dashed #dee2e6; display: flex; align-items: center; justify-content: center; color: #6c757d; font-style: italic;">`;
+          description += '<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px dashed #dee2e6; display: flex; align-items: center; justify-content: center; color: #6c757d; font-style: italic;">';
           description += `+${impactedData.stakeholders.length - 6} more stakeholders...`;
-          description += `</div>`;
+          description += '</div>';
         }
-        description += `</div>`;
-        description += `</div>`;
+        description += '</div>';
+        description += '</div>';
       }
-      description += `</div>`;
+      description += '</div>';
     }
 
     // Footer with detailed view option
-    description += `<div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6; text-align: center;">`;
-    description += `<h4 style="color: #495057; margin: 0 0 10px 0;">📋 Additional Information Available</h4>`;
-    description += `<p style="color: #6c757d; margin: 0 0 15px 0; font-size: 14px;">Complete change details, implementation plans, risk assessments, and stakeholder information are available in the full change request.</p>`;
-    description += `<div style="font-size: 12px; color: #6c757d; font-style: italic;">This enhanced description includes comprehensive change review, detailed asset information, and stakeholder coordination details.</div>`;
-    description += `</div>`;
+    description += '<div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6; text-align: center;">';
+    description += '<h4 style="color: #495057; margin: 0 0 10px 0;">📋 Additional Information Available</h4>';
+    description += '<p style="color: #6c757d; margin: 0 0 15px 0; font-size: 14px;">Complete change details, implementation plans, risk assessments, and stakeholder information are available in the full change request.</p>';
+    description += '<div style="font-size: 12px; color: #6c757d; font-style: italic;">This enhanced description includes comprehensive change review, detailed asset information, and stakeholder coordination details.</div>';
+    description += '</div>';
 
-    description += `</div>`;
+    description += '</div>';
     
     console.log('✅ Enhanced description created with detailed assets, stakeholder popovers, and comprehensive review information');
     return description;
@@ -1428,18 +1428,18 @@ const ChangeSubmission = {
       return 'Risk assessment not completed.';
     }
 
-    let summary = `RISK ASSESSMENT SUMMARY\n`;
+    let summary = 'RISK ASSESSMENT SUMMARY\n';
     summary += `Overall Risk Level: ${riskAssessment.riskLevel?.toUpperCase()}\n`;
     summary += `Risk Score: ${riskAssessment.totalScore || 0}/15\n\n`;
     
-    summary += `DETAILED RISK FACTORS:\n\n`;
+    summary += 'DETAILED RISK FACTORS:\n\n';
     summary += `1. BUSINESS IMPACT (Score: ${riskAssessment.businessImpact || 'N/A'}/3)\n`;
     summary += `2. AFFECTED USERS (Score: ${riskAssessment.affectedUsers || 'N/A'}/3)\n`;
     summary += `3. COMPLEXITY (Score: ${riskAssessment.complexity || 'N/A'}/3)\n`;
     summary += `4. TESTING LEVEL (Score: ${riskAssessment.testing || 'N/A'}/3)\n`;
     summary += `5. ROLLBACK CAPABILITY (Score: ${riskAssessment.rollback || 'N/A'}/3)\n\n`;
     
-    summary += `Generated automatically from risk questionnaire responses.`;
+    summary += 'Generated automatically from risk questionnaire responses.';
     
     console.log('📋 Risk summary generated:', summary.substring(0, 200) + '...');
     return summary;
@@ -1861,7 +1861,7 @@ const ChangeSubmission = {
 
       // Skip API-based approval creation since workflow automator handles this
       console.log('📋 Approval information stored in custom fields:');
-      console.log(`  • lf_technical_owner: Set to primary technical owner`);
+      console.log('  • lf_technical_owner: Set to primary technical owner');
       console.log(`  • lf_additional_approver_1: ${impactedData.approvers[0]?.name || 'Not set'}`);
       console.log(`  • lf_additional_approver_2: ${impactedData.approvers[1]?.name || 'Not set'}`);
       console.log(`  • lf_additional_approver_3: ${impactedData.approvers[2]?.name || 'Not set'}`);
@@ -2044,7 +2044,7 @@ const ChangeSubmission = {
       return createdNote;
       
     } catch (error) {
-      console.error(`❌ Failed to create stakeholder notification note:`, error);
+      console.error('❌ Failed to create stakeholder notification note:', error);
       throw error;
     }
   },
@@ -2072,30 +2072,30 @@ const ChangeSubmission = {
     const freshserviceDomain = await getFreshserviceDomain();
     const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
     
-    let body = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
+    let body = '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">';
     
     // Header
-    body += `<h3 style="color: #0066cc; margin-bottom: 20px;">📋 Stakeholder Notification</h3>`;
+    body += '<h3 style="color: #0066cc; margin-bottom: 20px;">📋 Stakeholder Notification</h3>';
     
     // Greeting and explanation
-    body += `<p><strong>Dear Stakeholders,</strong></p>`;
-    body += `<p>You have been identified as a stakeholder for this change request because you manage or are responsible for systems that may be impacted.</p>`;
-    body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0dcaf0;">`;
-    body += `<h4 style="margin-top: 0; color: #0c5460; font-size: 16px;">📋 Important Notice</h4>`;
-    body += `<p style="margin-bottom: 0;"><strong>This notification is for your awareness and review only - no approval action is required from you.</strong> If you have any questions or concerns about this change, please contact the Request or Agent SME listed below.</p>`;
-    body += `</div>`;
+    body += '<p><strong>Dear Stakeholders,</strong></p>';
+    body += '<p>You have been identified as a stakeholder for this change request because you manage or are responsible for systems that may be impacted.</p>';
+    body += '<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #0dcaf0;">';
+    body += '<h4 style="margin-top: 0; color: #0c5460; font-size: 16px;">📋 Important Notice</h4>';
+    body += '<p style="margin-bottom: 0;"><strong>This notification is for your awareness and review only - no approval action is required from you.</strong> If you have any questions or concerns about this change, please contact the Request or Agent SME listed below.</p>';
+    body += '</div>';
     
     // Important contacts section
-    body += `<div style="background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #0066cc;">`;
-    body += `<h4 style="margin-top: 0; color: #0066cc;">📞 Contact Information</h4>`;
-    body += `<p><strong>For questions or concerns, please contact:</strong></p>`;
-    body += `<ul style="margin-bottom: 0;">`;
+    body += '<div style="background-color: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #0066cc;">';
+    body += '<h4 style="margin-top: 0; color: #0066cc;">📞 Contact Information</h4>';
+    body += '<p><strong>For questions or concerns, please contact:</strong></p>';
+    body += '<ul style="margin-bottom: 0;">';
     body += `<li><strong>Change Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'} (${data.selectedRequester?.email || 'No email available'})</li>`;
     if (data.selectedAgent?.name || data.selectedAgent?.email) {
       body += `<li><strong>Agent SME:</strong> ${data.selectedAgent.name || data.selectedAgent.first_name + ' ' + data.selectedAgent.last_name || 'Unknown'} (${data.selectedAgent.email || 'No email available'})</li>`;
     }
-    body += `</ul>`;
-    body += `</div>`;
+    body += '</ul>';
+    body += '</div>';
     
     // Prominent schedule section
     if (data.plannedStart || data.plannedEnd) {
@@ -2108,14 +2108,14 @@ const ChangeSubmission = {
       body += `<div style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, ${scheduleColor}15 0%, ${scheduleColor}25 100%); border-radius: 8px; border: 2px solid ${scheduleColor};">`;
       body += `<h4 style="color: ${scheduleColor}; margin-top: 0; margin-bottom: 15px; font-size: 16px;">`;
       body += `${isUrgent ? '⚡ URGENT SCHEDULE NOTICE' : '📅 CHANGE SCHEDULE'}`;
-      body += `</h4>`;
+      body += '</h4>';
       
       if (startDate) {
         body += `<p><strong>🚀 Planned Start:</strong> ${startDate.toLocaleDateString()} at ${startDate.toLocaleTimeString()}`;
         if (timeToStart !== null && timeToStart >= 0) {
           body += ` <span style="color: ${isUrgent ? '#dc3545' : '#28a745'}; font-weight: bold;">(${timeToStart === 0 ? 'TODAY' : timeToStart === 1 ? 'TOMORROW' : `In ${timeToStart} days`})</span>`;
         }
-        body += `</p>`;
+        body += '</p>';
       }
       
       if (endDate) {
@@ -2124,23 +2124,23 @@ const ChangeSubmission = {
         if (duration) {
           body += ` <span style="color: #0066cc; font-weight: bold;">(Duration: ${duration})</span>`;
         }
-        body += `</p>`;
+        body += '</p>';
       }
       
       if (isUrgent) {
-        body += `<div style="background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffc107; margin-top: 15px;">`;
-        body += `<div style="color: #856404; font-weight: bold; font-size: 14px;">⚠️ URGENT ATTENTION</div>`;
-        body += `<div style="color: #856404; font-size: 13px; margin-top: 5px;">`;
+        body += '<div style="background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffc107; margin-top: 15px;">';
+        body += '<div style="color: #856404; font-weight: bold; font-size: 14px;">⚠️ URGENT ATTENTION</div>';
+        body += '<div style="color: #856404; font-size: 13px; margin-top: 5px;">';
         body += `This change is scheduled to begin ${timeToStart <= 2 ? 'very soon' : 'within the next few days'}. Please be prepared for potential service impacts.`;
-        body += `</div></div>`;
+        body += '</div></div>';
       }
       
-      body += `</div>`;
+      body += '</div>';
     }
     
     // Change details
-    body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">`;
-    body += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
+    body += '<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">';
+    body += '<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>';
     body += `<p><strong>Change ID:</strong> <a href="${changeUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">CHN-${changeRequest.id}</a></p>`;
     body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
     body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'}</p>`;
@@ -2150,12 +2150,12 @@ const ChangeSubmission = {
       body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
     }
     
-    body += `</div>`;
+    body += '</div>';
     
     // Why you're receiving this notification
-    body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">`;
-    body += `<h4 style="margin-top: 0; color: #0c5460;">🎯 Why You're Receiving This Notification</h4>`;
-    body += `<p>You have been identified as a stakeholder for this change because you may be impacted by or have responsibility for systems affected by this change.</p>`;
+    body += '<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">';
+    body += '<h4 style="margin-top: 0; color: #0c5460;">🎯 Why You\'re Receiving This Notification</h4>';
+    body += '<p>You have been identified as a stakeholder for this change because you may be impacted by or have responsibility for systems affected by this change.</p>';
     
     // Check recipient types to avoid repeating explanations
     const hasAssetStakeholders = recipients.some(r => r.source?.includes('Asset'));
@@ -2164,96 +2164,96 @@ const ChangeSubmission = {
     const hasManualStakeholders = recipients.some(r => !r.source || r.source === 'Impacted Services' || r.source === 'Manual Selection');
     
     if (hasAssetStakeholders || hasServiceStakeholders || hasTechnicalStakeholders || hasManualStakeholders) {
-      body += `<p><strong>You may be receiving this because:</strong></p>`;
-      body += `<ul>`;
+      body += '<p><strong>You may be receiving this because:</strong></p>';
+      body += '<ul>';
       
       if (hasAssetStakeholders) {
-        body += `<li>You manage or are responsible for assets that will be directly impacted</li>`;
+        body += '<li>You manage or are responsible for assets that will be directly impacted</li>';
       }
       if (hasServiceStakeholders) {
-        body += `<li>You own or manage services that may be affected by this change</li>`;
+        body += '<li>You own or manage services that may be affected by this change</li>';
       }
       if (hasTechnicalStakeholders) {
-        body += `<li>You are a technical owner or approver for systems involved in this change</li>`;
+        body += '<li>You are a technical owner or approver for systems involved in this change</li>';
       }
       if (hasManualStakeholders) {
-        body += `<li>You have been identified as having an interest in or responsibility for this change</li>`;
+        body += '<li>You have been identified as having an interest in or responsibility for this change</li>';
       }
       
-      body += `</ul>`;
+      body += '</ul>';
     }
     
-    body += `<p><strong>No action is required from you</strong> - this is purely informational. However, if you have concerns or questions about this change, please contact the requester or agent SME listed above.</p>`;
-    body += `</div>`;
+    body += '<p><strong>No action is required from you</strong> - this is purely informational. However, if you have concerns or questions about this change, please contact the requester or agent SME listed above.</p>';
+    body += '</div>';
     
     // Implementation details
     if (data.implementationPlan) {
-      body += `<div style="margin: 20px 0;">`;
-      body += `<h4 style="color: #333;">📋 Implementation Plan</h4>`;
+      body += '<div style="margin: 20px 0;">';
+      body += '<h4 style="color: #333;">📋 Implementation Plan</h4>';
       body += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #0066cc;">${data.implementationPlan}</div>`;
-      body += `</div>`;
+      body += '</div>';
     }
     
     // Reason for change
     if (data.reasonForChange) {
-      body += `<div style="margin: 20px 0;">`;
-      body += `<h4 style="color: #333;">💡 Reason for Change</h4>`;
+      body += '<div style="margin: 20px 0;">';
+      body += '<h4 style="color: #333;">💡 Reason for Change</h4>';
       body += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #28a745;">${data.reasonForChange}</div>`;
-      body += `</div>`;
+      body += '</div>';
     }
     
     // Impacted assets
     if (data.selectedAssets && data.selectedAssets.length > 0) {
-      body += `<div style="margin: 20px 0;">`;
-      body += `<h4 style="color: #333;">🖥️ Directly Impacted Assets</h4>`;
-      body += `<ul>`;
+      body += '<div style="margin: 20px 0;">';
+      body += '<h4 style="color: #333;">🖥️ Directly Impacted Assets</h4>';
+      body += '<ul>';
       data.selectedAssets.forEach(asset => {
         body += `<li><strong>${asset.name}</strong> (${asset.asset_type_name || 'Unknown Type'})`;
         if (asset.location_name) {
           body += ` - Location: ${asset.location_name}`;
         }
-        body += `</li>`;
+        body += '</li>';
       });
-      body += `</ul>`;
-      body += `</div>`;
+      body += '</ul>';
+      body += '</div>';
     }
     
     // Backout plan
     if (data.backoutPlan) {
-      body += `<div style="margin: 20px 0;">`;
-      body += `<h4 style="color: #333;">↩️ Backout Plan</h4>`;
+      body += '<div style="margin: 20px 0;">';
+      body += '<h4 style="color: #333;">↩️ Backout Plan</h4>';
       body += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #ffc107;">${data.backoutPlan}</div>`;
-      body += `</div>`;
+      body += '</div>';
     }
     
     // Footer
-    body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 30px; border-top: 3px solid #0066cc;">`;
-    body += `<h4 style="margin-top: 0; color: #0066cc;">📋 Next Steps</h4>`;
-    body += `<ul style="margin-bottom: 0;">`;
-    body += `<li><strong>Review the details</strong> provided in this notification</li>`;
-    body += `<li><strong>Prepare for potential impacts</strong> during the scheduled time window</li>`;
-    body += `<li><strong>Contact the requester or agent SME</strong> if you have any questions or concerns (contact information provided above)</li>`;
-    body += `<li><strong>Monitor your systems</strong> during the change implementation if applicable</li>`;
-    body += `</ul>`;
-    body += `</div>`;
+    body += '<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 30px; border-top: 3px solid #0066cc;">';
+    body += '<h4 style="margin-top: 0; color: #0066cc;">📋 Next Steps</h4>';
+    body += '<ul style="margin-bottom: 0;">';
+    body += '<li><strong>Review the details</strong> provided in this notification</li>';
+    body += '<li><strong>Prepare for potential impacts</strong> during the scheduled time window</li>';
+    body += '<li><strong>Contact the requester or agent SME</strong> if you have any questions or concerns (contact information provided above)</li>';
+    body += '<li><strong>Monitor your systems</strong> during the change implementation if applicable</li>';
+    body += '</ul>';
+    body += '</div>';
     
-    body += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 4px solid #ffc107;">`;
-    body += `<h4 style="margin-top: 0; color: #856404;">🤔 Questions or Concerns?</h4>`;
-    body += `<p style="margin-bottom: 10px;">If you have questions about this change or notice any issues:</p>`;
-    body += `<ul style="margin-bottom: 10px;">`;
-    body += `<li><strong>Technical questions:</strong> Contact the Agent SME listed above</li>`;
-    body += `<li><strong>Business impact questions:</strong> Contact the Change Requester listed above</li>`;
-    body += `<li><strong>Urgent issues:</strong> Contact both the Requester and Agent SME immediately</li>`;
-    body += `</ul>`;
-    body += `<p style="margin-bottom: 0;"><strong>Remember:</strong> You do not need to approve this change, but your feedback is valuable if you have concerns.</p>`;
-    body += `</div>`;
+    body += '<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin-top: 20px; border-left: 4px solid #ffc107;">';
+    body += '<h4 style="margin-top: 0; color: #856404;">🤔 Questions or Concerns?</h4>';
+    body += '<p style="margin-bottom: 10px;">If you have questions about this change or notice any issues:</p>';
+    body += '<ul style="margin-bottom: 10px;">';
+    body += '<li><strong>Technical questions:</strong> Contact the Agent SME listed above</li>';
+    body += '<li><strong>Business impact questions:</strong> Contact the Change Requester listed above</li>';
+    body += '<li><strong>Urgent issues:</strong> Contact both the Requester and Agent SME immediately</li>';
+    body += '</ul>';
+    body += '<p style="margin-bottom: 0;"><strong>Remember:</strong> You do not need to approve this change, but your feedback is valuable if you have concerns.</p>';
+    body += '</div>';
     
-    body += `<div style="text-align: center; margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">`;
-    body += `<p style="margin-bottom: 10px;"><em>Thank you for your attention to this change request.</em></p>`;
-    body += `<p style="margin: 0;"><strong>IT Change Management Team</strong></p>`;
-    body += `</div>`;
+    body += '<div style="text-align: center; margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">';
+    body += '<p style="margin-bottom: 10px;"><em>Thank you for your attention to this change request.</em></p>';
+    body += '<p style="margin: 0;"><strong>IT Change Management Team</strong></p>';
+    body += '</div>';
     
-    body += `</div>`;
+    body += '</div>';
     
     return body;
   },
@@ -2281,14 +2281,14 @@ const ChangeSubmission = {
     const freshserviceDomain = await getFreshserviceDomain();
     const changeUrl = `https://${freshserviceDomain}/a/changes/${changeRequest.id}?current_tab=details`;
     
-    let body = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
+    let body = '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">';
     
     // Header
-    body += `<h3 style="color: #0066cc; margin-bottom: 20px;">📋 Change Request Notification</h3>`;
+    body += '<h3 style="color: #0066cc; margin-bottom: 20px;">📋 Change Request Notification</h3>';
     
     // Greeting
     body += `<p>Dear ${recipient.name},</p>`;
-    body += `<p>A new change request has been submitted that may impact systems you manage or are responsible for.</p>`;
+    body += '<p>A new change request has been submitted that may impact systems you manage or are responsible for.</p>';
     
     // PROMINENT SCHEDULE SECTION - NEW ADDITION
     if (data.plannedStart || data.plannedEnd) {
@@ -2301,9 +2301,9 @@ const ChangeSubmission = {
       body += `<div style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, ${scheduleColor}15 0%, ${scheduleColor}25 100%); border-radius: 8px; border: 2px solid ${scheduleColor};">`;
       body += `<h4 style="color: ${scheduleColor}; margin-top: 0; margin-bottom: 15px; font-size: 16px;">`;
       body += `${isUrgent ? '⚡ URGENT SCHEDULE NOTICE' : '📅 CHANGE SCHEDULE'}`;
-      body += `</h4>`;
+      body += '</h4>';
       
-      body += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">`;
+      body += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">';
       
       if (startDate) {
         body += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid ${scheduleColor};">`;
@@ -2313,9 +2313,9 @@ const ChangeSubmission = {
         if (timeToStart !== null && timeToStart >= 0) {
           body += `<div style="font-size: 12px; color: ${isUrgent ? '#dc3545' : '#28a745'}; font-weight: bold; margin-top: 5px;">`;
           body += `${timeToStart === 0 ? 'TODAY' : timeToStart === 1 ? 'TOMORROW' : `In ${timeToStart} days`}`;
-          body += `</div>`;
+          body += '</div>';
         }
-        body += `</div>`;
+        body += '</div>';
       }
       
       if (endDate) {
@@ -2325,30 +2325,30 @@ const ChangeSubmission = {
         body += `<div style="font-size: 16px; font-weight: bold; color: #333;">${endDate.toLocaleDateString()}</div>`;
         body += `<div style="font-size: 14px; color: #666;">${endDate.toLocaleTimeString()}</div>`;
         if (duration) {
-          body += `<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">`;
+          body += '<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">';
           body += `Duration: ${duration}`;
-          body += `</div>`;
+          body += '</div>';
         }
-        body += `</div>`;
+        body += '</div>';
       }
       
-      body += `</div>`;
+      body += '</div>';
       
       if (isUrgent) {
-        body += `<div style="background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffc107; margin-top: 15px;">`;
-        body += `<div style="color: #856404; font-weight: bold; font-size: 14px;">⚠️ URGENT ATTENTION REQUIRED</div>`;
-        body += `<div style="color: #856404; font-size: 13px; margin-top: 5px;">`;
+        body += '<div style="background: #fff3cd; padding: 10px; border-radius: 6px; border: 1px solid #ffc107; margin-top: 15px;">';
+        body += '<div style="color: #856404; font-weight: bold; font-size: 14px;">⚠️ URGENT ATTENTION REQUIRED</div>';
+        body += '<div style="color: #856404; font-size: 13px; margin-top: 5px;">';
         body += `This change is scheduled to begin ${timeToStart <= 2 ? 'very soon' : 'within the next few days'}. `;
         body += `${recipient.type === 'approver' ? 'Please review and approve promptly to avoid delays.' : 'Please be prepared for potential service impacts.'}`;
-        body += `</div></div>`;
+        body += '</div></div>';
       }
       
-      body += `</div>`;
+      body += '</div>';
     }
     
     // Change details
-    body += `<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">`;
-    body += `<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>`;
+    body += '<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">';
+    body += '<h4 style="margin-top: 0; color: #333;">Change Request Details</h4>';
     body += `<p><strong>Change ID:</strong> <a href="${changeUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">CHN-${changeRequest.id}</a></p>`;
     body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
     body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'}</p>`;
@@ -2359,52 +2359,52 @@ const ChangeSubmission = {
       
       // Add risk level explanation and workflow status in notifications
       body += `<div style="background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid ${riskColor}; margin-top: 10px;">`;
-      body += `<div style="font-size: 13px; color: #495057;">`;
+      body += '<div style="font-size: 13px; color: #495057;">';
       if (riskAssessment.riskLevel === 'High') {
-        body += `<strong>High Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner and CAB approval. Final status will be "Scheduled" when ready for implementation.`;
+        body += '<strong>High Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner and CAB approval. Final status will be "Scheduled" when ready for implementation.';
       } else if (riskAssessment.riskLevel === 'Medium') {
-        body += `<strong>Medium Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
+        body += '<strong>Medium Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.';
       } else {
-        body += `<strong>Low Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
+        body += '<strong>Low Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.';
       }
-      body += `</div></div>`;
+      body += '</div></div>';
     }
     
-    body += `</div>`;
+    body += '</div>';
     
     // Implementation details
     if (data.implementationPlan) {
-      body += `<div style="margin: 20px 0;">`;
-      body += `<h4 style="color: #333;">Implementation Plan</h4>`;
+      body += '<div style="margin: 20px 0;">';
+      body += '<h4 style="color: #333;">Implementation Plan</h4>';
       body += `<div style="background-color: #fff; padding: 10px; border-left: 4px solid #0066cc;">${data.implementationPlan}</div>`;
-      body += `</div>`;
+      body += '</div>';
     }
     
     // Reason for change
     if (data.reasonForChange) {
-      body += `<div style="margin: 20px 0;">`;
-      body += `<h4 style="color: #333;">Reason for Change</h4>`;
+      body += '<div style="margin: 20px 0;">';
+      body += '<h4 style="color: #333;">Reason for Change</h4>';
       body += `<p>${data.reasonForChange}</p>`;
-      body += `</div>`;
+      body += '</div>';
     }
     
     // Impacted assets
     if (data.selectedAssets && data.selectedAssets.length > 0) {
-      body += `<div style="margin: 20px 0;">`;
-      body += `<h4 style="color: #333;">Impacted Assets</h4>`;
-      body += `<ul>`;
+      body += '<div style="margin: 20px 0;">';
+      body += '<h4 style="color: #333;">Impacted Assets</h4>';
+      body += '<ul>';
       data.selectedAssets.forEach(asset => {
         body += `<li>${asset.name} (${asset.asset_type_name || 'Unknown Type'})</li>`;
       });
-      body += `</ul>`;
-      body += `</div>`;
+      body += '</ul>';
+      body += '</div>';
     }
     
     // Action required based on recipient type
     if (recipient.type === 'approver') {
-      body += `<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;">`;
-      body += `<h4 style="margin-top: 0; color: #856404;">Action Required</h4>`;
-      body += `<p>As an identified approver, you will receive a separate approval request when the change reaches "Pending Approval" status.</p>`;
+      body += '<div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107; margin: 20px 0;">';
+      body += '<h4 style="margin-top: 0; color: #856404;">Action Required</h4>';
+      body += '<p>As an identified approver, you will receive a separate approval request when the change reaches "Pending Approval" status.</p>';
       if (data.riskAssessment && data.riskAssessment.totalScore >= 8) {
         body += `<p><strong>Timeline:</strong> This ${data.riskAssessment.riskLevel} risk change must complete peer review first. You will receive the approval request after the workflow automator processes the peer review completion.</p>`;
       } else {
@@ -2413,21 +2413,21 @@ const ChangeSubmission = {
       if (data.plannedStart) {
         const timeToStart = Math.ceil((new Date(data.plannedStart) - new Date()) / (1000 * 60 * 60 * 24));
         if (timeToStart <= 3) {
-          body += `<p style="color: #dc3545; font-weight: bold;">⚠️ Please note the urgent timeline - approval needed promptly when received!</p>`;
+          body += '<p style="color: #dc3545; font-weight: bold;">⚠️ Please note the urgent timeline - approval needed promptly when received!</p>';
         }
       }
-      body += `</div>`;
+      body += '</div>';
     } else {
-      body += `<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">`;
-      body += `<h4 style="margin-top: 0; color: #0c5460;">For Your Information</h4>`;
-      body += `<p>Please review this change request and provide any feedback or concerns to the change requester. This notification is for your awareness - no approval action is required from you.</p>`;
-      body += `</div>`;
+      body += '<div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #0dcaf0; margin: 20px 0;">';
+      body += '<h4 style="margin-top: 0; color: #0c5460;">For Your Information</h4>';
+      body += '<p>Please review this change request and provide any feedback or concerns to the change requester. This notification is for your awareness - no approval action is required from you.</p>';
+      body += '</div>';
     }
     
     // Footer
-    body += `<p>If you have any questions or concerns about this change, please contact the change requester directly.</p>`;
-    body += `<p>Best regards,<br>IT Change Management</p>`;
-    body += `</div>`;
+    body += '<p>If you have any questions or concerns about this change, please contact the change requester directly.</p>';
+    body += '<p>Best regards,<br>IT Change Management</p>';
+    body += '</div>';
     
     return body;
   },
@@ -2464,10 +2464,10 @@ const ChangeSubmission = {
       await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second delay
       
       // All changes require peer review regardless of risk level
-      console.log(`📊 Risk threshold analysis:`, {
+      console.log('📊 Risk threshold analysis:', {
         totalScore: riskAssessment.totalScore,
         riskLevel: riskAssessment.riskLevel,
-        reasoning: `All changes require peer review regardless of risk level`
+        reasoning: 'All changes require peer review regardless of risk level'
       });
       
       // Create peer review task for all changes
@@ -2629,7 +2629,7 @@ const ChangeSubmission = {
     const description = await this.generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment);
     
     // Ensure description is properly escaped for JSON
-    const escapedDescription = description.replace(/[\u0000-\u0019]+/g, "")
+    const escapedDescription = description.replace(/[\u0000-\u0019]+/g, '')
                                         .replace(/\\"/g, '"')
                                         .replace(/"/g, '\\"');
     
@@ -2763,7 +2763,7 @@ const ChangeSubmission = {
   /**
    * Generate peer review coordination task description for agent SME
    */
-  async generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
+  generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
     const data = window.changeRequestData;
     
     let description = `Peer Review Coordination Required
@@ -3022,7 +3022,7 @@ Important: The peer review must be conducted by someone other than the original 
         `;
       }
       
-      successContent += `</div></div>`;
+      successContent += '</div></div>';
     }
     
     // Add impact details section
@@ -3827,7 +3827,7 @@ Important: The peer review must be conducted by someone other than the original 
       `;
     }
     
-    content += `</div>`;
+    content += '</div>';
     return content;
   },
 
@@ -4447,7 +4447,7 @@ Important: The peer review must be conducted by someone other than the original 
       return 'Unknown';
     };
     
-    let summaryHtml = `<div class="submission-summary">`;
+    let summaryHtml = '<div class="submission-summary">';
     
     // Header with change overview
     summaryHtml += `<div class="row mb-4">
@@ -4541,29 +4541,29 @@ Important: The peer review must be conducted by someone other than the original 
       const getRiskCriteriaExplanation = (criteria, score) => {
         const explanations = {
           businessImpact: {
-            1: "Limited - Minor impact on business operations",
-            2: "Noticeable - Moderate impact on business operations", 
-            3: "Significant - Major impact on business operations"
+            1: 'Limited - Minor impact on business operations',
+            2: 'Noticeable - Moderate impact on business operations', 
+            3: 'Significant - Major impact on business operations'
           },
           affectedUsers: {
-            1: "Less than 50 users affected",
-            2: "50-200 users affected",
-            3: "More than 200 users affected"
+            1: 'Less than 50 users affected',
+            2: '50-200 users affected',
+            3: 'More than 200 users affected'
           },
           complexity: {
-            1: "Simple - Low technical complexity",
-            2: "Moderate - Medium technical complexity",
-            3: "Complex - High technical complexity"
+            1: 'Simple - Low technical complexity',
+            2: 'Moderate - Medium technical complexity',
+            3: 'Complex - High technical complexity'
           },
           testing: {
-            1: "Comprehensive - Thorough testing completed",
-            2: "Adequate - Standard testing completed",
-            3: "Limited - Minimal testing completed"
+            1: 'Comprehensive - Thorough testing completed',
+            2: 'Adequate - Standard testing completed',
+            3: 'Limited - Minimal testing completed'
           },
           rollback: {
-            1: "Detailed rollback plan available",
-            2: "Basic rollback steps defined",
-            3: "No clear rollback procedure"
+            1: 'Detailed rollback plan available',
+            2: 'Basic rollback steps defined',
+            3: 'No clear rollback procedure'
           }
         };
         return explanations[criteria]?.[score] || `Score: ${score}/3`;
@@ -4661,7 +4661,7 @@ Important: The peer review must be conducted by someone other than the original 
                 <h6 class="text-primary mb-3"><i class="fas fa-server me-2"></i>Direct Assets (${data.selectedAssets?.length || 0})</h6>`;
     
     if (data.selectedAssets && data.selectedAssets.length > 0) {
-      summaryHtml += `<div class="list-group list-group-flush">`;
+      summaryHtml += '<div class="list-group list-group-flush">';
       data.selectedAssets.slice(0, 3).forEach(asset => {
         // Get additional asset details
         const environment = asset.environment || 'Unknown';
@@ -4687,9 +4687,9 @@ Important: The peer review must be conducted by someone other than the original 
           <small class="text-muted">... and ${data.selectedAssets.length - 3} more direct assets</small>
         </div>`;
       }
-      summaryHtml += `</div>`;
+      summaryHtml += '</div>';
     } else {
-      summaryHtml += `<p class="text-muted small">No direct assets selected</p>`;
+      summaryHtml += '<p class="text-muted small">No direct assets selected</p>';
     }
     
     summaryHtml += `</div>
@@ -4697,7 +4697,7 @@ Important: The peer review must be conducted by someone other than the original 
                 <h6 class="text-success mb-3"><i class="fas fa-sitemap me-2"></i>Related Assets (${impactedData.relatedAssets?.length || 0})</h6>`;
     
     if (impactedData.relatedAssets && impactedData.relatedAssets.length > 0) {
-      summaryHtml += `<div class="list-group list-group-flush">`;
+      summaryHtml += '<div class="list-group list-group-flush">';
       impactedData.relatedAssets.slice(0, 3).forEach(asset => {
         const environment = asset.environment || 'Unknown';
         const relationship = asset.relationship_type || 'Related';
@@ -4716,9 +4716,9 @@ Important: The peer review must be conducted by someone other than the original 
           <small class="text-muted">... and ${impactedData.relatedAssets.length - 3} more related assets</small>
         </div>`;
       }
-      summaryHtml += `</div>`;
+      summaryHtml += '</div>';
     } else {
-      summaryHtml += `<p class="text-muted small">No related assets found</p>`;
+      summaryHtml += '<p class="text-muted small">No related assets found</p>';
     }
     
     summaryHtml += `</div>
@@ -4739,7 +4739,7 @@ Important: The peer review must be conducted by someone other than the original 
           <div class="card-body">`;
     
     if (impactedData.approvers && impactedData.approvers.length > 0) {
-      summaryHtml += `<div class="list-group list-group-flush">`;
+      summaryHtml += '<div class="list-group list-group-flush">';
       impactedData.approvers.slice(0, 4).forEach(approver => {
         const source = approver.source || 'Manual';
         const role = approver.role || 'Approver';
@@ -4762,9 +4762,9 @@ Important: The peer review must be conducted by someone other than the original 
           <small class="text-muted">... and ${impactedData.approvers.length - 4} more approvers</small>
         </div>`;
       }
-      summaryHtml += `</div>`;
+      summaryHtml += '</div>';
     } else {
-      summaryHtml += `<p class="text-muted small">No approvers identified</p>`;
+      summaryHtml += '<p class="text-muted small">No approvers identified</p>';
     }
     
     summaryHtml += `</div>
@@ -4778,7 +4778,7 @@ Important: The peer review must be conducted by someone other than the original 
           <div class="card-body">`;
     
     if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
-      summaryHtml += `<div class="list-group list-group-flush">`;
+      summaryHtml += '<div class="list-group list-group-flush">';
       impactedData.stakeholders.slice(0, 4).forEach(stakeholder => {
         const source = stakeholder.source || 'Manual';
         const role = stakeholder.role || 'Stakeholder';
@@ -4801,9 +4801,9 @@ Important: The peer review must be conducted by someone other than the original 
           <small class="text-muted">... and ${impactedData.stakeholders.length - 4} more stakeholders</small>
         </div>`;
       }
-      summaryHtml += `</div>`;
+      summaryHtml += '</div>';
     } else {
-      summaryHtml += `<p class="text-muted small">No stakeholders identified</p>`;
+      summaryHtml += '<p class="text-muted small">No stakeholders identified</p>';
     }
     
     summaryHtml += `</div>
@@ -4823,7 +4823,7 @@ Important: The peer review must be conducted by someone other than the original 
       if (riskAssessment) {
         // All changes now go through peer review
         summaryHtml += `<li>Initial status: "Pending Review" (${riskAssessment.riskLevel} risk)</li>`;
-        summaryHtml += `<li>Peer review coordination task will be assigned to agent SME</li>`;
+        summaryHtml += '<li>Peer review coordination task will be assigned to agent SME</li>';
       }
       
       if (totalStakeholders > 0) {
@@ -4831,7 +4831,7 @@ Important: The peer review must be conducted by someone other than the original 
       }
       
       if (data.selectedAssets && data.selectedAssets.length > 0) {
-        summaryHtml += `<li>Assets will be automatically associated with the change request</li>`;
+        summaryHtml += '<li>Assets will be automatically associated with the change request</li>';
       }
               
       if (impactedData.approvers && impactedData.approvers.length > 0) {
@@ -4863,7 +4863,7 @@ Important: The peer review must be conducted by someone other than the original 
     if (riskAssessment) {
       // All changes now go through peer review
       summaryHtml += `<li class="mb-2"><i class="fas fa-clock text-warning me-2"></i>Status: "Pending Review" (${riskAssessment.riskLevel} risk)</li>`;
-      summaryHtml += `<li class="mb-2"><i class="fas fa-user-cog text-info me-2"></i>Peer review task assigned to agent SME</li>`;
+      summaryHtml += '<li class="mb-2"><i class="fas fa-user-cog text-info me-2"></i>Peer review task assigned to agent SME</li>';
     }
     
     summaryHtml += `</ul>
@@ -4876,12 +4876,12 @@ Important: The peer review must be conducted by someone other than the original 
     }
     
     // All changes follow the same workflow after peer review
-    summaryHtml += `<li class="mb-2"><i class="fas fa-robot text-info me-2"></i>Upon peer review completion: Workflow automator will transition to "Pending Approval"</li>`;
+    summaryHtml += '<li class="mb-2"><i class="fas fa-robot text-info me-2"></i>Upon peer review completion: Workflow automator will transition to "Pending Approval"</li>';
     if (impactedData.approvers && impactedData.approvers.length > 0) {
       const approverText = riskAssessment.riskLevel === 'High' ? `${impactedData.approvers.length} technical owner(s) + CAB` : `${impactedData.approvers.length} technical owner(s)`;
       summaryHtml += `<li class="mb-2"><i class="fas fa-check text-warning me-2"></i>Approval tickets will be created for ${approverText}</li>`;
     }
-    summaryHtml += `<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Final status: "Scheduled" when all approvals obtained</li>`;
+    summaryHtml += '<li class="mb-2"><i class="fas fa-calendar-check text-success me-2"></i>Final status: "Scheduled" when all approvals obtained</li>';
     
     summaryHtml += `<li class="mb-2"><i class="fas fa-bell text-info me-2"></i>You will receive confirmation and tracking information</li>
                 </ul>
@@ -4913,7 +4913,7 @@ Important: The peer review must be conducted by someone other than the original 
       </div>
     </div>`;
     
-    summaryHtml += `</div>`;
+    summaryHtml += '</div>';
     
     // Update the modal content
     const summaryContent = document.getElementById('summary-content');
