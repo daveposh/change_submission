@@ -1,10 +1,13 @@
 const path = require('path');
 
 module.exports = {
-  entry: './app/scripts/app.js',
+  entry: {
+    app: './app/scripts/app.js',
+    'lexical-editor': './app/scripts/lexical-editor.js'
+  },
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'bundle.js',
+    filename: '[name].bundle.js',
     publicPath: '/dist/'
   },
   module: {
@@ -16,7 +19,10 @@ module.exports = {
           loader: 'babel-loader',
           options: {
             presets: [
-              ['@babel/preset-env', { targets: "defaults" }]
+              ['@babel/preset-env', { 
+                targets: "defaults",
+                modules: 'auto'
+              }]
             ]
           }
         }
@@ -33,9 +39,6 @@ module.exports = {
     alias: {
       'lexical': path.resolve(__dirname, 'node_modules/lexical')
     }
-  },
-  externals: {
-    'lexical': 'Lexical'
   },
   optimization: {
     minimize: true
