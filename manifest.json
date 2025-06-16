@@ -30,8 +30,7 @@
         "createChangeTask": {},
         "createChangeNote": {},
         "getChangeNotes": {},
-        "createTicket": {},
-        "createTask": {}
+        "createTicket": {}
       },
       "storage": {
         "data_storage": {
@@ -69,18 +68,5 @@
     "node": "18.18.2",
     "fdk": "9.5.0"
   },
-  "type": "module",
-  "iparams": "./config/iparams.json",
-  "name": "change_submission",
-  "title": "Change Request Form",
-  "description": "A form for submitting and managing change requests",
-  "version": "1.0.0",
-  "dependencies": {
-    "lexical": "0.12.2",
-    "@lexical/rich-text": "0.12.2",
-    "@lexical/list": "0.12.2",
-    "@lexical/code": "0.12.2",
-    "@lexical/link": "0.12.2",
-    "@lexical/table": "0.12.2"
-  }
+  "iparams": "./config/iparams.json"
 }
