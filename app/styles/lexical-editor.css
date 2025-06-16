@@ -1,12 +1,13 @@
+/* Lexical Editor Styles */
 .editor-container {
-  border: 1px solid #ccc;
-  border-radius: 4px;
   margin-bottom: 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25rem;
 }
 
 .editor-toolbar {
   padding: 0.5rem;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid #dee2e6;
   background-color: #f8f9fa;
   display: flex;
   gap: 0.5rem;
@@ -14,11 +15,11 @@
 
 .editor-toolbar button {
   padding: 0.25rem 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background-color: white;
+  background: none;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
   cursor: pointer;
-  transition: background-color 0.2s;
+  color: #495057;
 }
 
 .editor-toolbar button:hover {
@@ -27,24 +28,17 @@
 
 .editor-toolbar button.active {
   background-color: #e9ecef;
-  border-color: #999;
+  border-color: #adb5bd;
 }
 
 .editor-input {
-  min-height: 150px;
   padding: 1rem;
-  background-color: white;
+  min-height: 150px;
   outline: none;
-  overflow-y: auto;
 }
 
 .editor-input:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
-.editor-input[contenteditable="true"] {
-  cursor: text;
 }
 
 .editor-paragraph {
@@ -54,29 +48,30 @@
 .editor-heading-h1 {
   font-size: 2rem;
   font-weight: bold;
-  margin: 1rem 0;
+  margin: 1.5rem 0 1rem;
 }
 
 .editor-heading-h2 {
   font-size: 1.5rem;
   font-weight: bold;
-  margin: 0.75rem 0;
+  margin: 1.25rem 0 0.75rem;
 }
 
 .editor-heading-h3 {
   font-size: 1.25rem;
   font-weight: bold;
-  margin: 0.5rem 0;
+  margin: 1rem 0 0.5rem;
 }
 
 .editor-list-ol {
-  list-style-type: decimal;
-  margin: 0 0 1rem 1.5rem;
+  padding-left: 1.5rem;
+  margin: 0 0 1rem;
 }
 
 .editor-list-ul {
+  padding-left: 1.5rem;
+  margin: 0 0 1rem;
   list-style-type: disc;
-  margin: 0 0 1rem 1.5rem;
 }
 
 .editor-listitem {
@@ -103,12 +98,13 @@
   text-decoration: underline line-through;
 }
 
+/* Link styles */
 .editor-link {
-  color: #0066cc;
+  color: #007bff;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .editor-link:hover {
-  color: #004499;
+  color: #0056b3;
 } 
