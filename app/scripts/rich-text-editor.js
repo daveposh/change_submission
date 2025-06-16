@@ -60,7 +60,7 @@ class RichTextEditor {
     }
 
     // Initialize Lexical editor
-    this.editor = new Lexical.Editor({
+    const editorConfig = {
       namespace: this.containerId,
       nodes: [
         Lexical.RichTextNode,
@@ -72,36 +72,22 @@ class RichTextEditor {
       onError: (error) => {
         console.error('Lexical editor error:', error);
       }
-    });
+    };
 
     // Create editor instance
-    const editorInstance = this.editor.createEditor({
-      namespace: this.containerId,
-      nodes: [
-        Lexical.RichTextNode,
-        Lexical.ListNode,
-        Lexical.LinkNode,
-        Lexical.TableNode,
-        Lexical.CodeNode
-      ],
-      onError: (error) => {
-        console.error('Lexical editor error:', error);
-      }
-    });
-
-    // Mount editor
-    editorInstance.mount(editorContainer);
+    this.editor = new Lexical.Editor(editorConfig);
+    this.editor.mount(editorContainer);
 
     // Set initial content
     if (this.initialContent) {
-      editorInstance.update(() => {
-        const root = editorInstance.getRootElement();
+      this.editor.update(() => {
+        const root = this.editor.getRootElement();
         root.innerHTML = this.initialContent;
       });
     }
 
     // Sync with textarea
-    editorInstance.registerUpdateListener(({ editorState }) => {
+    this.editor.registerUpdateListener(({ editorState }) => {
       const content = editorState.toJSON();
       if (textarea) {
         textarea.value = JSON.stringify(content);
@@ -204,9 +190,8 @@ class RichTextEditor {
   }
 }
 
-// Initialize rich text editors when DOM is loaded
+// Initialize rich text editors when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize editors for each textarea
   const editorFields = [
     'change-description',
     'reason-for-change',
@@ -216,9 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
   ];
 
   editorFields.forEach(fieldId => {
-    const container = document.getElementById(fieldId);
-    if (container) {
-      new RichTextEditor(fieldId, container.value);
-    }
+    new RichTextEditor(fieldId);
   });
 }); 

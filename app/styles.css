@@ -11,8 +11,6 @@
   padding: 0.5rem;
   background-color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
 }
 
 .lexical-editor:focus-within {
@@ -40,34 +38,61 @@
   background-color: #e9ecef;
 }
 
+.lexical-toolbar .btn.active {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+/* Editor Content Styles */
 .lexical-editor p {
-  margin-bottom: 0.5rem;
+  margin: 0 0 1rem;
 }
 
 .lexical-editor ul,
 .lexical-editor ol {
-  padding-left: 1.5rem;
-  margin-bottom: 0.5rem;
+  margin: 0 0 1rem;
+  padding-left: 2rem;
 }
 
-.lexical-editor table {
-  border-collapse: collapse;
-  width: 100%;
-  margin-bottom: 0.5rem;
-}
-
-.lexical-editor table td,
-.lexical-editor table th {
-  border: 1px solid #dee2e6;
-  padding: 0.5rem;
+.lexical-editor blockquote {
+  margin: 0 0 1rem;
+  padding: 0.5rem 1rem;
+  border-left: 4px solid #dee2e6;
+  color: #6c757d;
 }
 
 .lexical-editor pre {
+  margin: 0 0 1rem;
+  padding: 1rem;
   background-color: #f8f9fa;
-  padding: 0.5rem;
   border-radius: 0.25rem;
-  margin-bottom: 0.5rem;
-  font-family: monospace;
+  overflow-x: auto;
+}
+
+.lexical-editor code {
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875em;
+  color: #d63384;
+  background-color: #f8f9fa;
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+}
+
+.lexical-editor table {
+  width: 100%;
+  margin-bottom: 1rem;
+  border-collapse: collapse;
+}
+
+.lexical-editor th,
+.lexical-editor td {
+  padding: 0.5rem;
+  border: 1px solid #dee2e6;
+}
+
+.lexical-editor th {
+  background-color: #f8f9fa;
+  font-weight: 600;
 }
 
 .lexical-editor a {
@@ -77,6 +102,56 @@
 
 .lexical-editor a:hover {
   text-decoration: underline;
+}
+
+/* Dark Mode Support */
+[data-bs-theme="dark"] .lexical-editor {
+  background-color: #212529;
+  border-color: #495057;
+  color: #e9ecef;
+}
+
+[data-bs-theme="dark"] .lexical-toolbar {
+  background-color: #343a40;
+  border-color: #495057;
+}
+
+[data-bs-theme="dark"] .lexical-toolbar .btn {
+  color: #e9ecef;
+  border-color: #495057;
+}
+
+[data-bs-theme="dark"] .lexical-toolbar .btn:hover {
+  background-color: #495057;
+}
+
+[data-bs-theme="dark"] .lexical-toolbar .btn.active {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+[data-bs-theme="dark"] .lexical-editor blockquote {
+  border-color: #495057;
+  color: #adb5bd;
+}
+
+[data-bs-theme="dark"] .lexical-editor pre,
+[data-bs-theme="dark"] .lexical-editor code {
+  background-color: #343a40;
+  color: #e9ecef;
+}
+
+[data-bs-theme="dark"] .lexical-editor th,
+[data-bs-theme="dark"] .lexical-editor td {
+  border-color: #495057;
+}
+
+[data-bs-theme="dark"] .lexical-editor th {
+  background-color: #343a40;
+}
+
+[data-bs-theme="dark"] .lexical-editor a {
+  color: #6ea8fe;
 }
 
 /* Placeholder styles */
