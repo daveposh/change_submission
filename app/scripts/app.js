@@ -2196,17 +2196,30 @@ function populateFormFields() {
   console.log('Form fields populated with default values');
 }
 
+import { initializeLexicalEditors } from './lexical-editor.js';
+
 /**
  * Set up event listeners for form inputs
  */
 function setupEventListeners() {
-  console.log('🎯 Setting up event listeners...');
-  
+  // Initialize Lexical editors with change request data
+  const changeRequestData = window.changeRequestData || {};
+  initializeLexicalEditors(changeRequestData);
+
   // Tab event listeners
+  const tabLinks = document.querySelectorAll('.nav-link');
+  tabLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tabId = e.target.getAttribute('href').substring(1);
+      switchTab(tabId);
+    });
+  });
+
+  // Asset Association tab
   const assetAssociationTab = document.getElementById('asset-association-tab');
   if (assetAssociationTab) {
     assetAssociationTab.addEventListener('shown.bs.tab', async function () {
-      // Initialize Asset Association Module when tab is first shown
       if (window.AssetAssociation && !window.AssetAssociation._initialized) {
         console.log('🔧 Initializing Asset Association Module...');
         await window.AssetAssociation.init();
@@ -2214,164 +2227,47 @@ function setupEventListeners() {
         console.log('✅ Asset Association Module initialized');
       }
     });
-    console.log('✅ Asset Association tab listener added');
   }
-  
+
   // Impacted Services tab
   const impactedServicesTab = document.getElementById('impacted-services-tab');
   if (impactedServicesTab) {
     impactedServicesTab.addEventListener('shown.bs.tab', function () {
-      console.log('🔄 Impacted Services tab shown - checking initialization...');
-      
-      // Initialize Impacted Services Module when tab is first shown
       if (window.ImpactedServices && !window.ImpactedServices._initialized) {
-        console.log('🔧 Initializing Impacted Services Module for the first time...');
         window.ImpactedServices.init();
         window.ImpactedServices._initialized = true;
-        console.log('✅ Impacted Services Module initialized');
-      } else if (window.ImpactedServices && window.ImpactedServices._initialized) {
-        console.log('ℹ️ Impacted Services Module already initialized, refreshing direct assets...');
-      } else if (!window.ImpactedServices) {
-        console.error('❌ ImpactedServices module not available!');
       }
-      
-      // Refresh direct assets from Asset Association
       if (window.ImpactedServices && window.ImpactedServices.loadDirectAssets) {
         window.ImpactedServices.loadDirectAssets();
       }
     });
-    
+
     impactedServicesTab.addEventListener('hidden.bs.tab', function () {
-      // Capture impacted services data when leaving the tab
       if (window.ImpactedServices && typeof window.ImpactedServices.getImpactedServicesData === 'function') {
         const impactedServicesData = window.ImpactedServices.getImpactedServicesData();
         window.changeRequestData.impactedServices = impactedServicesData;
-        console.log('💾 Captured impacted services data');
       }
     });
-    
-    console.log('✅ Impacted Services tab listeners added');
   }
-  
+
   // Change type selection
   const changeTypeSelect = document.getElementById('change-type');
   if (changeTypeSelect) {
     changeTypeSelect.addEventListener('change', handleChangeTypeSelection);
-    console.log('✅ Change type selection listener added');
   }
-  
-  // Requester search with live search functionality
+
+  // Requester search
   const requesterSearch = document.getElementById('requester-search');
   if (requesterSearch) {
-    requesterSearch.addEventListener('input', (e) => {
-      const searchTerm = e.target.value.trim();
-      
-      // Clear any existing timer
-      if (liveSearchState.requester.timer) {
-        clearTimeout(liveSearchState.requester.timer);
-        liveSearchState.requester.timer = null;
-      }
-      
-      // Clear results if input is empty
-      if (searchTerm.length === 0) {
-        clearRequesterResults();
-        liveSearchState.requester.isActive = false;
-        return;
-      }
-      
-      // Show live search indicator if minimum length reached
-      if (searchTerm.length >= liveSearchState.requester.minLength) {
-        showLiveSearchIndicator('requester-results', 'requesters');
-        liveSearchState.requester.isActive = true;
-        
-        // Set timer for live search
-        liveSearchState.requester.timer = setTimeout(() => {
-          console.log(`🔍 Live search for requesters: "${searchTerm}"`);
-          performRequesterSearch(searchTerm, false, true); // true indicates live search
-        }, liveSearchState.requester.delay);
-      } else {
-        // Show hint for minimum characters
-        showSearchHint('requester-results', liveSearchState.requester.minLength);
-      }
-    });
-    
-    // Handle Enter key for manual search
-    requesterSearch.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const searchTerm = e.target.value.trim();
-        
-        // Clear live search timer
-        if (liveSearchState.requester.timer) {
-          clearTimeout(liveSearchState.requester.timer);
-          liveSearchState.requester.timer = null;
-        }
-        
-        if (searchTerm.length >= liveSearchState.requester.minLength) {
-          console.log(`🔍 Manual search for requesters: "${searchTerm}"`);
-          performRequesterSearch(searchTerm, false, false); // false indicates manual search
-        }
-      }
-    });
-    
-    console.log('✅ Requester live search listener added');
+    requesterSearch.addEventListener('input', handleRequesterSearch);
+    requesterSearch.addEventListener('keydown', handleRequesterKeydown);
   }
-  
-  // Agent search with live search functionality
+
+  // Agent search
   const agentSearch = document.getElementById('agent-search');
   if (agentSearch) {
-    agentSearch.addEventListener('input', (e) => {
-      const searchTerm = e.target.value.trim();
-      
-      // Clear any existing timer
-      if (liveSearchState.agent.timer) {
-        clearTimeout(liveSearchState.agent.timer);
-        liveSearchState.agent.timer = null;
-      }
-      
-      // Clear results if input is empty
-      if (searchTerm.length === 0) {
-        clearAgentResults();
-        liveSearchState.agent.isActive = false;
-        return;
-      }
-      
-      // Show live search indicator if minimum length reached
-      if (searchTerm.length >= liveSearchState.agent.minLength) {
-        showLiveSearchIndicator('agent-results', 'agents');
-        liveSearchState.agent.isActive = true;
-        
-        // Set timer for live search
-        liveSearchState.agent.timer = setTimeout(() => {
-          console.log(`🔍 Live search for agents: "${searchTerm}"`);
-          performAgentSearch(searchTerm, false, true); // true indicates live search
-        }, liveSearchState.agent.delay);
-      } else {
-        // Show hint for minimum characters
-        showSearchHint('agent-results', liveSearchState.agent.minLength);
-      }
-    });
-    
-    // Handle Enter key for manual search
-    agentSearch.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const searchTerm = e.target.value.trim();
-        
-        // Clear live search timer
-        if (liveSearchState.agent.timer) {
-          clearTimeout(liveSearchState.agent.timer);
-          liveSearchState.agent.timer = null;
-        }
-        
-        if (searchTerm.length >= liveSearchState.agent.minLength) {
-          console.log(`🔍 Manual search for agents: "${searchTerm}"`);
-          performAgentSearch(searchTerm, false, false); // false indicates manual search
-        }
-      }
-    });
-    
-    console.log('✅ Agent live search listener added');
+    agentSearch.addEventListener('input', handleAgentSearch);
+    agentSearch.addEventListener('keydown', handleAgentKeydown);
   }
 
   // Risk assessment inputs
@@ -2379,46 +2275,8 @@ function setupEventListeners() {
   riskInputs.forEach(input => {
     input.addEventListener('change', updateRiskSelection);
   });
-  console.log(`✅ Risk assessment listeners added (${riskInputs.length} inputs)`);
 
-  // Form field event listeners to capture values
-  const reasonForChangeField = document.getElementById('reason-for-change');
-  if (reasonForChangeField) {
-    reasonForChangeField.addEventListener('input', (e) => {
-      changeRequestData.reasonForChange = e.target.value.trim();
-    });
-    console.log('✅ Reason for change field listener added');
-  }
-  
-  const changeDescriptionField = document.getElementById('change-description');
-  if (changeDescriptionField) {
-    changeDescriptionField.addEventListener('input', (e) => {
-      changeRequestData.changeDescription = e.target.value.trim();
-    });
-    console.log('✅ Change description field listener added');
-  }
-  
-  const implementationPlanField = document.getElementById('implementation-plan');
-  if (implementationPlanField) {
-    implementationPlanField.addEventListener('input', (e) => {
-      changeRequestData.implementationPlan = e.target.value.trim();
-    });
-  }
-  
-  const backoutPlanField = document.getElementById('backout-plan');
-  if (backoutPlanField) {
-    backoutPlanField.addEventListener('input', (e) => {
-      changeRequestData.backoutPlan = e.target.value.trim();
-    });
-  }
-  
-  const validationPlanField = document.getElementById('validation-plan');
-  if (validationPlanField) {
-    validationPlanField.addEventListener('input', (e) => {
-      changeRequestData.validationPlan = e.target.value.trim();
-    });
-  }
-  
+  // Date/time fields
   const plannedStartField = document.getElementById('planned-start');
   if (plannedStartField) {
     plannedStartField.addEventListener('change', (e) => {
@@ -2426,7 +2284,7 @@ function setupEventListeners() {
       validateDateTimes();
     });
   }
-  
+
   const plannedEndField = document.getElementById('planned-end');
   if (plannedEndField) {
     plannedEndField.addEventListener('change', (e) => {
@@ -6318,3 +6176,5 @@ window.testEnhancedUserCache = async function() {
     return null;
   }
 };
+
+// ... existing code ...
