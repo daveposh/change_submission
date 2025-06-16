@@ -80,6 +80,16 @@
       // Initialize theme management
       ThemeManager.init();
     </script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/shepherd.js@10.0.1/dist/css/shepherd.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/lexical@0.12.2/dist/lexical.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
   </head>
 
   <body>
@@ -165,8 +175,9 @@
 
               <div class="col-12 form-group mb-3">
                 <label for="change-description" class="form-label">Description:</label>
-                <textarea id="change-description" class="form-control" rows="3" placeholder="Provide a brief description of the change..."></textarea>
-                <div class="form-text">Summarize what this change involves and what will be modified or implemented.</div>
+                <div id="change-description" class="rich-text-container">
+                  <textarea class="form-control" rows="5" placeholder="Provide a detailed description of the change..."></textarea>
+                </div>
               </div>
 
               <div class="col-md-6 form-group mb-3">
@@ -218,7 +229,9 @@
 
               <div class="col-12 form-group mb-3">
                 <label for="reason-for-change" class="form-label">Reason for Change:</label>
-                <textarea id="reason-for-change" class="form-control" rows="3" placeholder="Explain the business justification and reason for this change..."></textarea>
+                <div id="reason-for-change" class="rich-text-container">
+                  <textarea class="form-control" rows="3" placeholder="Explain the business justification and reason for this change..."></textarea>
+                </div>
               </div>
 
               <div class="col-md-6 form-group mb-3">
@@ -233,17 +246,23 @@
 
               <div class="col-12 form-group mb-3">
                 <label for="implementation-plan" class="form-label">Implementation Plan:</label>
-                <textarea id="implementation-plan" class="form-control" rows="5" placeholder="Describe the step-by-step implementation process..."></textarea>
+                <div id="implementation-plan" class="rich-text-container">
+                  <textarea class="form-control" rows="5" placeholder="Describe the step-by-step implementation process..."></textarea>
+                </div>
               </div>
 
               <div class="col-12 form-group mb-3">
                 <label for="backout-plan" class="form-label">Backout (Recovery) Plan:</label>
-                <textarea id="backout-plan" class="form-control" rows="5" placeholder="Describe how to revert the change if issues occur..."></textarea>
+                <div id="backout-plan" class="rich-text-container">
+                  <textarea class="form-control" rows="5" placeholder="Describe how to revert the change if issues occur..."></textarea>
+                </div>
               </div>
 
               <div class="col-12 form-group mb-3">
                 <label for="validation-plan" class="form-label">Validation Plan:</label>
-                <textarea id="validation-plan" class="form-control" rows="5" placeholder="Describe how to verify the change was successful..."></textarea>
+                <div id="validation-plan" class="rich-text-container">
+                  <textarea class="form-control" rows="5" placeholder="Describe how to verify the change was successful..."></textarea>
+                </div>
               </div>
 
               <div class="col-12 form-actions text-end">
@@ -909,5 +928,37 @@
   <script src="scripts/impacted-services.js"></script>
   <script src="scripts/change-submission.js"></script>
   <script src="scripts/guided-tour.js"></script>
+  <script src="scripts/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/shepherd.js@10.0.1/dist/js/shepherd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lexical@0.12.2/dist/lexical.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/react@0.12.2/dist/lexical-react.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/rich-text@0.12.2/dist/lexical-rich-text.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/list@0.12.2/dist/lexical-list.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/overflow@0.12.2/dist/lexical-overflow.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/link@0.12.2/dist/lexical-link.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/selection@0.12.2/dist/lexical-selection.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/text@0.12.2/dist/lexical-text.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/history@0.12.2/dist/lexical-history.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/clipboard@0.12.2/dist/lexical-clipboard.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/table@0.12.2/dist/lexical-table.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/code@0.12.2/dist/lexical-code.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/mark@0.12.2/dist/lexical-mark.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/clear@0.12.2/dist/lexical-clear.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/format@0.12.2/dist/lexical-format.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/transform@0.12.2/dist/lexical-transform.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/utils@0.12.2/dist/lexical-utils.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/headless@0.12.2/dist/lexical-headless.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/html@0.12.2/dist/lexical-html.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/plain-text@0.12.2/dist/lexical-plain-text.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/overflow@0.12.2/dist/lexical-overflow.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/selection@0.12.2/dist/lexical-selection.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/text@0.12.2/dist/lexical-text.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/transform@0.12.2/dist/lexical-transform.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/utils@0.12.2/dist/lexical-utils.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/headless@0.12.2/dist/lexical-headless.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/html@0.12.2/dist/lexical-html.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@lexical/plain-text@0.12.2/dist/lexical-plain-text.min.js"></script>
+  <script src="scripts/rich-text-editor.js"></script>
   <script src="scripts/app.js"></script>
 </html>
