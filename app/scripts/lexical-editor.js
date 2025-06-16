@@ -1,3 +1,6 @@
+// Import styles
+require('../styles/lexical-editor.css');
+
 const { createEditor } = require('lexical');
 const { $getRoot, $createParagraphNode, $createTextNode } = require('lexical');
 const { HeadingNode, QuoteNode } = require('@lexical/rich-text');

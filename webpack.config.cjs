@@ -3,8 +3,8 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
 module.exports = {
   entry: {
-    app: ['./app/scripts/app.js', './app/styles/main.css'],
-    'lexical-editor': ['./app/scripts/lexical-editor.js', './app/styles/lexical-editor.css']
+    app: './app/scripts/app.js',
+    'lexical-editor': './app/scripts/lexical-editor.js'
   },
   output: {
     path: path.resolve(__dirname, 'app/dist'),
@@ -31,15 +31,27 @@ module.exports = {
       {
         test: /\.css$/,
         use: [
-          MiniCssExtractPlugin.loader,
-          'css-loader'
+          {
+            loader: MiniCssExtractPlugin.loader,
+            options: {
+              publicPath: '../'
+            }
+          },
+          {
+            loader: 'css-loader',
+            options: {
+              sourceMap: true,
+              importLoaders: 1
+            }
+          }
         ]
       }
     ]
   },
   plugins: [
     new MiniCssExtractPlugin({
-      filename: '[name].css'
+      filename: '[name].css',
+      chunkFilename: '[id].css'
     })
   ],
   resolve: {

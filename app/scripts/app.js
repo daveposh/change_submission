@@ -1,3 +1,6 @@
+// Import styles
+require('../styles/main.css');
+
 /**
  * Freshservice Change Request App
  * Version: 7.2.4
@@ -2052,6 +2055,7 @@ async function getManagerName(managerId) {
 async function initializeApp() {
   try {
     console.log('🚀 Starting app initialization...');
+    
     
     // Initialize all caches using the centralized cache manager
     console.log('📦 Initializing cache manager...');
