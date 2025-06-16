@@ -11,6 +11,9 @@ const ERROR_CODES = {
 
   // Invalid value errors
   INVALID_IMPLEMENTATION_DATE: 'INVALID_IMPLEMENTATION_DATE',
+  INVALID_RISK_LEVEL: 'INVALID_RISK_LEVEL',
+  INVALID_CHANGE_WINDOW: 'INVALID_CHANGE_WINDOW',
+  INVALID_SME: 'INVALID_SME',
 
   // Warning codes
   SHORT_IMPLEMENTATION_PLAN: 'SHORT_IMPLEMENTATION_PLAN',
@@ -81,5 +84,5 @@ const ERROR_CODES = {
   SHORT_AUDIT2: 'SHORT_AUDIT2'
 };
 
-// Export the error codes
+// Export the error codes to the global window object
 window.ERROR_CODES = ERROR_CODES; 
