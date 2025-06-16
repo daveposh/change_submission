@@ -3,6 +3,8 @@
  * Version: 7.2.4
  */
 
+const { initializeLexicalEditors } = require('./lexical-editor.js');
+
 console.log('🔧 Change Request App Loading - Version 7.2.4');
 console.log('🔧 This version includes app.initialized() fix for Freshworks apps');
 console.log('⚡ This version has user/agent search caching features enabled');
@@ -2195,8 +2197,6 @@ function populateFormFields() {
 
   console.log('Form fields populated with default values');
 }
-
-import { initializeLexicalEditors } from './lexical-editor.js';
 
 /**
  * Set up event listeners for form inputs

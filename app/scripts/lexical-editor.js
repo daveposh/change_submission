@@ -1,10 +1,10 @@
-import { createEditor } from 'lexical';
-import { $getRoot, $createParagraphNode, $createTextNode } from 'lexical';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
-import { ListItemNode, ListNode } from '@lexical/list';
-import { CodeHighlightNode, CodeNode } from '@lexical/code';
-import { AutoLinkNode, LinkNode } from '@lexical/link';
+const { createEditor } = require('lexical');
+const { $getRoot, $createParagraphNode, $createTextNode } = require('lexical');
+const { HeadingNode, QuoteNode } = require('@lexical/rich-text');
+const { TableCellNode, TableNode, TableRowNode } = require('@lexical/table');
+const { ListItemNode, ListNode } = require('@lexical/list');
+const { CodeHighlightNode, CodeNode } = require('@lexical/code');
+const { AutoLinkNode, LinkNode } = require('@lexical/link');
 
 // Initialize the editor with FDK context
 function initializeLexicalEditors(changeRequestData) {
@@ -107,13 +107,15 @@ function initializeLexicalEditors(changeRequestData) {
     });
 
     // Initialize toolbar buttons
-    initializeToolbarButtons(changeRequestData);
+    initializeToolbarButtons();
   });
 }
 
 // Initialize toolbar buttons with FDK context
-function initializeToolbarButtons(changeRequestData) {
+function initializeToolbarButtons() {
   const toolbarButtons = document.querySelectorAll('.editor-toolbar button');
+  let url = ''; // Declare url outside case block
+
   toolbarButtons.forEach(button => {
     button.addEventListener('click', (e) => {
       e.preventDefault();
@@ -140,10 +142,27 @@ function initializeToolbarButtons(changeRequestData) {
               editor.dispatchCommand('INSERT_ORDERED_LIST_COMMAND');
               break;
             case 'link':
-              const url = prompt('Enter URL:');
-              if (url) {
-                editor.dispatchCommand('TOGGLE_LINK_COMMAND', url);
-              }
+              // Use FDK modal instead of browser prompt
+              fdk.modal({
+                title: 'Insert Link',
+                template: `
+                  <div class="modal-body">
+                    <input type="text" id="link-url" class="form-control" placeholder="Enter URL">
+                  </div>
+                `,
+                buttons: [
+                  { text: 'Cancel', type: 'secondary' },
+                  { text: 'Insert', type: 'primary' }
+                ],
+                onAction: function(button) {
+                  if (button.text === 'Insert') {
+                    url = document.getElementById('link-url').value;
+                    if (url) {
+                      editor.dispatchCommand('TOGGLE_LINK_COMMAND', url);
+                    }
+                  }
+                }
+              });
               break;
           }
         } catch (error) {
@@ -155,4 +174,4 @@ function initializeToolbarButtons(changeRequestData) {
   });
 }
 
-export { initializeLexicalEditors }; 
+module.exports = { initializeLexicalEditors }; 

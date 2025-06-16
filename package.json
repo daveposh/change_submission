@@ -2,6 +2,7 @@
   "name": "change_submission",
   "version": "1.0.0",
   "description": "Change Request Form with Lexical Editor",
+  "type": "module",
   "scripts": {
     "build": "webpack --mode production",
     "dev": "webpack --mode development --watch"

@@ -9,7 +9,7 @@ module.exports = {
   ],
   parserOptions: {
     ecmaVersion: 12,
-    sourceType: 'script'
+    sourceType: 'module'
   },
   globals: {
     window: 'readonly',
