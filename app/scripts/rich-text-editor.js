@@ -60,25 +60,17 @@ class RichTextEditor {
     }
 
     // Initialize Lexical editor
-    const editorConfig = {
-      namespace: this.containerId,
-      nodes: [
-        Lexical.RichTextNode,
-        Lexical.ListNode,
-        Lexical.LinkNode,
-        Lexical.TableNode,
-        Lexical.CodeNode
-      ],
-      onError: (error) => {
-        console.error('Lexical editor error:', error);
-      }
-    };
+    const config = { ...window.LexicalConfig, namespace: this.containerId };
+    this.editor = new Lexical.Editor(config);
+    
+    // Create and set initial editor state
+    const editorState = this.editor.parseEditorState(window.createInitialEditorState());
+    this.editor.setEditorState(editorState);
 
-    // Create editor instance
-    this.editor = new Lexical.Editor(editorConfig);
+    // Mount editor
     this.editor.mount(editorContainer);
 
-    // Set initial content
+    // Set initial content if provided
     if (this.initialContent) {
       this.editor.update(() => {
         const root = this.editor.getRootElement();
@@ -190,17 +182,28 @@ class RichTextEditor {
   }
 }
 
+// Wait for Lexical to be loaded
+function waitForLexical(callback) {
+  if (window.Lexical && window.LexicalConfig) {
+    callback();
+  } else {
+    setTimeout(() => waitForLexical(callback), 100);
+  }
+}
+
 // Initialize rich text editors when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  const editorFields = [
-    'change-description',
-    'reason-for-change',
-    'implementation-plan',
-    'backout-plan',
-    'validation-plan'
-  ];
+  waitForLexical(() => {
+    const editorFields = [
+      'change-description',
+      'reason-for-change',
+      'implementation-plan',
+      'backout-plan',
+      'validation-plan'
+    ];
 
-  editorFields.forEach(fieldId => {
-    new RichTextEditor(fieldId);
+    editorFields.forEach(fieldId => {
+      new RichTextEditor(fieldId);
+    });
   });
 }); 
