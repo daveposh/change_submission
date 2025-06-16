@@ -113,50 +113,81 @@ class RichTextEditor {
   executeCommand(command) {
     if (!this.editor) return;
 
-    switch (command) {
-      case 'bold':
-        this.editor.dispatchCommand(Lexical.FORMAT_TEXT_COMMAND, 'bold');
-        break;
-      case 'italic':
-        this.editor.dispatchCommand(Lexical.FORMAT_TEXT_COMMAND, 'italic');
-        break;
-      case 'underline':
-        this.editor.dispatchCommand(Lexical.FORMAT_TEXT_COMMAND, 'underline');
-        break;
-      case 'bullet':
-        this.editor.dispatchCommand(Lexical.INSERT_UNORDERED_LIST_COMMAND);
-        break;
-      case 'number':
-        this.editor.dispatchCommand(Lexical.INSERT_ORDERED_LIST_COMMAND);
-        break;
-      case 'link':
-        this.promptForLink();
-        break;
-      case 'code':
-        this.editor.dispatchCommand(Lexical.INSERT_CODE_BLOCK_COMMAND);
-        break;
-      case 'table':
-        this.promptForTable();
-        break;
+    const commandHandlers = {
+      bold: () => this.editor.dispatchCommand(Lexical.FORMAT_TEXT_COMMAND, 'bold'),
+      italic: () => this.editor.dispatchCommand(Lexical.FORMAT_TEXT_COMMAND, 'italic'),
+      underline: () => this.editor.dispatchCommand(Lexical.FORMAT_TEXT_COMMAND, 'underline'),
+      bullet: () => this.editor.dispatchCommand(Lexical.INSERT_UNORDERED_LIST_COMMAND),
+      number: () => this.editor.dispatchCommand(Lexical.INSERT_ORDERED_LIST_COMMAND),
+      link: () => this.promptForLink(),
+      code: () => this.editor.dispatchCommand(Lexical.INSERT_CODE_BLOCK_COMMAND),
+      table: () => this.promptForTable()
+    };
+
+    const handler = commandHandlers[command];
+    if (handler) {
+      handler();
     }
   }
 
   promptForLink() {
-    const url = prompt('Enter URL:');
-    if (url) {
-      this.editor.dispatchCommand(Lexical.INSERT_LINK_COMMAND, url);
-    }
+    Swal.fire({
+      title: 'Add Link',
+      input: 'url',
+      inputLabel: 'Enter URL',
+      inputPlaceholder: 'https://example.com',
+      showCancelButton: true,
+      inputValidator: (value) => {
+        if (!value) {
+          return 'Please enter a URL';
+        }
+        try {
+          new URL(value);
+        } catch (e) {
+          return 'Please enter a valid URL';
+        }
+      }
+    }).then((result) => {
+      if (result.isConfirmed && result.value) {
+        this.editor.dispatchCommand(Lexical.INSERT_LINK_COMMAND, result.value);
+      }
+    });
   }
 
   promptForTable() {
-    const rows = prompt('Enter number of rows:', '3');
-    const cols = prompt('Enter number of columns:', '3');
-    if (rows && cols) {
-      this.editor.dispatchCommand(Lexical.INSERT_TABLE_COMMAND, {
-        rows: parseInt(rows),
-        columns: parseInt(cols)
-      });
-    }
+    Swal.fire({
+      title: 'Insert Table',
+      html: `
+        <div class="mb-3">
+          <label for="rows" class="form-label">Number of Rows</label>
+          <input type="number" id="rows" class="form-control" value="3" min="1" max="10">
+        </div>
+        <div class="mb-3">
+          <label for="cols" class="form-label">Number of Columns</label>
+          <input type="number" id="cols" class="form-control" value="3" min="1" max="10">
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Insert',
+      cancelButtonText: 'Cancel',
+      focusConfirm: false,
+      preConfirm: () => {
+        const rows = document.getElementById('rows').value;
+        const cols = document.getElementById('cols').value;
+        if (!rows || !cols || rows < 1 || cols < 1 || rows > 10 || cols > 10) {
+          Swal.showValidationMessage('Please enter valid numbers between 1 and 10');
+          return false;
+        }
+        return { rows: parseInt(rows), cols: parseInt(cols) };
+      }
+    }).then((result) => {
+      if (result.isConfirmed && result.value) {
+        this.editor.dispatchCommand(Lexical.INSERT_TABLE_COMMAND, {
+          rows: result.value.rows,
+          columns: result.value.cols
+        });
+      }
+    });
   }
 
   getContent() {

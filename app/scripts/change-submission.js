@@ -2766,6 +2766,9 @@ const ChangeSubmission = {
   async generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
     const data = window.changeRequestData;
     
+    // Add a small delay to ensure data is loaded
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
     let description = `Peer Review Coordination Required
 
 SME Assignment:
@@ -2784,38 +2787,8 @@ Implementation Plan:
 ${data.implementationPlan || 'Not specified'}
 
 Validation Plan:
-${data.validationPlan || 'Not specified'}
+${data.validationPlan || 'Not specified'}`;
 
-Your Responsibilities as SME Coordinator:
-As the requester and assigned SME, you must obtain an independent peer review since you cannot review your own work. Choose ONE of the following options:
-
-1. Assign to Peer Reviewer: Reassign this task to a qualified technical peer who can perform an independent review of your change plan.
-2. Coordinate External Review: Ask a colleague to review your change and attach evidence of their completed review to this task.
-3. Escalate for Review Assignment: Contact your manager to assign an appropriate independent peer reviewer.
-
-Important: Since you are both the requester and SME, independent review is mandatory. You cannot approve your own work.
-
-Peer Review Checklist:
-The peer review (conducted by an independent reviewer) should evaluate:
-- Technical Feasibility: Can this change be implemented as described?
-- Risk Assessment: Are there additional risks or issues not considered?
-- Alternative Approaches: Are there better or safer ways to achieve the same outcome?
-- Testing Strategy: Is the testing approach adequate for the risk level?
-- Rollback Plan: Is the rollback strategy sufficient and tested?
-- Implementation Timeline: Is the proposed timeline realistic and appropriate?
-
-Completion Instructions:
-Deadline: Complete peer review coordination within 24 hours.
-
-Required Actions:
-- Identify and assign a qualified peer reviewer (not yourself) to perform independent technical review
-- Ensure the peer reviewer has access to all relevant documentation and plans
-- Collect and attach evidence of completed peer review (review notes, findings, recommendations)
-- Update this task with review results and any concerns identified
-- Coordinate with the change requester if issues are found that need resolution
-
-Important: The peer review must be conducted by someone other than the original SME or change requester to ensure independent validation of the technical approach.`;
-    
     return description;
   },
 
@@ -5091,6 +5064,11 @@ Important: The peer review must be conducted by someone other than the original 
     return associationData;
   },
 
+  // Replace any control characters with empty string
+  sanitizeText(text) {
+    if (!text) return '';
+    return text.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+  },
 
 };
 
