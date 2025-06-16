@@ -10,14 +10,13 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.(js|jsx)$/,
+        test: /\.js$/,
         exclude: /node_modules/,
         use: {
           loader: 'babel-loader',
           options: {
             presets: [
-              ['@babel/preset-env', { targets: "defaults" }],
-              ['@babel/preset-react', { runtime: "automatic" }]
+              ['@babel/preset-env', { targets: "defaults" }]
             ]
           }
         }
@@ -29,17 +28,13 @@ module.exports = {
     ]
   },
   resolve: {
-    extensions: ['.js', '.jsx'],
+    extensions: ['.js'],
     modules: [path.resolve(__dirname, 'node_modules')],
     alias: {
-      'react': path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
       'lexical': path.resolve(__dirname, 'node_modules/lexical')
     }
   },
   externals: {
-    'react': 'React',
-    'react-dom': 'ReactDOM',
     'lexical': 'Lexical'
   },
   optimization: {
