@@ -1,17 +1,10 @@
 import { createEditor } from 'lexical';
-import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
-import { ContentEditable } from '@lexical/react/LexicalContentEditable';
-import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
-import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
+import { $getRoot, $createParagraphNode, $createTextNode } from 'lexical';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
 import { ListItemNode, ListNode } from '@lexical/list';
 import { CodeHighlightNode, CodeNode } from '@lexical/code';
 import { AutoLinkNode, LinkNode } from '@lexical/link';
-import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
-import { ListPlugin } from '@lexical/react/LexicalListPlugin';
-import { MarkdownShortcutPlugin } from '@lexical/react/LexicalMarkdownShortcutPlugin';
-import { TRANSFORMERS } from '@lexical/markdown';
 
 // Initialize the editor with FDK context
 function initializeLexicalEditors(changeRequestData) {
@@ -75,15 +68,24 @@ function initializeLexicalEditors(changeRequestData) {
       if (container) {
         try {
           const editor = createEditor(editorConfig);
-          editor.setRootElement(container);
+          
+          // Create contentEditable element
+          const contentEditable = document.createElement('div');
+          contentEditable.className = 'editor-input';
+          contentEditable.contentEditable = true;
+          container.appendChild(contentEditable);
+          
+          editor.setRootElement(contentEditable);
 
-          // Add plugins
-          editor.registerPlugin(new RichTextPlugin());
-          editor.registerPlugin(new HistoryPlugin());
-          editor.registerPlugin(new AutoFocusPlugin());
-          editor.registerPlugin(new LinkPlugin());
-          editor.registerPlugin(new ListPlugin());
-          editor.registerPlugin(new MarkdownShortcutPlugin(TRANSFORMERS));
+          // Initialize with empty content
+          editor.update(() => {
+            const root = $getRoot();
+            if (root.getFirstChild() === null) {
+              const paragraph = $createParagraphNode();
+              paragraph.append($createTextNode(''));
+              root.append(paragraph);
+            }
+          });
 
           // Store editor instance
           window[`${fieldId}-editor`] = editor;
@@ -123,24 +125,24 @@ function initializeToolbarButtons(changeRequestData) {
         try {
           switch (action) {
             case 'bold':
-              editor.dispatchCommand('FORMAT_TEXT', 'bold');
+              editor.dispatchCommand('FORMAT_TEXT_COMMAND', 'bold');
               break;
             case 'italic':
-              editor.dispatchCommand('FORMAT_TEXT', 'italic');
+              editor.dispatchCommand('FORMAT_TEXT_COMMAND', 'italic');
               break;
             case 'underline':
-              editor.dispatchCommand('FORMAT_TEXT', 'underline');
+              editor.dispatchCommand('FORMAT_TEXT_COMMAND', 'underline');
               break;
             case 'bullet-list':
-              editor.dispatchCommand('INSERT_UNORDERED_LIST');
+              editor.dispatchCommand('INSERT_UNORDERED_LIST_COMMAND');
               break;
             case 'numbered-list':
-              editor.dispatchCommand('INSERT_ORDERED_LIST');
+              editor.dispatchCommand('INSERT_ORDERED_LIST_COMMAND');
               break;
             case 'link':
               const url = prompt('Enter URL:');
               if (url) {
-                editor.dispatchCommand('CREATE_LINK', url);
+                editor.dispatchCommand('TOGGLE_LINK_COMMAND', url);
               }
               break;
           }
