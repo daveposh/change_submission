@@ -4,7 +4,7 @@ import ChangeRequestForm from './components/ChangeRequestForm';
 /* eslint-enable no-unused-vars */
 
 // Initialize the ChangeSubmission module
-import { ChangeSubmission } from './change-submission';
+import { ChangeSubmission } from './change-submission.mjs';
 window.ChangeSubmission = ChangeSubmission;
 ChangeSubmission.init();
 

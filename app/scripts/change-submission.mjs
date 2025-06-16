@@ -5094,25 +5094,14 @@ Important: The peer review must be conducted by someone other than the original 
 
 };
 
+// Export the module
+export { ChangeSubmission };
+
 // Initialize the module when the script loads
 if (typeof window !== 'undefined') {
-  console.log('🔧 ChangeSubmission: Script loaded, initializing module...');
-  window.ChangeSubmission = ChangeSubmission; 
+  console.log('🔧 ChangeSubmission: Script loaded');
+  window.ChangeSubmission = ChangeSubmission;
   console.log('🔧 ChangeSubmission: Module attached to window object');
-  
-  // Auto-initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    console.log('🔧 ChangeSubmission: DOM still loading, adding event listener...');
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log('🔧 ChangeSubmission: DOM loaded, initializing...');
-      ChangeSubmission.init();
-    });
-  } else {
-    console.log('🔧 ChangeSubmission: DOM already loaded, initializing immediately...');
-    ChangeSubmission.init();
-  }
-} else {
-  console.error('❌ ChangeSubmission: Window object not available');
 }
 
     
