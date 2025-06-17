@@ -912,7 +912,14 @@
     </div>
   </body>
   <!-- Editor.js Dependencies -->
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.30.8/dist/editor.umd.min.js"></script>
+  <script>
+    // Create a script element for Editor.js
+    const editorScript = document.createElement('script');
+    editorScript.src = 'https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.30.8/dist/editor.min.js';
+    editorScript.onload = () => console.log('✅ Editor.js script loaded');
+    editorScript.onerror = (error) => console.error('❌ Failed to load Editor.js:', error);
+    document.body.appendChild(editorScript);
+  </script>
   <!-- Editor.js Tools -->
   <script src="scripts/editor-tools/editor-tools.js"></script>
   <!-- Editor Configuration -->
@@ -925,12 +932,7 @@
         
         // Check if Editor.js is loaded
         if (typeof window.EditorJS !== 'function') {
-          console.warn('⚠️ Trying to access EditorJS from window.EditorJS.default...');
-          if (typeof window.EditorJS.default === 'function') {
-            window.EditorJS = window.EditorJS.default;
-          } else {
-            throw new Error('Editor.js constructor not found. Check if the CDN URL is accessible.');
-          }
+          throw new Error('Editor.js constructor not found. Check if the script loaded successfully.');
         }
 
         // Check if our tools are loaded

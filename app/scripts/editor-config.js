@@ -30,17 +30,40 @@ const editorConfig = {
     try {
       console.log('🔧 Initializing Editor.js instances...');
       
-      // Get Editor.js constructor
-      const EditorJS = window.EditorJS;
-      if (!EditorJS) {
-        console.error('❌ Editor.js not loaded');
-        return;
+      // Wait for Editor.js to be loaded
+      if (typeof window.EditorJS !== 'function') {
+        console.warn('⚠️ Editor.js not loaded yet, waiting...');
+        return new Promise((resolve) => {
+          const checkInterval = setInterval(() => {
+            if (typeof window.EditorJS === 'function') {
+              clearInterval(checkInterval);
+              resolve(this._initializeEditors());
+            }
+          }, 100);
+
+          // Timeout after 5 seconds
+          setTimeout(() => {
+            clearInterval(checkInterval);
+            console.error('❌ Editor.js failed to load after timeout');
+            resolve(null);
+          }, 5000);
+        });
       }
 
+      return this._initializeEditors();
+    } catch (error) {
+      console.error('❌ Error initializing editors:', error);
+      throw error;
+    }
+  },
+
+  // Internal method to initialize editors
+  _initializeEditors: function() {
+    try {
       // Check if required tools are loaded
       if (!window.Header || !window.List) {
         console.error('❌ Required Editor.js tools not loaded');
-        return;
+        return null;
       }
       
       // Check if required elements exist
@@ -54,27 +77,27 @@ const editorConfig = {
       const missingHolders = holders.filter(id => !document.getElementById(id));
       if (missingHolders.length > 0) {
         console.error('❌ Missing editor containers:', missingHolders);
-        return;
+        return null;
       }
 
       // Initialize each editor
       const editors = {
-        reason: new EditorJS({
+        reason: new window.EditorJS({
           holder: 'reason-for-change-editor',
           ...this.commonConfig,
           placeholder: 'Describe the reason for this change...'
         }),
-        implementation: new EditorJS({
+        implementation: new window.EditorJS({
           holder: 'implementation-plan-editor',
           ...this.commonConfig,
           placeholder: 'Describe the implementation steps...'
         }),
-        backout: new EditorJS({
+        backout: new window.EditorJS({
           holder: 'backout-plan-editor',
           ...this.commonConfig,
           placeholder: 'Describe the backout procedure...'
         }),
-        validation: new EditorJS({
+        validation: new window.EditorJS({
           holder: 'validation-plan-editor',
           ...this.commonConfig,
           placeholder: 'Describe how the change will be validated...'
