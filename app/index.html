@@ -84,6 +84,7 @@
     
     <!-- Editor.js Dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
+    <!-- Editor.js Tools -->
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/checklist@latest"></script>
@@ -95,16 +96,34 @@
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@latest"></script>
     
     <!-- Editor Configuration -->
-    <script src="scripts/editor-config.js"></script>
     <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        // Initialize Editor.js instances
-        if (window.editorConfig) {
-          window.editorConfig.initializeEditors();
-          console.log('✅ Editor.js instances initialized');
-        } else {
-          console.error('❌ Editor configuration not found');
+      // Wait for Editor.js and tools to load
+      window.addEventListener('load', () => {
+        // Check if all required scripts are loaded
+        const requiredTools = ['Header', 'List', 'Checklist', 'Quote', 'CodeTool', 'Table', 'ImageTool', 'Marker', 'InlineCode'];
+        const missingTools = requiredTools.filter(tool => !window[tool]);
+        
+        if (missingTools.length > 0) {
+          console.error('❌ Some Editor.js tools failed to load:', missingTools);
+          return;
         }
+        
+        // Load editor configuration
+        const script = document.createElement('script');
+        script.src = 'scripts/editor-config.js';
+        script.onload = () => {
+          // Initialize editors after config is loaded
+          if (window.editorConfig) {
+            window.editorConfig.initializeEditors();
+            console.log('✅ Editor.js instances initialized');
+          } else {
+            console.error('❌ Editor configuration not found');
+          }
+        };
+        script.onerror = (error) => {
+          console.error('❌ Failed to load editor configuration:', error);
+        };
+        document.head.appendChild(script);
       });
     </script>
     

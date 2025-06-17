@@ -8,7 +8,7 @@ const editorConfig = {
     minHeight: 200,
     tools: {
       header: {
-        class: Header,
+        class: window.Header,
         inlineToolbar: true,
         config: {
           levels: [1, 2, 3],
@@ -16,15 +16,15 @@ const editorConfig = {
         }
       },
       list: {
-        class: List,
+        class: window.List,
         inlineToolbar: true
       },
       checklist: {
-        class: Checklist,
+        class: window.Checklist,
         inlineToolbar: true
       },
       quote: {
-        class: Quote,
+        class: window.Quote,
         inlineToolbar: true,
         config: {
           quotePlaceholder: 'Enter a quote',
@@ -32,15 +32,15 @@ const editorConfig = {
         }
       },
       code: {
-        class: CodeTool,
+        class: window.CodeTool,
         inlineToolbar: true
       },
       table: {
-        class: Table,
+        class: window.Table,
         inlineToolbar: true
       },
       image: {
-        class: ImageTool,
+        class: window.ImageTool,
         config: {
           endpoints: {
             byFile: '/uploadFile', // Your file upload endpoint
@@ -49,11 +49,11 @@ const editorConfig = {
         }
       },
       marker: {
-        class: Marker,
+        class: window.Marker,
         shortcut: 'CMD+SHIFT+M'
       },
       inlineCode: {
-        class: InlineCode,
+        class: window.InlineCode,
         shortcut: 'CMD+SHIFT+C'
       }
     }
@@ -63,6 +63,20 @@ const editorConfig = {
   initializeEditors: function() {
     try {
       console.log('🔧 Initializing Editor.js instances...');
+      
+      // Check if Editor.js and tools are loaded
+      if (!window.EditorJS) {
+        console.error('❌ Editor.js not loaded');
+        return;
+      }
+
+      // Check if required tools are loaded
+      const requiredTools = ['Header', 'List', 'Checklist', 'Quote', 'CodeTool', 'Table', 'ImageTool', 'Marker', 'InlineCode'];
+      const missingTools = requiredTools.filter(tool => !window[tool]);
+      if (missingTools.length > 0) {
+        console.error('❌ Missing Editor.js tools:', missingTools);
+        return;
+      }
       
       // Check if required elements exist
       const holders = [
