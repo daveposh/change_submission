@@ -912,7 +912,7 @@
     </div>
   </body>
   <!-- Editor.js Dependencies -->
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.28.2/dist/editor.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.30.8/dist/editor.umd.min.js"></script>
   <!-- Editor.js Tools -->
   <script src="scripts/editor-tools/editor-tools.js"></script>
   <!-- Editor Configuration -->
@@ -921,33 +921,50 @@
     // Initialize Editor.js after all dependencies are loaded
     window.addEventListener('load', () => {
       try {
+        console.log('🔍 Checking Editor.js dependencies...');
+        
         // Check if Editor.js is loaded
-        if (!window.EditorJS) {
-          throw new Error('Editor.js not loaded');
+        if (typeof window.EditorJS !== 'function') {
+          console.warn('⚠️ Trying to access EditorJS from window.EditorJS.default...');
+          if (typeof window.EditorJS.default === 'function') {
+            window.EditorJS = window.EditorJS.default;
+          } else {
+            throw new Error('Editor.js constructor not found. Check if the CDN URL is accessible.');
+          }
         }
 
         // Check if our tools are loaded
-        if (!window.Header || !window.List) {
-          throw new Error('Editor.js tools not loaded');
+        if (typeof window.Header !== 'function' || typeof window.List !== 'function') {
+          throw new Error('Editor.js tools not loaded. Check if editor-tools.js is accessible.');
         }
 
         // Check if configuration is loaded
-        if (!window.editorConfig) {
-          throw new Error('Editor configuration not loaded');
+        if (!window.editorConfig || typeof window.editorConfig.initializeEditors !== 'function') {
+          throw new Error('Editor configuration not loaded. Check if editor-config.js is accessible.');
         }
+
+        console.log('✅ All Editor.js dependencies loaded successfully');
 
         // Initialize editors
         window.editorConfig.initializeEditors();
         console.log('✅ Editor.js instances initialized');
       } catch (error) {
         console.error('❌ Editor.js initialization failed:', error);
+        
         // Show error to user
         const editors = document.querySelectorAll('.editor-container');
         editors.forEach(editor => {
           editor.innerHTML = `
             <div class="alert alert-danger">
               <i class="fas fa-exclamation-circle me-2"></i>
-              Failed to initialize editor: ${error.message}. Please refresh the page or contact support if the issue persists.
+              <strong>Editor initialization failed:</strong> ${error.message}
+              <hr>
+              <p class="mb-0">
+                <small>
+                  <i class="fas fa-info-circle me-1"></i>
+                  Please check your browser's console for more details or contact support if the issue persists.
+                </small>
+              </p>
             </div>
           `;
         });
