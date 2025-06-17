@@ -35,7 +35,7 @@ class Header {
     return wrapper;
   }
 
-  save(blockContent) {
+  save() {
     return {
       text: this.input.innerHTML,
       level: this.data.level
@@ -80,7 +80,7 @@ class List {
     const wrapper = document.createElement('div');
     const list = document.createElement(this.data.style === 'ordered' ? 'ol' : 'ul');
     
-    this.data.items.forEach((item, index) => {
+    this.data.items.forEach((item) => {
       const li = document.createElement('li');
       li.innerHTML = item;
       li.contentEditable = !this.readOnly;
@@ -205,7 +205,7 @@ class Table {
     this.data.content.forEach((row, rowIndex) => {
       const tr = document.createElement('tr');
       
-      row.forEach((cell, cellIndex) => {
+      row.forEach((cell) => {
         const cellElement = document.createElement(
           this.data.withHeadings && rowIndex === 0 ? 'th' : 'td'
         );
