@@ -5,7 +5,7 @@ const editorConfig = {
     placeholder: 'Start typing...',
     autofocus: false,
     readOnly: false,
-    minHeight: 350,
+    minHeight: 250,
     onReady: function() {
       console.log('✅ Editor.js ready');
     },
@@ -343,12 +343,15 @@ const editorConfig = {
         z-index: 99999 !important;
         max-height: 400px !important;
         overflow-y: auto !important;
-        position: fixed !important;
+        position: absolute !important;
         background: white !important;
         border: 1px solid #e1e5e9 !important;
         border-radius: 4px !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
         min-width: 220px !important;
+        top: 100% !important;
+        left: 0 !important;
+        margin-top: 5px !important;
       }
       
       .ce-popover__items {
@@ -394,11 +397,22 @@ const editorConfig = {
       .mb-4 {
         overflow: visible !important;
         z-index: auto !important;
+        position: relative !important;
       }
       
       .editor-container {
-        overflow: visible !important;
-        z-index: auto !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        z-index: 1 !important;
+        position: relative !important;
+      }
+      
+      .ce-toolbar__plus {
+        z-index: 10000 !important;
+      }
+      
+      .ce-toolbar__settings-btn {
+        z-index: 10000 !important;
       }
       
       /* Code block styles */
