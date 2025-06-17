@@ -6,6 +6,7 @@ const editorConfig = {
     autofocus: false,
     readOnly: false,
     minHeight: 250,
+    inlineToolbar: ['customBold', 'customItalic', 'customUnderline', 'customHighlight', 'customInlineCode', 'customFontFamily', 'customTextColor'],
     onReady: function() {
       console.log('✅ Editor.js ready');
     },
@@ -219,10 +220,11 @@ const editorConfig = {
         const checkComplete = () => {
           initCount++;
           if (initCount === totalEditors) {
-            // Apply post-initialization fixes
-            setTimeout(() => {
-              this._fixEditorPositioning();
-            }, 100);
+                    // Apply post-initialization fixes
+        setTimeout(() => {
+          this._fixEditorPositioning();
+          this._enhanceInlineToolbarPositioning();
+        }, 100);
             
             // Store editor instances globally
             window.editors = editors;
@@ -328,10 +330,25 @@ const editorConfig = {
       .editor-container .ce-inline-toolbar {
         background: white !important;
         border: 1px solid #dee2e6 !important;
-        border-radius: 6px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-        padding: 4px !important;
-        z-index: 10000 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+        padding: 6px !important;
+        position: absolute !important;
+        z-index: 99999 !important;
+        transform: translateX(-50%) !important;
+        animation: fadeInUp 0.2s ease-out !important;
+        white-space: nowrap !important;
+      }
+      
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
       }
       
       .editor-container .ce-inline-tool {
@@ -569,6 +586,96 @@ const editorConfig = {
       console.error('❌ Error saving editor content:', error);
       throw error;
     }
+  },
+
+  // Enhance inline toolbar positioning to follow cursor
+  _enhanceInlineToolbarPositioning: function() {
+    // Add event listeners to improve inline toolbar behavior
+    const containers = document.querySelectorAll('.editor-container');
+    
+    containers.forEach(container => {
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'childList') {
+            // Look for inline toolbar additions
+            const addedNodes = Array.from(mutation.addedNodes);
+            addedNodes.forEach(node => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                const inlineToolbar = node.querySelector('.ce-inline-toolbar') || 
+                                    (node.classList && node.classList.contains('ce-inline-toolbar') ? node : null);
+                
+                if (inlineToolbar) {
+                  this._positionInlineToolbar(inlineToolbar);
+                }
+              }
+            });
+          }
+        });
+      });
+      
+      // Start observing
+      observer.observe(container, {
+        childList: true,
+        subtree: true
+      });
+      
+      // Also handle existing toolbars
+      const existingToolbars = container.querySelectorAll('.ce-inline-toolbar');
+      existingToolbars.forEach(toolbar => {
+        this._positionInlineToolbar(toolbar);
+      });
+    });
+  },
+
+  // Position inline toolbar near cursor/selection
+  _positionInlineToolbar: function(toolbar) {
+    if (!toolbar) return;
+    
+    // Get current selection
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    if (rect.width === 0 && rect.height === 0) {
+      // Handle caret position
+      const tempSpan = document.createElement('span');
+      tempSpan.appendChild(document.createTextNode('\u200B')); // Zero-width space
+      range.insertNode(tempSpan);
+      const tempRect = tempSpan.getBoundingClientRect();
+      tempSpan.remove();
+      
+      if (tempRect.width > 0 || tempRect.height > 0) {
+        this._setToolbarPosition(toolbar, tempRect);
+      }
+    } else {
+      // Handle text selection
+      this._setToolbarPosition(toolbar, rect);
+    }
+  },
+
+  // Set toolbar position based on selection rect
+  _setToolbarPosition: function(toolbar, rect) {
+    const containerRect = toolbar.closest('.editor-container').getBoundingClientRect();
+    const toolbarRect = toolbar.getBoundingClientRect();
+    
+    // Calculate position relative to container
+    const relativeTop = rect.top - containerRect.top;
+    const relativeLeft = rect.left - containerRect.left + (rect.width / 2);
+    
+    // Position above selection with some spacing
+    const topPosition = Math.max(10, relativeTop - toolbarRect.height - 10);
+    const leftPosition = Math.max(10, Math.min(
+      containerRect.width - toolbarRect.width - 10,
+      relativeLeft - (toolbarRect.width / 2)
+    ));
+    
+    // Apply positioning
+    toolbar.style.top = topPosition + 'px';
+    toolbar.style.left = leftPosition + 'px';
+    toolbar.style.position = 'absolute';
+    toolbar.style.transform = 'none'; // Override centering transform when positioned manually
   },
 
   // Load editor content

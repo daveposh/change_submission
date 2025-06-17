@@ -691,9 +691,58 @@ textarea[id*="validation"]:hover {
 .editor-container .ce-inline-toolbar {
   background: white !important;
   border: 1px solid #dee2e6 !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-  padding: 4px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+  padding: 6px !important;
+  position: absolute !important;
+  z-index: 99999 !important;
+  transform: translateX(-50%) !important;
+  animation: fadeInUp 0.2s ease-out !important;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Improved inline toolbar behavior */
+.editor-container .ce-inline-toolbar {
+  pointer-events: auto !important;
+  user-select: none !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
+}
+
+.editor-container .ce-inline-toolbar--showed {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.editor-container .ce-inline-toolbar--hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transform: translateX(-50%) translateY(5px) !important;
+}
+
+/* Ensure toolbar doesn't get clipped */
+.editor-container {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.editor-container .codex-editor {
+  position: relative !important;
+  overflow: visible !important;
+}
+
+.editor-container .codex-editor__redactor {
+  position: relative !important;
+  overflow: visible !important;
 }
 
 .editor-container .ce-inline-tool {
