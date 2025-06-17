@@ -1,6 +1,7 @@
 module.exports = [
   {
-    files: ['app/scripts/**/*.js', '!app/scripts/vendor/**/*.js'],
+    files: ['app/scripts/**/*.js'],
+    ignorePatterns: ['app/assets/**/*.js'],
     languageOptions: {
       ecmaVersion: 2021,
       sourceType: 'script',

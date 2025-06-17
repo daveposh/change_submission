@@ -71,11 +71,9 @@
   "iparams": "./config/iparams.json",
   "dependencies": {
     "editor-js": {
-      "src": "scripts/vendor/editorjs/editor.min.js",
+      "src": "assets/js/editor.js",
       "attributes": {
-        "type": "text/javascript",
-        "async": false,
-        "defer": false
+        "type": "text/javascript"
       }
     }
   },
