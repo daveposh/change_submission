@@ -30,8 +30,9 @@ const editorConfig = {
     try {
       console.log('🔧 Initializing Editor.js instances...');
       
-      // Check if Editor.js is loaded
-      if (!window.EditorJS) {
+      // Get Editor.js constructor
+      const EditorJS = window.EditorJS;
+      if (!EditorJS) {
         console.error('❌ Editor.js not loaded');
         return;
       }
