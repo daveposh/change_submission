@@ -10,6 +10,31 @@ const editorConfig = {
       console.log('✅ Editor.js ready');
     },
     logLevel: 'WARN', // Reduce log verbosity
+    // Disable features that cause SecurityError in iframe
+    sanitizer: {
+      b: true,
+      i: true,
+      u: true,
+      s: true,
+      p: true,
+      br: true,
+      div: true,
+      span: true,
+      strong: true,
+      em: true,
+      h1: true,
+      h2: true,
+      h3: true,
+      h4: true,
+      h5: true,
+      h6: true,
+      ul: true,
+      ol: true,
+      li: true,
+      blockquote: true,
+      code: true,
+      pre: true
+    },
     tools: {
       header: {
         class: window.Header,
@@ -31,140 +56,165 @@ const editorConfig = {
 
   // Initialize editors for specific fields
   initializeEditors: function() {
-    try {
-      console.log('🔧 Initializing Editor.js instances...');
-      
-      // Wait for DOM to be ready
-      if (document.readyState === 'loading') {
-        return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      try {
+        console.log('🔧 Initializing Editor.js instances...');
+        
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', () => {
-            resolve(this._initializeEditors());
+            this._initializeEditors().then(resolve).catch(reject);
           });
-        });
-      }
-      
-      // Wait for Editor.js to be loaded
-      if (typeof window.EditorJS !== 'function') {
-        console.warn('⚠️ Editor.js not loaded yet, waiting...');
-        return new Promise((resolve) => {
+          return;
+        }
+        
+        // Wait for Editor.js to be loaded
+        if (typeof window.EditorJS !== 'function') {
+          console.warn('⚠️ Editor.js not loaded yet, waiting...');
           const checkInterval = setInterval(() => {
             if (typeof window.EditorJS === 'function') {
               clearInterval(checkInterval);
-              resolve(this._initializeEditors());
+              this._initializeEditors().then(resolve).catch(reject);
             }
           }, 100);
 
           // Timeout after 5 seconds
           setTimeout(() => {
             clearInterval(checkInterval);
-            console.error('❌ Editor.js failed to load after timeout');
-            resolve(null);
+            reject(new Error('Editor.js failed to load after timeout'));
           }, 5000);
-        });
-      }
+          return;
+        }
 
-      return this._initializeEditors();
-    } catch (error) {
-      console.error('❌ Error initializing editors:', error);
-      throw error;
-    }
+        this._initializeEditors().then(resolve).catch(reject);
+      } catch (error) {
+        console.error('❌ Error initializing editors:', error);
+        reject(error);
+      }
+    });
   },
 
   // Internal method to initialize editors
   _initializeEditors: function() {
-    try {
-      // Check if required tools are loaded
-      if (!window.Header || !window.List) {
-        console.error('❌ Required Editor.js tools not loaded');
-        return null;
-      }
-      
-      // Check if required elements exist and are visible
-      const holders = [
-        'reason-for-change-editor',
-        'implementation-plan-editor',
-        'backout-plan-editor',
-        'validation-plan-editor'
-      ];
-      
-      const missingHolders = holders.filter(id => {
-        const element = document.getElementById(id);
-        return !element || element.offsetParent === null;
-      });
-      
-      if (missingHolders.length > 0) {
-        console.warn('⚠️ Some editor containers not visible yet:', missingHolders);
-        // Try again after a short delay
-        setTimeout(() => this._initializeEditors(), 500);
-        return null;
-      }
-
-      // Clear any existing editor content first
-      holders.forEach(id => {
-        const holder = document.getElementById(id);
-        if (holder) {
-          holder.innerHTML = '';
-          holder.style.position = 'relative';
-          holder.style.width = '100%';
+    return new Promise((resolve, reject) => {
+      try {
+        // Check if required tools are loaded
+        if (!window.Header || !window.List) {
+          reject(new Error('Required Editor.js tools not loaded'));
+          return;
         }
-      });
-
-      // Initialize each editor with proper container styling
-      const editors = {};
-      
-      try {
-        editors.reason = new window.EditorJS({
-          holder: 'reason-for-change-editor',
-          ...this.commonConfig,
-          placeholder: 'Describe the reason for this change...'
+        
+        // Check if required elements exist and are visible
+        const holders = [
+          'reason-for-change-editor',
+          'implementation-plan-editor',
+          'backout-plan-editor',
+          'validation-plan-editor'
+        ];
+        
+        const missingHolders = holders.filter(id => {
+          const element = document.getElementById(id);
+          return !element || element.offsetParent === null;
         });
-        console.log('✅ Reason editor initialized');
-      } catch (error) {
-        console.error('❌ Failed to initialize reason editor:', error);
-      }
+        
+        if (missingHolders.length > 0) {
+          console.warn('⚠️ Some editor containers not visible yet:', missingHolders);
+          // Try again after a short delay
+          setTimeout(() => {
+            this._initializeEditors().then(resolve).catch(reject);
+          }, 500);
+          return;
+        }
 
-      try {
-        editors.implementation = new window.EditorJS({
-          holder: 'implementation-plan-editor',
-          ...this.commonConfig,
-          placeholder: 'Describe the implementation steps...'
+        // Clear any existing editor content first
+        holders.forEach(id => {
+          const holder = document.getElementById(id);
+          if (holder) {
+            holder.innerHTML = '';
+            holder.style.position = 'relative';
+            holder.style.width = '100%';
+          }
         });
-        console.log('✅ Implementation editor initialized');
-      } catch (error) {
-        console.error('❌ Failed to initialize implementation editor:', error);
-      }
 
-      try {
-        editors.backout = new window.EditorJS({
-          holder: 'backout-plan-editor',
+        // Initialize each editor with proper container styling
+        const editors = {};
+        let initCount = 0;
+        const totalEditors = 4;
+        
+        const checkComplete = () => {
+          initCount++;
+          if (initCount === totalEditors) {
+            // Store editor instances globally
+            window.editors = editors;
+            console.log('✅ Editor.js instances initialized successfully');
+            resolve(editors);
+          }
+        };
+        
+        // Create a simplified config that avoids SecurityError
+        const safeConfig = {
           ...this.commonConfig,
-          placeholder: 'Describe the backout procedure...'
-        });
-        console.log('✅ Backout editor initialized');
-      } catch (error) {
-        console.error('❌ Failed to initialize backout editor:', error);
-      }
+          // Remove features that might cause SecurityError
+          onChange: undefined,
+          onReady: () => {
+            console.log('✅ Editor ready');
+            checkComplete();
+          }
+        };
+        
+        try {
+          editors.reason = new window.EditorJS({
+            holder: 'reason-for-change-editor',
+            ...safeConfig,
+            placeholder: 'Describe the reason for this change...'
+          });
+          console.log('✅ Reason editor initialized');
+        } catch (error) {
+          console.error('❌ Failed to initialize reason editor:', error);
+          checkComplete();
+        }
 
-      try {
-        editors.validation = new window.EditorJS({
-          holder: 'validation-plan-editor',
-          ...this.commonConfig,
-          placeholder: 'Describe how the change will be validated...'
-        });
-        console.log('✅ Validation editor initialized');
-      } catch (error) {
-        console.error('❌ Failed to initialize validation editor:', error);
-      }
+        try {
+          editors.implementation = new window.EditorJS({
+            holder: 'implementation-plan-editor',
+            ...safeConfig,
+            placeholder: 'Describe the implementation steps...'
+          });
+          console.log('✅ Implementation editor initialized');
+        } catch (error) {
+          console.error('❌ Failed to initialize implementation editor:', error);
+          checkComplete();
+        }
 
-      // Store editor instances globally
-      window.editors = editors;
-      console.log('✅ Editor.js instances initialized successfully');
-      
-      return editors;
-    } catch (error) {
-      console.error('❌ Error initializing editors:', error);
-      throw error;
-    }
+        try {
+          editors.backout = new window.EditorJS({
+            holder: 'backout-plan-editor',
+            ...safeConfig,
+            placeholder: 'Describe the backout procedure...'
+          });
+          console.log('✅ Backout editor initialized');
+        } catch (error) {
+          console.error('❌ Failed to initialize backout editor:', error);
+          checkComplete();
+        }
+
+        try {
+          editors.validation = new window.EditorJS({
+            holder: 'validation-plan-editor',
+            ...safeConfig,
+            placeholder: 'Describe how the change will be validated...'
+          });
+          console.log('✅ Validation editor initialized');
+        } catch (error) {
+          console.error('❌ Failed to initialize validation editor:', error);
+          checkComplete();
+        }
+
+      } catch (error) {
+        console.error('❌ Error initializing editors:', error);
+        reject(error);
+      }
+    });
   },
 
   // Save editor content

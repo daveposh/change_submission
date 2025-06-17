@@ -869,8 +869,8 @@
       <div id="submission-summary"></div>
     </div>
   </body>
-  <!-- Editor.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.30.8"></script>
+  <!-- Editor.js CDN - Using older stable version for iframe compatibility -->
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.28.2"></script>
   <!-- Editor.js Tools -->
   <script src="scripts/editor-tools/editor-tools.js"></script>
   <!-- Editor Configuration -->
@@ -903,25 +903,26 @@
           // Initialize editors with a small delay to ensure containers are ready
           setTimeout(() => {
             window.editorConfig.initializeEditors().then(() => {
-              console.log('✅ Editor.js instances initialized');
+              console.log('✅ Editor.js instances initialized successfully');
             }).catch((error) => {
               console.error('❌ Editor initialization failed:', error);
               // Show error to user
               const editors = document.querySelectorAll('.editor-container');
-              editors.forEach(editor => {
+              editors.forEach((editor, index) => {
+                const labels = ['Reason for Change', 'Implementation Plan', 'Backout Plan', 'Validation Plan'];
                 editor.innerHTML = `
                   <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>Rich text editor unavailable:</strong> ${error.message}
+                    <strong>Rich text editor unavailable:</strong> Using simple text editor instead.
                     <hr>
                     <p class="mb-0">
                       <small>
                         <i class="fas fa-info-circle me-1"></i>
-                        You can still enter text using the fallback text areas that will appear below.
+                        You can still format your text using basic HTML or Markdown syntax.
                       </small>
                     </p>
                   </div>
-                  <textarea class="form-control mt-2" placeholder="Enter your text here..." rows="6"></textarea>
+                  <textarea class="form-control mt-2" placeholder="Enter your ${labels[index] || 'text'} here..." rows="6" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"></textarea>
                 `;
               });
             });
@@ -932,20 +933,21 @@
           
           // Show error to user with fallback
           const editors = document.querySelectorAll('.editor-container');
-          editors.forEach(editor => {
+          editors.forEach((editor, index) => {
+            const labels = ['Reason for Change', 'Implementation Plan', 'Backout Plan', 'Validation Plan'];
             editor.innerHTML = `
               <div class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle me-2"></i>
-                <strong>Rich text editor unavailable:</strong> ${error.message}
+                <strong>Rich text editor unavailable:</strong> Using simple text editor instead.
                 <hr>
                 <p class="mb-0">
                   <small>
                     <i class="fas fa-info-circle me-1"></i>
-                    Using fallback text area instead.
+                    Basic text editing is available below.
                   </small>
                 </p>
               </div>
-              <textarea class="form-control mt-2" placeholder="Enter your text here..." rows="6"></textarea>
+              <textarea class="form-control mt-2" placeholder="Enter your ${labels[index] || 'text'} here..." rows="6" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"></textarea>
             `;
           });
         }
