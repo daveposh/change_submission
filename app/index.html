@@ -916,79 +916,42 @@
   <!-- Editor.js Tools -->
   <script src="scripts/editor-tools/editor-tools.js"></script>
   <!-- Editor Configuration -->
+  <script src="scripts/editor-config.js"></script>
   <script>
-    // Initialize Editor.js after DOM is fully loaded
-    document.addEventListener('DOMContentLoaded', () => {
-      // Check if Editor.js is loaded
-      if (!window.EditorJS) {
-        console.error('❌ Editor.js not loaded');
-        // Show error to user
-        const editors = document.querySelectorAll('.editor-container');
-        editors.forEach(editor => {
-          editor.innerHTML = `
-            <div class="alert alert-danger">
-              <i class="fas fa-exclamation-circle me-2"></i>
-              Failed to load Editor.js. Please refresh the page or contact support if the issue persists.
-            </div>
-          `;
-        });
-        return;
-      }
-
-      // Check if our tools are loaded
-      if (!window.Header || !window.List) {
-        console.error('❌ Editor.js tools not loaded');
-        // Show error to user
-        const editors = document.querySelectorAll('.editor-container');
-        editors.forEach(editor => {
-          editor.innerHTML = `
-            <div class="alert alert-danger">
-              <i class="fas fa-exclamation-circle me-2"></i>
-              Failed to load Editor.js tools. Please refresh the page or contact support if the issue persists.
-            </div>
-          `;
-        });
-        return;
-      }
-
-      console.log('✅ Editor.js and tools loaded successfully');
-      
-      // Load editor configuration
-      const script = document.createElement('script');
-      script.src = 'scripts/editor-config.js';
-      script.onload = () => {
-        // Initialize editors after config is loaded
-        if (window.editorConfig) {
-          window.editorConfig.initializeEditors();
-          console.log('✅ Editor.js instances initialized');
-        } else {
-          console.error('❌ Editor configuration not found');
-          // Show error to user
-          const editors = document.querySelectorAll('.editor-container');
-          editors.forEach(editor => {
-            editor.innerHTML = `
-              <div class="alert alert-danger">
-                <i class="fas fa-exclamation-circle me-2"></i>
-                Failed to load editor configuration. Please refresh the page or contact support if the issue persists.
-              </div>
-            `;
-          });
+    // Initialize Editor.js after all dependencies are loaded
+    window.addEventListener('load', () => {
+      try {
+        // Check if Editor.js is loaded
+        if (!window.EditorJS) {
+          throw new Error('Editor.js not loaded');
         }
-      };
-      script.onerror = (error) => {
-        console.error('❌ Failed to load editor configuration:', error);
+
+        // Check if our tools are loaded
+        if (!window.Header || !window.List) {
+          throw new Error('Editor.js tools not loaded');
+        }
+
+        // Check if configuration is loaded
+        if (!window.editorConfig) {
+          throw new Error('Editor configuration not loaded');
+        }
+
+        // Initialize editors
+        window.editorConfig.initializeEditors();
+        console.log('✅ Editor.js instances initialized');
+      } catch (error) {
+        console.error('❌ Editor.js initialization failed:', error);
         // Show error to user
         const editors = document.querySelectorAll('.editor-container');
         editors.forEach(editor => {
           editor.innerHTML = `
             <div class="alert alert-danger">
               <i class="fas fa-exclamation-circle me-2"></i>
-              Failed to load editor configuration. Please refresh the page or contact support if the issue persists.
+              Failed to initialize editor: ${error.message}. Please refresh the page or contact support if the issue persists.
             </div>
           `;
         });
-      };
-      document.body.appendChild(script);
+      }
     });
   </script>
   <script src="scripts/cache-manager.js"></script>
