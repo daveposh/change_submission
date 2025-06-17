@@ -696,18 +696,18 @@ textarea[id*="validation"]:hover {
   padding: 6px !important;
   position: absolute !important;
   z-index: 99999 !important;
-  transform: translateX(-50%) !important;
+  /* Remove default transform - will be handled by JS positioning */
   animation: fadeInUp 0.2s ease-out !important;
 }
 
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(10px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
   }
 }
 
@@ -726,7 +726,7 @@ textarea[id*="validation"]:hover {
 .editor-container .ce-inline-toolbar--hidden {
   opacity: 0 !important;
   visibility: hidden !important;
-  transform: translateX(-50%) translateY(5px) !important;
+  transform: translateY(5px) !important;
 }
 
 /* Ensure toolbar doesn't get clipped */
@@ -753,7 +753,7 @@ textarea[id*="validation"]:hover {
   margin: 2px !important;
   cursor: pointer !important;
   color: #333333 !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   transition: all 0.2s ease !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -796,7 +796,7 @@ textarea[id*="validation"]:hover {
   cursor: pointer !important;
   border-bottom: 1px solid #f8f9fa !important;
   color: #333333 !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
 }
 
 .editor-container .ce-inline-toolbar__dropdown-item:hover {
@@ -844,7 +844,7 @@ textarea[id*="validation"]:hover {
   border: 1px solid #dee2e6 !important;
   border-radius: 4px !important;
   color: #495057 !important;
-  font-weight: 600 !important;
+  font-weight: 400 !important;
 }
 
 .editor-container .ce-toolbar__plus:hover {
@@ -858,7 +858,7 @@ textarea[id*="validation"]:hover {
   border: 1px solid #dee2e6 !important;
   border-radius: 4px !important;
   color: #495057 !important;
-  font-weight: 600 !important;
+  font-weight: 400 !important;
 }
 
 .editor-container .ce-toolbar__settings-btn:hover {
@@ -877,7 +877,7 @@ textarea[id*="validation"]:hover {
 
 .editor-container [style*="position: absolute"] div {
   color: #333333 !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
 }
 
 .editor-container [style*="position: absolute"] div:hover {

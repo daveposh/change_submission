@@ -335,7 +335,6 @@ const editorConfig = {
         padding: 6px !important;
         position: absolute !important;
         z-index: 99999 !important;
-        transform: translateX(-50%) !important;
         animation: fadeInUp 0.2s ease-out !important;
         white-space: nowrap !important;
       }
@@ -343,11 +342,11 @@ const editorConfig = {
       @keyframes fadeInUp {
         from {
           opacity: 0;
-          transform: translateX(-50%) translateY(10px);
+          transform: translateY(10px);
         }
         to {
           opacity: 1;
-          transform: translateX(-50%) translateY(0);
+          transform: translateY(0);
         }
       }
       
@@ -657,25 +656,44 @@ const editorConfig = {
 
   // Set toolbar position based on selection rect
   _setToolbarPosition: function(toolbar, rect) {
-    const containerRect = toolbar.closest('.editor-container').getBoundingClientRect();
-    const toolbarRect = toolbar.getBoundingClientRect();
+    const container = toolbar.closest('.editor-container');
+    if (!container) return;
     
-    // Calculate position relative to container
-    const relativeTop = rect.top - containerRect.top;
-    const relativeLeft = rect.left - containerRect.left + (rect.width / 2);
+    const containerRect = container.getBoundingClientRect();
     
-    // Position above selection with some spacing
-    const topPosition = Math.max(10, relativeTop - toolbarRect.height - 10);
-    const leftPosition = Math.max(10, Math.min(
-      containerRect.width - toolbarRect.width - 10,
-      relativeLeft - (toolbarRect.width / 2)
+    // Get the scroll position of the container
+    const scrollTop = container.scrollTop;
+    const scrollLeft = container.scrollLeft;
+    
+    // Calculate position relative to container's content area (accounting for scroll)
+    const relativeTop = rect.top - containerRect.top + scrollTop;
+    const relativeLeft = rect.left - containerRect.left + scrollLeft + (rect.width / 2);
+    
+    // Get toolbar dimensions (temporarily show it to measure)
+    toolbar.style.visibility = 'hidden';
+    toolbar.style.display = 'block';
+    const toolbarWidth = toolbar.offsetWidth;
+    const toolbarHeight = toolbar.offsetHeight;
+    toolbar.style.visibility = '';
+    
+    // Position above selection with spacing, but ensure it stays within container bounds
+    let topPosition = Math.max(10, relativeTop - toolbarHeight - 10);
+    let leftPosition = Math.max(10, Math.min(
+      container.clientWidth - toolbarWidth - 10,
+      relativeLeft - (toolbarWidth / 2)
     ));
+    
+    // If toolbar would be above container, position it below the selection instead
+    if (topPosition < 10) {
+      topPosition = relativeTop + rect.height + 10;
+    }
     
     // Apply positioning
     toolbar.style.top = topPosition + 'px';
     toolbar.style.left = leftPosition + 'px';
     toolbar.style.position = 'absolute';
-    toolbar.style.transform = 'none'; // Override centering transform when positioned manually
+    toolbar.style.transform = 'none';
+    toolbar.style.zIndex = '99999';
   },
 
   // Load editor content
