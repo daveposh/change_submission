@@ -33,9 +33,17 @@ const editorConfig = {
       li: true,
       blockquote: true,
       code: true,
-      pre: true
+      pre: true,
+      table: true,
+      thead: true,
+      tbody: true,
+      tr: true,
+      th: true,
+      td: true,
+      cite: true
     },
     tools: {
+      // Block Tools
       header: {
         class: window.Header,
         inlineToolbar: true,
@@ -50,6 +58,42 @@ const editorConfig = {
         config: {
           defaultStyle: 'unordered'
         }
+      },
+      code: {
+        class: window.CodeTool,
+        config: {
+          placeholder: 'Enter your code here...'
+        }
+      },
+      table: {
+        class: window.Table,
+        inlineToolbar: true,
+        config: {
+          rows: 2,
+          cols: 2,
+          withHeadings: true
+        }
+      },
+      quote: {
+        class: window.Quote,
+        inlineToolbar: true,
+        config: {
+          quotePlaceholder: 'Enter a quote',
+          captionPlaceholder: 'Quote\'s author'
+        }
+      },
+      // Inline Tools
+      bold: {
+        class: window.Bold
+      },
+      italic: {
+        class: window.Italic
+      },
+      underline: {
+        class: window.Underline
+      },
+      inlineCode: {
+        class: window.InlineCode
       }
     }
   },
@@ -99,7 +143,7 @@ const editorConfig = {
     return new Promise((resolve, reject) => {
       try {
         // Check if required tools are loaded
-        if (!window.Header || !window.List) {
+        if (!window.Header || !window.List || !window.CodeTool || !window.Table || !window.Quote || !window.Bold || !window.Italic || !window.Underline || !window.InlineCode) {
           reject(new Error('Required Editor.js tools not loaded'));
           return;
         }
@@ -249,6 +293,73 @@ const editorConfig = {
       
       .editor-container .codex-editor__redactor {
         padding-bottom: 100px !important;
+      }
+      
+      /* Inline toolbar styles for new tools */
+      .editor-container .ce-inline-tool--active {
+        background-color: #007bff !important;
+        color: white !important;
+      }
+      
+      .editor-container .ce-inline-toolbar {
+        background: white !important;
+        border: 1px solid #e1e5e9 !important;
+        border-radius: 4px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+      }
+      
+      .editor-container .ce-inline-tool {
+        border: none !important;
+        background: transparent !important;
+        padding: 6px 8px !important;
+        border-radius: 3px !important;
+        margin: 2px !important;
+        cursor: pointer !important;
+      }
+      
+      .editor-container .ce-inline-tool:hover {
+        background-color: #f8f9fa !important;
+      }
+      
+      /* Code block styles */
+      .editor-container .ce-code {
+        background-color: #f8f9fa !important;
+        border: 1px solid #e9ecef !important;
+        border-radius: 4px !important;
+        font-family: 'Courier New', Courier, monospace !important;
+      }
+      
+      /* Table styles */
+      .editor-container table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+      }
+      
+      .editor-container table td,
+      .editor-container table th {
+        border: 1px solid #dee2e6 !important;
+        padding: 8px !important;
+        text-align: left !important;
+      }
+      
+      .editor-container table th {
+        background-color: #f8f9fa !important;
+        font-weight: bold !important;
+      }
+      
+      /* Quote styles */
+      .editor-container blockquote {
+        border-left: 4px solid #007bff !important;
+        padding-left: 16px !important;
+        margin: 0 !important;
+        font-style: italic !important;
+      }
+      
+      .editor-container cite {
+        display: block !important;
+        font-size: 0.875rem !important;
+        color: #6c757d !important;
+        margin-top: 8px !important;
       }
     `;
     document.head.appendChild(style);
