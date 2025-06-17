@@ -16,8 +16,11 @@ const editorConfig = {
         }
       },
       list: {
-        class: window.List,
-        inlineToolbar: true
+        class: window.List || null, // Allow null if List is not loaded yet
+        inlineToolbar: true,
+        config: {
+          defaultStyle: 'unordered'
+        }
       },
       checklist: {
         class: window.Checklist,
@@ -64,19 +67,29 @@ const editorConfig = {
     try {
       console.log('🔧 Initializing Editor.js instances...');
       
-      // Check if Editor.js and tools are loaded
+      // Check if Editor.js is loaded
       if (!window.EditorJS) {
         console.error('❌ Editor.js not loaded');
         return;
       }
 
-      // Check if required tools are loaded
-      const requiredTools = ['Header', 'List', 'Checklist', 'Quote', 'CodeTool', 'Table', 'ImageTool', 'Marker', 'InlineCode'];
-      const missingTools = requiredTools.filter(tool => !window[tool]);
-      if (missingTools.length > 0) {
-        console.error('❌ Missing Editor.js tools:', missingTools);
+      // Check if List tool is loaded
+      if (!window.List) {
+        console.error('❌ List tool not loaded, waiting...');
+        // Wait for List tool to load
+        setTimeout(() => {
+          if (window.List) {
+            console.log('✅ List tool loaded, proceeding with initialization');
+            this.initializeEditors();
+          } else {
+            console.error('❌ List tool failed to load after waiting');
+          }
+        }, 1000);
         return;
       }
+
+      // Update List tool class now that it's loaded
+      this.commonConfig.tools.list.class = window.List;
       
       // Check if required elements exist
       const holders = [
