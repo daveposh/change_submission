@@ -17,6 +17,30 @@
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
+/* Ensure all editor form fields are resizable */
+.form-control,
+.form-control:focus,
+textarea.form-control,
+input[type="text"].form-control,
+input[type="email"].form-control,
+select.form-control {
+  resize: vertical !important;
+  min-height: 38px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+/* Specific targeting for multiline text fields */
+textarea[id*="reason"],
+textarea[id*="implementation"], 
+textarea[id*="backout"],
+textarea[id*="validation"],
+textarea[id*="description"] {
+  resize: vertical !important;
+  min-height: 120px;
+  height: 150px;
+  max-height: 80vh;
+}
+
 /* Resize handle styling for better visibility */
 .editor-container::-webkit-resizer {
   background-color: #6c757d;
@@ -664,6 +688,50 @@ textarea[id*="validation"]:hover {
   color: white !important;
 }
 
+.editor-container .ce-inline-toolbar {
+  background: white !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  padding: 4px !important;
+}
+
+.editor-container .ce-inline-tool {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 8px 10px !important;
+  margin: 2px !important;
+  cursor: pointer !important;
+  color: #333333 !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 32px !important;
+  height: 32px !important;
+}
+
+.editor-container .ce-inline-tool:hover {
+  background-color: #f8f9fa !important;
+  color: #007bff !important;
+  transform: translateY(-1px) !important;
+}
+
+.editor-container .ce-inline-tool--active {
+  background-color: #007bff !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3) !important;
+}
+
+.editor-container .ce-inline-tool svg {
+  width: 16px !important;
+  height: 16px !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
 .editor-container .ce-inline-toolbar__dropdown {
   position: absolute !important;
   background: white !important;
@@ -678,10 +746,13 @@ textarea[id*="validation"]:hover {
   padding: 8px 12px !important;
   cursor: pointer !important;
   border-bottom: 1px solid #f8f9fa !important;
+  color: #333333 !important;
+  font-weight: 500 !important;
 }
 
 .editor-container .ce-inline-toolbar__dropdown-item:hover {
   background-color: #f8f9fa !important;
+  color: #007bff !important;
 }
 
 .editor-container .ce-inline-toolbar__dropdown-item:last-child {
@@ -703,6 +774,66 @@ textarea[id*="validation"]:hover {
 /* Font family styles */
 .editor-container .custom-font {
   font-family: inherit !important;
+}
+
+/* Enhanced Editor.js contrast and readability */
+.editor-container .ce-block__content,
+.editor-container .ce-paragraph {
+  color: #333333 !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+}
+
+.editor-container .ce-block__content:empty::before {
+  color: #adb5bd !important;
+  font-style: italic !important;
+}
+
+/* Improved toolbar button visibility */
+.editor-container .ce-toolbar__plus {
+  background: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 4px !important;
+  color: #495057 !important;
+  font-weight: 600 !important;
+}
+
+.editor-container .ce-toolbar__plus:hover {
+  background: #e9ecef !important;
+  border-color: #adb5bd !important;
+  color: #007bff !important;
+}
+
+.editor-container .ce-toolbar__settings-btn {
+  background: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 4px !important;
+  color: #495057 !important;
+  font-weight: 600 !important;
+}
+
+.editor-container .ce-toolbar__settings-btn:hover {
+  background: #e9ecef !important;
+  border-color: #adb5bd !important;
+  color: #007bff !important;
+}
+
+/* Ensure dropdown menus have good contrast */
+.editor-container [style*="position: absolute"] {
+  background: white !important;
+  border: 1px solid #dee2e6 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 6px !important;
+}
+
+.editor-container [style*="position: absolute"] div {
+  color: #333333 !important;
+  font-weight: 500 !important;
+}
+
+.editor-container [style*="position: absolute"] div:hover {
+  background-color: #f8f9fa !important;
+  color: #007bff !important;
 }
 
 /* Enhanced List Tool Styles */

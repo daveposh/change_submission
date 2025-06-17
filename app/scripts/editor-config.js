@@ -325,29 +325,49 @@ const editorConfig = {
       }
       
       /* Inline toolbar styles for new tools */
-      .editor-container .ce-inline-tool--active {
-        background-color: #007bff !important;
-        color: white !important;
-      }
-      
       .editor-container .ce-inline-toolbar {
         background: white !important;
-        border: 1px solid #e1e5e9 !important;
-        border-radius: 4px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 6px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+        padding: 4px !important;
+        z-index: 10000 !important;
       }
       
       .editor-container .ce-inline-tool {
-        border: none !important;
         background: transparent !important;
-        padding: 6px 8px !important;
-        border-radius: 3px !important;
+        border: none !important;
+        border-radius: 4px !important;
+        padding: 8px 10px !important;
         margin: 2px !important;
         cursor: pointer !important;
+        color: #333333 !important;
+        font-weight: 500 !important;
+        transition: all 0.2s ease !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-width: 32px !important;
+        height: 32px !important;
       }
       
       .editor-container .ce-inline-tool:hover {
         background-color: #f8f9fa !important;
+        color: #007bff !important;
+        transform: translateY(-1px) !important;
+      }
+      
+      .editor-container .ce-inline-tool--active {
+        background-color: #007bff !important;
+        color: white !important;
+        box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3) !important;
+      }
+      
+      .editor-container .ce-inline-tool svg {
+        width: 16px !important;
+        height: 16px !important;
+        fill: currentColor !important;
+        stroke: currentColor !important;
       }
       
       /* Toolbox visibility fixes */
