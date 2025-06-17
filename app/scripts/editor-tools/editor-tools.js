@@ -57,7 +57,7 @@ class Header {
   }
 }
 
-// List Tool
+// Enhanced List Tool with Add Button
 class List {
   constructor({ data, config, api, readOnly }) {
     this.api = api;
@@ -78,26 +78,156 @@ class List {
 
   render() {
     const wrapper = document.createElement('div');
+    wrapper.style.position = 'relative';
+    
     const list = document.createElement(this.data.style === 'ordered' ? 'ol' : 'ul');
+    list.style.marginBottom = '10px';
     
     this.data.items.forEach((item) => {
-      const li = document.createElement('li');
-      li.innerHTML = item;
-      li.contentEditable = !this.readOnly;
+      const li = this.createListItem(item);
       list.appendChild(li);
     });
 
     if (this.data.items.length === 0) {
-      const li = document.createElement('li');
-      li.contentEditable = !this.readOnly;
-      li.placeholder = 'List item';
+      const li = this.createListItem('');
       list.appendChild(li);
     }
 
+    // Add button container
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.gap = '8px';
+    buttonContainer.style.marginTop = '8px';
+    
+    // Add item button
+    if (!this.readOnly) {
+      const addButton = document.createElement('button');
+      addButton.type = 'button';
+      addButton.innerHTML = '+ Add Item';
+      addButton.style.cssText = `
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 6px 12px;
+        font-size: 12px;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s;
+      `;
+      
+      addButton.addEventListener('mouseenter', () => {
+        addButton.style.background = '#e9ecef';
+        addButton.style.borderColor = '#adb5bd';
+      });
+      
+      addButton.addEventListener('mouseleave', () => {
+        addButton.style.background = '#f8f9fa';
+        addButton.style.borderColor = '#dee2e6';
+      });
+      
+      addButton.addEventListener('click', () => {
+        const newItem = this.createListItem('');
+        list.appendChild(newItem);
+        newItem.focus();
+      });
+      
+      buttonContainer.appendChild(addButton);
+      
+      // Style toggle button
+      const styleButton = document.createElement('button');
+      styleButton.type = 'button';
+      styleButton.innerHTML = this.data.style === 'ordered' ? '1. → •' : '• → 1.';
+      styleButton.title = 'Toggle list style';
+      styleButton.style.cssText = `
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 6px 12px;
+        font-size: 12px;
+        color: #495057;
+        cursor: pointer;
+        transition: all 0.2s;
+      `;
+      
+      styleButton.addEventListener('mouseenter', () => {
+        styleButton.style.background = '#e9ecef';
+        styleButton.style.borderColor = '#adb5bd';
+      });
+      
+      styleButton.addEventListener('mouseleave', () => {
+        styleButton.style.background = '#f8f9fa';
+        styleButton.style.borderColor = '#dee2e6';
+      });
+      
+      styleButton.addEventListener('click', () => {
+        this.toggleListStyle(list, styleButton);
+      });
+      
+      buttonContainer.appendChild(styleButton);
+    }
+
     wrapper.appendChild(list);
+    wrapper.appendChild(buttonContainer);
     this.list = list;
 
     return wrapper;
+  }
+
+  createListItem(content) {
+    const li = document.createElement('li');
+    li.innerHTML = content;
+    li.contentEditable = !this.readOnly;
+    li.style.marginBottom = '4px';
+    
+    if (!content) {
+      li.setAttribute('data-placeholder', 'List item');
+    }
+    
+    // Add event listeners for better UX
+    if (!this.readOnly) {
+      li.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const newItem = this.createListItem('');
+          li.parentNode.insertBefore(newItem, li.nextSibling);
+          newItem.focus();
+        }
+        if (e.key === 'Backspace' && li.textContent.trim() === '' && li.parentNode.children.length > 1) {
+          e.preventDefault();
+          const prevItem = li.previousElementSibling;
+          li.remove();
+          if (prevItem) {
+            prevItem.focus();
+            // Move cursor to end
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(prevItem);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+      });
+    }
+    
+    return li;
+  }
+
+  toggleListStyle(list, button) {
+    const items = Array.from(list.children);
+    const newStyle = this.data.style === 'ordered' ? 'unordered' : 'ordered';
+    const newList = document.createElement(newStyle === 'ordered' ? 'ol' : 'ul');
+    newList.style.marginBottom = '10px';
+    
+    items.forEach(item => {
+      newList.appendChild(item);
+    });
+    
+    list.parentNode.replaceChild(newList, list);
+    this.list = newList;
+    this.data.style = newStyle;
+    
+    button.innerHTML = newStyle === 'ordered' ? '1. → •' : '• → 1.';
   }
 
   save() {
@@ -117,7 +247,9 @@ class List {
         em: true,
         u: true,
         s: true,
-        span: true
+        span: true,
+        mark: true,
+        code: true
       }
     };
   }
@@ -614,6 +746,352 @@ class InlineCode {
   }
 }
 
+// Font Family Tool
+class FontFamily {
+  constructor({ api }) {
+    this.api = api;
+    this.fontFamilies = [
+      { name: 'Default', value: '' },
+      { name: 'Arial', value: 'Arial, sans-serif' },
+      { name: 'Times New Roman', value: 'Times New Roman, serif' },
+      { name: 'Courier New', value: 'Courier New, monospace' },
+      { name: 'Georgia', value: 'Georgia, serif' },
+      { name: 'Verdana', value: 'Verdana, sans-serif' },
+      { name: 'Trebuchet MS', value: 'Trebuchet MS, sans-serif' },
+      { name: 'Comic Sans MS', value: 'Comic Sans MS, cursive' }
+    ];
+  }
+
+  static get isInline() {
+    return true;
+  }
+
+  static get sanitize() {
+    return {
+      span: {
+        style: true
+      }
+    };
+  }
+
+  static get title() {
+    return 'Font Family';
+  }
+
+  render() {
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'relative';
+    wrapper.style.display = 'inline-block';
+
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.innerHTML = '<svg width="14" height="14"><path d="M3.5 2h7l1.5 4h-1.2L9.9 4.8H4.1L3.2 6H2l1.5-4zm1.1 1.5l1.4 3.5h2l1.4-3.5H4.6z"/></svg>';
+    this.button.title = 'Font Family';
+    this.button.style.cssText = `
+      background: transparent;
+      border: none;
+      padding: 4px;
+      cursor: pointer;
+      border-radius: 3px;
+    `;
+
+    this.dropdown = document.createElement('div');
+    this.dropdown.style.cssText = `
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: white;
+      border: 1px solid #e1e5e9;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      min-width: 150px;
+      z-index: 1000;
+      display: none;
+    `;
+
+    this.fontFamilies.forEach(font => {
+      const option = document.createElement('div');
+      option.textContent = font.name;
+      option.style.cssText = `
+        padding: 8px 12px;
+        cursor: pointer;
+        font-family: ${font.value || 'inherit'};
+      `;
+      option.addEventListener('mouseenter', () => {
+        option.style.backgroundColor = '#f8f9fa';
+      });
+      option.addEventListener('mouseleave', () => {
+        option.style.backgroundColor = '';
+      });
+      option.addEventListener('click', () => {
+        this.applyFont(font.value);
+        this.hideDropdown();
+      });
+      this.dropdown.appendChild(option);
+    });
+
+    this.button.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.toggleDropdown();
+    });
+
+    wrapper.appendChild(this.button);
+    wrapper.appendChild(this.dropdown);
+
+    return wrapper;
+  }
+
+  toggleDropdown() {
+    const isVisible = this.dropdown.style.display === 'block';
+    this.dropdown.style.display = isVisible ? 'none' : 'block';
+  }
+
+  hideDropdown() {
+    this.dropdown.style.display = 'none';
+  }
+
+  applyFont(fontFamily) {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      if (!range.collapsed) {
+        const span = document.createElement('span');
+        span.style.fontFamily = fontFamily;
+        try {
+          span.appendChild(range.extractContents());
+          range.insertNode(span);
+        } catch (e) {
+          console.warn('Font application failed:', e);
+        }
+      }
+    }
+  }
+
+  surround() {
+    // This tool uses dropdown, surround not applicable
+  }
+}
+
+// Highlight Tool
+class Highlight {
+  constructor({ api }) {
+    this.api = api;
+  }
+
+  static get isInline() {
+    return true;
+  }
+
+  static get sanitize() {
+    return {
+      mark: {
+        style: true
+      }
+    };
+  }
+
+  static get title() {
+    return 'Highlight';
+  }
+
+  get state() {
+    return this._state;
+  }
+
+  set state(state) {
+    this._state = state;
+    this.button.classList.toggle('ce-inline-tool--active', state);
+  }
+
+  render() {
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.innerHTML = '<svg width="14" height="14"><rect x="2" y="3" width="10" height="8" rx="1" fill="none" stroke="currentColor"/><path d="M3 5h8M3 7h8M3 9h6" stroke="currentColor"/></svg>';
+    this.button.title = 'Highlight';
+    
+    return this.button;
+  }
+
+  surround(range) {
+    if (this.state) {
+      this.unwrap(range);
+    } else {
+      this.wrap(range);
+    }
+  }
+
+  wrap(range) {
+    const selectedText = range.extractContents();
+    const mark = document.createElement('mark');
+    mark.style.backgroundColor = '#fff3cd';
+    mark.style.padding = '1px 2px';
+    mark.appendChild(selectedText);
+    range.insertNode(mark);
+  }
+
+  unwrap(range) {
+    const mark = this.api.selection.findParentTag('MARK');
+    if (mark) {
+      const text = range.extractContents();
+      mark.remove();
+      range.insertNode(text);
+    }
+  }
+
+  checkState() {
+    const mark = this.api.selection.findParentTag('MARK');
+    this.state = !!mark;
+  }
+}
+
+// Text Color Tool
+class TextColor {
+  constructor({ api }) {
+    this.api = api;
+    this.colors = [
+      { name: 'Default', value: '' },
+      { name: 'Red', value: '#dc3545' },
+      { name: 'Green', value: '#198754' },
+      { name: 'Blue', value: '#0d6efd' },
+      { name: 'Orange', value: '#fd7e14' },
+      { name: 'Purple', value: '#6f42c1' },
+      { name: 'Teal', value: '#20c997' },
+      { name: 'Gray', value: '#6c757d' },
+      { name: 'Dark', value: '#212529' }
+    ];
+  }
+
+  static get isInline() {
+    return true;
+  }
+
+  static get sanitize() {
+    return {
+      span: {
+        style: true
+      }
+    };
+  }
+
+  static get title() {
+    return 'Text Color';
+  }
+
+  render() {
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'relative';
+    wrapper.style.display = 'inline-block';
+
+    this.button = document.createElement('button');
+    this.button.type = 'button';
+    this.button.innerHTML = '<svg width="14" height="14"><path d="M3 12h8l-1.5-4H4.5L3 12zm1-6h6l1.5 4H2.5L4 6zm3-4L5.5 4h3L7 2z" fill="currentColor"/><rect x="0" y="13" width="14" height="1" fill="#dc3545"/></svg>';
+    this.button.title = 'Text Color';
+    this.button.style.cssText = `
+      background: transparent;
+      border: none;
+      padding: 4px;
+      cursor: pointer;
+      border-radius: 3px;
+    `;
+
+    this.dropdown = document.createElement('div');
+    this.dropdown.style.cssText = `
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: white;
+      border: 1px solid #e1e5e9;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      min-width: 120px;
+      z-index: 1000;
+      display: none;
+      padding: 4px;
+    `;
+
+    this.colors.forEach(color => {
+      const option = document.createElement('div');
+      option.style.cssText = `
+        padding: 6px 8px;
+        cursor: pointer;
+        border-radius: 3px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      `;
+      
+      const colorDot = document.createElement('div');
+      colorDot.style.cssText = `
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: ${color.value || '#000'};
+        border: 1px solid #dee2e6;
+      `;
+      
+      const colorName = document.createElement('span');
+      colorName.textContent = color.name;
+      colorName.style.color = color.value || '#000';
+      
+      option.appendChild(colorDot);
+      option.appendChild(colorName);
+      
+      option.addEventListener('mouseenter', () => {
+        option.style.backgroundColor = '#f8f9fa';
+      });
+      option.addEventListener('mouseleave', () => {
+        option.style.backgroundColor = '';
+      });
+      option.addEventListener('click', () => {
+        this.applyColor(color.value);
+        this.hideDropdown();
+      });
+      this.dropdown.appendChild(option);
+    });
+
+    this.button.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.toggleDropdown();
+    });
+
+    wrapper.appendChild(this.button);
+    wrapper.appendChild(this.dropdown);
+
+    return wrapper;
+  }
+
+  toggleDropdown() {
+    const isVisible = this.dropdown.style.display === 'block';
+    this.dropdown.style.display = isVisible ? 'none' : 'block';
+  }
+
+  hideDropdown() {
+    this.dropdown.style.display = 'none';
+  }
+
+  applyColor(color) {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      if (!range.collapsed) {
+        const span = document.createElement('span');
+        span.style.color = color;
+        try {
+          span.appendChild(range.extractContents());
+          range.insertNode(span);
+        } catch (e) {
+          console.warn('Color application failed:', e);
+        }
+      }
+    }
+  }
+
+  surround() {
+    // This tool uses dropdown, surround not applicable
+  }
+}
+
 // Export all tools to window object
 window.Header = Header;
 window.List = List;
@@ -624,5 +1102,8 @@ window.Bold = Bold;
 window.Italic = Italic;
 window.Underline = Underline;
 window.InlineCode = InlineCode;
+window.FontFamily = FontFamily;
+window.Highlight = Highlight;
+window.TextColor = TextColor;
 
 console.log('✅ Editor.js tools loaded and exposed to window'); 

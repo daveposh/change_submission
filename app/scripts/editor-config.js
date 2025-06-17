@@ -94,6 +94,15 @@ const editorConfig = {
       },
       customInlineCode: {
         class: window.InlineCode
+      },
+      customHighlight: {
+        class: window.Highlight
+      },
+      customFontFamily: {
+        class: window.FontFamily
+      },
+      customTextColor: {
+        class: window.TextColor
       }
     }
   },
@@ -153,8 +162,11 @@ const editorConfig = {
         console.log('Italic:', typeof window.Italic);
         console.log('Underline:', typeof window.Underline);
         console.log('InlineCode:', typeof window.InlineCode);
+        console.log('Highlight:', typeof window.Highlight);
+        console.log('FontFamily:', typeof window.FontFamily);
+        console.log('TextColor:', typeof window.TextColor);
         
-        if (!window.Header || !window.List || !window.CodeTool || !window.Table || !window.Quote || !window.Bold || !window.Italic || !window.Underline || !window.InlineCode) {
+        if (!window.Header || !window.List || !window.CodeTool || !window.Table || !window.Quote || !window.Bold || !window.Italic || !window.Underline || !window.InlineCode || !window.Highlight || !window.FontFamily || !window.TextColor) {
           console.error('❌ Some tools not loaded');
           reject(new Error('Required Editor.js tools not loaded'));
           return;

@@ -587,4 +587,115 @@ textarea[id*="implementation"]:hover,
 textarea[id*="backout"]:hover,
 textarea[id*="validation"]:hover {
   border-color: #b6d7ff;
+}
+
+/* Enhanced List Tool Styles */
+.editor-container .list-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.editor-container .list-add-btn,
+.editor-container .list-style-btn {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #495057;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.editor-container .list-add-btn:hover,
+.editor-container .list-style-btn:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.editor-container li[data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* Font Family Tool Dropdown */
+.editor-container .font-family-dropdown,
+.editor-container .text-color-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  border: 1px solid #e1e5e9;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  min-width: 150px;
+  z-index: 10000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.editor-container .font-family-dropdown .option,
+.editor-container .text-color-dropdown .option {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  margin: 2px;
+  transition: background-color 0.2s;
+}
+
+.editor-container .font-family-dropdown .option:hover,
+.editor-container .text-color-dropdown .option:hover {
+  background-color: #f8f9fa;
+}
+
+/* Text Color Tool Styles */
+.editor-container .color-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.editor-container .color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid #dee2e6;
+  flex-shrink: 0;
+}
+
+.editor-container .color-option:hover {
+  background-color: #f8f9fa;
+}
+
+/* Highlight Tool Styles */
+.editor-container mark {
+  background-color: #fff3cd !important;
+  padding: 1px 2px !important;
+  border-radius: 2px !important;
+}
+
+/* Enhanced inline tool styles */
+.editor-container .ce-inline-tool {
+  position: relative;
+  display: inline-block;
+}
+
+.editor-container .ce-inline-tool .dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 10001;
+}
+
+/* Improved dropdown positioning for inline tools */
+.ce-inline-toolbar .font-family-dropdown,
+.ce-inline-toolbar .text-color-dropdown {
+  position: fixed !important;
+  z-index: 99999 !important;
 } 
