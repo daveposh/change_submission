@@ -16,7 +16,7 @@ const editorConfig = {
         }
       },
       list: {
-        class: window.List || null, // Allow null if List is not loaded yet
+        class: window.List || window.EditorJsList,
         inlineToolbar: true,
         config: {
           defaultStyle: 'unordered'
@@ -74,22 +74,19 @@ const editorConfig = {
       }
 
       // Check if List tool is loaded
-      if (!window.List) {
-        console.error('❌ List tool not loaded, waiting...');
-        // Wait for List tool to load
-        setTimeout(() => {
-          if (window.List) {
-            console.log('✅ List tool loaded, proceeding with initialization');
-            this.initializeEditors();
-          } else {
-            console.error('❌ List tool failed to load after waiting');
-          }
-        }, 1000);
+      const ListClass = window.List || window.EditorJsList;
+      if (!ListClass) {
+        console.error('❌ List tool not loaded');
+        console.log('Debugging List tool:', {
+          windowList: window.List,
+          editorJsList: window.EditorJsList,
+          listToolScript: document.querySelector('script[src*="list"]')
+        });
         return;
       }
 
-      // Update List tool class now that it's loaded
-      this.commonConfig.tools.list.class = window.List;
+      // Update List tool class
+      this.commonConfig.tools.list.class = ListClass;
       
       // Check if required elements exist
       const holders = [
