@@ -3,12 +3,13 @@
   border: 1px solid #dee2e6;
   border-radius: 0.375rem;
   background-color: #fff;
-  min-height: 200px;
+  min-height: 300px;
   margin-bottom: 1rem;
   position: relative;
   width: 100%;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
+  z-index: 1;
 }
 
 .editor-container .codex-editor {
@@ -362,4 +363,104 @@
   padding: 0.1rem 0.2rem;
   border-radius: 0.25rem;
   font-family: monospace;
+}
+
+/* Toolbox (Plus button dropdown) styles for better visibility */
+.editor-container .ce-popover {
+  z-index: 1060 !important;
+  background: white !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 0.375rem !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  max-height: 400px !important;
+  overflow-y: auto !important;
+  min-width: 200px !important;
+  position: absolute !important;
+}
+
+.editor-container .ce-popover__items {
+  max-height: 350px !important;
+  overflow-y: auto !important;
+  padding: 0.5rem !important;
+}
+
+.editor-container .ce-popover__item {
+  padding: 0.75rem !important;
+  border-radius: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  white-space: nowrap !important;
+}
+
+.editor-container .ce-popover__item:hover {
+  background-color: #f8f9fa !important;
+}
+
+.editor-container .ce-popover__item-icon {
+  margin-right: 0.75rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 24px !important;
+  height: 24px !important;
+  flex-shrink: 0 !important;
+}
+
+.editor-container .ce-popover__item-title {
+  font-weight: 500 !important;
+  color: #495057 !important;
+  font-size: 14px !important;
+}
+
+/* Ensure toolbar is always visible and accessible */
+.editor-container .ce-toolbar {
+  z-index: 10 !important;
+  position: relative !important;
+}
+
+.editor-container .ce-toolbar__plus {
+  z-index: 15 !important;
+  position: relative !important;
+}
+
+/* Fix for toolbox positioning */
+.editor-container .ce-toolbar__plus .ce-popover {
+  position: absolute !important;
+  top: 100% !important;
+  left: 0 !important;
+  margin-top: 0.5rem !important;
+}
+
+/* Make the editor area more responsive */
+.editor-container .codex-editor {
+  min-height: 250px !important;
+}
+
+/* Improve spacing for better tool visibility */
+.editor-container .ce-block {
+  margin-bottom: 1rem !important;
+}
+
+.editor-container .ce-block:first-child {
+  margin-top: 0.5rem !important;
+}
+
+/* Global override to ensure popover is visible */
+.ce-popover {
+  z-index: 9999 !important;
+  max-height: 400px !important;
+  overflow-y: auto !important;
+}
+
+.ce-popover__items {
+  max-height: 350px !important;
+  overflow-y: auto !important;
+}
+
+/* Ensure the plus button works correctly */
+.ce-toolbar__plus {
+  position: relative !important;
+  z-index: 100 !important;
 } 

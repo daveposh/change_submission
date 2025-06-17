@@ -5,7 +5,7 @@ const editorConfig = {
     placeholder: 'Start typing...',
     autofocus: false,
     readOnly: false,
-    minHeight: 200,
+    minHeight: 300,
     onReady: function() {
       console.log('✅ Editor.js ready');
     },
@@ -319,6 +319,52 @@ const editorConfig = {
       
       .editor-container .ce-inline-tool:hover {
         background-color: #f8f9fa !important;
+      }
+      
+      /* Toolbox visibility fixes */
+      .ce-popover {
+        z-index: 9999 !important;
+        max-height: 400px !important;
+        overflow-y: auto !important;
+        position: absolute !important;
+        background: white !important;
+        border: 1px solid #e1e5e9 !important;
+        border-radius: 4px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+        min-width: 200px !important;
+      }
+      
+      .ce-popover__items {
+        max-height: 350px !important;
+        overflow-y: auto !important;
+        padding: 8px !important;
+      }
+      
+      .ce-popover__item {
+        padding: 12px !important;
+        border-radius: 4px !important;
+        margin-bottom: 4px !important;
+        cursor: pointer !important;
+        display: flex !important;
+        align-items: center !important;
+      }
+      
+      .ce-popover__item:hover {
+        background-color: #f8f9fa !important;
+      }
+      
+      .ce-popover__item-icon {
+        margin-right: 12px !important;
+        width: 20px !important;
+        height: 20px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      
+      .ce-popover__item-title {
+        font-size: 14px !important;
+        color: #333 !important;
       }
       
       /* Code block styles */
