@@ -1,4 +1,4 @@
-/* Editor.js Styles */
+/* Editor.js Styles - Fixed positioning */
 .editor-container {
   border: 1px solid #dee2e6;
   border-radius: 0.375rem;
@@ -8,6 +8,7 @@
   position: relative;
   width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .editor-container .codex-editor {
@@ -15,13 +16,32 @@
   position: relative;
   width: 100%;
   box-sizing: border-box;
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
 }
 
 .editor-container .codex-editor__redactor {
   padding-bottom: 100px !important;
   position: relative;
-  width: 100%;
+  width: 100% !important;
   box-sizing: border-box;
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  max-width: none !important;
+}
+
+/* Force Editor.js to not center itself */
+.editor-container .codex-editor .codex-editor__redactor {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  transform: none !important;
+  position: relative !important;
+  width: 100% !important;
+  max-width: none !important;
 }
 
 .editor-container .ce-toolbar__plus,
@@ -40,13 +60,17 @@
 }
 
 .editor-container .ce-toolbar__content {
-  max-width: 100%;
+  max-width: 100% !important;
+  width: 100% !important;
 }
 
 .editor-container .ce-block__content {
-  max-width: 100%;
-  width: 100%;
+  max-width: 100% !important;
+  width: 100% !important;
   position: relative;
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
 }
 
 .editor-container .ce-toolbar__plus {
@@ -57,10 +81,13 @@
   margin-right: 0;
 }
 
-/* Fix Editor.js positioning and layout */
+/* Fix Editor.js positioning and layout - Override centering */
 .editor-container .ce-toolbar {
   position: relative;
   width: auto;
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
 }
 
 .editor-container .ce-toolbar__actions {
@@ -77,11 +104,33 @@
   right: 0;
 }
 
-/* Editor.js Block Styles */
+/* Editor.js Block Styles - Prevent centering */
 .editor-container .ce-block__content {
-  margin: 0;
+  margin: 0 !important;
   position: relative;
-  width: 100%;
+  width: 100% !important;
+  left: 0 !important;
+  transform: none !important;
+  max-width: none !important;
+}
+
+/* Force all Editor.js content to align left and fill container */
+.editor-container .ce-block {
+  margin: 0 !important;
+  width: 100% !important;
+  position: relative !important;
+  left: 0 !important;
+  transform: none !important;
+  max-width: none !important;
+}
+
+.editor-container .ce-block .ce-block__content {
+  position: relative !important;
+  width: 100% !important;
+  margin: 0 !important;
+  max-width: none !important;
+  left: 0 !important;
+  transform: none !important;
 }
 
 .editor-container .ce-block__content h1,
@@ -176,32 +225,62 @@
   background-color: rgba(13, 110, 253, 0.1);
 }
 
-/* Prevent editor overflow and centering issues */
+/* Prevent editor overflow and centering issues - Strong overrides */
 .editor-container .codex-editor__redactor {
-  overflow: visible;
-  position: relative;
+  overflow: visible !important;
+  position: relative !important;
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: none !important;
 }
 
 .editor-container .ce-block {
-  position: relative;
-  width: 100%;
+  position: relative !important;
+  width: 100% !important;
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  max-width: none !important;
 }
 
 .editor-container .ce-block .ce-block__content {
-  position: relative;
-  width: 100%;
-  margin: 0 auto;
-  max-width: none;
+  position: relative !important;
+  width: 100% !important;
+  margin: 0 !important;
+  max-width: none !important;
+  left: 0 !important;
+  transform: none !important;
 }
 
-/* Fix centering issues */
+/* Override Editor.js default centering styles */
 .editor-container .codex-editor .codex-editor__redactor {
-  margin: 0;
-  padding: 0 0 100px 0;
+  margin: 0 !important;
+  padding: 0 0 100px 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  position: relative !important;
+  width: 100% !important;
+  max-width: none !important;
 }
 
 .editor-container .ce-block {
-  margin: 0;
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* Additional specificity to override Editor.js centering */
+.editor-container .codex-editor {
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  position: relative !important;
+  width: 100% !important;
+  max-width: none !important;
 }
 
 /* Editor.js Image Tool Styles */

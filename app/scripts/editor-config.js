@@ -126,15 +126,20 @@ const editorConfig = {
           return;
         }
 
-        // Clear any existing editor content first
+        // Clear any existing editor content first and apply positioning styles
         holders.forEach(id => {
           const holder = document.getElementById(id);
           if (holder) {
             holder.innerHTML = '';
             holder.style.position = 'relative';
             holder.style.width = '100%';
+            holder.style.overflow = 'hidden';
+            holder.style.boxSizing = 'border-box';
           }
         });
+
+        // Inject additional CSS to override Editor.js centering
+        this._injectAntiCenteringCSS();
 
         // Initialize each editor with proper container styling
         const editors = {};
@@ -144,6 +149,11 @@ const editorConfig = {
         const checkComplete = () => {
           initCount++;
           if (initCount === totalEditors) {
+            // Apply post-initialization fixes
+            setTimeout(() => {
+              this._fixEditorPositioning();
+            }, 100);
+            
             // Store editor instances globally
             window.editors = editors;
             console.log('✅ Editor.js instances initialized successfully');
@@ -214,6 +224,80 @@ const editorConfig = {
         console.error('❌ Error initializing editors:', error);
         reject(error);
       }
+    });
+  },
+
+  // Inject CSS to prevent Editor.js centering
+  _injectAntiCenteringCSS: function() {
+    const style = document.createElement('style');
+    style.textContent = `
+      .editor-container .codex-editor,
+      .editor-container .codex-editor__redactor,
+      .editor-container .ce-block,
+      .editor-container .ce-block__content {
+        margin: 0 !important;
+        left: 0 !important;
+        transform: none !important;
+        position: relative !important;
+        width: 100% !important;
+        max-width: none !important;
+      }
+      
+      .editor-container .codex-editor {
+        padding: 1rem !important;
+      }
+      
+      .editor-container .codex-editor__redactor {
+        padding-bottom: 100px !important;
+      }
+    `;
+    document.head.appendChild(style);
+  },
+
+  // Fix editor positioning after initialization
+  _fixEditorPositioning: function() {
+    const containers = document.querySelectorAll('.editor-container');
+    containers.forEach(container => {
+      const editor = container.querySelector('.codex-editor');
+      const redactor = container.querySelector('.codex-editor__redactor');
+      const blocks = container.querySelectorAll('.ce-block');
+      const contents = container.querySelectorAll('.ce-block__content');
+      
+      if (editor) {
+        editor.style.margin = '0';
+        editor.style.left = '0';
+        editor.style.transform = 'none';
+        editor.style.position = 'relative';
+        editor.style.width = '100%';
+        editor.style.maxWidth = 'none';
+      }
+      
+      if (redactor) {
+        redactor.style.margin = '0';
+        redactor.style.left = '0';
+        redactor.style.transform = 'none';
+        redactor.style.position = 'relative';
+        redactor.style.width = '100%';
+        redactor.style.maxWidth = 'none';
+      }
+      
+      blocks.forEach(block => {
+        block.style.margin = '0';
+        block.style.left = '0';
+        block.style.transform = 'none';
+        block.style.position = 'relative';
+        block.style.width = '100%';
+        block.style.maxWidth = 'none';
+      });
+      
+      contents.forEach(content => {
+        content.style.margin = '0';
+        content.style.left = '0';
+        content.style.transform = 'none';
+        content.style.position = 'relative';
+        content.style.width = '100%';
+        content.style.maxWidth = 'none';
+      });
     });
   },
 
