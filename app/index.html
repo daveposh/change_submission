@@ -85,85 +85,42 @@
     <!-- Editor.js Dependencies -->
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.28.2/dist/editor.min.js"></script>
     <!-- Editor.js Tools -->
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@2.8.1/dist/bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@1.9.0/dist/bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/checklist@1.5.0/dist/bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@2.5.0/dist/bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/code@2.9.0/dist/bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/table@2.3.0/dist/table.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@2.9.0/dist/bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/marker@1.4.0/dist/bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@1.5.0/dist/bundle.min.js"></script>
+    <script src="scripts/editor-tools/editor-tools.js"></script>
     
     <!-- Editor Configuration -->
     <script>
-      // Ensure tools are properly exposed to window
-      function exposeEditorTools() {
-        // Map tool names to their expected global variables
-        const tools = {
-          'Header': window.Header,
-          'List': window.List || window.EditorJsList,
-          'Checklist': window.Checklist,
-          'Quote': window.Quote,
-          'CodeTool': window.CodeTool,
-          'Table': window.Table,
-          'ImageTool': window.ImageTool,
-          'Marker': window.Marker,
-          'InlineCode': window.InlineCode
-        };
-
-        // Expose each tool to window if it exists
-        Object.entries(tools).forEach(([name, tool]) => {
-          if (tool && !window[name]) {
-            window[name] = tool;
-            console.log(`✅ ${name} tool exposed to window`);
-          }
-        });
-      }
-
       // Wait for Editor.js and tools to load
       window.addEventListener('load', () => {
-        // Add a small delay to ensure all scripts are loaded
-        setTimeout(() => {
-          // Expose tools to window
-          exposeEditorTools();
+        // Check if Editor.js is loaded
+        if (!window.EditorJS) {
+          console.error('❌ Editor.js not loaded');
+          return;
+        }
 
-          // Check if all required scripts are loaded
-          const requiredTools = ['Header', 'List', 'Checklist', 'Quote', 'CodeTool', 'Table', 'ImageTool', 'Marker', 'InlineCode'];
-          const missingTools = requiredTools.filter(tool => !window[tool]);
-          
-          if (missingTools.length > 0) {
-            console.error('❌ Some Editor.js tools failed to load:', missingTools);
-            // Try to diagnose List tool specifically
-            if (missingTools.includes('List')) {
-              console.log('Debugging List tool:', {
-                windowList: window.List,
-                editorJsList: window.EditorJsList,
-                listToolScript: document.querySelector('script[src*="list"]')
-              });
-            }
-            return;
+        // Check if our tools are loaded
+        if (!window.Header || !window.List) {
+          console.error('❌ Editor.js tools not loaded');
+          return;
+        }
+
+        console.log('✅ Editor.js and tools loaded successfully');
+        
+        // Load editor configuration
+        const script = document.createElement('script');
+        script.src = 'scripts/editor-config.js';
+        script.onload = () => {
+          // Initialize editors after config is loaded
+          if (window.editorConfig) {
+            window.editorConfig.initializeEditors();
+            console.log('✅ Editor.js instances initialized');
+          } else {
+            console.error('❌ Editor configuration not found');
           }
-          
-          console.log('✅ All Editor.js tools loaded successfully');
-          
-          // Load editor configuration
-          const script = document.createElement('script');
-          script.src = 'scripts/editor-config.js';
-          script.onload = () => {
-            // Initialize editors after config is loaded
-            if (window.editorConfig) {
-              window.editorConfig.initializeEditors();
-              console.log('✅ Editor.js instances initialized');
-            } else {
-              console.error('❌ Editor configuration not found');
-            }
-          };
-          script.onerror = (error) => {
-            console.error('❌ Failed to load editor configuration:', error);
-          };
-          document.head.appendChild(script);
-        }, 1000); // Increased delay to ensure all tools are loaded
+        };
+        script.onerror = (error) => {
+          console.error('❌ Failed to load editor configuration:', error);
+        };
+        document.head.appendChild(script);
       });
     </script>
     

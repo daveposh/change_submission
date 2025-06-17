@@ -16,48 +16,11 @@ const editorConfig = {
         }
       },
       list: {
-        class: window.List || window.EditorJsList,
+        class: window.List,
         inlineToolbar: true,
         config: {
           defaultStyle: 'unordered'
         }
-      },
-      checklist: {
-        class: window.Checklist,
-        inlineToolbar: true
-      },
-      quote: {
-        class: window.Quote,
-        inlineToolbar: true,
-        config: {
-          quotePlaceholder: 'Enter a quote',
-          captionPlaceholder: 'Quote\'s author'
-        }
-      },
-      code: {
-        class: window.CodeTool,
-        inlineToolbar: true
-      },
-      table: {
-        class: window.Table,
-        inlineToolbar: true
-      },
-      image: {
-        class: window.ImageTool,
-        config: {
-          endpoints: {
-            byFile: '/uploadFile', // Your file upload endpoint
-            byUrl: '/fetchUrl'     // Your URL fetch endpoint
-          }
-        }
-      },
-      marker: {
-        class: window.Marker,
-        shortcut: 'CMD+SHIFT+M'
-      },
-      inlineCode: {
-        class: window.InlineCode,
-        shortcut: 'CMD+SHIFT+C'
       }
     }
   },
@@ -73,20 +36,11 @@ const editorConfig = {
         return;
       }
 
-      // Check if List tool is loaded
-      const ListClass = window.List || window.EditorJsList;
-      if (!ListClass) {
-        console.error('❌ List tool not loaded');
-        console.log('Debugging List tool:', {
-          windowList: window.List,
-          editorJsList: window.EditorJsList,
-          listToolScript: document.querySelector('script[src*="list"]')
-        });
+      // Check if required tools are loaded
+      if (!window.Header || !window.List) {
+        console.error('❌ Required Editor.js tools not loaded');
         return;
       }
-
-      // Update List tool class
-      this.commonConfig.tools.list.class = ListClass;
       
       // Check if required elements exist
       const holders = [
