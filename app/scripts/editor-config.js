@@ -43,8 +43,8 @@ const editorConfig = {
       cite: true
     },
     tools: {
-      // Block Tools
-      header: {
+      // Block Tools - using unique names to avoid conflicts
+      customHeader: {
         class: window.Header,
         inlineToolbar: true,
         config: {
@@ -52,20 +52,20 @@ const editorConfig = {
           defaultLevel: 2
         }
       },
-      list: {
+      customList: {
         class: window.List,
         inlineToolbar: true,
         config: {
           defaultStyle: 'unordered'
         }
       },
-      code: {
+      customCode: {
         class: window.CodeTool,
         config: {
           placeholder: 'Enter your code here...'
         }
       },
-      table: {
+      customTable: {
         class: window.Table,
         inlineToolbar: true,
         config: {
@@ -74,7 +74,7 @@ const editorConfig = {
           withHeadings: true
         }
       },
-      quote: {
+      customQuote: {
         class: window.Quote,
         inlineToolbar: true,
         config: {
@@ -83,16 +83,16 @@ const editorConfig = {
         }
       },
       // Inline Tools
-      bold: {
+      customBold: {
         class: window.Bold
       },
-      italic: {
+      customItalic: {
         class: window.Italic
       },
-      underline: {
+      customUnderline: {
         class: window.Underline
       },
-      inlineCode: {
+      customInlineCode: {
         class: window.InlineCode
       }
     }
@@ -143,10 +143,24 @@ const editorConfig = {
     return new Promise((resolve, reject) => {
       try {
         // Check if required tools are loaded
+        console.log('🔍 Checking tool availability:');
+        console.log('Header:', typeof window.Header);
+        console.log('List:', typeof window.List);
+        console.log('CodeTool:', typeof window.CodeTool);
+        console.log('Table:', typeof window.Table);
+        console.log('Quote:', typeof window.Quote);
+        console.log('Bold:', typeof window.Bold);
+        console.log('Italic:', typeof window.Italic);
+        console.log('Underline:', typeof window.Underline);
+        console.log('InlineCode:', typeof window.InlineCode);
+        
         if (!window.Header || !window.List || !window.CodeTool || !window.Table || !window.Quote || !window.Bold || !window.Italic || !window.Underline || !window.InlineCode) {
+          console.error('❌ Some tools not loaded');
           reject(new Error('Required Editor.js tools not loaded'));
           return;
         }
+        
+        console.log('✅ All tools loaded successfully');
         
         // Check if required elements exist and are visible
         const holders = [
@@ -212,9 +226,12 @@ const editorConfig = {
           onChange: undefined,
           onReady: () => {
             console.log('✅ Editor ready');
+            console.log('🔧 Available tools in this editor:', Object.keys(safeConfig.tools || {}));
             checkComplete();
           }
         };
+        
+        console.log('🔧 Configured tools:', Object.keys(safeConfig.tools || {}));
         
         try {
           editors.reason = new window.EditorJS({
