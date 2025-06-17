@@ -6268,13 +6268,7 @@ window.testEnhancedUserCache = async function() {
   }
 };
 
-// Initialize Editor.js instances when the document is ready
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize editors
-  if (window.editorConfig) {
-    window.editorConfig.initializeEditors();
-  }
-});
+// Editor.js initialization is now handled in index.html
 
 /**
  * Show submission summary modal

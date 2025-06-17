@@ -82,48 +82,6 @@
     </script>
     <link rel="stylesheet" href="styles/css/app.css">
     
-    <!-- Editor.js Dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.28.2/dist/editor.min.js"></script>
-    <!-- Editor.js Tools -->
-    <script src="scripts/editor-tools/editor-tools.js"></script>
-    
-    <!-- Editor Configuration -->
-    <script>
-      // Wait for Editor.js and tools to load
-      window.addEventListener('load', () => {
-        // Check if Editor.js is loaded
-        if (!window.EditorJS) {
-          console.error('❌ Editor.js not loaded');
-          return;
-        }
-
-        // Check if our tools are loaded
-        if (!window.Header || !window.List) {
-          console.error('❌ Editor.js tools not loaded');
-          return;
-        }
-
-        console.log('✅ Editor.js and tools loaded successfully');
-        
-        // Load editor configuration
-        const script = document.createElement('script');
-        script.src = 'scripts/editor-config.js';
-        script.onload = () => {
-          // Initialize editors after config is loaded
-          if (window.editorConfig) {
-            window.editorConfig.initializeEditors();
-            console.log('✅ Editor.js instances initialized');
-          } else {
-            console.error('❌ Editor configuration not found');
-          }
-        };
-        script.onerror = (error) => {
-          console.error('❌ Failed to load editor configuration:', error);
-        };
-        document.head.appendChild(script);
-      });
-    </script>
-    
     <title>Change Request</title>
   </head>
 
@@ -953,6 +911,86 @@
       <div id="submission-summary"></div>
     </div>
   </body>
+  <!-- Editor.js Dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.28.2/dist/editor.min.js"></script>
+  <!-- Editor.js Tools -->
+  <script src="scripts/editor-tools/editor-tools.js"></script>
+  <!-- Editor Configuration -->
+  <script>
+    // Initialize Editor.js after DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check if Editor.js is loaded
+      if (!window.EditorJS) {
+        console.error('❌ Editor.js not loaded');
+        // Show error to user
+        const editors = document.querySelectorAll('.editor-container');
+        editors.forEach(editor => {
+          editor.innerHTML = `
+            <div class="alert alert-danger">
+              <i class="fas fa-exclamation-circle me-2"></i>
+              Failed to load Editor.js. Please refresh the page or contact support if the issue persists.
+            </div>
+          `;
+        });
+        return;
+      }
+
+      // Check if our tools are loaded
+      if (!window.Header || !window.List) {
+        console.error('❌ Editor.js tools not loaded');
+        // Show error to user
+        const editors = document.querySelectorAll('.editor-container');
+        editors.forEach(editor => {
+          editor.innerHTML = `
+            <div class="alert alert-danger">
+              <i class="fas fa-exclamation-circle me-2"></i>
+              Failed to load Editor.js tools. Please refresh the page or contact support if the issue persists.
+            </div>
+          `;
+        });
+        return;
+      }
+
+      console.log('✅ Editor.js and tools loaded successfully');
+      
+      // Load editor configuration
+      const script = document.createElement('script');
+      script.src = 'scripts/editor-config.js';
+      script.onload = () => {
+        // Initialize editors after config is loaded
+        if (window.editorConfig) {
+          window.editorConfig.initializeEditors();
+          console.log('✅ Editor.js instances initialized');
+        } else {
+          console.error('❌ Editor configuration not found');
+          // Show error to user
+          const editors = document.querySelectorAll('.editor-container');
+          editors.forEach(editor => {
+            editor.innerHTML = `
+              <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Failed to load editor configuration. Please refresh the page or contact support if the issue persists.
+              </div>
+            `;
+          });
+        }
+      };
+      script.onerror = (error) => {
+        console.error('❌ Failed to load editor configuration:', error);
+        // Show error to user
+        const editors = document.querySelectorAll('.editor-container');
+        editors.forEach(editor => {
+          editor.innerHTML = `
+            <div class="alert alert-danger">
+              <i class="fas fa-exclamation-circle me-2"></i>
+              Failed to load editor configuration. Please refresh the page or contact support if the issue persists.
+            </div>
+          `;
+        });
+      };
+      document.body.appendChild(script);
+    });
+  </script>
   <script src="scripts/cache-manager.js"></script>
   <script src="scripts/asset-association.js"></script>
   <script src="scripts/impacted-services.js"></script>
