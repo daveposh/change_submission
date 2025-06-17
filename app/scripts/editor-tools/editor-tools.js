@@ -214,20 +214,31 @@ class List {
   }
 
   toggleListStyle(list, button) {
+    if (!list || !list.parentNode) {
+      console.warn('List element not found or has no parent');
+      return;
+    }
+    
     const items = Array.from(list.children);
     const newStyle = this.data.style === 'ordered' ? 'unordered' : 'ordered';
     const newList = document.createElement(newStyle === 'ordered' ? 'ol' : 'ul');
     newList.style.marginBottom = '10px';
     
     items.forEach(item => {
-      newList.appendChild(item);
+      // Clone the item to avoid moving issues
+      const clonedItem = item.cloneNode(true);
+      newList.appendChild(clonedItem);
     });
     
-    list.parentNode.replaceChild(newList, list);
-    this.list = newList;
-    this.data.style = newStyle;
-    
-    button.innerHTML = newStyle === 'ordered' ? '1. → •' : '• → 1.';
+    try {
+      list.parentNode.replaceChild(newList, list);
+      this.list = newList;
+      this.data.style = newStyle;
+      
+      button.innerHTML = newStyle === 'ordered' ? '1. → •' : '• → 1.';
+    } catch (error) {
+      console.error('Error replacing list:', error);
+    }
   }
 
   save() {
@@ -723,8 +734,12 @@ class Bold {
   }
 
   checkState() {
-    const strong = this.api.selection.findParentTag('STRONG') || this.api.selection.findParentTag('B');
-    this.state = !!strong;
+    if (this.api && this.api.selection) {
+      const strong = this.api.selection.findParentTag('STRONG') || this.api.selection.findParentTag('B');
+      this.state = !!strong;
+    } else {
+      this.state = false;
+    }
   }
 }
 
@@ -791,8 +806,12 @@ class Italic {
   }
 
   checkState() {
-    const em = this.api.selection.findParentTag('EM') || this.api.selection.findParentTag('I');
-    this.state = !!em;
+    if (this.api && this.api.selection) {
+      const em = this.api.selection.findParentTag('EM') || this.api.selection.findParentTag('I');
+      this.state = !!em;
+    } else {
+      this.state = false;
+    }
   }
 }
 
@@ -858,13 +877,21 @@ class Underline {
   }
 
   checkState() {
-    const u = this.api.selection.findParentTag('U');
-    this.state = !!u;
+    if (this.api && this.api.selection) {
+      const u = this.api.selection.findParentTag('U');
+      this.state = !!u;
+    } else {
+      this.state = false;
+    }
   }
 }
 
 // Inline Code Tool
 class InlineCode {
+  constructor({ api }) {
+    this.api = api;
+  }
+
   static get isInline() {
     return true;
   }
@@ -928,8 +955,12 @@ class InlineCode {
   }
 
   checkState() {
-    const code = this.api.selection.findParentTag('CODE');
-    this.state = !!code;
+    if (this.api && this.api.selection) {
+      const code = this.api.selection.findParentTag('CODE');
+      this.state = !!code;
+    } else {
+      this.state = false;
+    }
   }
 }
 
@@ -1057,6 +1088,11 @@ class FontFamily {
   surround() {
     // This tool uses dropdown, surround not applicable
   }
+
+  checkState() {
+    // FontFamily tool doesn't need state checking like toggle tools
+    return false;
+  }
 }
 
 // Highlight Tool
@@ -1126,8 +1162,12 @@ class Highlight {
   }
 
   checkState() {
-    const mark = this.api.selection.findParentTag('MARK');
-    this.state = !!mark;
+    if (this.api && this.api.selection) {
+      const mark = this.api.selection.findParentTag('MARK');
+      this.state = !!mark;
+    } else {
+      this.state = false;
+    }
   }
 }
 
@@ -1276,6 +1316,11 @@ class TextColor {
 
   surround() {
     // This tool uses dropdown, surround not applicable
+  }
+
+  checkState() {
+    // TextColor tool doesn't need state checking like toggle tools
+    return false;
   }
 }
 
