@@ -61,49 +61,68 @@ const editorConfig = {
 
   // Initialize editors for specific fields
   initializeEditors: function() {
-    // Reason for Change editor
-    const reasonEditor = new EditorJS({
-      holder: 'reason-for-change-editor',
-      ...this.commonConfig,
-      placeholder: 'Describe the reason for this change...'
-    });
+    try {
+      console.log('🔧 Initializing Editor.js instances...');
+      
+      // Check if required elements exist
+      const holders = [
+        'reason-for-change-editor',
+        'implementation-plan-editor',
+        'backout-plan-editor',
+        'validation-plan-editor'
+      ];
+      
+      const missingHolders = holders.filter(id => !document.getElementById(id));
+      if (missingHolders.length > 0) {
+        console.error('❌ Missing editor containers:', missingHolders);
+        return;
+      }
 
-    // Implementation Plan editor
-    const implementationEditor = new EditorJS({
-      holder: 'implementation-plan-editor',
-      ...this.commonConfig,
-      placeholder: 'Describe the implementation steps...'
-    });
+      // Initialize each editor
+      const editors = {
+        reason: new EditorJS({
+          holder: 'reason-for-change-editor',
+          ...this.commonConfig,
+          placeholder: 'Describe the reason for this change...'
+        }),
+        implementation: new EditorJS({
+          holder: 'implementation-plan-editor',
+          ...this.commonConfig,
+          placeholder: 'Describe the implementation steps...'
+        }),
+        backout: new EditorJS({
+          holder: 'backout-plan-editor',
+          ...this.commonConfig,
+          placeholder: 'Describe the backout procedure...'
+        }),
+        validation: new EditorJS({
+          holder: 'validation-plan-editor',
+          ...this.commonConfig,
+          placeholder: 'Describe how the change will be validated...'
+        })
+      };
 
-    // Backout Plan editor
-    const backoutEditor = new EditorJS({
-      holder: 'backout-plan-editor',
-      ...this.commonConfig,
-      placeholder: 'Describe the backout procedure...'
-    });
-
-    // Validation Plan editor
-    const validationEditor = new EditorJS({
-      holder: 'validation-plan-editor',
-      ...this.commonConfig,
-      placeholder: 'Describe how the change will be validated...'
-    });
-
-    // Store editor instances
-    window.editors = {
-      reason: reasonEditor,
-      implementation: implementationEditor,
-      backout: backoutEditor,
-      validation: validationEditor
-    };
+      // Store editor instances globally
+      window.editors = editors;
+      console.log('✅ Editor.js instances initialized successfully');
+      
+      return editors;
+    } catch (error) {
+      console.error('❌ Error initializing editors:', error);
+      throw error;
+    }
   },
 
   // Save editor content
   saveEditorContent: async function() {
     const editors = window.editors;
-    if (!editors) return null;
+    if (!editors) {
+      console.error('❌ No editor instances found');
+      return null;
+    }
 
     try {
+      console.log('💾 Saving editor content...');
       const content = {
         reasonForChange: await editors.reason.save(),
         implementationPlan: await editors.implementation.save(),
@@ -111,9 +130,10 @@ const editorConfig = {
         validationPlan: await editors.validation.save()
       };
 
+      console.log('✅ Editor content saved successfully');
       return content;
     } catch (error) {
-      console.error('Error saving editor content:', error);
+      console.error('❌ Error saving editor content:', error);
       throw error;
     }
   },
@@ -121,9 +141,13 @@ const editorConfig = {
   // Load editor content
   loadEditorContent: async function(data) {
     const editors = window.editors;
-    if (!editors || !data) return;
+    if (!editors || !data) {
+      console.error('❌ No editor instances or data found');
+      return;
+    }
 
     try {
+      console.log('📥 Loading editor content...');
       if (data.reasonForChange) {
         await editors.reason.render(data.reasonForChange);
       }
@@ -136,12 +160,14 @@ const editorConfig = {
       if (data.validationPlan) {
         await editors.validation.render(data.validationPlan);
       }
+      console.log('✅ Editor content loaded successfully');
     } catch (error) {
-      console.error('Error loading editor content:', error);
+      console.error('❌ Error loading editor content:', error);
       throw error;
     }
   }
 };
 
 // Export the configuration
-window.editorConfig = editorConfig; 
+window.editorConfig = editorConfig;
+console.log('✅ Editor configuration loaded'); 

@@ -94,6 +94,20 @@
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/marker@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@latest"></script>
     
+    <!-- Editor Configuration -->
+    <script src="scripts/editor-config.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        // Initialize Editor.js instances
+        if (window.editorConfig) {
+          window.editorConfig.initializeEditors();
+          console.log('✅ Editor.js instances initialized');
+        } else {
+          console.error('❌ Editor configuration not found');
+        }
+      });
+    </script>
+    
     <title>Change Request</title>
   </head>
 
