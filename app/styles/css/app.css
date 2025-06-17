@@ -1,0 +1,236 @@
+/* Editor.js Styles */
+.editor-container {
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  background-color: #fff;
+  min-height: 200px;
+  margin-bottom: 1rem;
+}
+
+.editor-container .codex-editor {
+  padding: 1rem;
+}
+
+.editor-container .codex-editor__redactor {
+  padding-bottom: 100px !important;
+}
+
+.editor-container .ce-toolbar__plus,
+.editor-container .ce-toolbar__settings-btn {
+  color: #6c757d;
+}
+
+.editor-container .ce-toolbar__plus:hover,
+.editor-container .ce-toolbar__settings-btn:hover {
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+
+.editor-container .ce-block--selected .ce-block__content {
+  background-color: rgba(13, 110, 253, 0.1);
+}
+
+.editor-container .ce-toolbar__content {
+  max-width: 100%;
+}
+
+.editor-container .ce-block__content {
+  max-width: 100%;
+}
+
+.editor-container .ce-toolbar__plus {
+  margin-left: 0;
+}
+
+.editor-container .ce-toolbar__settings-btn {
+  margin-right: 0;
+}
+
+/* Editor.js Toolbar Styles */
+.editor-container .ce-toolbar__actions {
+  right: 0;
+}
+
+.editor-container .ce-toolbar__plus {
+  left: 0;
+}
+
+.editor-container .ce-toolbar__settings-btn {
+  right: 0;
+}
+
+/* Editor.js Block Styles */
+.editor-container .ce-block__content {
+  margin: 0;
+}
+
+.editor-container .ce-block__content h1,
+.editor-container .ce-block__content h2,
+.editor-container .ce-block__content h3 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.editor-container .ce-block__content p {
+  margin-bottom: 0.5rem;
+}
+
+.editor-container .ce-block__content ul,
+.editor-container .ce-block__content ol {
+  margin-bottom: 0.5rem;
+  padding-left: 1.5rem;
+}
+
+.editor-container .ce-block__content blockquote {
+  border-left: 4px solid #dee2e6;
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+}
+
+.editor-container .ce-block__content code {
+  background-color: #f8f9fa;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+}
+
+.editor-container .ce-block__content table {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  border-collapse: collapse;
+}
+
+.editor-container .ce-block__content table td,
+.editor-container .ce-block__content table th {
+  border: 1px solid #dee2e6;
+  padding: 0.5rem;
+}
+
+.editor-container .ce-block__content table th {
+  background-color: #f8f9fa;
+}
+
+/* Editor.js Inline Toolbar Styles */
+.editor-container .ce-inline-toolbar {
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.editor-container .ce-inline-toolbar__buttons {
+  padding: 0.25rem;
+}
+
+.editor-container .ce-inline-toolbar__buttons button {
+  color: #6c757d;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.editor-container .ce-inline-toolbar__buttons button:hover {
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+
+/* Editor.js Block Settings Styles */
+.editor-container .ce-settings {
+  background-color: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.editor-container .ce-settings__button {
+  color: #6c757d;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.editor-container .ce-settings__button:hover {
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+
+/* Editor.js Image Tool Styles */
+.editor-container .image-tool {
+  margin-bottom: 0.5rem;
+}
+
+.editor-container .image-tool__image {
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.editor-container .image-tool__caption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+/* Editor.js Checklist Tool Styles */
+.editor-container .cdx-checklist__item {
+  margin-bottom: 0.25rem;
+}
+
+.editor-container .cdx-checklist__item-checkbox {
+  margin-right: 0.5rem;
+}
+
+/* Editor.js Quote Tool Styles */
+.editor-container .cdx-quote {
+  border-left: 4px solid #dee2e6;
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+}
+
+.editor-container .cdx-quote__caption {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+/* Editor.js Code Tool Styles */
+.editor-container .ce-code {
+  background-color: #f8f9fa;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  font-family: monospace;
+  margin-bottom: 0.5rem;
+}
+
+/* Editor.js Table Tool Styles */
+.editor-container .tc-table {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  border-collapse: collapse;
+}
+
+.editor-container .tc-table td,
+.editor-container .tc-table th {
+  border: 1px solid #dee2e6;
+  padding: 0.5rem;
+}
+
+.editor-container .tc-table th {
+  background-color: #f8f9fa;
+}
+
+/* Editor.js Marker Tool Styles */
+.editor-container .cdx-marker {
+  background-color: #fff3cd;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+}
+
+/* Editor.js Inline Code Tool Styles */
+.editor-container .inline-code {
+  background-color: #f8f9fa;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+} 

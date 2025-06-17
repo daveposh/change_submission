@@ -375,764 +375,77 @@ const ChangeSubmission = {
   },
 
   /**
-   * Prepare change request data for API submission
+   * Prepare change request data for submission
    */
   async prepareChangeRequestData() {
-    console.log('📦 Preparing change request data...');
-
+    console.log('📝 Preparing change request data...');
+    
     const data = window.changeRequestData;
+    const riskAssessment = data?.riskAssessment;
     const impactedData = window.ImpactedServices?.getImpactedServicesData() || {};
-
-    // Debug: Log the data sources being used
-    console.log('🔍 DATA SOURCES DEBUG:');
-    console.log('  window.changeRequestData:', window.changeRequestData);
-    console.log('  data parameter:', data);
-    console.log('  impactedData:', impactedData);
     
-    // Debug: Log specific field values from different sources
-    console.log('🔍 FIELD VALUES FROM DIFFERENT SOURCES:');
-    console.log(`  window.changeRequestData.reasonForChange: "${window.changeRequestData?.reasonForChange}"`);
-    console.log(`  data.reasonForChange: "${data?.reasonForChange}"`);
-    console.log(`  window.changeRequestData.implementationPlan: "${window.changeRequestData?.implementationPlan}"`);
-    console.log(`  data.implementationPlan: "${data?.implementationPlan}"`);
-    console.log(`  window.changeRequestData.backoutPlan: "${window.changeRequestData?.backoutPlan}"`);
-    console.log(`  data.backoutPlan: "${data?.backoutPlan}"`);
-    console.log(`  window.changeRequestData.validationPlan: "${window.changeRequestData?.validationPlan}"`);
-    console.log(`  data.validationPlan: "${data?.validationPlan}"`);
-
-    // Get installation parameters for workspace configuration
-    let workspaceId = null;
-    let departmentId = null;
-    try {
-      const params = await window.client.iparams.get();
-      workspaceId = params.workspace_id || 2; // Default to workspace 2 ("CXI Change Management")
-      departmentId = params.department_id;
-      console.log('🏢 Configuration from iparams:', { workspaceId, departmentId });
-    } catch (error) {
-      console.warn('⚠️ Could not retrieve installation parameters:', error);
-      workspaceId = 2; // Fallback to default workspace
-    }
-
-    // Calculate priority based on change type and risk level
-    const priority = this.calculatePriority(data.changeType, data.riskAssessment?.riskLevel);
-
-    // Map change type to Freshservice values (this instance supports 4=Emergency, 6=Normal Change)
-    const changeTypeMapping = {
-      'minor': 6,      // Normal Change
-      'major': 6,      // Normal Change  
-      'normal': 6,     // Normal Change
-      'emergency': 4   // Emergency
-    };
-    const change_type = changeTypeMapping[data.changeType] || 6; // default to Normal Change (6)
-
-    // Map risk level to Freshservice values (this instance supports 1-4: Low, Medium, High, Very High)
-    const riskMapping = {
-      'Low': 1,        // Low
-      'Medium': 2,     // Medium
-      'High': 3        // High (not using 4=Very High for now)
-    };
-    const risk = riskMapping[data.riskAssessment?.riskLevel] || 2; // default to medium
-
-    // Generate risk summary based on questionnaire responses
-    const riskSummary = this.generateRiskSummary(data.riskAssessment);
-
-    // Generate impact summary based on questionnaire and assets
-    const impactSummary = this.generateImpactSummary(data.riskAssessment, data.selectedAssets, impactedData);
-
-    // Map impact based on risk level and affected assets count
-    let impact = 2; // Default to Medium impact
-    const assetCount = data.selectedAssets?.length || 0;
-    const riskLevel = data.riskAssessment?.riskLevel || 'Medium';
+    // Get Editor.js content
+    const editorContent = await window.editorConfig.saveEditorContent();
     
-    // Calculate impact based on risk level and scope
-    if (riskLevel === 'High' || assetCount > 5) {
-      impact = 3; // High impact
-    } else if (riskLevel === 'Low' && assetCount <= 2) {
-      impact = 1; // Low impact
-    }
-
-    // Format dates properly for Freshservice API (ISO 8601 format)
+    // Format dates
     const formatDateForAPI = (dateString) => {
       if (!dateString) return null;
       try {
-        const date = new Date(dateString);
-        return date.toISOString();
+        return new Date(dateString).toISOString();
       } catch (error) {
-        console.warn('⚠️ Error formatting date:', dateString, error);
+        console.warn('⚠️ Error formatting date:', error);
         return null;
       }
     };
-
-    // Prepare the change request data according to Freshservice API v2 format
-    // Mapping all REQUIRED fields as specified:
+    
+    // Prepare the change request data
     const changeRequestData = {
-      // REQUIRED: Subject (Title)
-      subject: data.changeTitle || 'Untitled Change Request',
-      
-      // REQUIRED: Description - Enhanced with rich formatted information
-      description: await this.createEnhancedDescription(data, impactedData, data.riskAssessment),
-      
-      // REQUIRED: Workspace - Always required field
-      workspace_id: workspaceId, // Default to workspace 2 ("CXI Change Management")
-      
-      // REQUIRED: Requester
+      subject: data.changeTitle,
+      description: data.changeDescription || editorContent.reasonForChange?.blocks?.[0]?.data?.text || '',
+      change_type: data.changeType,
+      status: 1, // Open
+      priority: this.calculatePriority(data.changeType, riskAssessment?.riskLevel),
+      impact: this.calculateImpact(riskAssessment),
+      risk: riskAssessment?.riskLevel || 'Low',
+      workspace_id: this.getWorkspaceId(),
       requester_id: data.selectedRequester?.id,
-      
-      // REQUIRED: Change Type - Map to Freshservice values
-      change_type: change_type, // 4=Emergency, 6=Normal Change
-      
-      // REQUIRED: Status - Default to Open
-      status: 1, // 1 = Open (required default)
-      
-      // REQUIRED: Priority - Calculated based on change type and risk
-      priority: priority, // 1=Low, 2=Medium, 3=High, 4=Urgent
-      
-      // REQUIRED: Impact - Calculated based on risk and scope
-      impact: impact, // 1=Low, 2=Medium, 3=High
-      
-      // REQUIRED: Risk - Based on risk assessment
-      risk: risk, // 1=Low, 2=Medium, 3=High, 4=Very High
-      
-      // OPTIONAL: Agent assignment
       agent_id: data.selectedAgent?.id,
       
-      // OPTIONAL: Dates
-      planned_start_date: formatDateForAPI(data.plannedStart),
-      planned_end_date: formatDateForAPI(data.plannedEnd),
+      // Planning fields
+      planning_fields: {
+        reason_for_change: {
+          description: editorContent.reasonForChange?.blocks?.[0]?.data?.text || ''
+        },
+        rollout_plan: {
+          description: editorContent.implementationPlan?.blocks?.[0]?.data?.text || ''
+        },
+        backout_plan: {
+          description: editorContent.backoutPlan?.blocks?.[0]?.data?.text || ''
+        },
+        custom_fields: {
+          cfp_validation: {
+            description: editorContent.validationPlan?.blocks?.[0]?.data?.text || ''
+          }
+        }
+      },
       
-      // OPTIONAL: Planning fields structure (matching actual API structure)
-      planning_fields: {}
+      // Dates
+      planned_start_date: formatDateForAPI(data.plannedStart),
+      planned_end_date: formatDateForAPI(data.plannedEnd)
     };
-
-    // Add department_id if configured
-    if (departmentId && departmentId !== null) {
-      changeRequestData.department_id = departmentId;
-      console.log('🏢 Adding department_id to request:', departmentId);
-    } else {
-      console.log('🏢 No department_id configured, skipping department assignment');
-    }
-
-    // Add custom fields structure to match the expected format (based on actual schema)
+    
+    // Add custom fields
     changeRequestData.custom_fields = {
-      risks: riskSummary,                                      // Text summary of risk assessment
-      lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets), // Primary technical owner
-      risk_level: data.riskAssessment?.totalScore || null,     // Numerical risk score from questionnaire (5-15)
-      // Additional approver fields (custom fields from Freshservice)
+      risks: this.generateRiskSummary(riskAssessment),
+      lf_technical_owner: this.getTechnicalOwnerUserId(data.selectedAssets),
+      risk_level: riskAssessment?.totalScore || null,
       lf_additional_approver_1: this.getAdditionalApprover(impactedData.approvers, 0),
       lf_additional_approver_2: this.getAdditionalApprover(impactedData.approvers, 1),
       lf_additional_approver_3: this.getAdditionalApprover(impactedData.approvers, 2)
     };
-
-    // Debug: Log risk assessment values being added to custom fields
-    console.log('🎯 RISK ASSESSMENT VALUES BEING ADDED:');
-    console.log(`  Risk Level (Standard Field): ${risk} (${data.riskAssessment?.riskLevel})`);
-    console.log(`  Risk Score (Custom Field): ${data.riskAssessment?.totalScore}`);
-    console.log(`  Risk Summary Length: ${riskSummary?.length || 0} characters`);
-    console.log(`  Individual Risk Factors:`, {
-      businessImpact: data.riskAssessment?.businessImpact,
-      affectedUsers: data.riskAssessment?.affectedUsers,
-      complexity: data.riskAssessment?.complexity,
-      testing: data.riskAssessment?.testing,
-      rollback: data.riskAssessment?.rollback
-    });
-
-    // Add planning fields only if they have content (avoid null values)
-    console.log('🔍 DEBUGGING PLANNING FIELDS POPULATION:');
-    console.log(`  Raw data.reasonForChange: "${data.reasonForChange}"`);
-    console.log(`  Trimmed data.reasonForChange: "${data.reasonForChange?.trim()}"`);
-    console.log(`  Boolean check: ${!!data.reasonForChange?.trim()}`);
     
-    if (data.reasonForChange?.trim()) {
-      console.log('✅ Adding reason_for_change to planning_fields');
-      changeRequestData.planning_fields.reason_for_change = {
-        description: data.reasonForChange
-      };
-    } else {
-      console.log('❌ Skipping reason_for_change - no content');
-    }
-
-    console.log(`  Raw impactSummary: "${impactSummary}"`);
-    console.log(`  Trimmed impactSummary: "${impactSummary?.trim()}"`);
-    console.log(`  Boolean check: ${!!impactSummary?.trim()}`);
-    
-    if (impactSummary?.trim()) {
-      console.log('✅ Adding change_impact to planning_fields');
-      changeRequestData.planning_fields.change_impact = {
-        description: impactSummary
-      };
-    } else {
-      console.log('❌ Skipping change_impact - no content');
-    }
-
-    console.log(`  Raw data.implementationPlan: "${data.implementationPlan}"`);
-    console.log(`  Trimmed data.implementationPlan: "${data.implementationPlan?.trim()}"`);
-    console.log(`  Boolean check: ${!!data.implementationPlan?.trim()}`);
-    
-    if (data.implementationPlan?.trim()) {
-      console.log('✅ Adding rollout_plan to planning_fields');
-      changeRequestData.planning_fields.rollout_plan = {
-        description: data.implementationPlan
-      };
-    } else {
-      console.log('❌ Skipping rollout_plan - no content');
-    }
-
-    console.log(`  Raw data.backoutPlan: "${data.backoutPlan}"`);
-    console.log(`  Trimmed data.backoutPlan: "${data.backoutPlan?.trim()}"`);
-    console.log(`  Boolean check: ${!!data.backoutPlan?.trim()}`);
-    
-    if (data.backoutPlan?.trim()) {
-      console.log('✅ Adding backout_plan to planning_fields');
-      changeRequestData.planning_fields.backout_plan = {
-        description: data.backoutPlan
-      };
-    } else {
-      console.log('❌ Skipping backout_plan - no content');
-    }
-
-    // Initialize custom_fields if needed
-    if (!changeRequestData.planning_fields.custom_fields) {
-      changeRequestData.planning_fields.custom_fields = {};
-    }
-
-    // 1. Validation Plan (custom planning field)
-    if (data.validationPlan?.trim()) {
-      console.log('✅ Adding cfp_validation to planning_fields');
-      changeRequestData.planning_fields.custom_fields.cfp_validation = {
-        description: data.validationPlan
-      };
-    } else {
-      console.log('❌ Skipping cfp_validation - no content');
-    }
-
-    console.log('✅ Change request data prepared:', {
-      subject: changeRequestData.subject,
-      change_type: changeRequestData.change_type,
-      priority: changeRequestData.priority,
-      calculatedFromRisk: `${data.changeType}+${data.riskAssessment?.riskLevel}→${priority}`,
-      risk: changeRequestData.risk,
-      impact: changeRequestData.impact,
-      workspace_id: changeRequestData.workspace_id,
-      assetCount: data.selectedAssets?.length || 0,
-      approverCount: impactedData.approvers?.length || 0,
-      hasDepartment: !!changeRequestData.department_id,
-      hasDefaultFields: !!(changeRequestData.change_reason || changeRequestData.change_impact || changeRequestData.change_plan || changeRequestData.backout_plan),
-      hasPlanningFields: !!changeRequestData.planning_fields && Object.keys(changeRequestData.planning_fields).length > 0,
-      planningFieldsCount: changeRequestData.planning_fields ? Object.keys(changeRequestData.planning_fields).length : 0,
-      planningFieldsData: changeRequestData.planning_fields,
-      hasCustomFields: Object.keys(changeRequestData.custom_fields).length > 0,
-      hasRiskSummary: !!changeRequestData.custom_fields.risks,
-      riskSummaryLength: changeRequestData.custom_fields.risks ? changeRequestData.custom_fields.risks.length : 0,
-      hasImpactSummary: !!impactSummary,
-      impactSummaryLength: impactSummary ? impactSummary.length : 0,
-      hasTechnicalOwner: !!(this.getTechnicalOwnerUserId(data.selectedAssets)),
-      technicalOwnerUserId: this.getTechnicalOwnerUserId(data.selectedAssets) || 'None identified'
-    });
-
-    // Log detailed mapping of all REQUIRED fields
-    console.log('📋 REQUIRED FIELDS MAPPING:');
-    console.log(`  1. Workspace: ${changeRequestData.workspace_id} (${changeRequestData.workspace_id ? '✅' : '❌'})`);
-    console.log(`  2. Requester: ${changeRequestData.requester_id} (${changeRequestData.requester_id ? '✅' : '❌'})`);
-    console.log(`  3. Subject: "${changeRequestData.subject}" (${changeRequestData.subject ? '✅' : '❌'})`);
-    console.log(`  4. Change Type: ${changeRequestData.change_type} (${changeRequestData.change_type ? '✅' : '❌'})`);
-    console.log(`  5. Status: ${changeRequestData.status} (${changeRequestData.status ? '✅' : '❌'})`);
-    console.log(`  6. Priority: ${changeRequestData.priority} (${changeRequestData.priority ? '✅' : '❌'})`);
-    console.log(`  7. Impact: ${changeRequestData.impact} (${changeRequestData.impact ? '✅' : '❌'})`);
-    console.log(`  8. Risk: ${changeRequestData.risk} (${changeRequestData.risk ? '✅' : '❌'})`);
-    console.log(`  9. Description: "${changeRequestData.description?.substring(0, 100)}..." (${changeRequestData.description ? '✅' : '❌'})`);
-
-    // Log custom fields details
-    console.log('📋 CUSTOM FIELDS:');
-    const technicalOwnerUserId = this.getTechnicalOwnerUserId(data.selectedAssets);
-    console.log(`  • Technical Owner: ${technicalOwnerUserId || 'NULL'} (${technicalOwnerUserId ? '✅' : '❌'})`);
-    console.log(`  • Risk Summary: ${changeRequestData.custom_fields.risks ? 'Present' : 'NULL'} (${changeRequestData.custom_fields.risks ? '✅' : '❌'})`);
-    console.log(`  • Additional Approver 1: ${changeRequestData.custom_fields.lf_additional_approver_1 || 'NULL'} (${changeRequestData.custom_fields.lf_additional_approver_1 ? '✅' : '❌'})`);
-    console.log(`  • Additional Approver 2: ${changeRequestData.custom_fields.lf_additional_approver_2 || 'NULL'} (${changeRequestData.custom_fields.lf_additional_approver_2 ? '✅' : '❌'})`);
-    console.log(`  • Additional Approver 3: ${changeRequestData.custom_fields.lf_additional_approver_3 || 'NULL'} (${changeRequestData.custom_fields.lf_additional_approver_3 ? '✅' : '❌'})`);
-    
-    // Log planning fields details
-    console.log('📋 PLANNING FIELDS:');
-    console.log(`  • Reason for Change: ${changeRequestData.planning_fields.reason_for_change ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.reason_for_change ? '✅' : '❌'})`);
-    console.log(`  • Change Impact: ${changeRequestData.planning_fields.change_impact ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.change_impact ? '✅' : '❌'})`);
-    console.log(`  • Rollout Plan: ${changeRequestData.planning_fields.rollout_plan ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.rollout_plan ? '✅' : '❌'})`);
-    console.log(`  • Backout Plan: ${changeRequestData.planning_fields.backout_plan ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.backout_plan ? '✅' : '❌'})`);
-    console.log(`  • Validation Plan: ${changeRequestData.planning_fields.custom_fields?.cfp_validation ? 'Present' : 'NULL'} (${changeRequestData.planning_fields.custom_fields?.cfp_validation ? '✅' : '❌'})`);
-    
-    // Log source data for planning fields
-    console.log('📋 SOURCE DATA FOR PLANNING FIELDS:');
-    console.log(`  • data.reasonForChange: "${data.reasonForChange || 'NULL'}" (${data.reasonForChange?.trim() ? '✅' : '❌'})`);
-    console.log(`  • impactSummary: "${impactSummary?.substring(0, 100) || 'NULL'}..." (${impactSummary?.trim() ? '✅' : '❌'})`);
-    console.log(`  • data.implementationPlan: "${data.implementationPlan?.substring(0, 100) || 'NULL'}..." (${data.implementationPlan?.trim() ? '✅' : '❌'})`);
-    console.log(`  • data.backoutPlan: "${data.backoutPlan?.substring(0, 100) || 'NULL'}..." (${data.backoutPlan?.trim() ? '✅' : '❌'})`);
-    console.log(`  • data.validationPlan: "${data.validationPlan?.substring(0, 100) || 'NULL'}..." (${data.validationPlan?.trim() ? '✅' : '❌'})`);
-    
-    // Log technical owner identification process
-    if (!technicalOwnerUserId) {
-      console.warn('⚠️ TECHNICAL OWNER WARNING: No technical owner user ID identified');
-      console.warn('   This will result in lf_technical_owner being set to null in the change request');
-      console.warn('   Reasons this might happen:');
-      console.warn('   1. Selected assets have no managed_by, agent_id, or user_id fields populated');
-      console.warn('   2. Asset manager user IDs exist but users don\'t exist in the system');
-      console.warn('   3. User lookup failed for asset manager IDs');
-      console.warn('   4. No assigned agent or requester ID available as fallback');
-    } else {
-      console.log(`✅ Technical owner user ID successfully identified: ${technicalOwnerUserId}`);
-    }
-
-    console.log('📦 Final change request data structure:', JSON.stringify(changeRequestData, null, 2));
-
+    console.log('✅ Change request data prepared:', changeRequestData);
     return changeRequestData;
-  },
-
-  /**
-   * Create enhanced description with rich formatting for change request
-   * Incorporates risk assessment and service impact information
-   */
-  async createEnhancedDescription(data, impactedData, riskAssessment) {
-    console.log('📝 Creating enhanced description with risk and impact information...');
-    
-    // Start with user-provided description
-    let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
-    
-    // Main description section
-    description += `<div style="margin-bottom: 20px;">`;
-    description += `<h3 style="color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 5px; margin-bottom: 15px;">📋 Change Description</h3>`;
-    description += `<p><strong>${data.changeDescription || data.reasonForChange || 'No description provided'}</strong></p>`;
-    if (data.changeDescription && data.reasonForChange && data.changeDescription !== data.reasonForChange) {
-      description += `<p><em>Reason for Change:</em> ${data.reasonForChange}</p>`;
-    }
-    description += `</div>`;
-
-    // PROMINENT SCHEDULE SECTION - NEW ADDITION
-    if (data.plannedStart || data.plannedEnd) {
-      const startDate = data.plannedStart ? new Date(data.plannedStart) : null;
-      const endDate = data.plannedEnd ? new Date(data.plannedEnd) : null;
-      const isUrgent = data.changeType === 'emergency' || (startDate && startDate <= new Date(Date.now() + 48 * 60 * 60 * 1000));
-      const scheduleColor = isUrgent ? '#dc3545' : '#28a745';
-      
-      description += `<div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, ${scheduleColor}15 0%, ${scheduleColor}25 100%); border-radius: 8px; border: 2px solid ${scheduleColor}; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">`;
-      description += `<h3 style="color: ${scheduleColor}; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center; font-size: 18px;">`;
-      description += `<span style="margin-right: 10px;">${isUrgent ? '⚡' : '📅'}</span>${isUrgent ? 'URGENT SCHEDULE' : 'CHANGE SCHEDULE'}`;
-      description += `</h3>`;
-      
-      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">`;
-      
-      // Calculate timeToStart outside the conditional block so it's available throughout
-      const timeToStart = startDate ? Math.ceil((startDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
-      
-      if (startDate) {
-        description += `<div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${scheduleColor};">`;
-        description += `<h4 style="margin: 0 0 8px 0; color: ${scheduleColor}; font-size: 14px;">🚀 START TIME</h4>`;
-        description += `<div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 5px;">${startDate.toLocaleDateString()}</div>`;
-        description += `<div style="font-size: 14px; color: #666;">${startDate.toLocaleTimeString()}</div>`;
-        if (timeToStart !== null && timeToStart >= 0) {
-          description += `<div style="font-size: 12px; color: ${isUrgent ? '#dc3545' : '#28a745'}; font-weight: bold; margin-top: 5px;">`;
-          description += `${timeToStart === 0 ? 'TODAY' : timeToStart === 1 ? 'TOMORROW' : `In ${timeToStart} days`}`;
-          description += `</div>`;
-        }
-        description += `</div>`;
-      }
-      
-      if (endDate) {
-        const durationText = startDate && endDate ? this.calculateDuration(startDate, endDate) : null;
-        description += `<div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid ${scheduleColor};">`;
-        description += `<h4 style="margin: 0 0 8px 0; color: ${scheduleColor}; font-size: 14px;">🏁 END TIME</h4>`;
-        description += `<div style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 5px;">${endDate.toLocaleDateString()}</div>`;
-        description += `<div style="font-size: 14px; color: #666;">${endDate.toLocaleTimeString()}</div>`;
-        if (durationText) {
-          description += `<div style="font-size: 12px; color: #0066cc; font-weight: bold; margin-top: 5px;">`;
-          description += `Duration: ${durationText}`;
-          description += `</div>`;
-        }
-        description += `</div>`;
-      }
-      
-      if (isUrgent) {
-        description += `<div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffc107;">`;
-        description += `<h4 style="margin: 0 0 8px 0; color: #856404; font-size: 14px;">⚠️ URGENT NOTICE</h4>`;
-        description += `<div style="font-size: 13px; color: #856404; line-height: 1.4;">`;
-        description += `This change is scheduled to begin ${timeToStart !== null && timeToStart <= 2 ? 'very soon' : 'within the next few days'}. `;
-        description += `Please review and approve promptly to avoid delays.`;
-        description += `</div></div>`;
-      }
-      
-      description += `</div></div>`;
-    }
-
-    // Comprehensive Review Section
-    description += `<div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6;">`;
-    description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 20px; display: flex; align-items: center;">`;
-    description += `<span style="margin-right: 10px;">🔍</span>Comprehensive Change Review`;
-    description += `</h3>`;
-    
-    // Change Summary Grid
-    description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">`;
-    
-    // Change Details Card
-    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #007bff;">`;
-    description += `<h4 style="margin: 0 0 10px 0; color: #007bff; font-size: 14px;">📝 CHANGE DETAILS</h4>`;
-    description += `<div style="font-size: 13px; line-height: 1.5;">`;
-    description += `<strong>Type:</strong> ${data.changeType?.charAt(0).toUpperCase() + data.changeType?.slice(1) || 'Normal'}<br>`;
-    description += `<strong>Scope:</strong> ${data.selectedAssets?.length || 0} Asset(s) Affected<br>`;
-    description += `<strong>Timing:</strong> ${data.plannedStart ? new Date(data.plannedStart).toLocaleDateString() : 'TBD'}<br>`;
-    description += `<strong>Duration:</strong> ${data.plannedStart && data.plannedEnd ? 
-      this.calculateDuration(new Date(data.plannedStart), new Date(data.plannedEnd)) : 'TBD'}`;
-    description += `</div></div>`;
-    
-    // Stakeholder Impact Card
-    const approverCount = impactedData.approvers?.length || 0;
-    const stakeholderCount = impactedData.stakeholders?.length || 0;
-    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #28a745;">`;
-    description += `<h4 style="margin: 0 0 10px 0; color: #28a745; font-size: 14px;">👥 STAKEHOLDER IMPACT</h4>`;
-    description += `<div style="font-size: 13px; line-height: 1.5;">`;
-    description += `<strong>Technical Approvers:</strong> ${approverCount}<br>`;
-    description += `<strong>Stakeholders:</strong> ${stakeholderCount}<br>`;
-    description += `<strong>Requester:</strong> ${data.selectedRequester?.first_name || ''} ${data.selectedRequester?.last_name || ''}<br>`;
-    description += `<strong>Agent:</strong> ${data.selectedAgent?.first_name || 'Unassigned'} ${data.selectedAgent?.last_name || ''}`;
-    description += `</div></div>`;
-    
-    // Planning Overview Card
-    description += `<div style="background: white; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107;">`;
-    description += `<h4 style="margin: 0 0 10px 0; color: #e69500; font-size: 14px;">📋 PLANNING STATUS</h4>`;
-    description += `<div style="font-size: 13px; line-height: 1.5;">`;
-    description += `<strong>Implementation Plan:</strong> ${data.implementationPlan ? '✅ Complete' : '❌ Pending'}<br>`;
-    description += `<strong>Validation Plan:</strong> ${data.validationPlan ? '✅ Complete' : '❌ Pending'}<br>`;
-    description += `<strong>Backout Plan:</strong> ${data.backoutPlan ? '✅ Complete' : '❌ Pending'}<br>`;
-    description += `<strong>Risk Assessment:</strong> ${riskAssessment?.riskLevel ? '✅ Complete' : '❌ Pending'}`;
-    description += `</div></div>`;
-    
-    description += `</div>`; // End grid
-    
-    // Implementation Readiness Assessment
-    const readinessScore = [
-      data.implementationPlan ? 1 : 0,
-      data.validationPlan ? 1 : 0,
-      data.backoutPlan ? 1 : 0,
-      riskAssessment?.riskLevel ? 1 : 0,
-      (approverCount > 0) ? 1 : 0
-    ].reduce((a, b) => a + b, 0);
-    
-    const readinessPercent = (readinessScore / 5) * 100;
-    const readinessColor = readinessPercent >= 80 ? '#28a745' : readinessPercent >= 60 ? '#ffc107' : '#dc3545';
-    
-    description += `<div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;">`;
-    description += `<h4 style="margin: 0 0 15px 0; color: #495057; font-size: 14px;">📊 IMPLEMENTATION READINESS</h4>`;
-    description += `<div style="display: flex; align-items: center; margin-bottom: 10px;">`;
-    description += `<div style="flex: 1; background: #e9ecef; height: 20px; border-radius: 10px; overflow: hidden; margin-right: 15px;">`;
-    description += `<div style="height: 100%; background: ${readinessColor}; width: ${readinessPercent}%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">`;
-    description += `${Math.round(readinessPercent)}%`;
-    description += `</div></div>`;
-    description += `<span style="font-weight: bold; color: ${readinessColor};">${readinessScore}/5 Complete</span>`;
-    description += `</div>`;
-    description += `<div style="font-size: 12px; color: #6c757d; font-style: italic;">`;
-    description += `Assessment based on: Implementation Plan, Validation Plan, Backout Plan, Risk Assessment, and Stakeholder Identification`;
-    description += `</div></div>`;
-    
-    description += `</div>`; // End comprehensive review section
-
-    // Risk Assessment Section (Enhanced with detailed text descriptions)
-    if (riskAssessment && riskAssessment.riskLevel) {
-      const riskColor = {
-        'Low': '#28a745',
-        'Medium': '#ffc107', 
-        'High': '#dc3545'
-      }[riskAssessment.riskLevel] || '#6c757d';
-      
-      description += `<div style="margin-bottom: 20px; padding: 20px; background: white; border-radius: 8px; border: 1px solid ${riskColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
-      description += `<h3 style="color: #0066cc; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
-      description += `<span style="margin-right: 10px;">⚠️</span>Risk Assessment`;
-      description += `</h3>`;
-      description += `<div style="display: flex; align-items: center; margin-bottom: 20px;">`;
-      description += `<span style="background: linear-gradient(135deg, ${riskColor} 0%, ${riskColor}dd 100%); color: white; padding: 8px 20px; border-radius: 25px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${riskAssessment.riskLevel?.toUpperCase()} RISK</span>`;
-      description += `<span style="margin-left: 20px; padding: 8px 15px; background: #f8f9fa; border-radius: 20px; color: #495057; font-weight: bold;">Score: ${riskAssessment.totalScore || 0}/15</span>`;
-      description += `</div>`;
-      
-      // Add detailed risk level explanation
-      description += `<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid ${riskColor};">`;
-      description += `<h4 style="margin: 0 0 10px 0; color: ${riskColor}; font-size: 14px;">📝 RISK LEVEL EXPLANATION</h4>`;
-      description += `<div style="font-size: 13px; line-height: 1.5; color: #495057;">`;
-      
-      if (riskAssessment.riskLevel === 'High') {
-        description += `<strong>High Risk Change:</strong> This change has significant potential for business disruption and requires enhanced oversight. `;
-        description += `Extended approval workflows, mandatory peer review periods, and additional stakeholder validation are required. `;
-        description += `Implementation should be carefully planned with comprehensive rollback procedures.`;
-      } else if (riskAssessment.riskLevel === 'Medium') {
-        description += `<strong>Medium Risk Change:</strong> This change has moderate potential for impact and requires standard approval processes. `;
-        description += `Peer review coordination will be initiated, and stakeholders will be notified for additional oversight. `;
-        description += `Proper testing and rollback planning should be completed before implementation.`;
-      } else {
-        description += `<strong>Low Risk Change:</strong> This change has minimal potential for business disruption and follows standard approval processes. `;
-        description += `While the risk is low, proper change management procedures will still be followed to ensure successful implementation.`;
-      }
-      
-      description += `</div></div>`;
-      
-      // Risk factors breakdown with enhanced visuals and descriptions
-      description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 20px;">`;
-      
-      const riskFactors = [
-        { key: 'businessImpact', label: 'Business Impact', value: riskAssessment.businessImpact, icon: '💼' },
-        { key: 'affectedUsers', label: 'User Impact', value: riskAssessment.affectedUsers, icon: '👥' },
-        { key: 'complexity', label: 'Complexity', value: riskAssessment.complexity, icon: '⚙️' },
-        { key: 'testing', label: 'Testing Level', value: riskAssessment.testing, icon: '🧪' },
-        { key: 'rollback', label: 'Rollback Risk', value: riskAssessment.rollback, icon: '↩️' }
-      ];
-      
-      riskFactors.forEach(factor => {
-        const score = factor.value || 0;
-        const barColor = score >= 3 ? '#dc3545' : score >= 2 ? '#ffc107' : '#28a745';
-        description += `<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e9ecef; transition: transform 0.2s ease;">`;
-        description += `<div style="display: flex; align-items: center; margin-bottom: 10px;">`;
-        description += `<span style="font-size: 16px; margin-right: 8px;">${factor.icon}</span>`;
-        description += `<div style="font-size: 13px; color: #495057; font-weight: 600;">${factor.label}</div>`;
-        description += `</div>`;
-        description += `<div style="display: flex; align-items: center; margin-bottom: 8px;">`;
-        description += `<div style="flex: 1; background: #e9ecef; height: 8px; border-radius: 4px; margin-right: 10px; overflow: hidden;">`;
-        description += `<div style="height: 100%; background: linear-gradient(90deg, ${barColor} 0%, ${barColor}cc 100%); width: ${(score/3)*100}%; border-radius: 4px; transition: width 0.3s ease;"></div>`;
-        description += `</div>`;
-        description += `<span style="font-size: 14px; font-weight: bold; color: ${barColor}; min-width: 30px;">${score}/3</span>`;
-        description += `</div>`;
-        
-        // Add text description for each factor
-        description += `<div style="font-size: 12px; color: #6c757d; line-height: 1.3;">`;
-        if (factor.key === 'businessImpact') {
-          description += this.getBusinessImpactDescription(score);
-        } else if (factor.key === 'affectedUsers') {
-          description += this.getUserImpactDescription(score);
-        } else if (factor.key === 'complexity') {
-          description += this.getComplexityDescription(score);
-        } else if (factor.key === 'testing') {
-          description += this.getTestingDescription(score);
-        } else if (factor.key === 'rollback') {
-          description += this.getRollbackDescription(score);
-        }
-        description += `</div>`;
-        description += `</div>`;
-      });
-      
-      description += `</div></div>`;
-    }
-
-    // Impacted Assets Section with detailed information and popovers
-    if (data.selectedAssets && data.selectedAssets.length > 0) {
-      description += `<div style="margin-bottom: 25px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #007bff; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
-      description += `<h3 style="color: #007bff; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
-      description += `<span style="margin-right: 10px;">🎯</span>Impacted Assets & Services`;
-      description += `<span style="margin-left: auto; background: #007bff; color: white; padding: 4px 12px; border-radius: 15px; font-size: 14px; font-weight: bold;">${data.selectedAssets.length} Asset${data.selectedAssets.length !== 1 ? 's' : ''}</span>`;
-      description += `</h3>`;
-      
-      // Group assets by type for better organization
-      const assetsByType = {};
-      for (const asset of data.selectedAssets) {
-        // Get asset type name with proper resolution
-        let assetTypeName = 'Unknown Type';
-        
-        // Try to get resolved asset type name from cache manager
-        if (window.CacheManager && typeof window.CacheManager.getAssetTypeName === 'function' && asset.asset_type_id) {
-          try {
-            const resolvedTypeName = await window.CacheManager.getAssetTypeName(asset.asset_type_id);
-            if (resolvedTypeName && resolvedTypeName !== 'Unknown' && !resolvedTypeName.startsWith('Asset Type ')) {
-              assetTypeName = resolvedTypeName;
-            }
-          } catch (error) {
-            console.warn('Error resolving asset type:', error);
-          }
-        }
-        
-        // Fallback to direct property if resolution failed
-        if (assetTypeName === 'Unknown Type') {
-          assetTypeName = asset.asset_type_name || 'Unknown Type';
-        }
-        
-        if (!assetsByType[assetTypeName]) {
-          assetsByType[assetTypeName] = [];
-        }
-        assetsByType[assetTypeName].push(asset);
-      }
-      
-      // Display assets grouped by type
-      for (const assetType of Object.keys(assetsByType)) {
-        const assets = assetsByType[assetType];
-        description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff;">`;
-        description += `<h4 style="margin: 0 0 15px 0; color: #007bff; font-size: 16px; display: flex; align-items: center;">`;
-        description += `<span style="margin-right: 8px;">📦</span>${assetType}`;
-        description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${assets.length} asset${assets.length !== 1 ? 's' : ''}</span>`;
-        description += `</h4>`;
-        
-        // Display each asset with enhanced information
-        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;">`;
-        for (const asset of assets) {
-          // Get technical owner information with proper user resolution
-          let technicalOwner = 'Unassigned';
-          let technicalOwnerId = null;
-          
-          // Try to get resolved name from cache manager
-          if (window.CacheManager && typeof window.CacheManager.getManagedByInfo === 'function') {
-            try {
-              const resolvedOwner = await window.CacheManager.getManagedByInfo(asset);
-              if (resolvedOwner && resolvedOwner !== 'N/A' && !resolvedOwner.includes('ID:')) {
-                technicalOwner = resolvedOwner;
-              }
-            } catch (error) {
-              console.warn('Error resolving technical owner:', error);
-            }
-          }
-          
-          // Fallback to direct properties if resolution failed
-          if (technicalOwner === 'Unassigned') {
-            technicalOwner = asset.managed_by_name || asset.agent_name || asset.user_name || 'Unassigned';
-          }
-          
-          // Get the ID for display
-          technicalOwnerId = asset.managed_by || asset.agent_id || asset.user_id || null;
-          
-          // Format owner info - only show ID if name is still "Unassigned"
-          const ownerInfo = (technicalOwnerId && technicalOwner === 'Unassigned') 
-            ? `${technicalOwner} (ID: ${technicalOwnerId})` 
-            : technicalOwner;
-          
-          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6; position: relative; cursor: pointer;" `;
-          description += `onmouseover="this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'; this.style.transform='translateY(-2px)'" `;
-          description += `onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'; this.style.transform='translateY(0)'">`;
-          
-          // Asset name with enhanced styling
-          description += `<div style="font-weight: bold; font-size: 15px; color: #007bff; margin-bottom: 8px; display: flex; align-items: center;">`;
-          description += `<span style="margin-right: 8px;">🖥️</span>${asset.name || asset.display_id || 'Unknown Asset'}`;
-          if (asset.display_id && asset.name !== asset.display_id) {
-            description += `<span style="margin-left: 8px; font-size: 12px; color: #6c757d; font-weight: normal;">(${asset.display_id})</span>`;
-          }
-          description += `</div>`;
-          
-          // Asset details grid
-          description += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-bottom: 10px;">`;
-          
-          // Location
-          if (asset.location_name) {
-            description += `<div style="color: #6c757d;"><strong>📍 Location:</strong><br>${asset.location_name}</div>`;
-          }
-          
-          // Department
-          if (asset.department_name) {
-            description += `<div style="color: #6c757d;"><strong>🏢 Department:</strong><br>${asset.department_name}</div>`;
-          }
-          
-          // Status
-          if (asset.asset_state) {
-            const statusColor = asset.asset_state === 'In Use' ? '#28a745' : asset.asset_state === 'Retired' ? '#dc3545' : '#ffc107';
-            description += `<div style="color: #6c757d;"><strong>📊 Status:</strong><br><span style="color: ${statusColor}; font-weight: bold;">${asset.asset_state}</span></div>`;
-          }
-          
-          // Asset Tag
-          if (asset.asset_tag) {
-            description += `<div style="color: #6c757d;"><strong>🏷️ Asset Tag:</strong><br>${asset.asset_tag}</div>`;
-          }
-          
-          description += `</div>`;
-          
-          // Technical Owner section with enhanced visibility
-          description += `<div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 10px; border-radius: 4px; border-left: 3px solid #2196f3; margin-top: 10px;">`;
-          description += `<div style="font-size: 12px; font-weight: bold; color: #1976d2; margin-bottom: 4px; display: flex; align-items: center;">`;
-          description += `<span style="margin-right: 6px;">👤</span>Technical Owner`;
-          description += `</div>`;
-          description += `<div style="font-size: 13px; color: #1565c0; font-weight: 600;">${ownerInfo}</div>`;
-          if (asset.managed_by_email || asset.agent_email || asset.user_email) {
-            const ownerEmail = asset.managed_by_email || asset.agent_email || asset.user_email;
-            description += `<div style="font-size: 11px; color: #1976d2; margin-top: 2px;">📧 ${ownerEmail}</div>`;
-          }
-          description += `</div>`;
-          
-          // Add detailed info button that triggers popover
-          description += `<div style="position: absolute; top: 8px; right: 8px;">`;
-          description += `<span style="background: #007bff; color: white; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer;" `;
-          description += `title="Asset Details: ${asset.name || asset.display_id}&#10;Type: ${asset.asset_type_name || 'Unknown'}&#10;Owner: ${ownerInfo}&#10;Location: ${asset.location_name || 'Not specified'}&#10;Status: ${asset.asset_state || 'Unknown'}">ℹ️</span>`;
-          description += `</div>`;
-          
-          description += `</div>`;
-        }
-        description += `</div>`;
-        description += `</div>`;
-      }
-      description += `</div>`;
-    }
-
-    // Stakeholder & Approver Information with popovers
-    if ((impactedData.approvers && impactedData.approvers.length > 0) || (impactedData.stakeholders && impactedData.stakeholders.length > 0)) {
-      description += `<div style="margin-bottom: 25px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #28a745; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">`;
-      description += `<h3 style="color: #28a745; margin-top: 0; margin-bottom: 15px; display: flex; align-items: center;">`;
-      description += `<span style="margin-right: 10px;">👥</span>Stakeholders & Approvers`;
-      description += `</h3>`;
-      
-      // Approvers section
-      if (impactedData.approvers && impactedData.approvers.length > 0) {
-        description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #28a745;">`;
-        description += `<h4 style="margin: 0 0 15px 0; color: #28a745; font-size: 16px; display: flex; align-items: center;">`;
-        description += `<span style="margin-right: 8px;">✅</span>Technical Approvers`;
-        description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${impactedData.approvers.length} approver${impactedData.approvers.length !== 1 ? 's' : ''}</span>`;
-        description += `<span style="margin-left: 8px; background: #28a745; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer;" `;
-        description += `title="Approver Details&#10;${impactedData.approvers.map(a => `• ${a.name || 'Unknown'} (${a.source || 'Technical Owner'})`).join('&#10;')}">ℹ️ Details</span>`;
-        description += `</h4>`;
-        
-        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">`;
-        impactedData.approvers.slice(0, 6).forEach(approver => { // Limit to 6 for display
-          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6;">`;
-          description += `<div style="font-weight: bold; font-size: 14px; color: #28a745; margin-bottom: 4px;">${approver.name || 'Unknown Name'}</div>`;
-          if (approver.email) {
-            description += `<div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">📧 ${approver.email}</div>`;
-          }
-          description += `<div style="font-size: 11px; background: #e8f5e8; color: #2d5a2d; padding: 2px 6px; border-radius: 8px; display: inline-block;">${approver.source || 'Technical Owner'}</div>`;
-          description += `</div>`;
-        });
-        if (impactedData.approvers.length > 6) {
-          description += `<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px dashed #dee2e6; display: flex; align-items: center; justify-content: center; color: #6c757d; font-style: italic;">`;
-          description += `+${impactedData.approvers.length - 6} more approvers...`;
-          description += `</div>`;
-        }
-        description += `</div>`;
-        description += `</div>`;
-      }
-      
-      // Stakeholders section
-      if (impactedData.stakeholders && impactedData.stakeholders.length > 0) {
-        description += `<div style="padding: 15px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #17a2b8;">`;
-        description += `<h4 style="margin: 0 0 15px 0; color: #17a2b8; font-size: 16px; display: flex; align-items: center;">`;
-        description += `<span style="margin-right: 8px;">📢</span>Additional Stakeholders`;
-        description += `<span style="margin-left: auto; background: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: bold;">${impactedData.stakeholders.length} stakeholder${impactedData.stakeholders.length !== 1 ? 's' : ''}</span>`;
-        description += `<span style="margin-left: 8px; background: #17a2b8; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer;" `;
-        description += `title="Stakeholder Details&#10;${impactedData.stakeholders.map(s => `• ${s.name || 'Unknown'} (${s.source || 'Impacted Services'})`).join('&#10;')}">ℹ️ Details</span>`;
-        description += `</h4>`;
-        
-        description += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px;">`;
-        impactedData.stakeholders.slice(0, 6).forEach(stakeholder => { // Limit to 6 for display
-          description += `<div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #dee2e6;">`;
-          description += `<div style="font-weight: bold; font-size: 14px; color: #17a2b8; margin-bottom: 4px;">${stakeholder.name || 'Unknown Name'}</div>`;
-          if (stakeholder.email) {
-            description += `<div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">📧 ${stakeholder.email}</div>`;
-          }
-          description += `<div style="font-size: 11px; background: #e3f7f8; color: #2d5a5a; padding: 2px 6px; border-radius: 8px; display: inline-block;">${stakeholder.source || 'Impacted Services'}</div>`;
-          description += `</div>`;
-        });
-        if (impactedData.stakeholders.length > 6) {
-          description += `<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px dashed #dee2e6; display: flex; align-items: center; justify-content: center; color: #6c757d; font-style: italic;">`;
-          description += `+${impactedData.stakeholders.length - 6} more stakeholders...`;
-          description += `</div>`;
-        }
-        description += `</div>`;
-        description += `</div>`;
-      }
-      description += `</div>`;
-    }
-
-    // Footer with detailed view option
-    description += `<div style="margin-top: 30px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 8px; border: 1px solid #dee2e6; text-align: center;">`;
-    description += `<h4 style="color: #495057; margin: 0 0 10px 0;">📋 Additional Information Available</h4>`;
-    description += `<p style="color: #6c757d; margin: 0 0 15px 0; font-size: 14px;">Complete change details, implementation plans, risk assessments, and stakeholder information are available in the full change request.</p>`;
-    description += `<div style="font-size: 12px; color: #6c757d; font-style: italic;">This enhanced description includes comprehensive change review, detailed asset information, and stakeholder coordination details.</div>`;
-    description += `</div>`;
-
-    description += `</div>`;
-    
-    console.log('✅ Enhanced description created with detailed assets, stakeholder popovers, and comprehensive review information');
-    return description;
   },
 
   /**
@@ -2760,64 +2073,7 @@ const ChangeSubmission = {
     }
   },
 
-  /**
-   * Generate peer review coordination task description for agent SME
-   */
-  async generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
-    const data = window.changeRequestData;
-    
-    let description = `Peer Review Coordination Required
 
-SME Assignment:
-Assigned SME: ${agentSME.name} (${agentSME.source})
-Responsibility: Coordinate peer review process for this ${riskAssessment.riskLevel} risk change.
-
-Change Request Details:
-Change ID: CHN-${changeRequest.id}
-Title: ${changeRequest.subject}
-Requester: ${data.selectedRequester?.name || 'Unknown'}
-Risk Level: ${riskAssessment.riskLevel?.toUpperCase()} (${riskAssessment.totalScore}/15)
-Planned Start: ${data.plannedStart ? new Date(data.plannedStart).toLocaleString() : 'Not specified'}
-Planned End: ${data.plannedEnd ? new Date(data.plannedEnd).toLocaleString() : 'Not specified'}
-
-Implementation Plan:
-${data.implementationPlan || 'Not specified'}
-
-Validation Plan:
-${data.validationPlan || 'Not specified'}
-
-Your Responsibilities as SME Coordinator:
-As the requester and assigned SME, you must obtain an independent peer review since you cannot review your own work. Choose ONE of the following options:
-
-1. Assign to Peer Reviewer: Reassign this task to a qualified technical peer who can perform an independent review of your change plan.
-2. Coordinate External Review: Ask a colleague to review your change and attach evidence of their completed review to this task.
-3. Escalate for Review Assignment: Contact your manager to assign an appropriate independent peer reviewer.
-
-Important: Since you are both the requester and SME, independent review is mandatory. You cannot approve your own work.
-
-Peer Review Checklist:
-The peer review (conducted by an independent reviewer) should evaluate:
-- Technical Feasibility: Can this change be implemented as described?
-- Risk Assessment: Are there additional risks or issues not considered?
-- Alternative Approaches: Are there better or safer ways to achieve the same outcome?
-- Testing Strategy: Is the testing approach adequate for the risk level?
-- Rollback Plan: Is the rollback strategy sufficient and tested?
-- Implementation Timeline: Is the proposed timeline realistic and appropriate?
-
-Completion Instructions:
-Deadline: Complete peer review coordination within 24 hours.
-
-Required Actions:
-- Identify and assign a qualified peer reviewer (not yourself) to perform independent technical review
-- Ensure the peer reviewer has access to all relevant documentation and plans
-- Collect and attach evidence of completed peer review (review notes, findings, recommendations)
-- Update this task with review results and any concerns identified
-- Coordinate with the change requester if issues are found that need resolution
-
-Important: The peer review must be conducted by someone other than the original SME or change requester to ensure independent validation of the technical approach.`;
-    
-    return description;
-  },
 
   /**
    * Map risk level to ticket priority
@@ -5091,6 +4347,98 @@ Important: The peer review must be conducted by someone other than the original 
     return associationData;
   },
 
+  /**
+   * Generate peer review coordination task description
+   */
+  generatePeerReviewCoordinationTaskDescription(data, agentSME = null, riskAssessment = null) {
+    console.log('📝 Generating peer review coordination task description...');
+    
+    // Handle both single-data object and separate parameters
+    const changeTitle = data.changeTitle || data.subject || 'Untitled Change Request';
+    const requesterName = data.selectedRequester?.name || 
+                         (data.selectedRequester ? `${data.selectedRequester.first_name} ${data.selectedRequester.last_name}` : 'Unknown');
+    const requesterEmail = data.selectedRequester?.email;
+    const agentName = agentSME?.name || 
+                     (data.selectedAgent ? `${data.selectedAgent.first_name} ${data.selectedAgent.last_name}` : null);
+    const agentEmail = agentSME?.email || data.selectedAgent?.email;
+    const riskLevel = riskAssessment?.riskLevel || data.riskLevel || 'Unknown';
+    const riskScore = riskAssessment?.totalScore ? `(${riskAssessment.totalScore}/15)` : '';
+    
+    let description = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">`;
+    
+    // Task Overview
+    description += `<div style="margin-bottom: 20px;">`;
+    description += `<h3 style="color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 5px; margin-bottom: 15px;">📋 Peer Review Coordination Task</h3>`;
+    description += `<p><strong>Change Request:</strong> ${changeTitle}</p>`;
+    if (agentSME) {
+      description += `<p><strong>SME Assignment:</strong> ${agentName} (${agentSME.source})</p>`;
+      description += `<p><strong>Responsibility:</strong> Coordinate peer review process for this ${riskLevel} risk change.</p>`;
+    }
+    description += `</div>`;
+    
+    // Review Requirements
+    description += `<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #0066cc;">`;
+    description += `<h4 style="margin: 0 0 10px 0; color: #0066cc; font-size: 14px;">📋 REVIEW REQUIREMENTS</h4>`;
+    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += `<p>Please review the following aspects of the change request:</p>`;
+    description += `<ul style="margin: 0; padding-left: 20px;">`;
+    description += `<li>Technical feasibility of the implementation plan</li>`;
+    description += `<li>Completeness of the backout plan</li>`;
+    description += `<li>Adequacy of the validation plan</li>`;
+    description += `<li>Risk assessment accuracy ${riskScore}</li>`;
+    description += `<li>Impact assessment on affected systems</li>`;
+    description += `</ul>`;
+    description += `</div></div>`;
+    
+    // Review Timeline
+    if (data.plannedStart) {
+      const startDate = new Date(data.plannedStart);
+      const reviewDeadline = new Date(startDate.getTime() - (2 * 24 * 60 * 60 * 1000)); // 2 days before start
+      
+      description += `<div style="margin-bottom: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">`;
+      description += `<h4 style="margin: 0 0 10px 0; color: #856404; font-size: 14px;">⏰ REVIEW TIMELINE</h4>`;
+      description += `<div style="font-size: 13px; line-height: 1.5;">`;
+      description += `<p><strong>Change Start Date:</strong> ${startDate.toLocaleDateString()}</p>`;
+      description += `<p><strong>Review Deadline:</strong> ${reviewDeadline.toLocaleDateString()}</p>`;
+      description += `<p style="color: #856404; font-style: italic;">Please complete your review at least 2 days before the planned start date.</p>`;
+      description += `</div></div>`;
+    }
+    
+    // Review Instructions
+    description += `<div style="margin-bottom: 20px; padding: 15px; background: #e8f5e9; border-radius: 8px; border-left: 4px solid #28a745;">`;
+    description += `<h4 style="margin: 0 0 10px 0; color: #2d5a2d; font-size: 14px;">📝 REVIEW INSTRUCTIONS</h4>`;
+    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += `<ol style="margin: 0; padding-left: 20px;">`;
+    description += `<li>Review all attached documentation thoroughly</li>`;
+    description += `<li>Verify technical accuracy of implementation steps</li>`;
+    description += `<li>Assess completeness of backout procedures</li>`;
+    description += `<li>Evaluate validation methods</li>`;
+    description += `<li>Provide detailed feedback in the comments section</li>`;
+    description += `<li>Approve or request changes as appropriate</li>`;
+    description += `</ol>`;
+    description += `</div></div>`;
+    
+    // Contact Information
+    description += `<div style="padding: 15px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #1976d2;">`;
+    description += `<h4 style="margin: 0 0 10px 0; color: #1976d2; font-size: 14px;">📞 CONTACT INFORMATION</h4>`;
+    description += `<div style="font-size: 13px; line-height: 1.5;">`;
+    description += `<p><strong>Change Requester:</strong> ${requesterName}</p>`;
+    if (requesterEmail) {
+      description += `<p><strong>Requester Email:</strong> ${requesterEmail}</p>`;
+    }
+    if (agentName) {
+      description += `<p><strong>Assigned Agent:</strong> ${agentName}</p>`;
+      if (agentEmail) {
+        description += `<p><strong>Agent Email:</strong> ${agentEmail}</p>`;
+      }
+    }
+    description += `</div></div>`;
+    
+    description += `</div>`;
+    
+    console.log('✅ Peer review coordination task description generated');
+    return description;
+  }
 
 };
 

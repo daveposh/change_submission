@@ -80,6 +80,26 @@
       // Initialize theme management
       ThemeManager.init();
     </script>
+    <link rel="stylesheet" href="styles/css/bootstrap.min.css">
+    <link rel="stylesheet" href="styles/css/fontawesome.min.css">
+    <link rel="stylesheet" href="styles/css/solid.min.css">
+    <link rel="stylesheet" href="styles/css/regular.min.css">
+    <link rel="stylesheet" href="styles/css/brands.min.css">
+    <link rel="stylesheet" href="styles/css/app.css">
+    
+    <!-- Editor.js Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/header@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/list@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/checklist@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/code@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/table@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/marker@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@latest"></script>
+    
+    <title>Change Request</title>
   </head>
 
   <body>
@@ -216,9 +236,10 @@
                 <div id="lead-time" class="lead-time-info p-2 border rounded bg-light">2 business days</div>
               </div>
 
-              <div class="col-12 form-group mb-3">
-                <label for="reason-for-change" class="form-label">Reason for Change:</label>
-                <textarea id="reason-for-change" class="form-control" rows="3" placeholder="Explain the business justification and reason for this change..."></textarea>
+              <!-- Reason for Change -->
+              <div class="mb-4">
+                <label for="reason-for-change-editor" class="form-label">Reason for Change <span class="text-danger">*</span></label>
+                <div id="reason-for-change-editor" class="editor-container"></div>
               </div>
 
               <div class="col-md-6 form-group mb-3">
@@ -231,19 +252,22 @@
                 <input type="datetime-local" id="planned-end" class="form-control">
               </div>
 
-              <div class="col-12 form-group mb-3">
-                <label for="implementation-plan" class="form-label">Implementation Plan:</label>
-                <textarea id="implementation-plan" class="form-control" rows="5" placeholder="Describe the step-by-step implementation process..."></textarea>
+              <!-- Implementation Plan -->
+              <div class="mb-4">
+                <label for="implementation-plan-editor" class="form-label">Implementation Plan <span class="text-danger">*</span></label>
+                <div id="implementation-plan-editor" class="editor-container"></div>
               </div>
 
-              <div class="col-12 form-group mb-3">
-                <label for="backout-plan" class="form-label">Backout (Recovery) Plan:</label>
-                <textarea id="backout-plan" class="form-control" rows="5" placeholder="Describe how to revert the change if issues occur..."></textarea>
+              <!-- Backout Plan -->
+              <div class="mb-4">
+                <label for="backout-plan-editor" class="form-label">Backout Plan <span class="text-danger">*</span></label>
+                <div id="backout-plan-editor" class="editor-container"></div>
               </div>
 
-              <div class="col-12 form-group mb-3">
-                <label for="validation-plan" class="form-label">Validation Plan:</label>
-                <textarea id="validation-plan" class="form-control" rows="5" placeholder="Describe how to verify the change was successful..."></textarea>
+              <!-- Validation Plan -->
+              <div class="mb-4">
+                <label for="validation-plan-editor" class="form-label">Validation Plan <span class="text-danger">*</span></label>
+                <div id="validation-plan-editor" class="editor-container"></div>
               </div>
 
               <div class="col-12 form-actions text-end">

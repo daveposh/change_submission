@@ -2269,7 +2269,8 @@ function setupEventListeners() {
       // Clear any existing timer
       if (liveSearchState.requester.timer) {
         clearTimeout(liveSearchState.requester.timer);
-        liveSearchState.requester.timer = null;
+        liveSearchState.requester.isActive = false;
+        return;
       }
       
       // Clear results if input is empty
@@ -2326,7 +2327,8 @@ function setupEventListeners() {
       // Clear any existing timer
       if (liveSearchState.agent.timer) {
         clearTimeout(liveSearchState.agent.timer);
-        liveSearchState.agent.timer = null;
+        liveSearchState.agent.isActive = false;
+        return;
       }
       
       // Clear results if input is empty
@@ -5113,60 +5115,7 @@ function clearFieldHighlighting() {
   feedbacks.forEach(feedback => feedback.remove());
 }
 
-/**
- * Show submission summary
- */
-function showSubmissionSummary() {
-  console.log('📋 Showing submission summary...');
-  
-  // Collect all form data
-  if (!window.formData) {
-    window.formData = {};
-  }
-  
-  // Collect change details
-  const changeTitle = document.getElementById('change-title');
-  const changeDescription = document.getElementById('change-description');
-  const changeType = document.getElementById('change-type');
-  const reasonForChange = document.getElementById('reason-for-change');
-  const plannedStart = document.getElementById('planned-start');
-  const plannedEnd = document.getElementById('planned-end');
-  const implementationPlan = document.getElementById('implementation-plan');
-  const backoutPlan = document.getElementById('backout-plan');
-  const validationPlan = document.getElementById('validation-plan');
-  
-  // Store all change details
-  window.formData.changeDetails = {
-    title: changeTitle ? changeTitle.value.trim() : '',
-    description: changeDescription ? changeDescription.value.trim() : '',
-    changeType: changeType ? changeType.value : '',
-    reasonForChange: reasonForChange ? reasonForChange.value.trim() : '',
-    plannedStart: plannedStart ? plannedStart.value : '',
-    plannedEnd: plannedEnd ? plannedEnd.value : '',
-    implementationPlan: implementationPlan ? implementationPlan.value.trim() : '',
-    backoutPlan: backoutPlan ? backoutPlan.value.trim() : '',
-    validationPlan: validationPlan ? validationPlan.value.trim() : ''
-  };
-  
-  // Collect selected assets
-  if (window.AssetAssociation && window.AssetAssociation.getSelectedAssets) {
-    window.formData.selectedAssets = window.AssetAssociation.getSelectedAssets();
-  }
-  
-  // Collect impacted services data
-  if (window.ImpactedServices && window.ImpactedServices.getApproversAndStakeholders) {
-    const impactData = window.ImpactedServices.getApproversAndStakeholders();
-    window.formData.impactedServices = impactData;
-  }
-  
-  console.log('📊 Complete form data collected:', window.formData);
-  
-  // This would typically show a modal with the summary
-  // For now, just show a success message
-  showNotification('success', `Change request "${window.formData.changeDetails.title}" is ready for submission!`);
-  
-  // You could implement a modal here to show the full summary
-}
+
 
 /**
  * Finalize requester search with results
@@ -6318,3 +6267,85 @@ window.testEnhancedUserCache = async function() {
     return null;
   }
 };
+
+// Initialize Editor.js instances when the document is ready
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize editors
+  if (window.editorConfig) {
+    window.editorConfig.initializeEditors();
+  }
+});
+
+/**
+ * Show submission summary modal
+ */
+async function showSubmissionSummary() {
+  console.log('📋 Preparing submission summary...');
+  
+  // Collect form data
+  const formData = {
+    changeTitle: document.getElementById('change-title').value,
+    changeDescription: document.getElementById('change-description').value,
+    changeType: document.getElementById('change-type').value,
+    plannedStart: document.getElementById('planned-start').value,
+    plannedEnd: document.getElementById('planned-end').value,
+    selectedRequester: window.selectedRequester,
+    selectedAgent: window.selectedAgent
+  };
+  
+  // Get Editor.js content
+  if (window.editorConfig) {
+    const editorContent = await window.editorConfig.saveEditorContent();
+    formData.editorContent = editorContent;
+  }
+  
+  // Get selected assets
+  if (window.AssetSelector) {
+    formData.selectedAssets = window.AssetSelector.getSelectedAssets();
+  }
+  
+  // Get impacted services data
+  if (window.ImpactedServices) {
+    formData.impactedServices = window.ImpactedServices.getImpactedServicesData();
+  }
+  
+  // Store form data globally
+  window.formData = formData;
+  
+  console.log('✅ Form data collected:', formData);
+  
+  // Show summary modal
+  const summaryModal = new bootstrap.Modal(document.getElementById('summaryModal'));
+  summaryModal.show();
+}
+
+// Update the form reset function to clear Editor.js content
+function resetForm() {
+  // Clear regular form fields
+  document.getElementById('change-title').value = '';
+  document.getElementById('change-description').value = '';
+  document.getElementById('change-type').value = '';
+  document.getElementById('planned-start').value = '';
+  document.getElementById('planned-end').value = '';
+  
+  // Clear Editor.js content
+  if (window.editorConfig) {
+    window.editorConfig.loadEditorContent({
+      reasonForChange: { blocks: [] },
+      implementationPlan: { blocks: [] },
+      backoutPlan: { blocks: [] },
+      validationPlan: { blocks: [] }
+    });
+  }
+  
+  // Clear other form data
+  window.formData = {};
+  
+  // Reset other components if they exist
+  if (window.AssetAssociation && window.AssetAssociation.reset) {
+    window.AssetAssociation.reset();
+  }
+  if (window.ImpactedServices && window.ImpactedServices.reset) {
+    window.ImpactedServices.reset();
+  }
+}
