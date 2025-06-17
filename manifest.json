@@ -27,10 +27,11 @@
         "updateChange": {},
         "createChangeApproval": {},
         "sendEmail": {},
+        "createTask": {},
+        "createTicket": {},
         "createChangeTask": {},
         "createChangeNote": {},
-        "getChangeNotes": {},
-        "createTicket": {}
+        "getChangeNotes": {}
       },
       "storage": {
         "data_storage": {
@@ -69,13 +70,5 @@
     "fdk": "9.4.2"
   },
   "iparams": "./config/iparams.json",
-  "dependencies": {
-    "editor-js": {
-      "src": "assets/js/editor.js",
-      "attributes": {
-        "type": "text/javascript"
-      }
-    }
-  },
   "allowed-origins": []
 }

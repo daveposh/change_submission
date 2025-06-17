@@ -1,4 +1,5 @@
 # Third-party dependencies
+app/assets/**/*.js
 app/scripts/vendor/**/*.js
 node_modules/**
 

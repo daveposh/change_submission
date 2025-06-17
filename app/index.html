@@ -5,18 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Change Request Form</title>
     <!-- Freshworks Client Library -->
-    <script src="https://static.freshdev.io/fdk/2.0/assets/fresh_client.js"></script>
+    <script src="{{{appclient}}}"></script>
     <!-- Bootstrap CSS with dark mode support -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- Shepherd.js CSS for guided tour -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@11.2.0/dist/css/shepherd.css">
     <!-- Custom styles -->
     <link rel="stylesheet" type="text/css" href="styles/style.css" />
     <link rel="stylesheet" type="text/css" href="styles/asset-association.css" />
     <!-- jQuery and Bootstrap JS -->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Shepherd.js for guided tour -->
     <script src="https://cdn.jsdelivr.net/npm/shepherd.js@11.2.0/dist/js/shepherd.min.js"></script>
@@ -25,64 +26,19 @@
     
     <!-- Theme Selector Script -->
     <script>
-      // Theme management functionality
+      // Initialize theme before page loads to avoid flash
       const ThemeManager = {
         init() {
-          this.loadSavedTheme();
-          this.setupThemeSelector();
-          this.watchSystemTheme();
+          const savedTheme = localStorage.getItem('theme') || 'light';
+          this.setTheme(savedTheme);
         },
-        
-        loadSavedTheme() {
-          const savedTheme = localStorage.getItem('app-theme') || 'light';
-          this.applyTheme(savedTheme);
-          
-          // Set the selector value when it becomes available
-          document.addEventListener('DOMContentLoaded', () => {
-            const selector = document.getElementById('theme-selector');
-            if (selector) {
-              selector.value = savedTheme;
-            }
-          });
-        },
-        
-        setupThemeSelector() {
-          document.addEventListener('DOMContentLoaded', () => {
-            const selector = document.getElementById('theme-selector');
-            if (selector) {
-              selector.addEventListener('change', (e) => {
-                const theme = e.target.value;
-                this.applyTheme(theme);
-                localStorage.setItem('app-theme', theme);
-              });
-            }
-          });
-        },
-        
-        applyTheme(theme) {
-          const html = document.documentElement;
-          
-          if (theme === 'auto') {
-            // Use system preference
-            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            html.setAttribute('data-bs-theme', systemTheme);
-          } else {
-            html.setAttribute('data-bs-theme', theme);
-          }
-        },
-        
-        watchSystemTheme() {
-          // Listen for system theme changes
-          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-            const currentTheme = localStorage.getItem('app-theme') || 'light';
-            if (currentTheme === 'auto') {
-              this.applyTheme('auto');
-            }
-          });
+        setTheme(theme) {
+          document.documentElement.setAttribute('data-bs-theme', theme);
+          localStorage.setItem('theme', theme);
         }
       };
       
-      // Initialize theme management
+      // Initialize immediately
       ThemeManager.init();
     </script>
   </head>
@@ -913,6 +869,8 @@
       <div id="submission-summary"></div>
     </div>
   </body>
+  <!-- Editor.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.30.8"></script>
   <!-- Editor.js Tools -->
   <script src="scripts/editor-tools/editor-tools.js"></script>
   <!-- Editor Configuration -->
@@ -925,12 +883,7 @@
         
         // Check if Editor.js is loaded
         if (typeof window.EditorJS !== 'function') {
-          console.warn('⚠️ Trying to access EditorJS from window.EditorJS.default...');
-          if (typeof window.EditorJS.default === 'function') {
-            window.EditorJS = window.EditorJS.default;
-          } else {
-            throw new Error('Editor.js constructor not found. Check if the script loaded successfully.');
-          }
+          throw new Error('Editor.js constructor not found. Check if the script loaded successfully.');
         }
 
         // Check if our tools are loaded
