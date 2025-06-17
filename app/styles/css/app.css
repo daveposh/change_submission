@@ -589,6 +589,122 @@ textarea[id*="validation"]:hover {
   border-color: #b6d7ff;
 }
 
+/* Enhanced Table Tool Styles */
+.editor-container .tc-table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin-bottom: 10px !important;
+}
+
+.editor-container .tc-table td,
+.editor-container .tc-table th {
+  border: 1px solid #dee2e6 !important;
+  padding: 8px !important;
+  text-align: left !important;
+  min-width: 100px !important;
+  position: relative !important;
+}
+
+.editor-container .tc-table th {
+  background-color: #f8f9fa !important;
+  font-weight: bold !important;
+}
+
+.editor-container .tc-table td:empty::before,
+.editor-container .tc-table th:empty::before {
+  content: attr(data-placeholder);
+  color: #adb5bd;
+  font-style: italic;
+}
+
+/* List Tool Enhancement Styles */
+.editor-container .ce-list {
+  margin-bottom: 10px !important;
+}
+
+.editor-container .ce-list li {
+  margin-bottom: 4px !important;
+  position: relative !important;
+}
+
+.editor-container .ce-list li:empty::before {
+  content: attr(data-placeholder);
+  color: #adb5bd;
+  font-style: italic;
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Button Styles for Tool Controls */
+.editor-container button[type="button"] {
+  background: #f8f9fa !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 4px !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  color: #495057 !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  margin: 2px !important;
+}
+
+.editor-container button[type="button"]:hover {
+  background: #e9ecef !important;
+  border-color: #adb5bd !important;
+}
+
+.editor-container button[type="button"]:active {
+  background: #dee2e6 !important;
+  transform: translateY(1px) !important;
+}
+
+/* Inline formatting tool styles */
+.editor-container .ce-inline-tool--active {
+  background-color: #007bff !important;
+  color: white !important;
+}
+
+.editor-container .ce-inline-toolbar__dropdown {
+  position: absolute !important;
+  background: white !important;
+  border: 1px solid #e1e5e9 !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+  z-index: 1000 !important;
+  min-width: 150px !important;
+}
+
+.editor-container .ce-inline-toolbar__dropdown-item {
+  padding: 8px 12px !important;
+  cursor: pointer !important;
+  border-bottom: 1px solid #f8f9fa !important;
+}
+
+.editor-container .ce-inline-toolbar__dropdown-item:hover {
+  background-color: #f8f9fa !important;
+}
+
+.editor-container .ce-inline-toolbar__dropdown-item:last-child {
+  border-bottom: none !important;
+}
+
+/* Highlight tool styles */
+.editor-container mark {
+  background-color: #fff3cd !important;
+  padding: 1px 2px !important;
+  border-radius: 2px !important;
+}
+
+/* Color text styles */
+.editor-container .colored-text {
+  color: inherit !important;
+}
+
+/* Font family styles */
+.editor-container .custom-font {
+  font-family: inherit !important;
+}
+
 /* Enhanced List Tool Styles */
 .editor-container .list-controls {
   display: flex;

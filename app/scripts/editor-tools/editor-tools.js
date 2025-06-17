@@ -308,7 +308,7 @@ class CodeTool {
   }
 }
 
-// Table Tool
+// Enhanced Table Tool with Controls
 class Table {
   constructor({ data, api, readOnly }) {
     this.api = api;
@@ -328,29 +328,104 @@ class Table {
 
   render() {
     const wrapper = document.createElement('div');
-    const table = document.createElement('table');
+    wrapper.style.position = 'relative';
     
-    table.style.width = '100%';
-    table.style.borderCollapse = 'collapse';
-    table.style.border = '1px solid #dee2e6';
+    const tableContainer = document.createElement('div');
+    tableContainer.style.marginBottom = '10px';
+    
+    const table = this.createTable();
+    tableContainer.appendChild(table);
+    
+    // Control buttons container
+    if (!this.readOnly) {
+      const controlsContainer = document.createElement('div');
+      controlsContainer.style.display = 'flex';
+      controlsContainer.style.gap = '8px';
+      controlsContainer.style.flexWrap = 'wrap';
+      controlsContainer.style.marginTop = '8px';
+      
+      // Add Row button
+      const addRowButton = this.createControlButton('+ Add Row', () => {
+        this.addRow();
+      });
+      controlsContainer.appendChild(addRowButton);
+      
+      // Add Column button
+      const addColumnButton = this.createControlButton('+ Add Column', () => {
+        this.addColumn();
+      });
+      controlsContainer.appendChild(addColumnButton);
+      
+      // Remove Row button
+      const removeRowButton = this.createControlButton('- Remove Row', () => {
+        this.removeRow();
+      });
+      controlsContainer.appendChild(removeRowButton);
+      
+      // Remove Column button
+      const removeColumnButton = this.createControlButton('- Remove Column', () => {
+        this.removeColumn();
+      });
+      controlsContainer.appendChild(removeColumnButton);
+      
+      // Toggle Header button
+      const toggleHeaderButton = this.createControlButton(
+        this.data.withHeadings ? 'Remove Headers' : 'Add Headers',
+        () => {
+          this.toggleHeaders(toggleHeaderButton);
+        }
+      );
+      controlsContainer.appendChild(toggleHeaderButton);
+      
+      wrapper.appendChild(tableContainer);
+      wrapper.appendChild(controlsContainer);
+    } else {
+      wrapper.appendChild(tableContainer);
+    }
+    
+    this.table = table;
+    this.wrapper = wrapper;
+
+    return wrapper;
+  }
+
+  createTable() {
+    const table = document.createElement('table');
+    table.style.cssText = `
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #dee2e6;
+      margin-bottom: 0;
+    `;
 
     this.data.content.forEach((row, rowIndex) => {
       const tr = document.createElement('tr');
       
-      row.forEach((cell) => {
+      row.forEach((cell, cellIndex) => {
         const cellElement = document.createElement(
           this.data.withHeadings && rowIndex === 0 ? 'th' : 'td'
         );
         
         cellElement.contentEditable = !this.readOnly;
         cellElement.innerHTML = cell;
-        cellElement.style.border = '1px solid #dee2e6';
-        cellElement.style.padding = '8px';
-        cellElement.style.textAlign = 'left';
+        cellElement.style.cssText = `
+          border: 1px solid #dee2e6;
+          padding: 8px;
+          text-align: left;
+          min-width: 100px;
+          background-color: ${this.data.withHeadings && rowIndex === 0 ? '#f8f9fa' : 'white'};
+          font-weight: ${this.data.withHeadings && rowIndex === 0 ? 'bold' : 'normal'};
+        `;
         
-        if (this.data.withHeadings && rowIndex === 0) {
-          cellElement.style.backgroundColor = '#f8f9fa';
-          cellElement.style.fontWeight = 'bold';
+        if (!cell) {
+          cellElement.setAttribute('data-placeholder', this.data.withHeadings && rowIndex === 0 ? 'Header' : 'Cell');
+        }
+        
+        // Add keyboard navigation
+        if (!this.readOnly) {
+          cellElement.addEventListener('keydown', (e) => {
+            this.handleCellKeydown(e, rowIndex, cellIndex);
+          });
         }
 
         tr.appendChild(cellElement);
@@ -359,20 +434,130 @@ class Table {
       table.appendChild(tr);
     });
 
-    wrapper.appendChild(table);
-    this.table = table;
+    return table;
+  }
 
-    return wrapper;
+  createControlButton(text, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.innerHTML = text;
+    button.style.cssText = `
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #495057;
+      cursor: pointer;
+      transition: all 0.2s;
+    `;
+    
+    button.addEventListener('mouseenter', () => {
+      button.style.background = '#e9ecef';
+      button.style.borderColor = '#adb5bd';
+    });
+    
+    button.addEventListener('mouseleave', () => {
+      button.style.background = '#f8f9fa';
+      button.style.borderColor = '#dee2e6';
+    });
+    
+    button.addEventListener('click', onClick);
+    
+    return button;
+  }
+
+  handleCellKeydown(e, rowIndex, cellIndex) {
+    const rows = this.table.rows;
+    const currentRow = rows[rowIndex];
+    
+    switch (e.key) {
+      case 'Tab':
+        e.preventDefault();
+        const nextCellIndex = e.shiftKey ? cellIndex - 1 : cellIndex + 1;
+        const nextRowIndex = nextCellIndex < 0 ? rowIndex - 1 : 
+                            nextCellIndex >= currentRow.cells.length ? rowIndex + 1 : rowIndex;
+        
+        if (nextRowIndex >= 0 && nextRowIndex < rows.length) {
+          const targetRow = rows[nextRowIndex];
+          const targetCellIndex = nextCellIndex < 0 ? targetRow.cells.length - 1 :
+                                 nextCellIndex >= currentRow.cells.length ? 0 : nextCellIndex;
+          
+          if (targetRow.cells[targetCellIndex]) {
+            targetRow.cells[targetCellIndex].focus();
+          }
+        }
+        break;
+        
+      case 'Enter':
+        if (e.ctrlKey) {
+          e.preventDefault();
+          this.addRow();
+        }
+        break;
+    }
+  }
+
+  addRow() {
+    const columnCount = this.data.content[0] ? this.data.content[0].length : 2;
+    const newRow = new Array(columnCount).fill('');
+    this.data.content.push(newRow);
+    this.refreshTable();
+  }
+
+  addColumn() {
+    this.data.content.forEach(row => {
+      row.push('');
+    });
+    this.refreshTable();
+  }
+
+  removeRow() {
+    if (this.data.content.length > 1) {
+      this.data.content.pop();
+      this.refreshTable();
+    }
+  }
+
+  removeColumn() {
+    if (this.data.content[0] && this.data.content[0].length > 1) {
+      this.data.content.forEach(row => {
+        row.pop();
+      });
+      this.refreshTable();
+    }
+  }
+
+  toggleHeaders(button) {
+    this.data.withHeadings = !this.data.withHeadings;
+    button.innerHTML = this.data.withHeadings ? 'Remove Headers' : 'Add Headers';
+    this.refreshTable();
+  }
+
+  refreshTable() {
+    // Save current content before refresh
+    this.updateContentFromTable();
+    
+    // Replace table with new one
+    const newTable = this.createTable();
+    this.table.parentNode.replaceChild(newTable, this.table);
+    this.table = newTable;
+  }
+
+  updateContentFromTable() {
+    if (this.table && this.table.rows) {
+      this.data.content = Array.from(this.table.rows).map(row => 
+        Array.from(row.cells).map(cell => cell.innerHTML)
+      );
+    }
   }
 
   save() {
-    const content = Array.from(this.table.rows).map(row => 
-      Array.from(row.cells).map(cell => cell.innerHTML)
-    );
-
+    this.updateContentFromTable();
+    
     return {
       withHeadings: this.data.withHeadings,
-      content
+      content: this.data.content
     };
   }
 
@@ -385,7 +570,9 @@ class Table {
         em: true,
         u: true,
         s: true,
-        span: true
+        span: true,
+        mark: true,
+        code: true
       }
     };
   }
