@@ -878,50 +878,80 @@
   <script>
     // Initialize Editor.js after app is ready
     window.app.initialized().then(function(client) {
-      try {
-        console.log('🔍 Checking Editor.js dependencies...');
-        
-        // Check if Editor.js is loaded
-        if (typeof window.EditorJS !== 'function') {
-          throw new Error('Editor.js constructor not found. Check if the script loaded successfully.');
+      // Add a delay to ensure all DOM elements are fully rendered
+      setTimeout(() => {
+        try {
+          console.log('🔍 Checking Editor.js dependencies...');
+          
+          // Check if Editor.js is loaded
+          if (typeof window.EditorJS !== 'function') {
+            throw new Error('Editor.js constructor not found. Check if the script loaded successfully.');
+          }
+
+          // Check if our tools are loaded
+          if (typeof window.Header !== 'function' || typeof window.List !== 'function') {
+            throw new Error('Editor.js tools not loaded. Check if editor-tools.js is accessible.');
+          }
+
+          // Check if configuration is loaded
+          if (!window.editorConfig || typeof window.editorConfig.initializeEditors !== 'function') {
+            throw new Error('Editor configuration not loaded. Check if editor-config.js is accessible.');
+          }
+
+          console.log('✅ All Editor.js dependencies loaded successfully');
+
+          // Initialize editors with a small delay to ensure containers are ready
+          setTimeout(() => {
+            window.editorConfig.initializeEditors().then(() => {
+              console.log('✅ Editor.js instances initialized');
+            }).catch((error) => {
+              console.error('❌ Editor initialization failed:', error);
+              // Show error to user
+              const editors = document.querySelectorAll('.editor-container');
+              editors.forEach(editor => {
+                editor.innerHTML = `
+                  <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Rich text editor unavailable:</strong> ${error.message}
+                    <hr>
+                    <p class="mb-0">
+                      <small>
+                        <i class="fas fa-info-circle me-1"></i>
+                        You can still enter text using the fallback text areas that will appear below.
+                      </small>
+                    </p>
+                  </div>
+                  <textarea class="form-control mt-2" placeholder="Enter your text here..." rows="6"></textarea>
+                `;
+              });
+            });
+          }, 100);
+          
+        } catch (error) {
+          console.error('❌ Editor.js initialization failed:', error);
+          
+          // Show error to user with fallback
+          const editors = document.querySelectorAll('.editor-container');
+          editors.forEach(editor => {
+            editor.innerHTML = `
+              <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Rich text editor unavailable:</strong> ${error.message}
+                <hr>
+                <p class="mb-0">
+                  <small>
+                    <i class="fas fa-info-circle me-1"></i>
+                    Using fallback text area instead.
+                  </small>
+                </p>
+              </div>
+              <textarea class="form-control mt-2" placeholder="Enter your text here..." rows="6"></textarea>
+            `;
+          });
         }
-
-        // Check if our tools are loaded
-        if (typeof window.Header !== 'function' || typeof window.List !== 'function') {
-          throw new Error('Editor.js tools not loaded. Check if editor-tools.js is accessible.');
-        }
-
-        // Check if configuration is loaded
-        if (!window.editorConfig || typeof window.editorConfig.initializeEditors !== 'function') {
-          throw new Error('Editor configuration not loaded. Check if editor-config.js is accessible.');
-        }
-
-        console.log('✅ All Editor.js dependencies loaded successfully');
-
-        // Initialize editors
-        window.editorConfig.initializeEditors();
-        console.log('✅ Editor.js instances initialized');
-      } catch (error) {
-        console.error('❌ Editor.js initialization failed:', error);
-        
-        // Show error to user
-        const editors = document.querySelectorAll('.editor-container');
-        editors.forEach(editor => {
-          editor.innerHTML = `
-            <div class="alert alert-danger">
-              <i class="fas fa-exclamation-circle me-2"></i>
-              <strong>Editor initialization failed:</strong> ${error.message}
-              <hr>
-              <p class="mb-0">
-                <small>
-                  <i class="fas fa-info-circle me-1"></i>
-                  Please check your browser's console for more details or contact support if the issue persists.
-                </small>
-              </p>
-            </div>
-          `;
-        });
-      }
+      }, 250); // Wait 250ms after app initialization
+    }).catch((error) => {
+      console.error('❌ Freshworks app initialization failed:', error);
     });
   </script>
   <script src="scripts/cache-manager.js"></script>

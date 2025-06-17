@@ -6,6 +6,10 @@ const editorConfig = {
     autofocus: false,
     readOnly: false,
     minHeight: 200,
+    onReady: function() {
+      console.log('✅ Editor.js ready');
+    },
+    logLevel: 'WARN', // Reduce log verbosity
     tools: {
       header: {
         class: window.Header,
@@ -29,6 +33,15 @@ const editorConfig = {
   initializeEditors: function() {
     try {
       console.log('🔧 Initializing Editor.js instances...');
+      
+      // Wait for DOM to be ready
+      if (document.readyState === 'loading') {
+        return new Promise((resolve) => {
+          document.addEventListener('DOMContentLoaded', () => {
+            resolve(this._initializeEditors());
+          });
+        });
+      }
       
       // Wait for Editor.js to be loaded
       if (typeof window.EditorJS !== 'function') {
@@ -66,7 +79,7 @@ const editorConfig = {
         return null;
       }
       
-      // Check if required elements exist
+      // Check if required elements exist and are visible
       const holders = [
         'reason-for-change-editor',
         'implementation-plan-editor',
@@ -74,35 +87,74 @@ const editorConfig = {
         'validation-plan-editor'
       ];
       
-      const missingHolders = holders.filter(id => !document.getElementById(id));
+      const missingHolders = holders.filter(id => {
+        const element = document.getElementById(id);
+        return !element || element.offsetParent === null;
+      });
+      
       if (missingHolders.length > 0) {
-        console.error('❌ Missing editor containers:', missingHolders);
+        console.warn('⚠️ Some editor containers not visible yet:', missingHolders);
+        // Try again after a short delay
+        setTimeout(() => this._initializeEditors(), 500);
         return null;
       }
 
-      // Initialize each editor
-      const editors = {
-        reason: new window.EditorJS({
+      // Clear any existing editor content first
+      holders.forEach(id => {
+        const holder = document.getElementById(id);
+        if (holder) {
+          holder.innerHTML = '';
+          holder.style.position = 'relative';
+          holder.style.width = '100%';
+        }
+      });
+
+      // Initialize each editor with proper container styling
+      const editors = {};
+      
+      try {
+        editors.reason = new window.EditorJS({
           holder: 'reason-for-change-editor',
           ...this.commonConfig,
           placeholder: 'Describe the reason for this change...'
-        }),
-        implementation: new window.EditorJS({
+        });
+        console.log('✅ Reason editor initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize reason editor:', error);
+      }
+
+      try {
+        editors.implementation = new window.EditorJS({
           holder: 'implementation-plan-editor',
           ...this.commonConfig,
           placeholder: 'Describe the implementation steps...'
-        }),
-        backout: new window.EditorJS({
+        });
+        console.log('✅ Implementation editor initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize implementation editor:', error);
+      }
+
+      try {
+        editors.backout = new window.EditorJS({
           holder: 'backout-plan-editor',
           ...this.commonConfig,
           placeholder: 'Describe the backout procedure...'
-        }),
-        validation: new window.EditorJS({
+        });
+        console.log('✅ Backout editor initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize backout editor:', error);
+      }
+
+      try {
+        editors.validation = new window.EditorJS({
           holder: 'validation-plan-editor',
           ...this.commonConfig,
           placeholder: 'Describe how the change will be validated...'
-        })
-      };
+        });
+        console.log('✅ Validation editor initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize validation editor:', error);
+      }
 
       // Store editor instances globally
       window.editors = editors;
@@ -125,12 +177,20 @@ const editorConfig = {
 
     try {
       console.log('💾 Saving editor content...');
-      const content = {
-        reasonForChange: await editors.reason.save(),
-        implementationPlan: await editors.implementation.save(),
-        backoutPlan: await editors.backout.save(),
-        validationPlan: await editors.validation.save()
-      };
+      const content = {};
+      
+      if (editors.reason) {
+        content.reasonForChange = await editors.reason.save();
+      }
+      if (editors.implementation) {
+        content.implementationPlan = await editors.implementation.save();
+      }
+      if (editors.backout) {
+        content.backoutPlan = await editors.backout.save();
+      }
+      if (editors.validation) {
+        content.validationPlan = await editors.validation.save();
+      }
 
       console.log('✅ Editor content saved successfully');
       return content;
@@ -150,16 +210,16 @@ const editorConfig = {
 
     try {
       console.log('📥 Loading editor content...');
-      if (data.reasonForChange) {
+      if (data.reasonForChange && editors.reason) {
         await editors.reason.render(data.reasonForChange);
       }
-      if (data.implementationPlan) {
+      if (data.implementationPlan && editors.implementation) {
         await editors.implementation.render(data.implementationPlan);
       }
-      if (data.backoutPlan) {
+      if (data.backoutPlan && editors.backout) {
         await editors.backout.render(data.backoutPlan);
       }
-      if (data.validationPlan) {
+      if (data.validationPlan && editors.validation) {
         await editors.validation.render(data.validationPlan);
       }
       console.log('✅ Editor content loaded successfully');
