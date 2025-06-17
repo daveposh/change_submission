@@ -1,0 +1,8 @@
+# Third-party dependencies
+app/scripts/vendor/**/*.js
+node_modules/**
+
+# Generated files
+*.min.js
+*.bundle.js
+dist/** 
