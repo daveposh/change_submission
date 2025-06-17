@@ -1,0 +1,13 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es6": true
+  },
+  "rules": {
+    "no-var": "off",
+    "no-empty-function": "off",
+    "prefer-const": "off",
+    "no-unused-vars": "off"
+  }
+} 
