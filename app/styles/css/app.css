@@ -23,10 +23,26 @@
 textarea.form-control,
 input[type="text"].form-control,
 input[type="email"].form-control,
-select.form-control {
+input[type="datetime-local"].form-control,
+select.form-control,
+.form-select {
   resize: vertical !important;
   min-height: 38px;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+/* Force resize for ALL textarea elements */
+textarea {
+  resize: vertical !important;
+}
+
+/* Make sure input fields can also be resized vertically */
+input[type="text"],
+input[type="email"],
+input[type="datetime-local"],
+input[type="password"],
+input[type="number"] {
+  resize: vertical !important;
 }
 
 /* Specific targeting for multiline text fields */
@@ -468,7 +484,7 @@ textarea[id*="description"] {
 }
 
 .editor-container .ce-popover__item-title {
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   color: #495057 !important;
   font-size: 14px !important;
 }
@@ -994,4 +1010,79 @@ textarea[id*="validation"]:hover {
 .ce-inline-toolbar .text-color-dropdown {
   position: fixed !important;
   z-index: 99999 !important;
+}
+
+/* ===== UNIVERSAL FORM RESIZING AND FONT WEIGHT FIXES ===== */
+
+/* Universal resize capability for ALL form elements */
+input, 
+textarea, 
+select, 
+.form-control, 
+.form-select {
+  resize: vertical !important;
+}
+
+/* Specific overrides for various input types to ensure resizing works */
+input[type="text"],
+input[type="email"], 
+input[type="password"],
+input[type="datetime-local"],
+input[type="number"],
+input[type="search"],
+textarea,
+select {
+  resize: vertical !important;
+  min-height: 38px !important;
+}
+
+/* Force textarea resizing specifically */
+textarea {
+  resize: vertical !important;
+  min-height: 100px !important;
+  max-height: 80vh !important;
+}
+
+/* Ensure the description textarea is resizable */
+#change-description {
+  resize: vertical !important;
+  min-height: 80px !important;
+}
+
+/* Fix font weights throughout editor interface */
+.editor-container .ce-popover__item,
+.editor-container .ce-popover__item-title,
+.editor-container .ce-toolbar__plus,
+.editor-container .ce-toolbar__settings-btn,
+.editor-container .ce-inline-tool,
+.editor-container .ce-inline-toolbar__dropdown-item,
+.editor-container [style*="position: absolute"] div {
+  font-weight: 400 !important;
+}
+
+/* Only make certain elements bold when absolutely needed */
+.editor-container .tc-table th,
+.editor-container h1,
+.editor-container h2, 
+.editor-container h3,
+.editor-container strong,
+.editor-container b {
+  font-weight: 600 !important;
+}
+
+/* Ensure all Bootstrap form controls can be resized */
+.form-control,
+.form-select,
+input.form-control,
+textarea.form-control,
+select.form-control {
+  resize: vertical !important;
+}
+
+/* Add visual feedback for resizable elements */
+.form-control:hover,
+.form-select:hover,
+textarea:hover {
+  border-color: #86b7fe !important;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.1) !important;
 } 
