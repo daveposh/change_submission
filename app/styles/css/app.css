@@ -1,11 +1,11 @@
-/* Editor.js Styles - Improved sizing and layout */
+/* Editor.js Styles - Improved sizing and layout with user resizing */
 .editor-container {
   border: 1px solid #dee2e6;
   border-radius: 0.375rem;
   background-color: #fff;
-  min-height: 300px;
-  height: auto;
-  max-height: none;
+  min-height: 200px;
+  height: 300px; /* Default height */
+  max-height: 80vh; /* Prevent excessive height */
   margin-bottom: 1.5rem;
   position: relative;
   width: 100%;
@@ -13,8 +13,19 @@
   overflow-y: auto !important;
   overflow-x: hidden !important;
   z-index: 1;
-  resize: vertical;
+  resize: vertical !important; /* Allow user to resize vertically */
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+/* Resize handle styling for better visibility */
+.editor-container::-webkit-resizer {
+  background-color: #6c757d;
+  border-radius: 0 0 0.375rem 0;
+  opacity: 0.7;
+}
+
+.editor-container:hover::-webkit-resizer {
+  opacity: 1;
 }
 
 .editor-container:focus-within {
@@ -34,13 +45,14 @@
   margin: 0 !important;
   left: 0 !important;
   transform: none !important;
-  min-height: 250px;
-  height: auto;
+  min-height: 150px; /* Reduced to accommodate resizing */
+  height: 100%; /* Fill container height */
+  max-height: 100%; /* Respect container bounds */
   overflow: visible !important;
 }
 
 .editor-container .codex-editor__redactor {
-  padding-bottom: 120px !important;
+  padding-bottom: 60px !important; /* Reduced padding for better space usage */
   position: relative;
   width: 100% !important;
   box-sizing: border-box;
@@ -48,8 +60,9 @@
   left: 0 !important;
   transform: none !important;
   max-width: none !important;
-  min-height: 300px !important;
-  height: auto !important;
+  min-height: 120px !important; /* Reduced minimum */
+  height: calc(100% - 2rem) !important; /* Fill container minus padding */
+  max-height: calc(100% - 2rem) !important; /* Respect container bounds */
 }
 
 /* Force Editor.js to not center itself */
@@ -523,4 +536,55 @@
 .ce-popover--opened {
   z-index: 99999 !important;
   position: absolute !important;
+}
+
+/* Fallback textarea resizing styles */
+textarea.form-control {
+  resize: vertical !important;
+  min-height: 200px;
+  max-height: 80vh;
+}
+
+/* Ensure textareas in editor containers are also resizable */
+.editor-container textarea,
+textarea[id*="implementation"],
+textarea[id*="backout"],
+textarea[id*="validation"] {
+  resize: vertical !important;
+  min-height: 150px;
+  height: 250px;
+  max-height: 80vh;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Resize handle styling for textareas */
+.editor-container textarea::-webkit-resizer,
+textarea[id*="implementation"]::-webkit-resizer,
+textarea[id*="backout"]::-webkit-resizer,
+textarea[id*="validation"]::-webkit-resizer {
+  background-color: #6c757d;
+  border-radius: 0 0 0.375rem 0;
+  opacity: 0.7;
+}
+
+.editor-container textarea:hover::-webkit-resizer,
+textarea[id*="implementation"]:hover::-webkit-resizer,
+textarea[id*="backout"]:hover::-webkit-resizer,
+textarea[id*="validation"]:hover::-webkit-resizer {
+  opacity: 1;
+}
+
+/* Additional styling for better resize handle visibility */
+.editor-container:hover,
+textarea[id*="implementation"]:hover,
+textarea[id*="backout"]:hover,
+textarea[id*="validation"]:hover {
+  border-color: #b6d7ff;
 } 
