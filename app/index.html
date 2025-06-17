@@ -22,7 +22,47 @@
     <!-- Shepherd.js for guided tour -->
     <script src="https://cdn.jsdelivr.net/npm/shepherd.js@11.2.0/dist/js/shepherd.min.js"></script>
     <!-- App Styles -->
-    <link rel="stylesheet" type="text/css" href="styles/app.css">
+    <link rel="stylesheet" type="text/css" href="styles/css/app.css?v=1.0.1">
+    
+    <!-- Critical inline styles to force resize and font-weight changes -->
+    <style>
+      /* Force form resize capability */
+      input, textarea, select, .form-control, .form-select {
+        resize: vertical !important;
+      }
+      
+      /* Specific textarea targeting */
+      textarea {
+        resize: vertical !important;
+        min-height: 100px !important;
+      }
+      
+      #change-description {
+        resize: vertical !important;
+        min-height: 80px !important;
+      }
+      
+      /* Force font weight changes in editor */
+      .editor-container .ce-popover__item,
+      .editor-container .ce-popover__item-title,
+      .editor-container .ce-toolbar__plus,
+      .editor-container .ce-toolbar__settings-btn,
+      .editor-container .ce-inline-tool,
+      .editor-container .ce-inline-toolbar__dropdown-item,
+      .ce-popover *,
+      .ce-toolbar *,
+      .ce-inline-toolbar * {
+        font-weight: 400 !important;
+      }
+      
+      /* Visual feedback for resizable elements */
+      .form-control:hover,
+      .form-select:hover,
+      textarea:hover {
+        border-color: #86b7fe !important;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.1) !important;
+      }
+    </style>
     
     <!-- Theme Selector Script -->
     <script>
