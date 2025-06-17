@@ -5,7 +5,7 @@ const editorConfig = {
     placeholder: 'Start typing...',
     autofocus: false,
     readOnly: false,
-    minHeight: 300,
+    minHeight: 350,
     onReady: function() {
       console.log('✅ Editor.js ready');
     },
@@ -323,15 +323,15 @@ const editorConfig = {
       
       /* Toolbox visibility fixes */
       .ce-popover {
-        z-index: 9999 !important;
+        z-index: 99999 !important;
         max-height: 400px !important;
         overflow-y: auto !important;
-        position: absolute !important;
+        position: fixed !important;
         background: white !important;
         border: 1px solid #e1e5e9 !important;
         border-radius: 4px !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
-        min-width: 200px !important;
+        min-width: 220px !important;
       }
       
       .ce-popover__items {
@@ -365,6 +365,23 @@ const editorConfig = {
       .ce-popover__item-title {
         font-size: 14px !important;
         color: #333 !important;
+      }
+      
+      /* Ensure containers don't clip the toolbox */
+      .tab-content,
+      .tab-pane,
+      .container-fluid,
+      .card,
+      .tabs-wrapper,
+      .form-group,
+      .mb-4 {
+        overflow: visible !important;
+        z-index: auto !important;
+      }
+      
+      .editor-container {
+        overflow: visible !important;
+        z-index: auto !important;
       }
       
       /* Code block styles */
