@@ -68,5 +68,16 @@
     "node": "18.19.1",
     "fdk": "9.4.2"
   },
-  "iparams": "./config/iparams.json"
+  "iparams": "./config/iparams.json",
+  "dependencies": {
+    "editor-js": {
+      "src": "scripts/vendor/editorjs/editor.min.js",
+      "attributes": {
+        "type": "text/javascript",
+        "async": false,
+        "defer": false
+      }
+    }
+  },
+  "whitelisted-domains": []
 }
