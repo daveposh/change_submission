@@ -1,200 +1,205 @@
 /* Editor.js Styles - Improved sizing and layout with user resizing */
 .editor-container {
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-  background-color: #fff;
-  min-height: 200px;
-  height: 300px; /* Default height */
-  max-height: 80vh; /* Prevent excessive height */
-  margin-bottom: 1.5rem;
-  position: relative;
-  width: 100%;
-  box-sizing: border-box;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  z-index: 1;
-  resize: vertical !important; /* Allow user to resize vertically */
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-
-/* Ensure all editor form fields are resizable */
-.form-control,
-.form-control:focus,
-textarea.form-control,
-input[type="text"].form-control,
-input[type="email"].form-control,
-input[type="datetime-local"].form-control,
-select.form-control,
-.form-select {
-  resize: vertical !important;
-  min-height: 38px;
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-
-/* Force resize for ALL textarea elements */
-textarea {
-  resize: vertical !important;
-}
-
-/* Make sure input fields can also be resized vertically */
-input[type="text"],
-input[type="email"],
-input[type="datetime-local"],
-input[type="password"],
-input[type="number"] {
-  resize: vertical !important;
-}
-
-/* Specific targeting for multiline text fields */
-textarea[id*="reason"],
-textarea[id*="implementation"], 
-textarea[id*="backout"],
-textarea[id*="validation"],
-textarea[id*="description"] {
-  resize: vertical !important;
-  min-height: 120px;
-  height: 150px;
-  max-height: 80vh;
-}
-
-/* Resize handle styling for better visibility */
-.editor-container::-webkit-resizer {
-  background-color: #6c757d;
-  border-radius: 0 0 0.375rem 0;
-  opacity: 0.7;
-}
-
-.editor-container:hover::-webkit-resizer {
-  opacity: 1;
-}
-
-.editor-container:focus-within {
-  border-color: #86b7fe;
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-}
-
-.editor-container:hover {
-  border-color: #b6d7ff;
-}
-
-.editor-container .codex-editor {
-  padding: 1rem;
-  position: relative;
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0 !important;
-  left: 0 !important;
-  transform: none !important;
-  min-height: 150px; /* Reduced to accommodate resizing */
-  height: 100%; /* Fill container height */
-  max-height: 100%; /* Respect container bounds */
+  position: relative !important;
+  width: 100% !important;
+  min-height: 120px !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 0.375rem !important;
+  background-color: #fff !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+  /* Remove resize functionality since Editor.js auto-expands */
+  resize: none !important;
   overflow: visible !important;
 }
 
-.editor-container .codex-editor__redactor {
-  padding-bottom: 60px !important; /* Reduced padding for better space usage */
-  position: relative;
-  width: 100% !important;
-  box-sizing: border-box;
-  margin: 0 !important;
-  left: 0 !important;
-  transform: none !important;
-  max-width: none !important;
-  min-height: 120px !important; /* Reduced minimum */
-  height: calc(100% - 2rem) !important; /* Fill container minus padding */
-  max-height: calc(100% - 2rem) !important; /* Respect container bounds */
+/* Base form control styles - remove scroll bars and resize handles */
+.form-control,
+.form-select,
+input[type="text"],
+input[type="email"],
+input[type="datetime-local"],
+select {
+  /* Remove scroll bars since fields auto-expand */
+  overflow: hidden !important;
+  resize: none !important;
 }
 
-/* Force Editor.js to not center itself */
-.editor-container .codex-editor .codex-editor__redactor {
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  left: 0 !important;
-  right: auto !important;
-  transform: none !important;
+/* Textarea specific styles - remove scroll bars and resize handles */
+textarea {
+  /* Remove scroll bars since Editor.js auto-expands */
+  overflow: hidden !important;
+  resize: none !important;
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+/* Hide webkit scrollbars */
+textarea::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Specific textarea targeting for form fields */
+input[type="text"],
+input[type="email"],
+select.form-select,
+textarea[id*="reason"],
+textarea[id*="description"] {
+  /* Remove all scrollbars and resize handles */
+  overflow: hidden !important;
+  resize: none !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+textarea[id*="reason"]::-webkit-scrollbar,
+textarea[id*="description"]::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Remove resize handles completely */
+.editor-container::-webkit-resizer {
+  display: none !important;
+}
+
+.editor-container:hover::-webkit-resizer {
+  display: none !important;
+}
+
+.editor-container:focus-within {
+  border-color: #86b7fe !important;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+.editor-container:hover {
+  border-color: #b6d7ff !important;
+}
+
+.editor-container .codex-editor {
   position: relative !important;
   width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  left: 0 !important;
+  transform: none !important;
   max-width: none !important;
+  overflow: visible !important;
 }
 
+/* Fix Editor.js redactor positioning - prevent centering and lower-right positioning */
+.editor-container .codex-editor__redactor {
+  position: relative !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 0 50px 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  max-width: none !important;
+  overflow: visible !important;
+}
+
+/* Override Editor.js default centering styles that cause lower-right positioning */
+.editor-container .codex-editor .codex-editor__redactor {
+  position: relative !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 0 50px 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  max-width: none !important;
+  overflow: visible !important;
+}
+
+/* Fix toolbar positioning */
 .editor-container .ce-toolbar__plus,
 .editor-container .ce-toolbar__settings-btn {
-  color: #6c757d;
+  position: relative !important;
+  z-index: 1050 !important;
 }
 
 .editor-container .ce-toolbar__plus:hover,
 .editor-container .ce-toolbar__settings-btn:hover {
-  color: #0d6efd;
-  background-color: rgba(13, 110, 253, 0.1);
+  background-color: #f8f9fa !important;
+  border-radius: 4px !important;
 }
 
 .editor-container .ce-block--selected .ce-block__content {
-  background-color: rgba(13, 110, 253, 0.1);
+  background-color: rgba(13, 110, 253, 0.05) !important;
 }
 
 .editor-container .ce-toolbar__content {
-  max-width: 100% !important;
-  width: 100% !important;
+  position: relative !important;
+  z-index: 1000 !important;
 }
 
 .editor-container .ce-block__content {
-  max-width: 100% !important;
+  position: relative !important;
   width: 100% !important;
-  position: relative;
   margin: 0 !important;
   left: 0 !important;
   transform: none !important;
+  max-width: none !important;
+  overflow: visible !important;
 }
 
+/* Plus button positioning fix */
 .editor-container .ce-toolbar__plus {
-  margin-left: 0;
+  position: relative !important;
+  left: 0 !important;
 }
 
 .editor-container .ce-toolbar__settings-btn {
-  margin-right: 0;
+  position: relative !important;
+  right: 0 !important;
 }
 
-/* Fix Editor.js positioning and layout - Override centering */
+/* Toolbar positioning within container */
 .editor-container .ce-toolbar {
-  position: relative;
-  width: auto;
+  position: relative !important;
+  width: auto !important;
   margin: 0 !important;
   left: 0 !important;
   transform: none !important;
 }
 
 .editor-container .ce-toolbar__actions {
-  right: 0;
-  position: absolute;
+  position: relative !important;
+  z-index: 1000 !important;
 }
 
 .editor-container .ce-toolbar__plus {
-  left: 0;
-  position: absolute;
+  position: relative !important;
+  z-index: 1050 !important;
 }
 
 .editor-container .ce-toolbar__settings-btn {
-  right: 0;
-}
-
-/* Editor.js Block Styles - Prevent centering */
-.editor-container .ce-block__content {
-  margin: 0 !important;
-  position: relative;
-  width: 100% !important;
-  left: 0 !important;
-  transform: none !important;
-  max-width: none !important;
-}
-
-/* Force all Editor.js content to align left and fill container */
-.editor-container .ce-block {
-  margin: 0 !important;
-  width: 100% !important;
   position: relative !important;
+  z-index: 1050 !important;
+}
+
+.editor-container .ce-block__content {
+  position: relative !important;
+  width: 100% !important;
+  margin: 0 !important;
   left: 0 !important;
   transform: none !important;
   max-width: none !important;
+  padding: 8px 0 !important;
+  min-height: 1.5em !important;
+}
+
+/* Block positioning fixes */
+.editor-container .ce-block {
+  position: relative !important;
+  width: 100% !important;
+  margin: 0 !important;
+  left: 0 !important;
+  transform: none !important;
+  max-width: none !important;
+  overflow: visible !important;
 }
 
 .editor-container .ce-block .ce-block__content {
@@ -204,98 +209,114 @@ textarea[id*="description"] {
   max-width: none !important;
   left: 0 !important;
   transform: none !important;
+  overflow: visible !important;
 }
 
+/* Header styles */
 .editor-container .ce-block__content h1,
 .editor-container .ce-block__content h2,
 .editor-container .ce-block__content h3 {
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
+  margin: 0.5rem 0 !important;
+  font-weight: 600 !important;
 }
 
 .editor-container .ce-block__content p {
-  margin-bottom: 0.5rem;
+  margin: 0.25rem 0 !important;
 }
 
 .editor-container .ce-block__content ul,
 .editor-container .ce-block__content ol {
-  margin-bottom: 0.5rem;
-  padding-left: 1.5rem;
+  margin: 0.5rem 0 !important;
+  padding-left: 1.5rem !important;
 }
 
 .editor-container .ce-block__content blockquote {
-  border-left: 4px solid #dee2e6;
-  padding-left: 1rem;
-  margin-left: 0;
-  margin-right: 0;
-  font-style: italic;
+  margin: 0.5rem 0 !important;
+  padding-left: 1rem !important;
+  border-left: 4px solid #dee2e6 !important;
+  color: #6c757d !important;
+  font-style: italic !important;
 }
 
 .editor-container .ce-block__content code {
-  background-color: #f8f9fa;
-  padding: 0.2rem 0.4rem;
-  border-radius: 0.25rem;
-  font-family: monospace;
+  background-color: #f8f9fa !important;
+  padding: 0.125rem 0.25rem !important;
+  border-radius: 0.25rem !important;
+  font-family: monospace !important;
 }
 
 .editor-container .ce-block__content table {
-  width: 100%;
-  margin-bottom: 0.5rem;
-  border-collapse: collapse;
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 0.5rem 0 !important;
 }
 
 .editor-container .ce-block__content table td,
 .editor-container .ce-block__content table th {
-  border: 1px solid #dee2e6;
-  padding: 0.5rem;
+  border: 1px solid #dee2e6 !important;
+  padding: 0.5rem !important;
 }
 
 .editor-container .ce-block__content table th {
-  background-color: #f8f9fa;
+  background-color: #f8f9fa !important;
 }
 
-/* Editor.js Inline Toolbar Styles */
+/* Editor.js Inline Toolbar Styles - Fix positioning to prevent lower-right corner */
 .editor-container .ce-inline-toolbar {
-  background-color: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  z-index: 1050;
+  background-color: #fff !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 0.375rem !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  z-index: 9999 !important;
+  position: absolute !important;
+  /* Ensure proper positioning within the editor container */
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
 }
 
 .editor-container .ce-inline-toolbar__buttons {
-  padding: 0.25rem;
+  padding: 0.25rem !important;
 }
 
 .editor-container .ce-inline-toolbar__buttons button {
-  color: #6c757d;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
+  color: #6c757d !important;
+  padding: 0.25rem 0.5rem !important;
+  border-radius: 0.25rem !important;
 }
 
 .editor-container .ce-inline-toolbar__buttons button:hover {
-  color: #0d6efd;
-  background-color: rgba(13, 110, 253, 0.1);
+  color: #0d6efd !important;
+  background-color: rgba(13, 110, 253, 0.1) !important;
 }
 
-/* Editor.js Block Settings Styles */
+/* Editor.js Block Settings Styles - Fix positioning */
 .editor-container .ce-settings {
-  background-color: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  z-index: 1050;
+  background-color: #fff !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 0.375rem !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  z-index: 9999 !important;
+  position: absolute !important;
+  /* Ensure proper positioning within the editor container */
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
 }
 
 .editor-container .ce-settings__button {
-  color: #6c757d;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.25rem;
+  color: #6c757d !important;
+  padding: 0.25rem 0.5rem !important;
+  border-radius: 0.25rem !important;
 }
 
 .editor-container .ce-settings__button:hover {
-  color: #0d6efd;
-  background-color: rgba(13, 110, 253, 0.1);
+  color: #0d6efd !important;
+  background-color: rgba(13, 110, 253, 0.1) !important;
 }
 
 /* Prevent editor overflow and centering issues - Strong overrides */
@@ -354,6 +375,224 @@ textarea[id*="description"] {
   position: relative !important;
   width: 100% !important;
   max-width: none !important;
+}
+
+/* Popover positioning fixes to prevent lower-right corner appearance */
+.editor-container .ce-popover {
+  z-index: 99999 !important;
+  background: white !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 0.375rem !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  max-height: 400px !important;
+  overflow-y: auto !important;
+  min-width: 220px !important;
+  position: absolute !important;
+  /* Ensure proper positioning calculation */
+  transform: none !important;
+  /* Remove any transforms that could cause misalignment */
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+.editor-container .ce-popover__items {
+  padding: 0.5rem 0 !important;
+  max-height: 350px !important;
+  overflow-y: auto !important;
+}
+
+.editor-container .ce-popover__item {
+  padding: 0.5rem 1rem !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  border: none !important;
+  background: none !important;
+  width: 100% !important;
+  text-align: left !important;
+}
+
+.editor-container .ce-popover__item:hover {
+  background-color: #f8f9fa !important;
+}
+
+.editor-container .ce-popover__item-icon {
+  width: 20px !important;
+  height: 20px !important;
+  margin-right: 0.75rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.editor-container .ce-popover__item-title {
+  font-size: 0.875rem !important;
+  color: #495057 !important;
+  font-weight: 400 !important;
+}
+
+/* Toolbar positioning within the editor */
+.editor-container .ce-toolbar {
+  position: relative !important;
+  z-index: 1000 !important;
+}
+
+.editor-container .ce-toolbar__plus {
+  position: relative !important;
+  z-index: 1050 !important;
+}
+
+/* Fix positioning of plus button popover to prevent lower-right positioning */
+.editor-container .ce-toolbar__plus .ce-popover {
+  position: absolute !important;
+  top: 100% !important;
+  left: 0 !important;
+  transform: none !important;
+  margin-top: 4px !important;
+  z-index: 99999 !important;
+}
+
+/* Override any centering that might cause the popover to appear in the wrong place */
+.editor-container .codex-editor {
+  text-align: left !important;
+}
+
+.editor-container .ce-block {
+  text-align: left !important;
+}
+
+.editor-container .ce-block:first-child {
+  margin-top: 0.5rem !important;
+}
+
+/* Global override to ensure popover is visible and properly positioned */
+.ce-popover {
+  z-index: 99999 !important;
+  max-height: 400px !important;
+  overflow-y: auto !important;
+  position: absolute !important;
+  background: white !important;
+  border: 1px solid #dee2e6 !important;
+  border-radius: 0.375rem !important;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+  /* Critical positioning fixes */
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+.ce-popover__items {
+  max-height: 350px !important;
+  overflow-y: auto !important;
+}
+
+/* Ensure the plus button works correctly */
+.ce-toolbar__plus {
+  position: relative !important;
+  z-index: 1000 !important;
+}
+
+/* Additional fixes for form containers that might clip the menu */
+.tab-content,
+.tab-pane,
+.container-fluid,
+.card,
+.tabs-wrapper {
+  overflow: visible !important;
+  z-index: auto !important;
+}
+
+/* Specific fix for Bootstrap form containers */
+.form-group,
+.mb-4 {
+  overflow: visible !important;
+  position: relative !important;
+}
+
+/* Ensure the editor toolbar appears above everything */
+.ce-toolbar__plus {
+  z-index: 10000 !important;
+}
+
+.ce-toolbar__settings-btn {
+  z-index: 10000 !important;
+}
+
+/* Force popover to appear on top with proper positioning */
+.ce-popover,
+.ce-popover--opened {
+  z-index: 99999 !important;
+  position: absolute !important;
+  /* Prevent transforms that could cause misalignment */
+  transform: none !important;
+}
+
+/* Remove textarea resizing since Editor.js handles auto-expansion */
+textarea.form-control {
+  resize: none !important;
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+textarea.form-control::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Ensure textareas in editor containers don't have scroll bars or resize handles */
+.editor-container textarea,
+textarea[id*="implementation"],
+textarea[id*="backout"],
+textarea[id*="validation"] {
+  resize: none !important;
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  min-height: 150px;
+  height: auto;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.editor-container textarea::-webkit-scrollbar,
+textarea[id*="implementation"]::-webkit-scrollbar,
+textarea[id*="backout"]::-webkit-scrollbar,
+textarea[id*="validation"]::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Remove resize handle styling completely */
+.editor-container textarea::-webkit-resizer,
+textarea[id*="implementation"]::-webkit-resizer,
+textarea[id*="backout"]::-webkit-resizer,
+textarea[id*="validation"]::-webkit-resizer {
+  display: none !important;
+}
+
+.editor-container textarea:hover::-webkit-resizer,
+textarea[id*="implementation"]:hover::-webkit-resizer,
+textarea[id*="backout"]:hover::-webkit-resizer,
+textarea[id*="validation"]:hover::-webkit-resizer {
+  display: none !important;
+}
+
+/* Remove additional resize handle styling */
+.editor-container:hover,
+textarea[id*="implementation"]:hover,
+textarea[id*="backout"]:hover,
+textarea[id*="validation"]:hover {
+  border-color: #b6d7ff;
 }
 
 /* Editor.js Image Tool Styles */

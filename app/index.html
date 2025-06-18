@@ -27,25 +27,40 @@
     <!-- Simple Editor Tools -->
     <script src="scripts/editor-tools/simple-tools.js"></script>
     
-    <!-- Critical inline styles to force resize and font-weight changes -->
+    <!-- Critical inline styles for editor and form improvements -->
     <style>
-      /* Force form resize capability */
+      /* Remove resize capability and scroll bars since fields auto-expand */
       input, textarea, select, .form-control, .form-select {
-        resize: vertical !important;
+        resize: none !important;
+        overflow: hidden !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
       }
       
-      /* Specific textarea targeting */
+      /* Hide webkit scrollbars */
+      input::-webkit-scrollbar,
+      textarea::-webkit-scrollbar,
+      .form-control::-webkit-scrollbar,
+      .form-select::-webkit-scrollbar {
+        display: none !important;
+      }
+      
+      /* Specific textarea targeting - no scroll bars or resize handles */
       textarea {
-        resize: vertical !important;
-        min-height: 100px !important;
+        resize: none !important;
+        overflow: hidden !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
       }
       
       #change-description {
-        resize: vertical !important;
-        min-height: 80px !important;
+        resize: none !important;
+        overflow: hidden !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
       }
       
-      /* Force font weight changes in editor */
+      /* Force font weight changes in editor and fix popover positioning */
       .editor-container .ce-popover__item,
       .editor-container .ce-popover__item-title,
       .editor-container .ce-toolbar__plus,
@@ -58,10 +73,36 @@
         font-weight: 400 !important;
       }
       
-      /* Visual feedback for resizable elements */
+      /* Critical Editor.js positioning fixes to prevent lower-right corner popover */
+      .ce-popover {
+        position: absolute !important;
+        z-index: 99999 !important;
+        transform: none !important;
+        top: auto !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+      }
+      
+      /* Ensure Editor.js containers don't cause misalignment */
+      .editor-container .codex-editor,
+      .editor-container .codex-editor__redactor,
+      .editor-container .ce-block,
+      .editor-container .ce-block__content {
+        position: relative !important;
+        transform: none !important;
+        margin: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+        text-align: left !important;
+      }
+      
+      /* Visual feedback for form elements without resize handles */
       .form-control:hover,
       .form-select:hover,
-      textarea:hover {
+      textarea:hover,
+      .editor-container:hover {
         border-color: #86b7fe !important;
         box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.1) !important;
       }
