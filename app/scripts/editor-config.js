@@ -6,7 +6,7 @@ const editorConfig = {
     autofocus: false,
     readOnly: false,
     minHeight: 250,
-    inlineToolbar: ['customBold', 'customItalic', 'customUnderline', 'customHighlight', 'customInlineCode', 'customFontFamily', 'customTextColor'],
+    inlineToolbar: ['bold', 'italic', 'underline'],
     onReady: function() {
       console.log('✅ Editor.js ready');
     },
@@ -44,8 +44,8 @@ const editorConfig = {
       cite: true
     },
     tools: {
-      // Block Tools - using unique names to avoid conflicts
-      customHeader: {
+      // Block Tools - Start with simpler configuration
+      header: {
         class: window.Header,
         inlineToolbar: true,
         config: {
@@ -53,57 +53,22 @@ const editorConfig = {
           defaultLevel: 2
         }
       },
-      simpleList: {
-        class: window.SimpleList,
+      list: {
+        class: window.List,
         inlineToolbar: true,
         config: {
           defaultStyle: 'unordered'
         }
       },
-      customCode: {
-        class: window.CodeTool,
-        config: {
-          placeholder: 'Enter your code here...'
-        }
-      },
-      simpleTable: {
-        class: window.SimpleTable,
-        inlineToolbar: true,
-        config: {
-          rows: 2,
-          cols: 2,
-          withHeadings: false
-        }
-      },
-      customQuote: {
-        class: window.Quote,
-        inlineToolbar: true,
-        config: {
-          quotePlaceholder: 'Enter a quote',
-          captionPlaceholder: 'Quote\'s author'
-        }
-      },
       // Inline Tools
-      customBold: {
+      bold: {
         class: window.Bold
       },
-      customItalic: {
+      italic: {
         class: window.Italic
       },
-      customUnderline: {
+      underline: {
         class: window.Underline
-      },
-      customInlineCode: {
-        class: window.InlineCode
-      },
-      customHighlight: {
-        class: window.Highlight
-      },
-      customFontFamily: {
-        class: window.FontFamily
-      },
-      customTextColor: {
-        class: window.TextColor
       }
     }
   },
@@ -155,21 +120,19 @@ const editorConfig = {
         // Check if required tools are loaded
         console.log('🔍 Checking tool availability:');
         console.log('Header:', typeof window.Header);
-        console.log('SimpleList:', typeof window.SimpleList);
-        console.log('SimpleTable:', typeof window.SimpleTable);
-        console.log('CodeTool:', typeof window.CodeTool);
-        console.log('Quote:', typeof window.Quote);
+        console.log('List:', typeof window.List);
         console.log('Bold:', typeof window.Bold);
         console.log('Italic:', typeof window.Italic);
         console.log('Underline:', typeof window.Underline);
-        console.log('InlineCode:', typeof window.InlineCode);
-        console.log('Highlight:', typeof window.Highlight);
-        console.log('FontFamily:', typeof window.FontFamily);
-        console.log('TextColor:', typeof window.TextColor);
         
-        if (!window.Header || !window.SimpleList || !window.SimpleTable || !window.CodeTool || !window.Quote || !window.Bold || !window.Italic || !window.Underline || !window.InlineCode || !window.Highlight || !window.FontFamily || !window.TextColor) {
-          console.error('❌ Some tools not loaded');
-          reject(new Error('Required Editor.js tools not loaded'));
+        if (!window.Header || !window.List || !window.Bold || !window.Italic || !window.Underline) {
+          console.error('❌ Some essential tools not loaded');
+          console.log('Missing tools - creating fallback editors...');
+          // Create fallback for all editors instead of failing
+          holders.forEach(id => {
+            this._createFallbackTextarea(id, 'Enter your text here...');
+          });
+          resolve({});
           return;
         }
         
@@ -213,7 +176,7 @@ const editorConfig = {
             holder.style.backgroundColor = '#fff';
             
             // Add a placeholder while loading
-            holder.innerHTML = '<div style="color: #6c757d; font-style: italic; padding: 20px;">Loading rich text editor...</div>';
+            holder.innerHTML = '<div class="editor-loading" style="color: #6c757d; font-style: italic; padding: 20px;">Loading rich text editor...</div>';
           }
         });
 
@@ -232,7 +195,14 @@ const editorConfig = {
         setTimeout(() => {
           this._fixEditorPositioning();
           this._enhanceInlineToolbarPositioning();
+          this._clearAllLoadingStates();
         }, 100);
+        
+        // Additional fallback to clear loading states
+        setTimeout(() => {
+          this._clearAllLoadingStates();
+          this._ensureEditorsAreClickable();
+        }, 500);
             
             // Store editor instances globally
             window.editors = editors;
@@ -246,9 +216,41 @@ const editorConfig = {
           ...this.commonConfig,
           // Remove features that might cause SecurityError
           onChange: undefined,
-          onReady: () => {
+          onReady: function() {
             console.log('✅ Editor ready');
             console.log('🔧 Available tools in this editor:', Object.keys(safeConfig.tools || {}));
+            
+            // Clear loading state - try multiple methods to find and remove loading element
+            const holderId = this.configuration.holder;
+            console.log('🔍 Looking for loading element in holder:', holderId);
+            
+            // Method 1: Direct query by holder ID
+            const holderElement = document.getElementById(holderId);
+            if (holderElement) {
+              const loadingElement = holderElement.querySelector('.editor-loading');
+              if (loadingElement) {
+                loadingElement.remove();
+                console.log('✅ Loading placeholder removed from:', holderId);
+              } else {
+                console.log('⚠️ No loading element found in:', holderId);
+                // Force clear any remaining loading text
+                const loadingText = Array.from(holderElement.childNodes).find(node => 
+                  node.nodeType === Node.TEXT_NODE && node.textContent.includes('Loading')
+                );
+                if (loadingText) {
+                  loadingText.remove();
+                  console.log('✅ Loading text node removed');
+                }
+              }
+            }
+            
+            // Method 2: Global search for loading elements
+            const allLoadingElements = document.querySelectorAll('.editor-loading');
+            if (allLoadingElements.length > 0) {
+              allLoadingElements.forEach(el => el.remove());
+              console.log('✅ Removed', allLoadingElements.length, 'loading elements globally');
+            }
+            
             checkComplete();
           }
         };
@@ -797,6 +799,80 @@ const editorConfig = {
     window.fallbackTextareas[holderId] = textarea;
     
     console.log('✅ Fallback textarea created for:', holderId);
+  },
+
+  // Clear all loading states across all editors
+  _clearAllLoadingStates: function() {
+    console.log('🔧 Clearing all loading states...');
+    
+    // Remove all loading elements
+    const loadingElements = document.querySelectorAll('.editor-loading');
+    if (loadingElements.length > 0) {
+      loadingElements.forEach(el => el.remove());
+      console.log('✅ Removed', loadingElements.length, 'loading elements');
+    }
+    
+    // Check each editor container
+    const editorContainers = document.querySelectorAll('.editor-container');
+    editorContainers.forEach(container => {
+      // Remove any divs with loading text
+      const loadingDivs = Array.from(container.querySelectorAll('div')).filter(div => 
+        div.textContent.includes('Loading') || div.textContent.includes('loading')
+      );
+      loadingDivs.forEach(div => {
+        console.log('🔧 Removing loading div:', div.textContent);
+        div.remove();
+      });
+      
+      // Ensure container is clickable
+      container.style.pointerEvents = 'auto';
+      container.style.opacity = '1';
+    });
+  },
+
+  // Ensure editors are clickable and functional
+  _ensureEditorsAreClickable: function() {
+    console.log('🔧 Ensuring editors are clickable...');
+    
+    const editorContainers = document.querySelectorAll('.editor-container');
+    editorContainers.forEach((container, index) => {
+      // Make sure container is clickable
+      container.style.pointerEvents = 'auto';
+      container.style.cursor = 'text';
+      
+      // Check if Editor.js content exists
+      const editorContent = container.querySelector('.codex-editor');
+      if (editorContent) {
+        console.log('✅ Editor', index + 1, 'content found and should be clickable');
+        
+        // Make sure the editor content is clickable
+        editorContent.style.pointerEvents = 'auto';
+        
+        // Check for editor blocks
+        const blocks = editorContent.querySelectorAll('.ce-block');
+        if (blocks.length === 0) {
+          console.log('⚠️ No blocks found in editor', index + 1, '- adding click handler to create first block');
+          
+          // Add a click handler to create the first block if needed
+          container.addEventListener('click', function(e) {
+            if (e.target === container || e.target === editorContent) {
+              // Focus on the editor to create the first block
+              const editor = window.editors ? Object.values(window.editors)[index] : null;
+              if (editor && editor.focus) {
+                try {
+                  editor.focus();
+                  console.log('✅ Focused editor', index + 1);
+                } catch (error) {
+                  console.log('⚠️ Could not focus editor:', error);
+                }
+              }
+            }
+          });
+        }
+      } else {
+        console.log('⚠️ No Editor.js content found in container', index + 1);
+      }
+    });
   }
 };
 
