@@ -53,8 +53,8 @@ const editorConfig = {
           defaultLevel: 2
         }
       },
-      customList: {
-        class: window.List,
+      simpleList: {
+        class: window.SimpleList,
         inlineToolbar: true,
         config: {
           defaultStyle: 'unordered'
@@ -66,13 +66,13 @@ const editorConfig = {
           placeholder: 'Enter your code here...'
         }
       },
-      customTable: {
-        class: window.Table,
+      simpleTable: {
+        class: window.SimpleTable,
         inlineToolbar: true,
         config: {
           rows: 2,
           cols: 2,
-          withHeadings: true
+          withHeadings: false
         }
       },
       customQuote: {
@@ -155,9 +155,9 @@ const editorConfig = {
         // Check if required tools are loaded
         console.log('🔍 Checking tool availability:');
         console.log('Header:', typeof window.Header);
-        console.log('List:', typeof window.List);
+        console.log('SimpleList:', typeof window.SimpleList);
+        console.log('SimpleTable:', typeof window.SimpleTable);
         console.log('CodeTool:', typeof window.CodeTool);
-        console.log('Table:', typeof window.Table);
         console.log('Quote:', typeof window.Quote);
         console.log('Bold:', typeof window.Bold);
         console.log('Italic:', typeof window.Italic);
@@ -167,7 +167,7 @@ const editorConfig = {
         console.log('FontFamily:', typeof window.FontFamily);
         console.log('TextColor:', typeof window.TextColor);
         
-        if (!window.Header || !window.List || !window.CodeTool || !window.Table || !window.Quote || !window.Bold || !window.Italic || !window.Underline || !window.InlineCode || !window.Highlight || !window.FontFamily || !window.TextColor) {
+        if (!window.Header || !window.SimpleList || !window.SimpleTable || !window.CodeTool || !window.Quote || !window.Bold || !window.Italic || !window.Underline || !window.InlineCode || !window.Highlight || !window.FontFamily || !window.TextColor) {
           console.error('❌ Some tools not loaded');
           reject(new Error('Required Editor.js tools not loaded'));
           return;

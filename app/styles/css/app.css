@@ -1012,6 +1012,95 @@ textarea[id*="validation"]:hover {
   z-index: 99999 !important;
 }
 
+/* ===== SIMPLIFIED EDITOR TOOLS STYLING ===== */
+
+/* Simple List Tool styling - like Editor.js demo */
+.editor-container .cdx-list {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.editor-container .cdx-list--unordered {
+  list-style: none !important;
+  padding-left: 0 !important;
+}
+
+.editor-container .cdx-list--ordered {
+  padding-left: 0 !important;
+  counter-reset: item !important;
+}
+
+.editor-container .cdx-list__item {
+  position: relative !important;
+  padding: 6px 0 6px 30px !important;
+  line-height: 1.6 !important;
+  outline: none !important;
+  margin: 0 !important;
+}
+
+.editor-container .cdx-list--unordered .cdx-list__item::before {
+  content: '•' !important;
+  position: absolute !important;
+  left: 8px !important;
+  top: 6px !important;
+  color: #666 !important;
+  font-weight: bold !important;
+}
+
+.editor-container .cdx-list--ordered .cdx-list__item {
+  counter-increment: item !important;
+}
+
+.editor-container .cdx-list--ordered .cdx-list__item::before {
+  content: counter(item) '.' !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 6px !important;
+  color: #666 !important;
+  font-weight: 500 !important;
+  min-width: 20px !important;
+}
+
+/* Simple Table Tool styling - like Editor.js demo */
+.editor-container .tc-table-wrapper {
+  overflow-x: auto !important;
+  margin: 10px 0 !important;
+}
+
+.editor-container .tc-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  border: 1px solid #e9ecef !important;
+  margin: 0 !important;
+}
+
+.editor-container .tc-table__cell {
+  border: 1px solid #e9ecef !important;
+  padding: 12px !important;
+  text-align: left !important;
+  min-width: 50px !important;
+  vertical-align: top !important;
+  background-color: white !important;
+  font-weight: normal !important;
+  outline: none !important;
+}
+
+.editor-container .tc-table__cell:focus {
+  background-color: #f8f9fa !important;
+  border-color: #007bff !important;
+}
+
+.editor-container .tc-table th.tc-table__cell {
+  background-color: #f8f9fa !important;
+  font-weight: 600 !important;
+}
+
+.editor-container .tc-table__cell[data-placeholder]:empty::before {
+  content: attr(data-placeholder) !important;
+  color: #adb5bd !important;
+  font-style: italic !important;
+}
+
 /* ===== UNIVERSAL FORM RESIZING AND FONT WEIGHT FIXES ===== */
 
 /* Universal resize capability for ALL form elements */
