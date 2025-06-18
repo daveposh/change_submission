@@ -960,9 +960,11 @@
   <!-- Editor Configuration -->
   <script src="scripts/editor-config.js"></script>
   <script>
-    // Initialize Editor.js after app is ready
-    window.app.initialized().then(function(client) {
-      // Add a delay to ensure all DOM elements are fully rendered
+    // Initialize Editor.js after DOM is ready and a delay for app initialization
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🔧 DOM loaded, preparing Editor.js initialization...');
+      
+      // Wait for app initialization to complete, then initialize editors
       setTimeout(() => {
         try {
           console.log('🔍 Checking Editor.js dependencies...');
@@ -986,11 +988,12 @@
 
           // Initialize editors with a small delay to ensure containers are ready
           setTimeout(() => {
+            console.log('🔧 Starting Editor.js initialization...');
             window.editorConfig.initializeEditors().then(() => {
               console.log('✅ Editor.js instances initialized successfully');
             }).catch((error) => {
               console.error('❌ Editor initialization failed:', error);
-              // Show error to user
+              // Show error to user with fallback textareas
               const editors = document.querySelectorAll('.editor-container');
               editors.forEach((editor, index) => {
                 const labels = ['Reason for Change', 'Implementation Plan', 'Backout Plan', 'Validation Plan'];
@@ -1006,7 +1009,7 @@
                       </small>
                     </p>
                   </div>
-                  <textarea class="form-control mt-2" placeholder="Enter your ${labels[index] || 'text'} here..." rows="6" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"></textarea>
+                  <textarea class="form-control mt-2" placeholder="Enter your ${labels[index] || 'text'} here..." rows="6" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; resize: none; overflow: hidden;" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';"></textarea>
                 `;
               });
             });
@@ -1015,7 +1018,7 @@
         } catch (error) {
           console.error('❌ Editor.js initialization failed:', error);
           
-          // Show error to user with fallback
+          // Show error to user with fallback textareas
           const editors = document.querySelectorAll('.editor-container');
           editors.forEach((editor, index) => {
             const labels = ['Reason for Change', 'Implementation Plan', 'Backout Plan', 'Validation Plan'];
@@ -1031,13 +1034,11 @@
                   </small>
                 </p>
               </div>
-              <textarea class="form-control mt-2" placeholder="Enter your ${labels[index] || 'text'} here..." rows="6" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"></textarea>
+              <textarea class="form-control mt-2" placeholder="Enter your ${labels[index] || 'text'} here..." rows="6" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; resize: none; overflow: hidden;" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';"></textarea>
             `;
           });
         }
-      }, 250); // Wait 250ms after app initialization
-    }).catch((error) => {
-      console.error('❌ Freshworks app initialization failed:', error);
+      }, 2000); // Wait 2 seconds for app initialization to complete
     });
   </script>
   <script src="scripts/cache-manager.js"></script>
