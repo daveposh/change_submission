@@ -204,8 +204,16 @@ const editorConfig = {
             holder.innerHTML = '';
             holder.style.position = 'relative';
             holder.style.width = '100%';
-            holder.style.overflow = 'hidden';
+            holder.style.overflow = 'visible';
             holder.style.boxSizing = 'border-box';
+            holder.style.minHeight = '150px';
+            holder.style.border = '1px solid #dee2e6';
+            holder.style.borderRadius = '0.375rem';
+            holder.style.padding = '16px';
+            holder.style.backgroundColor = '#fff';
+            
+            // Add a placeholder while loading
+            holder.innerHTML = '<div style="color: #6c757d; font-style: italic; padding: 20px;">Loading rich text editor...</div>';
           }
         });
 
@@ -256,6 +264,7 @@ const editorConfig = {
           console.log('✅ Reason editor initialized');
         } catch (error) {
           console.error('❌ Failed to initialize reason editor:', error);
+          this._createFallbackTextarea('reason-for-change-editor', 'Describe the reason for this change...');
           checkComplete();
         }
 
@@ -268,6 +277,7 @@ const editorConfig = {
           console.log('✅ Implementation editor initialized');
         } catch (error) {
           console.error('❌ Failed to initialize implementation editor:', error);
+          this._createFallbackTextarea('implementation-plan-editor', 'Describe the implementation steps...');
           checkComplete();
         }
 
@@ -280,6 +290,7 @@ const editorConfig = {
           console.log('✅ Backout editor initialized');
         } catch (error) {
           console.error('❌ Failed to initialize backout editor:', error);
+          this._createFallbackTextarea('backout-plan-editor', 'Describe the backout procedure...');
           checkComplete();
         }
 
@@ -292,6 +303,7 @@ const editorConfig = {
           console.log('✅ Validation editor initialized');
         } catch (error) {
           console.error('❌ Failed to initialize validation editor:', error);
+          this._createFallbackTextarea('validation-plan-editor', 'Describe how the change will be validated...');
           checkComplete();
         }
 
@@ -723,6 +735,68 @@ const editorConfig = {
       console.error('❌ Error loading editor content:', error);
       throw error;
     }
+  },
+
+  // Create fallback textarea when Editor.js fails to initialize
+  _createFallbackTextarea: function(holderId, placeholder) {
+    const holder = document.getElementById(holderId);
+    if (!holder) return;
+
+    console.log('🔧 Creating fallback textarea for:', holderId);
+    
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = placeholder;
+    textarea.className = 'form-control';
+    textarea.style.cssText = `
+      width: 100% !important;
+      min-height: 150px !important;
+      height: 200px !important;
+      max-height: 80vh !important;
+      padding: 16px !important;
+      border: 1px solid #dee2e6 !important;
+      border-radius: 0.375rem !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+      font-size: 14px !important;
+      line-height: 1.6 !important;
+      resize: vertical !important;
+      box-sizing: border-box !important;
+      overflow: auto !important;
+      scrollbar-width: thin !important;
+    `;
+    
+    // Add some styling for better UX
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = `
+      position: relative;
+      width: 100%;
+    `;
+    
+    const label = document.createElement('div');
+    label.style.cssText = `
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      background: white;
+      padding: 0 4px;
+      font-size: 12px;
+      color: #6c757d;
+      z-index: 1;
+    `;
+    label.textContent = 'Rich text editor unavailable - using simple text editor';
+    
+    wrapper.appendChild(label);
+    wrapper.appendChild(textarea);
+    
+    holder.innerHTML = '';
+    holder.appendChild(wrapper);
+    
+    // Add the textarea to a global reference for form submission
+    if (!window.fallbackTextareas) {
+      window.fallbackTextareas = {};
+    }
+    window.fallbackTextareas[holderId] = textarea;
+    
+    console.log('✅ Fallback textarea created for:', holderId);
   }
 };
 
