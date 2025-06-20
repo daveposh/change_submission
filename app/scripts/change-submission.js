@@ -2798,9 +2798,9 @@ const ChangeSubmission = {
         });
       }
       
-      // For now, don't throw to prevent blocking submission
-      console.warn('⚠️ Continuing submission despite task creation failure...');
-      return null;
+      // Retry task creation with exponential backoff
+      console.warn('⚠️ Task creation failed, will retry...');
+      return await this.retryTaskCreation(changeRequest, agentSME, riskAssessment, taskData);
     }
   },
 
