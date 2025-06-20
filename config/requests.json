@@ -6,7 +6,6 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/requesters",
       "query": {
-        "query": "<%= context.query %>",
         "page": "<%= context.page || '1' %>",
         "per_page": "<%= context.per_page || '30' %>"
       },
@@ -23,7 +22,6 @@
       "host": "<%=iparam.freshservice_domain%>",
       "path": "/api/v2/agents",
       "query": {
-        "query": "<%= context.query %>",
         "page": "<%= context.page || '1' %>",
         "per_page": "<%= context.per_page || '30' %>"
       },
