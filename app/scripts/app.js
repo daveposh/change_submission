@@ -5206,9 +5206,13 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   }
 
   // Use field-specific format for both requesters and agents API (since agents can be requesters too)
-  // Use Freshservice API query syntax with proper double quotes
-  // Format: "~[first_name|last_name|primary_email]:'searchterm'"
-  const userQuery = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
+  // Try both complex query syntax and simple search as fallback
+  // Some Freshservice instances may not support the ~ operator properly
+  const complexQuery = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
+  const simpleQuery = encodeURIComponent(searchTerm);
+  
+  // Start with complex query, but we'll implement fallback logic
+  const userQuery = complexQuery;
   
   console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} requester search with query:`, userQuery);
   
@@ -5251,11 +5255,30 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         const agents = response && response.agents ? response.agents : [];
         console.log(`Requester search returned ${requesters.length} requesters and ${agents.length} agents`);
         
-        // Manual filtering for requesters if the API filtering isn't working
+        // Check if server-side filtering worked by looking for obvious matches
+        const term = searchTerm.toLowerCase();
+        const hasObviousMatches = requesters.some(req => {
+          const fullName = `${req.first_name || ''} ${req.last_name || ''}`.toLowerCase();
+          const email = (req.primary_email || req.email || '').toLowerCase();
+          return fullName.startsWith(term) || email.startsWith(term);
+        }) || agents.some(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
+          return fullName.startsWith(term) || email.startsWith(term);
+        });
+        
+        // If we got 30 results but no obvious matches, server-side filtering likely failed
+        const serverFilteringFailed = (requesters.length === 30 || agents.length > 0) && !hasObviousMatches;
+        
+        if (serverFilteringFailed) {
+          console.warn(`⚠️ Server-side filtering appears to have failed for "${searchTerm}" - falling back to client-side filtering`);
+        }
+        
+        // Manual filtering for requesters (always do this as server-side may not work)
         const filteredRequesters = requesters.filter(requester => {
           const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
           const email = (requester.primary_email || requester.email || '').toLowerCase();
-          const term = searchTerm.toLowerCase();
+          // Use 'includes' for broader matching since server-side filtering may not work
           return fullName.includes(term) || email.includes(term);
         });
         
@@ -5263,11 +5286,33 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         const filteredAgents = agents.filter(agent => {
           const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
           const email = (agent.email || '').toLowerCase();
-          const term = searchTerm.toLowerCase();
+          // Use 'includes' for broader matching since server-side filtering may not work
           return fullName.includes(term) || email.includes(term);
         });
         
         console.log(`Manual filtering returned ${filteredRequesters.length} requester results and ${filteredAgents.length} agent results`);
+        
+        // Debug: Show some sample names from the response to help troubleshoot
+        if (filteredRequesters.length === 0 && filteredAgents.length === 0 && (requesters.length > 0 || agents.length > 0)) {
+          const sampleNames = [
+            ...requesters.slice(0, 3).map(r => `${r.first_name} ${r.last_name}`),
+            ...agents.slice(0, 2).map(a => `${a.first_name} ${a.last_name}`)
+          ];
+          console.log(`🔍 No matches found for "${searchTerm}". Sample names in response:`, sampleNames);
+          
+          // Also check if there might be matches in the cached users
+          if (window.userCache && window.userCache.requesters) {
+            const cachedMatches = window.userCache.requesters.filter(user => {
+              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
+              const email = (user.primary_email || user.email || '').toLowerCase();
+              return fullName.includes(term) || email.includes(term);
+            });
+            if (cachedMatches.length > 0) {
+              console.log(`💡 Found ${cachedMatches.length} potential matches in cached users:`, 
+                cachedMatches.slice(0, 3).map(u => `${u.first_name} ${u.last_name}`));
+            }
+          }
+        }
         
         // Mark agents as potential requesters
         const agentsAsRequesters = filteredAgents.map(agent => ({

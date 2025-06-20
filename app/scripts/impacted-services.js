@@ -368,11 +368,27 @@ const ImpactedServices = {
             const requesters = response.requesters || [];
             const agents = response.agents || [];
             
+            const term = searchTerm.toLowerCase();
+            
+            // Check if server-side filtering worked
+            const hasObviousMatches = requesters.some(req => {
+              const fullName = `${req.first_name || ''} ${req.last_name || ''}`.toLowerCase();
+              const email = (req.primary_email || req.email || '').toLowerCase();
+              return fullName.startsWith(term) || email.startsWith(term);
+            }) || agents.some(agent => {
+              const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+              const email = (agent.email || '').toLowerCase();
+              return fullName.startsWith(term) || email.startsWith(term);
+            });
+            
+            if ((requesters.length === 30 || agents.length > 0) && !hasObviousMatches) {
+              console.warn(`⚠️ Server-side filtering appears to have failed for "${searchTerm}" in impacted services`);
+            }
+            
             // Filter requesters manually for better accuracy
             const filteredRequesters = requesters.filter(user => {
               const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
               const email = (user.primary_email || user.email || '').toLowerCase();
-              const term = searchTerm.toLowerCase();
               return fullName.includes(term) || email.includes(term);
             });
 
@@ -380,7 +396,6 @@ const ImpactedServices = {
             const filteredAgents = agents.filter(user => {
               const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
               const email = (user.email || '').toLowerCase();
-              const term = searchTerm.toLowerCase();
               return fullName.includes(term) || email.includes(term);
             });
 
