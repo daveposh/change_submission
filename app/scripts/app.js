@@ -2504,8 +2504,9 @@ function searchRequesters(e) {
   
   // Check cache first
   getFromSearchCache('requesters', searchTerm).then(cachedResults => {
-    if (cachedResults) {
+    if (cachedResults && cachedResults.length > 0) {
       // Use cached results
+      console.log(`📦 Found ${cachedResults.length} cached requester results for "${searchTerm}"`);
       displaySearchResults('requester-results', cachedResults, selectRequester);
       
       // Get the configured search cache timeout
@@ -2526,7 +2527,8 @@ function searchRequesters(e) {
       return;
     }
     
-    // No cache hit, perform search immediately
+    // No cache hit OR cache returned empty results, perform API search immediately
+    console.log(`🔍 No cached results found for "${searchTerm}", performing API search...`);
     performRequesterSearch(searchTerm);
   }).catch(error => {
     console.error('Error checking requester search cache:', error);
@@ -2554,8 +2556,9 @@ function searchAgents(e) {
   
   // Check cache first
   getFromSearchCache('agents', searchTerm).then(cachedResults => {
-    if (cachedResults) {
+    if (cachedResults && cachedResults.length > 0) {
       // Use cached results
+      console.log(`📦 Found ${cachedResults.length} cached agent results for "${searchTerm}"`);
       displaySearchResults('agent-results', cachedResults, selectAgent);
       
       // Get the configured search cache timeout
@@ -2576,7 +2579,8 @@ function searchAgents(e) {
       return;
     }
     
-    // No cache hit, perform search immediately
+    // No cache hit OR cache returned empty results, perform API search immediately
+    console.log(`🔍 No cached results found for "${searchTerm}", performing API search...`);
     performAgentSearch(searchTerm);
   }).catch(error => {
     console.error('Error checking agent search cache:', error);
@@ -5742,6 +5746,44 @@ async function resolveManagerName(managerId, badgeId) {
  * @param {string} searchTerm - The search term
  * @param {Array} results - The search results
  */
+/**
+ * Get search results from cache
+ * @param {string} type - Type of search (requesters/agents)
+ * @param {string} searchTerm - The search term
+ * @returns {Promise<Array|null>} - Promise resolving to cached results or null
+ */
+async function getFromSearchCache(type, searchTerm) {
+  try {
+    if (!window.searchCache) {
+      window.searchCache = {};
+    }
+    
+    const cacheKey = `${type}_${searchTerm.toLowerCase()}`;
+    const cached = window.searchCache[cacheKey];
+    
+    if (!cached) {
+      console.log(`📦 No cache found for ${type} search: "${searchTerm}"`);
+      return null;
+    }
+    
+    // Check if cache is expired
+    const params = await getInstallationParams();
+    const searchCacheTimeout = params.searchCacheTimeout || DEFAULT_SEARCH_CACHE_TIMEOUT;
+    
+    if (Date.now() - cached.timestamp > searchCacheTimeout) {
+      console.log(`⏰ Cache expired for ${type} search: "${searchTerm}"`);
+      delete window.searchCache[cacheKey];
+      return null;
+    }
+    
+    console.log(`📦 Using cached ${type} results for "${searchTerm}": ${cached.results.length} results`);
+    return cached.results;
+  } catch (error) {
+    console.error(`Error accessing ${type} search cache:`, error);
+    return null;
+  }
+}
+
 function addToSearchCache(type, searchTerm, results) {
   if (!window.searchCache) {
     window.searchCache = {};
