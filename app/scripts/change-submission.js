@@ -2463,6 +2463,39 @@ const ChangeSubmission = {
       console.log('⏳ Waiting for change request to be fully created in Freshservice...');
       await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second delay
       
+      // Verify change ID exists and is accessible before proceeding
+      const changeId = changeRequest?.id;
+      if (!changeId) {
+        console.error('❌ Change request ID is missing or invalid:', changeRequest);
+        throw new Error('Cannot create peer review task: Change request ID is required');
+      }
+      
+      console.log(`✅ Change request verification complete - ID: ${changeId}`);
+      
+      // Additional verification: Try to confirm change exists by checking if we can access it
+      try {
+        console.log('🔍 Verifying change request accessibility...');
+        // Attempt to get the change to verify it exists and is accessible
+        const verificationResponse = await window.client.request.invokeTemplate('getChange', {
+          context: { change_id: changeId },
+          cache: false
+        });
+        
+        if (verificationResponse && verificationResponse.response) {
+          const verifiedChange = JSON.parse(verificationResponse.response);
+          if (verifiedChange.change && verifiedChange.change.id) {
+            console.log(`✅ Change request verified as accessible: CHN-${verifiedChange.change.id}`);
+          } else {
+            console.warn('⚠️ Change exists but response structure unexpected, proceeding anyway');
+          }
+        } else {
+          console.warn('⚠️ Could not verify change accessibility, proceeding anyway');
+        }
+      } catch (verificationError) {
+        console.warn('⚠️ Change verification failed, but proceeding with task creation:', verificationError);
+        // Don't throw here - proceed with task creation as the change was just created
+      }
+      
       // All changes require peer review regardless of risk level
       console.log(`📊 Risk threshold analysis:`, {
         totalScore: riskAssessment.totalScore,
@@ -2503,9 +2536,9 @@ const ChangeSubmission = {
           console.warn(`⚠️ Failed to create peer review task (attempt ${retryCount}/${maxRetries}):`, error);
           
           if (retryCount < maxRetries) {
-            // Exponential backoff: 5s, 10s, 20s
-            const delay = 5000 * Math.pow(2, retryCount - 1);
-            console.log(`⏳ Retrying in ${delay/1000} seconds...`);
+            // More reasonable retry delays: 3s, 7s, 15s
+            const delay = retryCount === 1 ? 3000 : retryCount === 2 ? 7000 : 15000;
+            console.log(`⏳ Retrying in ${delay/1000} seconds... (attempt ${retryCount + 1}/${maxRetries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
           } else {
             console.error('❌ Failed to create peer review task after all retries');
@@ -2667,8 +2700,8 @@ const ChangeSubmission = {
       // Create the task using the v2 change tasks API endpoint
       console.log('📡 Sending change task creation request...');
       
-      // Add a small delay before the first attempt to prevent rate limiting
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Add delay before the first attempt to ensure change is fully available
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Increased to 3 seconds
       
       const response = await window.client.request.invokeTemplate('createTask', {
         context: {

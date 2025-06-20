@@ -30,6 +30,8 @@
         "createChangeTask": {},
         "createChangeNote": {},
         "getChangeNotes": {},
+        "getChange": {},
+        "createTask": {},
         "createTicket": {}
       },
       "storage": {
