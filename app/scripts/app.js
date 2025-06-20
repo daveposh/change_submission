@@ -5270,6 +5270,8 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         
         if (serverFilteringFailed) {
           console.warn(`⚠️ Server-side filtering appears to have failed for "${searchTerm}" - falling back to client-side filtering`);
+          console.log(`💡 Suggestion: Try searching for existing users like "adam", "agnes", or "ahmed" to test if search works`);
+          console.log(`🔍 Debug: include_agents=true returned ${agents.length} agents - this might be a permission or API issue`);
         }
         
         // Manual filtering for requesters (always do this as server-side may not work)
@@ -5308,6 +5310,19 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
             if (cachedMatches.length > 0) {
               console.log(`💡 Found ${cachedMatches.length} potential matches in cached users:`, 
                 cachedMatches.slice(0, 3).map(u => `${u.first_name} ${u.last_name}`));
+            }
+            
+            // Also check agents cache
+            if (window.userCache.agents) {
+              const agentMatches = window.userCache.agents.filter(user => {
+                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
+                const email = (user.email || '').toLowerCase();
+                return fullName.includes(term) || email.includes(term);
+              });
+              if (agentMatches.length > 0) {
+                console.log(`💡 Found ${agentMatches.length} potential matches in cached agents:`, 
+                  agentMatches.slice(0, 3).map(u => `${u.first_name} ${u.last_name}`));
+              }
             }
           }
         }
