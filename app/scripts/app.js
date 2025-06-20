@@ -2603,7 +2603,9 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
   }
 
   // Use field-specific format for agents API
-  const agentQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  // Construct search query using Freshservice query syntax for partial matching
+  // Using contains operator (*) for more flexible search
+  const agentQuery = encodeURIComponent(`first_name:*${searchTerm}* OR last_name:*${searchTerm}* OR email:*${searchTerm}*`);
   
   console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} agent search with query:`, agentQuery);
   
@@ -5204,7 +5206,9 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   }
 
   // Use field-specific format for both requesters and agents API (since agents can be requesters too)
-  const userQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+  // Construct search query using Freshservice query syntax for partial matching
+  // Using contains operator (*) for more flexible search
+  const userQuery = encodeURIComponent(`first_name:*${searchTerm}* OR last_name:*${searchTerm}* OR email:*${searchTerm}*`);
   
   console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} requester search with query:`, userQuery);
   

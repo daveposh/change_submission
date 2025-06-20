@@ -380,7 +380,9 @@ const ImpactedServices = {
       };
 
       // Search requesters
-      const userQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
+      // Construct search query using Freshservice query syntax for partial matching
+// Using contains operator (*) for more flexible search
+const userQuery = encodeURIComponent(`first_name:*${searchTerm}* OR last_name:*${searchTerm}* OR email:*${searchTerm}*`);
       const requestUrl = `?query=${userQuery}&page=1&per_page=30`;
 
       // Search in requesters
