@@ -380,9 +380,9 @@ const ImpactedServices = {
       };
 
       // Search requesters
-      // Construct search query using Freshservice query syntax for partial matching
-// Using contains operator (*) for more flexible search
-const userQuery = encodeURIComponent(`first_name:*${searchTerm}* OR last_name:*${searchTerm}* OR email:*${searchTerm}*`);
+      // Use simple query parameter for Freshservice API search
+// The API will search across name and email fields automatically
+const userQuery = encodeURIComponent(searchTerm);
       const requestUrl = `?query=${userQuery}&page=1&per_page=30`;
 
       // Search in requesters
