@@ -99,11 +99,12 @@ const AssetAssociation = {
       
       if (cachedServices && cachedServices.length > 0) {
         console.log(`✅ Using cached services: ${cachedServices.length} services`);
-        this.state.services = cachedServices;
+        this.state.services = await this.enhanceServicesWithManagedBy(cachedServices);
         this.state.servicesLoaded = true;
       } else {
         console.log('🔄 No cached services, loading from API...');
-        this.state.services = await window.CacheManager.loadServicesFromAssets();
+        const freshServices = await window.CacheManager.loadServicesFromAssets();
+        this.state.services = await this.enhanceServicesWithManagedBy(freshServices);
         this.state.servicesLoaded = true;
       }
 
@@ -121,6 +122,146 @@ const AssetAssociation = {
       this.showServicesError('Failed to load services. Please try refreshing.');
     } finally {
       this.state.isLoadingServices = false;
+    }
+  },
+
+  /**
+   * Enhance services with managed by information
+   * @param {Array} services - Array of service objects
+   * @returns {Promise<Array>} - Enhanced services with managed by names
+   */
+  async enhanceServicesWithManagedBy(services) {
+    if (!services || !Array.isArray(services)) {
+      return [];
+    }
+
+    console.log(`🔄 Enhancing ${services.length} services with managed by information...`);
+    
+    const enhancedServices = [];
+    
+    for (const service of services) {
+      try {
+        const enhancedService = { ...service };
+        
+        // Resolve managed by information
+        const managedByName = await this.getManagedByInfoForService(service);
+        if (managedByName && managedByName !== 'N/A' && managedByName !== 'Service (No Owner)') {
+          enhancedService.managed_by_name = managedByName;
+        }
+        
+        enhancedServices.push(enhancedService);
+      } catch (error) {
+        console.warn(`⚠️ Error enhancing service ${service.id}:`, error);
+        // Add service without managed by enhancement
+        enhancedServices.push(service);
+      }
+    }
+    
+    console.log(`✅ Enhanced ${enhancedServices.length} services with managed by information`);
+    return enhancedServices;
+  },
+
+  /**
+   * Get managed by information specifically for services
+   * @param {Object} service - Service object
+   * @returns {Promise<string>} - Managed by name
+   */
+  async getManagedByInfoForService(service) {
+    try {
+      // First check if we already have a resolved name
+      if (service.managed_by_name && service.managed_by_name !== 'Service (No Owner)') {
+        return service.managed_by_name;
+      }
+
+      // For asset-based services, check the original asset first
+      if (service.original_asset) {
+        const originalAsset = service.original_asset;
+        
+        // Check agent_id from original asset (this is typically the managed by field)
+        if (originalAsset.agent_id) {
+          const numericId = parseInt(originalAsset.agent_id);
+          if (!isNaN(numericId) && numericId > 0) {
+            console.log(`🔍 Resolving agent_id for service ${service.id}: ${numericId}`);
+            const agentName = await this.resolveAgentName(numericId);
+            if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+              return agentName;
+            }
+          }
+        }
+        
+        // Check user_id from original asset
+        if (originalAsset.user_id) {
+          const numericId = parseInt(originalAsset.user_id);
+          if (!isNaN(numericId) && numericId > 0) {
+            const userName = await this.resolveUserName(numericId);
+            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+              return userName;
+            }
+          }
+        }
+        
+        // Check managed_by field in type_fields
+        if (originalAsset.type_fields) {
+          const managedByField = this.getAssetTypeField(originalAsset, 'managed_by');
+          if (managedByField && managedByField !== 'N/A') {
+            const numericId = parseInt(managedByField);
+            if (!isNaN(numericId) && numericId > 0) {
+              const agentName = await this.resolveAgentName(numericId);
+              if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+                return agentName;
+              }
+            }
+            return managedByField;
+          }
+        }
+      }
+      
+      // Check direct properties on the service
+      if (service.agent_id) {
+        const numericId = parseInt(service.agent_id);
+        if (!isNaN(numericId) && numericId > 0) {
+          const agentName = await this.resolveAgentName(numericId);
+          if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+            return agentName;
+          }
+        }
+      }
+      
+      if (service.user_id) {
+        const numericId = parseInt(service.user_id);
+        if (!isNaN(numericId) && numericId > 0) {
+          const userName = await this.resolveUserName(numericId);
+          if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+            return userName;
+          }
+        }
+      }
+      
+      // If no managed by found, return null (don't show the field)
+      return null;
+      
+    } catch (error) {
+      console.warn(`⚠️ Error resolving managed by for service ${service.id}:`, error);
+      return null;
+    }
+  },
+
+  /**
+   * Resolve agent name by ID
+   * @param {number} agentId - Agent ID
+   * @returns {Promise<string>} - Agent name or fallback
+   */
+  async resolveAgentName(agentId) {
+    try {
+      if (window.CacheManager && window.CacheManager.resolveAgentName) {
+        return await window.CacheManager.resolveAgentName(agentId);
+      }
+      
+      // Fallback if CacheManager not available
+      return `Agent ID: ${agentId}`;
+    } catch (error) {
+      console.warn(`⚠️ Error resolving agent name for ID ${agentId}:`, error);
+      return `Agent ID: ${agentId}`;
     }
   },
 
@@ -291,7 +432,8 @@ const AssetAssociation = {
       
       // Force refresh from CacheManager
       if (window.CacheManager) {
-        this.state.services = await window.CacheManager.loadServicesFromAssets();
+        const freshServices = await window.CacheManager.loadServicesFromAssets();
+        this.state.services = await this.enhanceServicesWithManagedBy(freshServices);
         this.state.servicesLoaded = true;
         
         this.populateServicesDisplay();
@@ -2113,6 +2255,12 @@ const AssetAssociation = {
                       <strong>Display ID: ${service.display_id}</strong>
                     </div>
                   ` : ''}
+                  ${service.managed_by_name ? `
+                    <div class="service-item-detail">
+                      <i class="fas fa-user"></i>
+                      Managed By: ${this.escapeHtml(service.managed_by_name)}
+                    </div>
+                  ` : ''}
                   ${service.original_asset ? `
                     <div class="service-item-detail">
                       <i class="fas fa-layer-group"></i>
@@ -2445,6 +2593,8 @@ const AssetAssociation = {
       serial_number: serviceData.original_asset?.serial_number || null,
       impact: serviceData.original_asset?.impact || 'unknown', // Get from original asset
       environment: serviceData.original_asset?.environment || null, // Get from original asset
+      managed_by: serviceData.original_asset?.agent_id || serviceData.agent_id || serviceData.original_asset?.user_id || serviceData.user_id || null,
+      managed_by_name: serviceData.managed_by_name || null, // Preserve resolved managed by name
       type_fields: {
         // Preserve original asset type fields
         ...(serviceData.original_asset?.type_fields || {}),
