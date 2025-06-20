@@ -2653,26 +2653,39 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
         // Combine with previous results
         const combinedResults = [...allResults, ...filteredAgents];
         
-        // Check if we should load more pages (limit to 2 pages for performance)
-        if (filteredAgents.length === 30 && page < 2) {
-          // Load next page
+        // Check if we should load more pages based on results and configured limits
+        const shouldLoadMorePages = filteredAgents.length === 30; // API returned full page
+        
+        if (shouldLoadMorePages) {
+          // Get configured page limits
           (async function() {
               const params = await getInstallationParams();
               const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              const pageLimit = params.listAgentsPageLimit || 3; // Default to 3 pages
               
-              updateLoadingMessage('agent-results', `Loading more results... (page ${page + 1})`);
-              setTimeout(() => {
-                loadAgentsPage(page + 1, combinedResults);
-              }, paginationDelay);
+              if (page < pageLimit) {
+                updateLoadingMessage('agent-results', `Loading more results... (page ${page + 1}/${pageLimit})`);
+                setTimeout(() => {
+                  loadAgentsPage(page + 1, combinedResults);
+                }, paginationDelay);
+              } else {
+                console.log(`📄 Reached page limit (${pageLimit}) for agent search, finalizing with ${combinedResults.length} results`);
+                finalizeAgentSearch(searchTerm, combinedResults, isRefresh);
+              }
           })().catch(err => {
-              console.error('Error getting pagination delay:', err);
-              // Default delay if error
-              setTimeout(() => {
-                loadAgentsPage(page + 1, combinedResults);
-              }, DEFAULT_PAGINATION_DELAY);
+              console.error('Error getting pagination settings:', err);
+              // Default behavior if error - limit to 2 pages
+              if (page < 2) {
+                setTimeout(() => {
+                  loadAgentsPage(page + 1, combinedResults);
+                }, DEFAULT_PAGINATION_DELAY);
+              } else {
+                finalizeAgentSearch(searchTerm, combinedResults, isRefresh);
+              }
           });
         } else {
-          // Complete the search with all results
+          // No more results expected, complete the search
+          console.log(`📄 No more pages expected (got ${filteredAgents.length} results), finalizing agent search with ${combinedResults.length} total results`);
           finalizeAgentSearch(searchTerm, combinedResults, isRefresh);
         }
       } catch (error) {
@@ -5309,26 +5322,39 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         // Combine all results
         const allResults = [...existingResults, ...uniqueAgents];
         
-        // Check if we should load more pages (limit to 2 pages for performance)
-        if ((filteredAgents.length === 30 || existingResults.length < 30) && page < 2) {
-          // Load next page
+        // Check if we should load more pages based on results and configured limits
+        const shouldLoadMorePages = filteredAgents.length === 30; // API returned full page
+        
+        if (shouldLoadMorePages) {
+          // Get configured page limits
           (async function() {
               const params = await getInstallationParams();
               const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              const pageLimit = params.listRequestersPageLimit || 3; // Default to 3 pages
               
-              updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1})`);
-              setTimeout(() => {
-                loadRequestersPage(page + 1, allResults);
-              }, paginationDelay);
+              if (page < pageLimit) {
+                updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1}/${pageLimit})`);
+                setTimeout(() => {
+                  loadRequestersPage(page + 1, allResults);
+                }, paginationDelay);
+              } else {
+                console.log(`📄 Reached page limit (${pageLimit}) for requester search, finalizing with ${allResults.length} results`);
+                finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+              }
           })().catch(err => {
-              console.error('Error getting pagination delay:', err);
-              // Default delay if error
-              setTimeout(() => {
-                loadRequestersPage(page + 1, allResults);
-              }, DEFAULT_PAGINATION_DELAY);
+              console.error('Error getting pagination settings:', err);
+              // Default behavior if error - limit to 2 pages
+              if (page < 2) {
+                setTimeout(() => {
+                  loadRequestersPage(page + 1, allResults);
+                }, DEFAULT_PAGINATION_DELAY);
+              } else {
+                finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+              }
           });
         } else {
-          // Complete the search with all results
+          // No more results expected, complete the search
+          console.log(`📄 No more pages expected (got ${filteredAgents.length} results), finalizing requester search with ${allResults.length} total results`);
           finalizeRequesterSearch(searchTerm, allResults, isRefresh);
         }
       } catch (error) {
