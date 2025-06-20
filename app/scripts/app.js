@@ -5253,7 +5253,7 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         // Manual filtering if the API filtering isn't working
         const filteredRequesters = requesters.filter(requester => {
           const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
-          const email = (requester.email || '').toLowerCase();
+          const email = (requester.primary_email || requester.email || '').toLowerCase();
           const term = searchTerm.toLowerCase();
           return fullName.includes(term) || email.includes(term);
         });
@@ -5320,7 +5320,7 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         }));
         
         // Remove duplicates based on email
-        const existingEmails = new Set(existingResults.map(r => r.email));
+        const existingEmails = new Set(existingResults.map(r => r.primary_email || r.email));
         const uniqueAgents = agentsAsRequesters.filter(agent => !existingEmails.has(agent.email));
         
         // Combine all results
@@ -5426,7 +5426,7 @@ function selectRequester(requester) {
           <div class="d-flex justify-content-between align-items-center mb-1">
             <strong>${requester.first_name} ${requester.last_name}</strong>
           </div>
-          <small class="text-muted d-block">${requester.email}</small>
+          <small class="text-muted d-block">${requester.primary_email || requester.email}</small>
           ${badgeHtml}
         </div>
         <button type="button" class="btn btn-sm btn-outline-danger ms-2" onclick="clearRequester()">
@@ -5600,7 +5600,7 @@ function displaySearchResults(containerId, results, selectCallback) {
             <div class="d-flex justify-content-between align-items-center mb-1">
               <strong>${item.first_name} ${item.last_name}</strong>
             </div>
-            <small class="text-muted d-block mb-2">${item.email}</small>
+            <small class="text-muted d-block mb-2">${item.primary_email || item.email}</small>
             <div class="d-flex flex-wrap gap-1">
               ${badges.join('')}
             </div>
