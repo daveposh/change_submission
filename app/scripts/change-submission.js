@@ -2763,7 +2763,7 @@ const ChangeSubmission = {
   /**
    * Generate peer review coordination task description for agent SME
    */
-  async generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
+  generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
     const data = window.changeRequestData;
     
     let description = `Peer Review Coordination Required
