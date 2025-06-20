@@ -350,42 +350,12 @@ const ImpactedServices = {
         return;
       }
 
-      let allResults = [];
-      let requestersLoaded = false;
-      let agentsLoaded = false;
-
-      // Function to check if both searches are complete
-      const checkComplete = () => {
-        if (requestersLoaded && agentsLoaded) {
-          // Remove duplicates based on email
-          const uniqueResults = [];
-          const seenEmails = new Set();
-          
-          allResults.forEach(user => {
-            if (!seenEmails.has(user.email)) {
-              seenEmails.add(user.email);
-              uniqueResults.push({
-                id: user.id,
-                name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
-                email: user.email,
-                department: user.department_names ? user.department_names.join(', ') : 'N/A',
-                role: user.role || (user._isAgent ? 'Agent' : 'Requester'),
-                userDetails: user
-              });
-            }
-          });
-
-          resolve(uniqueResults);
-        }
-      };
-
-      // Search requesters
       // Use Freshservice API query syntax for "starts with" search
-// Format: ~[first_name|last_name|primary_email]:'searchterm'
-const userQuery = encodeURIComponent(`~[first_name|last_name|primary_email]:'${searchTerm}'`);
-      const requestUrl = `?query=${userQuery}&page=1&per_page=30`;
+      // Format: ~[first_name|last_name|primary_email]:'searchterm'
+      const userQuery = encodeURIComponent(`~[first_name|last_name|primary_email]:'${searchTerm}'`);
+      const requestUrl = `?query=${userQuery}&include_agents=true&page=1&per_page=30`;
 
-      // Search in requesters
+      // Single search call that includes both requesters and agents
       window.client.request.invokeTemplate("getRequesters", {
         path_suffix: requestUrl,
         cache: true,
@@ -396,42 +366,17 @@ const userQuery = encodeURIComponent(`~[first_name|last_name|primary_email]:'${s
           if (data && data.response) {
             const response = JSON.parse(data.response);
             const requesters = response.requesters || [];
+            const agents = response.agents || [];
             
-            // Filter results manually for better accuracy
+            // Filter requesters manually for better accuracy
             const filteredRequesters = requesters.filter(user => {
               const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
-              const email = (user.email || '').toLowerCase();
+              const email = (user.primary_email || user.email || '').toLowerCase();
               const term = searchTerm.toLowerCase();
               return fullName.includes(term) || email.includes(term);
             });
 
-            allResults = [...allResults, ...filteredRequesters];
-          }
-        } catch (error) {
-          console.warn('Error parsing requesters response:', error);
-        }
-        requestersLoaded = true;
-        checkComplete();
-      })
-      .catch(function(error) {
-        console.warn('Requesters search failed:', error);
-        requestersLoaded = true;
-        checkComplete();
-      });
-
-      // Search in agents
-      window.client.request.invokeTemplate("getAgents", {
-        path_suffix: requestUrl,
-        cache: true,
-        ttl: 300000
-      })
-      .then(function(data) {
-        try {
-          if (data && data.response) {
-            const response = JSON.parse(data.response);
-            const agents = response.agents || [];
-            
-            // Filter results manually for better accuracy
+            // Filter agents manually for better accuracy
             const filteredAgents = agents.filter(user => {
               const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
               const email = (user.email || '').toLowerCase();
@@ -439,24 +384,46 @@ const userQuery = encodeURIComponent(`~[first_name|last_name|primary_email]:'${s
               return fullName.includes(term) || email.includes(term);
             });
 
-            // Mark as agents
+            // Mark agents as agents
             const agentsWithFlag = filteredAgents.map(agent => ({
               ...agent,
               _isAgent: true
             }));
 
-            allResults = [...allResults, ...agentsWithFlag];
+            // Combine all results
+            const allResults = [...filteredRequesters, ...agentsWithFlag];
+
+            // Remove duplicates based on email
+            const uniqueResults = [];
+            const seenEmails = new Set();
+            
+            allResults.forEach(user => {
+              const email = user.primary_email || user.email;
+              if (!seenEmails.has(email)) {
+                seenEmails.add(email);
+                uniqueResults.push({
+                  id: user.id,
+                  name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+                  email: email,
+                  department: user.department_names ? user.department_names.join(', ') : 'N/A',
+                  role: user.role || (user._isAgent ? 'Agent' : 'Requester'),
+                  userDetails: user
+                });
+              }
+            });
+
+            resolve(uniqueResults);
+          } else {
+            resolve([]);
           }
         } catch (error) {
-          console.warn('Error parsing agents response:', error);
+          console.warn('Error parsing user search response:', error);
+          resolve([]);
         }
-        agentsLoaded = true;
-        checkComplete();
       })
       .catch(function(error) {
-        console.warn('Agents search failed:', error);
-        agentsLoaded = true;
-        checkComplete();
+        console.warn('User search failed:', error);
+        reject(error);
       });
     });
   },
