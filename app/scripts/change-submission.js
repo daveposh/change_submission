@@ -3752,7 +3752,7 @@ ${data.validationPlan}
             <div class="text-end">
               ${hasApproval ? 
                 '<i class="fas fa-ticket-alt text-success" title="Approval Created"></i>' : 
-                '<i class="fas fa-times text-danger" title="Approval Failed"></i>'}
+                '<i class="fas fa-clock text-warning" title="Pending Peer Review Completion"></i>'}
               <br>
               ${wasNotified ? 
                 '<i class="fas fa-envelope text-success" title="Notified"></i>' : 
@@ -4190,7 +4190,7 @@ ${data.validationPlan}
           <td>
             ${hasApproval ? 
               '<span class="badge bg-success"><i class="fas fa-ticket-alt me-1"></i>Approval Created</span>' : 
-              '<span class="badge bg-danger"><i class="fas fa-times me-1"></i>Approval Failed</span>'}
+              '<span class="badge bg-warning"><i class="fas fa-clock me-1"></i>Pending Peer Review Completion</span>'}
           </td>
           <td>
             ${wasNotified ? 
@@ -4204,6 +4204,14 @@ ${data.validationPlan}
     content += `
             </tbody>
           </table>
+        </div>
+        <div class="alert alert-info mt-3">
+          <h6 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Approval Process</h6>
+          <p class="mb-0">
+            <strong>Note:</strong> Approval requests will be automatically created by the Freshworks automation system 
+            <strong>after the peer review task is completed</strong>. The current status reflects that approvals are 
+            pending the completion of the mandatory peer review process.
+          </p>
         </div>
       </div>
     `;
