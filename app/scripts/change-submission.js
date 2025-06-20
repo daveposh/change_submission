@@ -1714,29 +1714,36 @@ const ChangeSubmission = {
       });
     }
     
-    if (riskAssessment.testing >= 3) {
+                  if (riskAssessment.testing >= 3) {
+        actions.push({
+          icon: '🧪',
+          text: 'Enhanced testing validation recommended',
+          color: '#20c997'
+        });
+      }
+      
+      if (riskAssessment.rollback >= 3) {
+        actions.push({
+          icon: '↩️',
+          text: 'Rollback plan development required',
+          color: '#e83e8c'
+        });
+      }
+      
+      if (riskAssessment.complexity >= 3) {
+        actions.push({
+          icon: '⚙️',
+          text: 'Technical architecture review suggested',
+          color: '#6c757d'
+        });
+      }
+      
+      // Add technical owner approval notice for all risk levels
       actions.push({
-        icon: '🧪',
-        text: 'Enhanced testing validation recommended',
-        color: '#20c997'
+        icon: '✅',
+        text: 'Technical owner approval required after peer review',
+        color: '#007bff'
       });
-    }
-    
-    if (riskAssessment.rollback >= 3) {
-      actions.push({
-        icon: '↩️',
-        text: 'Rollback plan development required',
-        color: '#e83e8c'
-      });
-    }
-    
-    if (riskAssessment.complexity >= 3) {
-      actions.push({
-        icon: '⚙️',
-        text: 'Technical architecture review suggested',
-        color: '#6c757d'
-      });
-    }
     
     return actions.map(action => 
       `<div style="display: flex; align-items: center; margin-bottom: 8px; padding: 8px 12px; background: ${action.color}15; border-left: 3px solid ${action.color}; border-radius: 4px;">
@@ -2353,22 +2360,22 @@ const ChangeSubmission = {
     body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
     body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'}</p>`;
     
-    if (riskAssessment) {
-      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
-      body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
-      
-      // Add risk level explanation and workflow status in notifications
-      body += `<div style="background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid ${riskColor}; margin-top: 10px;">`;
-      body += `<div style="font-size: 13px; color: #495057;">`;
-      if (riskAssessment.riskLevel === 'High') {
-        body += `<strong>High Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner and CAB approval. Final status will be "Scheduled" when ready for implementation.`;
-      } else if (riskAssessment.riskLevel === 'Medium') {
-        body += `<strong>Medium Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
-      } else {
-        body += `<strong>Low Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
+          if (riskAssessment) {
+        const riskColor = this.getRiskColor(riskAssessment.riskLevel);
+        body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
+        
+        // Add risk level explanation and workflow status in notifications
+        body += `<div style="background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid ${riskColor}; margin-top: 10px;">`;
+        body += `<div style="font-size: 13px; color: #495057;">`;
+        if (riskAssessment.riskLevel === 'High') {
+          body += `<strong>High Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner and CAB approval. Final status will be "Scheduled" when ready for implementation.`;
+        } else if (riskAssessment.riskLevel === 'Medium') {
+          body += `<strong>Medium Risk:</strong> This change starts in "Pending Review" status and requires mandatory peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
+        } else {
+          body += `<strong>Low Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
+        }
+        body += `</div></div>`;
       }
-      body += `</div></div>`;
-    }
     
     body += `</div>`;
     
@@ -2406,9 +2413,10 @@ const ChangeSubmission = {
       body += `<h4 style="margin-top: 0; color: #856404;">Action Required</h4>`;
       body += `<p>As an identified approver, you will receive a separate approval request when the change reaches "Pending Approval" status.</p>`;
       if (data.riskAssessment && data.riskAssessment.totalScore >= 8) {
-        body += `<p><strong>Timeline:</strong> This ${data.riskAssessment.riskLevel} risk change must complete peer review first. You will receive the approval request after the workflow automator processes the peer review completion.</p>`;
+        const riskText = data.riskAssessment.riskLevel === 'High' ? 'High risk change requires peer review + technical owner + CAB approval' : 'Medium risk change requires mandatory peer review + technical owner approval';
+        body += `<p><strong>Timeline:</strong> This ${riskText}. You will receive the approval request after the workflow automator processes the peer review completion.</p>`;
       } else {
-        body += `<p><strong>Timeline:</strong> This ${data.riskAssessment?.riskLevel || 'Low'} risk change will send approval requests immediately.</p>`;
+        body += `<p><strong>Timeline:</strong> This ${data.riskAssessment?.riskLevel || 'Low'} risk change requires peer review + technical owner approval. You will receive the approval request after peer review completion.</p>`;
       }
       if (data.plannedStart) {
         const timeToStart = Math.ceil((new Date(data.plannedStart) - new Date()) / (1000 * 60 * 60 * 24));
@@ -3011,7 +3019,7 @@ Important: The peer review must be conducted by someone other than the original 
                 <i class="fas fa-clock me-2"></i>Status: PENDING REVIEW
               </h6>
               <p class="mb-2">
-                Your ${riskAssessment.riskLevel} risk change requires peer review before moving to approval phase.
+                Your ${riskAssessment.riskLevel} risk change requires ${riskAssessment.riskLevel === 'Medium' ? 'mandatory ' : ''}peer review before moving to approval phase.
               </p>
               <p class="mb-2">
                 <strong>Next Steps:</strong> A peer review coordination task has been assigned to the agent SME. 
@@ -3022,6 +3030,11 @@ Important: The peer review must be conducted by someone other than the original 
                 <li>Create approval tickets for technical owners${riskAssessment.riskLevel === 'High' ? ' and CAB members' : ''}</li>
                 <li>Move to "Scheduled" status once all approvals are obtained</li>
               </ul>
+              ${riskAssessment.riskLevel === 'Medium' ? `
+                <div class="alert alert-info mb-0 mt-2" style="font-size: 0.9em;">
+                  <strong>Medium Risk Process:</strong> This change requires both peer review validation AND technical owner approval before implementation.
+                </div>
+              ` : ''}
             </div>
           `;
         } else {
@@ -4668,9 +4681,9 @@ Important: The peer review must be conducted by someone other than the original 
                   <div class="alert alert-info mb-0">
                     <small>
                       <strong>Risk Policy:</strong><br>
-                      ${riskAssessment.totalScore >= 12 ? 'High Risk requires extensive review + mandatory 24hr peer review' :
-                        riskAssessment.totalScore >= 8 ? 'Medium Risk requires additional review + 24hr peer review' :
-                        'Low Risk follows standard approval process'}
+                      ${riskAssessment.totalScore >= 12 ? 'High Risk: Peer review → Technical owner + CAB approval (5+ business days)' :
+                        riskAssessment.totalScore >= 8 ? 'Medium Risk: Mandatory peer review → Technical owner approval (3+ business days)' :
+                        'Low Risk: Peer review → Technical owner approval (2+ business days)'}
                     </small>
                   </div>
                 </div>
