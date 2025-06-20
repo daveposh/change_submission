@@ -2655,8 +2655,9 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
         // Combine with previous results
         const combinedResults = [...allResults, ...filteredAgents];
         
-        // Check if we should load more pages based on results and configured limits
-        const shouldLoadMorePages = filteredAgents.length === 30; // API returned full page
+        // Check if we should load more pages based on raw API response count
+        // Since server-side filtering may fail, we need to check the raw response count
+        const shouldLoadMorePages = agents.length === 30; // API returned full page of raw results
         
         if (shouldLoadMorePages) {
           // Get configured page limits
@@ -5429,8 +5430,9 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         // Combine all results
         const allResults = [...existingResults, ...uniqueAgents];
         
-        // Check if we should load more pages
-        const shouldLoadMorePages = filteredAgents.length === 30; // API returned full page
+        // Check if we should load more pages based on raw API response count
+        // Since server-side filtering may fail, we need to check the raw response count
+        const shouldLoadMorePages = agents.length === 30; // API returned full page of raw results
         
         if (shouldLoadMorePages) {
           // Get configured page limits
