@@ -5350,42 +5350,9 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         // Combine all results
         const combinedResults = [...allResults, ...uniqueRequesters, ...uniqueAgents];
         
-        // Check if we should load more pages based on results and configured limits
-        const totalFiltered = filteredRequesters.length + filteredAgents.length;
-        const shouldLoadMorePages = totalFiltered === 30; // API returned full page
-        
-        if (shouldLoadMorePages) {
-          // Get configured page limits
-          (async function() {
-              const params = await getInstallationParams();
-              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-              const pageLimit = params.listRequestersPageLimit || 3; // Default to 3 pages
-              
-              if (page < pageLimit) {
-                updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1}/${pageLimit})`);
-                setTimeout(() => {
-                  loadRequestersPage(page + 1, combinedResults);
-                }, paginationDelay);
-              } else {
-                console.log(`📄 Reached page limit (${pageLimit}) for requester search, finalizing with ${combinedResults.length} results`);
-                finalizeRequesterSearch(searchTerm, combinedResults, isRefresh);
-              }
-          })().catch(err => {
-              console.error('Error getting pagination settings:', err);
-              // Default behavior if error - limit to 2 pages
-              if (page < 2) {
-                setTimeout(() => {
-                  loadRequestersPage(page + 1, combinedResults);
-                }, DEFAULT_PAGINATION_DELAY);
-              } else {
-                finalizeRequesterSearch(searchTerm, combinedResults, isRefresh);
-              }
-          });
-        } else {
-          // No more results expected, complete the search
-          console.log(`📄 No more pages expected (got ${totalFiltered} results), finalizing requester search with ${combinedResults.length} total results`);
-          finalizeRequesterSearch(searchTerm, combinedResults, isRefresh);
-        }
+        // Since include_agents=true doesn't work, search agents separately
+        // This ensures we find all users (requesters + agents who can be requesters)
+        loadAgentsAsRequesters(page, combinedResults);
         
       } catch (error) {
         console.error('Error parsing requester response:', error);
@@ -5400,6 +5367,115 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
     });
   }
   
+  // Function to search agents as potential requesters (since include_agents=true doesn't work)
+  function loadAgentsAsRequesters(page = 1, existingResults = []) {
+    // Use the same query format for agents
+    const agentQuery = encodeURIComponent(`"~[first_name|last_name|email]:'${searchTerm}'"`);
+    const requestUrl = `?query=${agentQuery}&page=${page}&per_page=30`;
+    console.log('Agent-as-requester API URL:', requestUrl);
+    
+    window.client.request.invokeTemplate("getAgents", {
+      path_suffix: requestUrl,
+      cache: true,
+      ttl: 300000 // 5 minutes cache
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.error('No data returned from agent search for requesters');
+          finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+          return;
+        }
+        
+        console.log('Agent search (for requesters) raw response:', data.response);
+        const response = JSON.parse(data.response || '{"agents":[]}');
+        const agents = response && response.agents ? response.agents : [];
+        console.log(`Agent search returned ${agents.length} results for requesters`);
+        
+        // Check if server-side filtering worked for agents
+        const term = searchTerm.toLowerCase();
+        const hasObviousMatches = agents.some(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
+          return fullName.startsWith(term) || email.startsWith(term);
+        });
+        
+        if (agents.length === 30 && !hasObviousMatches) {
+          console.warn(`⚠️ Server-side filtering also failed for agents with "${searchTerm}"`);
+        }
+        
+        // Manual filtering for agents
+        const filteredAgents = agents.filter(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          const email = (agent.email || '').toLowerCase();
+          return fullName.includes(term) || email.includes(term);
+        });
+        
+        console.log(`Manual filtering returned ${filteredAgents.length} agent results for requesters`);
+        
+        // Mark agents as potential requesters and avoid duplicates
+        const agentsAsRequesters = filteredAgents.map(agent => ({
+          ...agent,
+          _isAgent: true, // Mark as agent so we can show this in UI
+          _canBeRequester: true,
+          // Normalize email field for consistency
+          primary_email: agent.email
+        }));
+        
+        // Remove duplicates based on email
+        const existingEmails = new Set(existingResults.map(r => r.primary_email || r.email));
+        const uniqueAgents = agentsAsRequesters.filter(agent => !existingEmails.has(agent.email));
+        
+        // Combine all results
+        const allResults = [...existingResults, ...uniqueAgents];
+        
+        // Check if we should load more pages
+        const shouldLoadMorePages = filteredAgents.length === 30; // API returned full page
+        
+        if (shouldLoadMorePages) {
+          // Get configured page limits
+          (async function() {
+              const params = await getInstallationParams();
+              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              const pageLimit = params.listRequestersPageLimit || 3; // Default to 3 pages
+              
+              if (page < pageLimit) {
+                updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1}/${pageLimit})`);
+                setTimeout(() => {
+                  loadRequestersPage(page + 1, allResults);
+                }, paginationDelay);
+              } else {
+                console.log(`📄 Reached page limit (${pageLimit}) for requester search, finalizing with ${allResults.length} results`);
+                finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+              }
+          })().catch(err => {
+              console.error('Error getting pagination settings:', err);
+              // Default behavior if error - limit to 2 pages
+              if (page < 2) {
+                setTimeout(() => {
+                  loadRequestersPage(page + 1, allResults);
+                }, DEFAULT_PAGINATION_DELAY);
+              } else {
+                finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+              }
+          });
+        } else {
+          // No more results expected, complete the search
+          console.log(`📄 No more pages expected (got ${filteredAgents.length} agent results), finalizing requester search with ${allResults.length} total results`);
+          finalizeRequesterSearch(searchTerm, allResults, isRefresh);
+        }
+      } catch (error) {
+        console.error('Error parsing agent response for requesters:', error);
+        // Complete with existing results
+        finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+      }
+    })
+    .catch(function(error) {
+      console.error('Agent API request failed for requesters:', error);
+      // Complete with existing results
+      finalizeRequesterSearch(searchTerm, existingResults, isRefresh);
+    });
+  }
 
   
   // Start loading from page 1
