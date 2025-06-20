@@ -366,30 +366,46 @@ const AssetAssociation = {
     if (addBtn) {
       addBtn.classList.add('loading');
       addBtn.disabled = true;
+      addBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>Verifying & Adding...`;
     }
 
     try {
       let addedCount = 0;
+      let verifiedCount = 0;
+      
+      console.log(`🔄 Adding ${this.state.selectedServiceIds.size} selected services with API verification...`);
       
       for (const serviceId of this.state.selectedServiceIds) {
         try {
           const serviceData = this.state.services.find(s => s.id === serviceId);
           if (!serviceData) continue;
           
-          const assetLikeService = this.convertServiceToAsset(serviceData);
+          // Verify and get latest data from API if this is an asset-based service
+          let verifiedServiceData = serviceData;
+          if (serviceData.original_asset && serviceData.original_asset.id) {
+            console.log(`🔍 Verifying latest data for service "${serviceData.name}" (Asset ID: ${serviceData.original_asset.id})`);
+            verifiedServiceData = await this.verifyServiceDataFromAPI(serviceData);
+            verifiedCount++;
+          }
+          
+          const assetLikeService = this.convertServiceToAsset(verifiedServiceData);
           
           // Check if already selected
           if (!this.isAssetSelected(assetLikeService.id)) {
             await this.addAsset(assetLikeService);
             addedCount++;
+            console.log(`✅ Added verified service: ${verifiedServiceData.name}`);
           }
         } catch (error) {
-          console.error('Error adding service:', error);
+          console.error(`❌ Error adding service ${serviceId}:`, error);
         }
       }
 
       if (addedCount > 0) {
-        this.showNotification('success', `Added ${addedCount} service${addedCount > 1 ? 's' : ''} to selection`);
+        const message = verifiedCount > 0 
+          ? `Added ${addedCount} service${addedCount > 1 ? 's' : ''} with ${verifiedCount} verified from API`
+          : `Added ${addedCount} service${addedCount > 1 ? 's' : ''} to selection`;
+        this.showNotification('success', message);
         
         // Clear selection
         this.state.selectedServiceIds.clear();
@@ -407,7 +423,73 @@ const AssetAssociation = {
       if (addBtn) {
         addBtn.classList.remove('loading');
         addBtn.disabled = false;
+        const count = this.state.selectedServiceIds.size;
+        addBtn.innerHTML = count > 0 
+          ? `<i class="fas fa-plus me-1"></i>Add Selected (${count})`
+          : `<i class="fas fa-plus me-1"></i>Add Selected`;
       }
+    }
+  },
+
+  /**
+   * Verify service data by fetching latest information from API
+   * @param {Object} serviceData - Original service data
+   * @returns {Promise<Object>} - Updated service data with latest information
+   */
+  async verifyServiceDataFromAPI(serviceData) {
+    try {
+      if (!serviceData.original_asset || !serviceData.original_asset.id) {
+        // No original asset to verify, return as-is
+        return serviceData;
+      }
+
+      const assetId = serviceData.original_asset.id;
+      console.log(`📡 Fetching latest asset data for asset ID: ${assetId}`);
+
+      // Fetch latest asset data from API
+      const response = await window.client.request.invokeTemplate("getAssetById", {
+        context: {
+          asset_id: assetId
+        }
+      });
+
+      if (!response || !response.response) {
+        console.warn(`⚠️ No response for asset ${assetId}, using cached data`);
+        return serviceData;
+      }
+
+      const responseData = JSON.parse(response.response);
+      const latestAsset = responseData.asset || responseData;
+
+      if (!latestAsset || !latestAsset.id) {
+        console.warn(`⚠️ Invalid asset data received for asset ${assetId}, using cached data`);
+        return serviceData;
+      }
+
+      console.log(`✅ Retrieved latest asset data for "${latestAsset.name || latestAsset.display_name}"`);
+
+      // Create updated service data with latest asset information
+      const updatedServiceData = {
+        ...serviceData,
+        // Update service-level properties if they come from the asset
+        name: latestAsset.display_name || latestAsset.name || serviceData.name,
+        description: latestAsset.description || serviceData.description,
+        updated_at: latestAsset.updated_at || serviceData.updated_at,
+        // Update original asset with latest data
+        original_asset: latestAsset
+      };
+
+      // Re-enhance with latest managed by information
+      const enhancedServices = await this.enhanceServicesWithManagedBy([updatedServiceData]);
+      const enhancedService = enhancedServices[0] || updatedServiceData;
+
+      console.log(`🔄 Service data verified and enhanced for "${enhancedService.name}"`);
+      return enhancedService;
+
+    } catch (error) {
+      console.error(`❌ Error verifying service data from API:`, error);
+      console.log(`⚠️ Using cached service data for "${serviceData.name}"`);
+      return serviceData;
     }
   },
 
@@ -816,6 +898,11 @@ const AssetAssociation = {
    */
   async getManagedByInfo(asset) {
     try {
+      // First check if we already have a resolved managed_by_name (from service enhancement)
+      if (asset && asset.managed_by_name && asset.managed_by_name !== 'Service (No Owner)') {
+        return asset.managed_by_name;
+      }
+      
       // For services, try to get managed by from original asset data first
       if (asset && asset.is_service && asset.original_asset) {
         // Use the original asset's managed by information
@@ -825,14 +912,14 @@ const AssetAssociation = {
         if (originalAsset.agent_id) {
           const numericId = parseInt(originalAsset.agent_id);
           if (!isNaN(numericId) && numericId > 0) {
-            const userName = await this.resolveUserName(numericId);
-            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-              return userName;
+            const agentName = await this.resolveAgentName(numericId);
+            if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+              return agentName;
             }
           }
         }
         
-        // Check other managed by fields from original asset
+        // Check user_id from original asset
         if (originalAsset.user_id) {
           const numericId = parseInt(originalAsset.user_id);
           if (!isNaN(numericId) && numericId > 0) {
@@ -849,9 +936,9 @@ const AssetAssociation = {
           if (managedByField && managedByField !== 'N/A') {
             const numericId = parseInt(managedByField);
             if (!isNaN(numericId) && numericId > 0) {
-              const userName = await this.resolveUserName(numericId);
-              if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
-                return userName;
+              const agentName = await this.resolveAgentName(numericId);
+              if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+                return agentName;
               }
             }
             return managedByField;
@@ -862,8 +949,30 @@ const AssetAssociation = {
         return 'Service (No Owner)';
       }
       
-      // Handle services specially - they don't have managed by in the same way
+      // For direct services (without original asset), check direct properties
       if (asset && asset.is_service) {
+        // Check agent_id from service
+        if (asset.agent_id) {
+          const numericId = parseInt(asset.agent_id);
+          if (!isNaN(numericId) && numericId > 0) {
+            const agentName = await this.resolveAgentName(numericId);
+            if (agentName && agentName !== 'Unknown' && !agentName.startsWith('Agent ID:')) {
+              return agentName;
+            }
+          }
+        }
+        
+        // Check user_id from service
+        if (asset.user_id) {
+          const numericId = parseInt(asset.user_id);
+          if (!isNaN(numericId) && numericId > 0) {
+            const userName = await this.resolveUserName(numericId);
+            if (userName && userName !== 'Unknown' && !userName.startsWith('User ID:')) {
+              return userName;
+            }
+          }
+        }
+        
         return 'Service (No Owner)';
       }
       

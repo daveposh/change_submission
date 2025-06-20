@@ -330,6 +330,24 @@
     "options": {
       "isOAuth": false
     }
+  },
+  "getAssetById": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/assets/<%= context.asset_id %>",
+      "query": {
+        "include": "type_fields"
+      },
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
+    }
   }
   
 } 
