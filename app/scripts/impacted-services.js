@@ -353,7 +353,8 @@ const ImpactedServices = {
       // Use Freshservice API query syntax with proper double quotes
       // Format: "~[first_name|last_name|primary_email]:'searchterm'"
       const userQuery = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
-      const requestUrl = `?query=${userQuery}&include_agents=true&page=1&per_page=30`;
+      // Note: include_agents=true removed due to API permission limitations  
+      const requestUrl = `?query=${userQuery}&page=1&per_page=30`;
 
       // Single search call that includes both requesters and agents
       window.client.request.invokeTemplate("getRequesters", {

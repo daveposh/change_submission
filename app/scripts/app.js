@@ -5230,7 +5230,8 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${userQuery}&include_agents=true&page=${page}&per_page=30`;
+    // Note: include_agents=true removed due to API permission limitations
+    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
     
     window.client.request.invokeTemplate("getRequesters", {
@@ -5272,6 +5273,13 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
           console.warn(`⚠️ Server-side filtering appears to have failed for "${searchTerm}" - falling back to client-side filtering`);
           console.log(`💡 Suggestion: Try searching for existing users like "adam", "agnes", or "ahmed" to test if search works`);
           console.log(`🔍 Debug: include_agents=true returned ${agents.length} agents - this might be a permission or API issue`);
+          
+          // If include_agents=true isn't working, we should search agents separately
+          if (agents.length === 0) {
+            console.log(`💡 Recommendation: Try searching in the "Agent" field instead of "Requester" field to find agent users`);
+            console.log(`⚙️ API Limitation: include_agents=true requires "Manage Agents" permission which this API key lacks`);
+            console.log(`🔧 Workaround: Use separate agent search or request permission upgrade`);
+          }
         }
         
         // Manual filtering for requesters (always do this as server-side may not work)
