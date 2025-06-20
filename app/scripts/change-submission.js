@@ -2881,7 +2881,7 @@ const ChangeSubmission = {
   /**
    * Show task creation failure with retry option
    */
-  async showTaskCreationFailure(changeRequest, agentSME, riskAssessment, taskData) {
+  showTaskCreationFailure(changeRequest, agentSME, riskAssessment, taskData) {
     console.log('🔄 Showing task creation failure dialog with retry option...');
     
     const modal = document.createElement('div');
