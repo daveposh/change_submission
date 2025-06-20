@@ -5206,13 +5206,11 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   }
 
   // Use field-specific format for both requesters and agents API (since agents can be requesters too)
-  // Try both complex query syntax and simple search as fallback
-  // Some Freshservice instances may not support the ~ operator properly
-  const complexQuery = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
-  const simpleQuery = encodeURIComponent(searchTerm);
+  // Use Freshservice API query syntax with proper double quotes
+  // Format: "~[first_name|last_name|primary_email]:'searchterm'"
+  const userQuery = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
   
-  // Start with complex query, but we'll implement fallback logic
-  const userQuery = complexQuery;
+  // Note: If server-side filtering fails, we rely on client-side filtering
   
   console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} requester search with query:`, userQuery);
   
