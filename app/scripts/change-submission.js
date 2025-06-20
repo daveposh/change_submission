@@ -2805,6 +2805,196 @@ const ChangeSubmission = {
   },
 
   /**
+   * Retry peer review task creation with exponential backoff
+   */
+  async retryTaskCreation(changeRequest, agentSME, riskAssessment, taskData, maxRetries = 3) {
+    console.log(`🔄 Attempting to retry peer review task creation (max ${maxRetries} attempts)...`);
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Task creation retry attempt ${attempt}/${maxRetries}...`);
+        
+        // Wait with exponential backoff: 3s, 7s, 15s
+        const delay = attempt === 1 ? 3000 : attempt === 2 ? 7000 : 15000;
+        console.log(`⏳ Waiting ${delay/1000} seconds before retry attempt ${attempt}...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        console.log('📡 Sending retry task creation request...');
+        const response = await window.client.request.invokeTemplate('createTask', {
+          context: {
+            change_id: changeRequest.id
+          },
+          body: JSON.stringify(taskData),
+          cache: false
+        });
+        
+        console.log(`📡 Retry attempt ${attempt} response:`, response);
+        
+        if (!response || !response.response) {
+          throw new Error(`No response received from task creation API on attempt ${attempt}`);
+        }
+        
+        let createdTask;
+        try {
+          createdTask = JSON.parse(response.response);
+          console.log(`📋 Retry attempt ${attempt} parsed response:`, createdTask);
+        } catch (parseError) {
+          console.error(`❌ Failed to parse task response JSON on attempt ${attempt}:`, response.response);
+          throw new Error(`Invalid JSON response on attempt ${attempt}: ${parseError.message}`);
+        }
+        
+        // Handle successful response
+        if (createdTask && createdTask.id) {
+          console.log(`✅ Peer review task created successfully on retry attempt ${attempt}: ${createdTask.id}`);
+          return createdTask;
+        } else if (createdTask && createdTask.task && createdTask.task.id) {
+          console.log(`✅ Peer review task created successfully on retry attempt ${attempt}: ${createdTask.task.id}`);
+          return createdTask.task;
+        } else {
+          console.log(`ℹ️ Task created on attempt ${attempt} but response structure unexpected:`, createdTask);
+          return {
+            id: 'unknown',
+            title: taskData.title,
+            status: taskData.status,
+            agent_id: taskData.agent_id
+          };
+        }
+        
+      } catch (error) {
+        console.error(`❌ Task creation retry attempt ${attempt} failed:`, error);
+        
+        if (attempt === maxRetries) {
+          console.error(`❌ All ${maxRetries} task creation attempts failed. Final error:`, error);
+          
+          // Show user-friendly retry option
+          this.showTaskCreationFailure(changeRequest, agentSME, riskAssessment, taskData);
+          return null;
+        }
+        
+        console.log(`⏳ Will retry task creation (attempt ${attempt + 1}/${maxRetries})...`);
+      }
+    }
+    
+    return null;
+  },
+
+  /**
+   * Show task creation failure with retry option
+   */
+  async showTaskCreationFailure(changeRequest, agentSME, riskAssessment, taskData) {
+    console.log('🔄 Showing task creation failure dialog with retry option...');
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title">⚠️ Peer Review Task Creation Failed</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info">
+              <h6><strong>✅ Change Request Created Successfully</strong></h6>
+              <p class="mb-0">Your change request CHN-${changeRequest.id} has been created and is ready for processing.</p>
+            </div>
+            
+            <div class="alert alert-warning">
+              <h6><strong>⚠️ Peer Review Task Creation Issue</strong></h6>
+              <p>The peer review coordination task for <strong>${agentSME.name}</strong> could not be created automatically.</p>
+              <p class="mb-0">This may be due to temporary API connectivity issues or system load.</p>
+            </div>
+            
+            <div class="bg-light p-3 rounded">
+              <h6><strong>What happens next:</strong></h6>
+              <ul class="mb-0">
+                <li>Your change request is still valid and in the system</li>
+                <li>You can manually create the peer review task if needed</li>
+                <li>Or try to create the task automatically using the button below</li>
+              </ul>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              Continue Without Task
+            </button>
+            <button type="button" class="btn btn-primary" id="retryTaskCreation">
+              🔄 Retry Task Creation
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const modalInstance = new bootstrap.Modal(modal);
+    modalInstance.show();
+    
+    // Handle retry button click
+    document.getElementById('retryTaskCreation').addEventListener('click', async () => {
+      const retryBtn = document.getElementById('retryTaskCreation');
+      const originalText = retryBtn.innerHTML;
+      
+      try {
+        retryBtn.innerHTML = '🔄 Creating Task...';
+        retryBtn.disabled = true;
+        
+        console.log('🔄 User requested manual task creation retry...');
+        const result = await this.retryTaskCreation(changeRequest, agentSME, riskAssessment, taskData, 2);
+        
+        if (result && result.id) {
+          // Success - update modal content
+          modal.querySelector('.modal-body').innerHTML = `
+            <div class="alert alert-success">
+              <h6><strong>✅ Success!</strong></h6>
+              <p class="mb-0">Peer review coordination task has been created successfully for ${agentSME.name}.</p>
+            </div>
+          `;
+          modal.querySelector('.modal-footer').innerHTML = `
+            <button type="button" class="btn btn-success" data-bs-dismiss="modal">
+              ✅ Done
+            </button>
+          `;
+        } else {
+          // Still failed - show manual instructions
+          modal.querySelector('.modal-body').innerHTML = `
+            <div class="alert alert-warning">
+              <h6><strong>⚠️ Task Creation Still Failed</strong></h6>
+              <p>The automatic task creation is still experiencing issues.</p>
+            </div>
+            
+            <div class="bg-light p-3 rounded">
+              <h6><strong>Manual Steps:</strong></h6>
+              <ol class="mb-0">
+                <li>Go to Change CHN-${changeRequest.id} in Freshservice</li>
+                <li>Create a new task manually</li>
+                <li>Assign it to: <strong>${agentSME.name}</strong></li>
+                <li>Set title: <strong>${taskData.title}</strong></li>
+                <li>Add the peer review coordination instructions</li>
+              </ol>
+            </div>
+          `;
+          modal.querySelector('.modal-footer').innerHTML = `
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">
+              I'll Create Manually
+            </button>
+          `;
+        }
+        
+      } catch (error) {
+        console.error('❌ Manual retry failed:', error);
+        retryBtn.innerHTML = originalText;
+        retryBtn.disabled = false;
+      }
+    });
+    
+    // Clean up modal when closed
+    modal.addEventListener('hidden.bs.modal', () => {
+      document.body.removeChild(modal);
+    });
+  },
+
+  /**
    * Generate peer review coordination task description for agent SME
    */
   generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
