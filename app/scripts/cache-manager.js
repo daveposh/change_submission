@@ -478,24 +478,50 @@ const CacheManager = {
 
       console.log(`✅ Retrieved ${uniqueAssets.length} unique service assets`);
 
-      // Process assets into service-like objects with minimal data for caching
+      // Process assets into service-like objects with essential data for managed by resolution
       const processedServices = uniqueAssets
         .filter(asset => asset && asset.id && asset.name)
-        .map(asset => ({
-          id: asset.id,
-          display_id: asset.display_id || asset.id, // Ensure display_id is set for change associations
-          name: asset.display_name || asset.name,
-          description: asset.description || '',
-          category: asset.asset_type_id,
-          visibility: 1,
-          created_at: asset.created_at,
-          updated_at: asset.updated_at,
-          // Store only essential metadata to reduce payload size
-          asset_tag: asset.asset_tag || '',
-          department_id: asset.department_id || null,
-          location_id: asset.location_id || null,
-          timestamp: Date.now()
-        }));
+        .map(asset => {
+          console.log(`🔍 DEBUG: Processing asset "${asset.display_name || asset.name}":`, {
+            id: asset.id,
+            agent_id: asset.agent_id,
+            user_id: asset.user_id,
+            has_type_fields: !!asset.type_fields
+          });
+          
+          return {
+            id: asset.id,
+            display_id: asset.display_id || asset.id, // Ensure display_id is set for change associations
+            name: asset.display_name || asset.name,
+            description: asset.description || '',
+            category: asset.asset_type_id,
+            visibility: 1,
+            created_at: asset.created_at,
+            updated_at: asset.updated_at,
+            // Essential fields for managed by resolution
+            agent_id: asset.agent_id,
+            user_id: asset.user_id,
+            asset_tag: asset.asset_tag || '',
+            department_id: asset.department_id || null,
+            location_id: asset.location_id || null,
+            // Keep original asset reference for API verification and managed by resolution
+            original_asset: {
+              id: asset.id,
+              agent_id: asset.agent_id,
+              user_id: asset.user_id,
+              display_id: asset.display_id,
+              name: asset.name || asset.display_name,
+              description: asset.description,
+              asset_type_id: asset.asset_type_id,
+              department_id: asset.department_id,
+              location_id: asset.location_id,
+              type_fields: asset.type_fields,
+              impact: asset.impact,
+              environment: asset.environment || this.extractAssetTypeField(asset, 'environment')
+            },
+            timestamp: Date.now()
+          };
+        });
 
       // Save services to cache with size optimization
       if (processedServices.length > 0) {
@@ -650,6 +676,37 @@ const CacheManager = {
     } catch (error) {
       console.error('❌ Error loading chunked services:', error);
       return [];
+    }
+  },
+
+  /**
+   * Extract field value from asset type_fields
+   * @param {Object} asset - The asset object
+   * @param {string} fieldName - The field name to extract
+   * @returns {string} - The field value or null if not found
+   */
+  extractAssetTypeField(asset, fieldName) {
+    try {
+      if (asset.type_fields && typeof asset.type_fields === 'object' && !Array.isArray(asset.type_fields)) {
+        // Look for the field directly or with suffix pattern
+        const directValue = asset.type_fields[fieldName];
+        if (directValue !== null && directValue !== undefined && directValue !== '') {
+          return String(directValue);
+        }
+        
+        // Look for field with asset type ID suffix pattern
+        if (asset.asset_type_id) {
+          const suffixedFieldName = `${fieldName}_${asset.asset_type_id}`;
+          const suffixedValue = asset.type_fields[suffixedFieldName];
+          if (suffixedValue !== null && suffixedValue !== undefined && suffixedValue !== '') {
+            return String(suffixedValue);
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn(`Error extracting field ${fieldName} from asset:`, error);
+      return null;
     }
   },
 

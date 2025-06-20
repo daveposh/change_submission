@@ -380,12 +380,26 @@ const AssetAssociation = {
           const serviceData = this.state.services.find(s => s.id === serviceId);
           if (!serviceData) continue;
           
+          // Debug service data structure
+          console.log(`🔍 DEBUG: Service data for "${serviceData.name}":`, {
+            id: serviceData.id,
+            has_original_asset: !!serviceData.original_asset,
+            original_asset_id: serviceData.original_asset?.id,
+            agent_id: serviceData.agent_id,
+            user_id: serviceData.user_id,
+            managed_by_name: serviceData.managed_by_name,
+            original_asset_agent_id: serviceData.original_asset?.agent_id,
+            original_asset_user_id: serviceData.original_asset?.user_id
+          });
+          
           // Verify and get latest data from API if this is an asset-based service
           let verifiedServiceData = serviceData;
           if (serviceData.original_asset && serviceData.original_asset.id) {
             console.log(`🔍 Verifying latest data for service "${serviceData.name}" (Asset ID: ${serviceData.original_asset.id})`);
             verifiedServiceData = await this.verifyServiceDataFromAPI(serviceData);
             verifiedCount++;
+          } else {
+            console.log(`ℹ️ Service "${serviceData.name}" has no original asset to verify, using cached data`);
           }
           
           const assetLikeService = this.convertServiceToAsset(verifiedServiceData);
@@ -898,8 +912,20 @@ const AssetAssociation = {
    */
   async getManagedByInfo(asset) {
     try {
+      console.log(`🔍 DEBUG getManagedByInfo for "${asset?.name || 'Unknown'}":`, {
+        has_managed_by_name: !!asset?.managed_by_name,
+        managed_by_name: asset?.managed_by_name,
+        is_service: asset?.is_service,
+        has_original_asset: !!asset?.original_asset,
+        agent_id: asset?.agent_id,
+        user_id: asset?.user_id,
+        original_asset_agent_id: asset?.original_asset?.agent_id,
+        original_asset_user_id: asset?.original_asset?.user_id
+      });
+      
       // First check if we already have a resolved managed_by_name (from service enhancement)
       if (asset && asset.managed_by_name && asset.managed_by_name !== 'Service (No Owner)') {
+        console.log(`✅ Using pre-resolved managed_by_name: ${asset.managed_by_name}`);
         return asset.managed_by_name;
       }
       
