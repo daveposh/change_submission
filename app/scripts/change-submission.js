@@ -3004,7 +3004,7 @@ const ChangeSubmission = {
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; max-width: 800px;">
   
   <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
-         <h2 style="margin: 0; font-size: 24px; font-weight: 600;">Peer Review Coordination Required</h2>
+         <h2 style="margin: 0; font-size: 24px; font-weight: 600;">🔍 Peer Review Coordination Required</h2>
     <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 16px;">Independent technical review coordination task</p>
   </div>
 
@@ -3022,7 +3022,7 @@ const ChangeSubmission = {
   <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
     <div style="background: #e3f2fd; padding: 15px; border-bottom: 1px solid #dee2e6;">
              <h3 style="margin: 0; font-size: 18px; color: #1976d2; display: flex; align-items: center;">
-         <span style="margin-right: 10px;">[SME]</span>SME Assignment
+         <span style="margin-right: 10px;">👨‍💻</span>SME Assignment
        </h3>
     </div>
     <div style="padding: 20px;">
@@ -3038,7 +3038,7 @@ const ChangeSubmission = {
   <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
     <div style="background: #e8f5e8; padding: 15px; border-bottom: 1px solid #dee2e6;">
              <h3 style="margin: 0; font-size: 18px; color: #2e7d32; display: flex; align-items: center;">
-         <span style="margin-right: 10px;">[INFO]</span>Change Request Details
+         <span style="margin-right: 10px;">📋</span>Change Request Details
        </h3>
     </div>
     <div style="padding: 20px;">
@@ -3073,7 +3073,7 @@ const ChangeSubmission = {
   <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
     <div style="background: #fff3e0; padding: 15px; border-bottom: 1px solid #dee2e6;">
              <h3 style="margin: 0; font-size: 18px; color: #f57c00; display: flex; align-items: center;">
-         <span style="margin-right: 10px;">[PLAN]</span>Implementation Plan
+         <span style="margin-right: 10px;">⚙️</span>Implementation Plan
        </h3>
     </div>
     <div style="padding: 20px;">
@@ -3088,7 +3088,7 @@ ${data.implementationPlan}
   <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
     <div style="background: #e8f5e8; padding: 15px; border-bottom: 1px solid #dee2e6;">
              <h3 style="margin: 0; font-size: 18px; color: #2e7d32; display: flex; align-items: center;">
-         <span style="margin-right: 10px;">[TEST]</span>Validation Plan
+         <span style="margin-right: 10px;">✅</span>Validation Plan
        </h3>
     </div>
     <div style="padding: 20px;">
@@ -3102,7 +3102,7 @@ ${data.validationPlan}
   <div style="background: white; border: 1px solid #dc3545; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
     <div style="background: #f8d7da; padding: 15px; border-bottom: 1px solid #dc3545;">
              <h3 style="margin: 0; font-size: 18px; color: #721c24; display: flex; align-items: center;">
-         <span style="margin-right: 10px;">[ACTION]</span>Your Responsibilities as SME Coordinator
+         <span style="margin-right: 10px;">⚠️</span>Your Responsibilities as SME Coordinator
        </h3>
     </div>
     <div style="padding: 20px;">
@@ -3140,7 +3140,7 @@ ${data.validationPlan}
   <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
     <div style="background: #e1f5fe; padding: 15px; border-bottom: 1px solid #dee2e6;">
              <h3 style="margin: 0; font-size: 18px; color: #0277bd; display: flex; align-items: center;">
-         <span style="margin-right: 10px;">[CHECK]</span>Peer Review Checklist
+         <span style="margin-right: 10px;">📝</span>Peer Review Checklist
        </h3>
     </div>
     <div style="padding: 20px;">
@@ -3201,13 +3201,13 @@ ${data.validationPlan}
   <div style="background: white; border: 1px solid #28a745; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
     <div style="background: #d4edda; padding: 15px; border-bottom: 1px solid #28a745;">
              <h3 style="margin: 0; font-size: 18px; color: #155724; display: flex; align-items: center;">
-         <span style="margin-right: 10px;">[DEADLINE]</span>Completion Instructions
+         <span style="margin-right: 10px;">⏰</span>Completion Instructions
        </h3>
     </div>
     <div style="padding: 20px;">
       <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
                  <div style="font-weight: 600; color: #856404; font-size: 16px;">
-           DEADLINE: Complete peer review coordination within 24 hours
+                       ⏱️ DEADLINE: Complete peer review coordination within 24 hours
          </div>
       </div>
       
@@ -3236,7 +3236,7 @@ ${data.validationPlan}
       </ul>
       
              <div style="background: #e8f5e8; padding: 15px; border-radius: 6px; border-left: 4px solid #4caf50; margin-top: 20px;">
-         <div style="font-weight: 600; color: #2e7d32; margin-bottom: 8px;">[EVIDENCE] Peer Review Evidence Process:</div>
+         <div style="font-weight: 600; color: #2e7d32; margin-bottom: 8px;">📝 Peer Review Evidence Process:</div>
          <div style="color: #424242; font-size: 14px; margin-bottom: 8px;">
            • The completion of this task by the assigned peer reviewer serves as evidence that the peer review was conducted
          </div>
