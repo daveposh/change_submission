@@ -478,7 +478,7 @@ const CacheManager = {
 
       console.log(`✅ Retrieved ${uniqueAssets.length} unique service assets`);
 
-      // Process assets into service-like objects
+      // Process assets into service-like objects with minimal data for caching
       const processedServices = uniqueAssets
         .filter(asset => asset && asset.id && asset.name)
         .map(asset => ({
@@ -490,22 +490,28 @@ const CacheManager = {
           visibility: 1,
           created_at: asset.created_at,
           updated_at: asset.updated_at,
-          // Keep original asset data for reference
-          original_asset: asset,
+          // Store only essential metadata to reduce payload size
+          asset_tag: asset.asset_tag || '',
+          department_id: asset.department_id || null,
+          location_id: asset.location_id || null,
           timestamp: Date.now()
         }));
 
-      // Save services to cache
+      // Save services to cache with size optimization
       if (processedServices.length > 0) {
         console.log(`✅ Successfully processed ${processedServices.length} services from assets`);
-        await this.saveServicesCache(processedServices);
+        const saveSuccess = await this.saveServicesCache(processedServices);
         
-        // Log sample of cached services for debugging
-        const sampleServices = processedServices.slice(0, 5);
-        console.log('📋 Sample cached services:');
-        sampleServices.forEach(service => {
-          console.log(`   ${service.id}: '${service.name}' (Asset Type: ${service.category})`);
-        });
+        if (saveSuccess) {
+          // Log sample of cached services for debugging
+          const sampleServices = processedServices.slice(0, 5);
+          console.log('📋 Sample cached services:');
+          sampleServices.forEach(service => {
+            console.log(`   ${service.id}: '${service.name}' (Asset Type: ${service.category})`);
+          });
+        } else {
+          console.error('❌ Failed to save services cache even with chunking strategy');
+        }
       } else {
         console.log('⚠️ No services were processed from assets');
       }
@@ -586,13 +592,25 @@ const CacheManager = {
   },
 
   /**
-   * Get cached services from storage
+   * Get cached services from storage (handles both regular and chunked storage)
    * @returns {Promise<Array>} - Cached services array
    */
   async getCachedServices() {
     try {
-      const result = await window.client.db.get(this.STORAGE_KEYS.SERVICES_CACHE);
-      return result || [];
+      const cachedData = await window.client.db.get(this.STORAGE_KEYS.SERVICES_CACHE);
+      
+      if (!cachedData) {
+        return [];
+      }
+      
+      // Check if this is chunked storage
+      if (cachedData.isChunked) {
+        console.log(`📦 Detected chunked storage with ${cachedData.chunkCount} chunks`);
+        return await this.loadChunkedServices(cachedData);
+      }
+      
+      // Regular storage - return as array
+      return Array.isArray(cachedData) ? cachedData : [];
     } catch (error) {
       console.log('No services cache found or error:', error);
       return [];
@@ -600,17 +618,116 @@ const CacheManager = {
   },
 
   /**
-   * Save services to cache
+   * Load services from chunked storage
+   * @param {Object} metadata - Chunk metadata
+   * @returns {Promise<Array>} - Combined services array
+   */
+  async loadChunkedServices(metadata) {
+    try {
+      const allServices = [];
+      let loadedChunks = 0;
+      
+      for (let i = 0; i < metadata.chunkCount; i++) {
+        try {
+          const chunkKey = `${this.STORAGE_KEYS.SERVICES_CACHE}_chunk_${i}`;
+          const chunk = await window.client.db.get(chunkKey);
+          
+          if (chunk && Array.isArray(chunk)) {
+            allServices.push(...chunk);
+            loadedChunks++;
+            console.log(`📦 Loaded chunk ${i + 1}/${metadata.chunkCount} (${chunk.length} items)`);
+          } else {
+            console.warn(`⚠️ Chunk ${i} is empty or invalid`);
+          }
+        } catch (chunkError) {
+          console.error(`❌ Failed to load chunk ${i}:`, chunkError);
+        }
+      }
+      
+      console.log(`✅ Loaded ${loadedChunks}/${metadata.chunkCount} chunks, total ${allServices.length} services`);
+      return allServices;
+      
+    } catch (error) {
+      console.error('❌ Error loading chunked services:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Save services to cache with size optimization
    * @param {Array} services - Services array to cache
    * @returns {Promise<boolean>} - Success status
    */
   async saveServicesCache(services) {
     try {
+      // First try to save the full dataset
       await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, services);
-      console.log('Services cache updated');
+      console.log('✅ Services cache updated successfully');
       return true;
     } catch (error) {
       console.error('Failed to save services cache:', error);
+      
+      // If it's a 413 error (payload too large), try chunking strategy
+      if (error.status === 413 || error.message?.includes('too large') || error.message?.includes('Request payload')) {
+        console.log('📦 Payload too large, attempting chunked storage...');
+        return await this.saveServicesWithChunking(services);
+      }
+      
+      return false;
+    }
+  },
+
+  /**
+   * Save services using chunking strategy for large datasets
+   * @param {Array} services - Services array to cache
+   * @returns {Promise<boolean>} - Success status
+   */
+  async saveServicesWithChunking(services) {
+    try {
+      const CHUNK_SIZE = 10; // Reduce chunk size for safety
+      const chunks = [];
+      
+      // Split services into smaller chunks
+      for (let i = 0; i < services.length; i += CHUNK_SIZE) {
+        chunks.push(services.slice(i, i + CHUNK_SIZE));
+      }
+      
+      console.log(`📦 Splitting ${services.length} services into ${chunks.length} chunks of ${CHUNK_SIZE} items each`);
+      
+      // Save metadata about chunked storage
+      const chunkMetadata = {
+        isChunked: true,
+        totalItems: services.length,
+        chunkCount: chunks.length,
+        lastUpdated: Date.now()
+      };
+      
+      await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, chunkMetadata);
+      
+      // Save each chunk separately
+      let savedChunks = 0;
+      for (let i = 0; i < chunks.length; i++) {
+        try {
+          const chunkKey = `${this.STORAGE_KEYS.SERVICES_CACHE}_chunk_${i}`;
+          await window.client.db.set(chunkKey, chunks[i]);
+          savedChunks++;
+          console.log(`✅ Saved chunk ${i + 1}/${chunks.length} (${chunks[i].length} items)`);
+        } catch (chunkError) {
+          console.error(`❌ Failed to save chunk ${i}:`, chunkError);
+          break;
+        }
+      }
+      
+      if (savedChunks === chunks.length) {
+        console.log(`✅ Successfully saved all ${chunks.length} chunks`);
+        return true;
+      } else {
+        console.error(`❌ Only saved ${savedChunks}/${chunks.length} chunks`);
+        return false;
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in chunked storage:', error);
       return false;
     }
   },
@@ -712,7 +829,7 @@ const CacheManager = {
   },
 
   /**
-   * Clear all caches
+   * Clear all caches including chunked data
    * @returns {Promise<boolean>} - Success status
    */
   async clearAllCaches() {
@@ -720,11 +837,47 @@ const CacheManager = {
       await window.client.db.set(this.STORAGE_KEYS.ASSET_TYPE_CACHE, {});
       await window.client.db.set(this.STORAGE_KEYS.LOCATION_CACHE, {});
       await window.client.db.set(this.STORAGE_KEYS.ASSET_SEARCH_CACHE, {});
-      await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, {});
+      
+      // Clear services cache and any chunks
+      await this.clearServicesCache();
+      
       console.log('✅ All caches cleared');
       return true;
     } catch (error) {
       console.error('❌ Error clearing caches:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Clear services cache including any chunked data
+   * @returns {Promise<boolean>} - Success status
+   */
+  async clearServicesCache() {
+    try {
+      // Check if services cache uses chunked storage
+      const cachedData = await window.client.db.get(this.STORAGE_KEYS.SERVICES_CACHE);
+      
+      if (cachedData && cachedData.isChunked) {
+        console.log(`🧹 Clearing ${cachedData.chunkCount} service cache chunks...`);
+        
+        // Clear all chunks
+        for (let i = 0; i < cachedData.chunkCount; i++) {
+          try {
+            const chunkKey = `${this.STORAGE_KEYS.SERVICES_CACHE}_chunk_${i}`;
+            await window.client.db.set(chunkKey, null);
+          } catch (chunkError) {
+            console.warn(`⚠️ Could not clear chunk ${i}:`, chunkError);
+          }
+        }
+      }
+      
+      // Clear main services cache
+      await window.client.db.set(this.STORAGE_KEYS.SERVICES_CACHE, {});
+      console.log('✅ Services cache cleared');
+      return true;
+    } catch (error) {
+      console.error('❌ Error clearing services cache:', error);
       return false;
     }
   },
