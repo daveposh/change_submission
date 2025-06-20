@@ -2605,9 +2605,9 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
   // Use field-specific format for agents API
   // Use Freshservice API query syntax for agents with proper double quotes
   // Format: "~[first_name|last_name|email]:'searchterm'" (agents use 'email' not 'primary_email')
-  const agentQuery = encodeURIComponent(`"~[first_name|last_name|email]:'${searchTerm}'"`);
+  const queryString = `"~[first_name|last_name|email]:'${searchTerm}'"`;
   
-  console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} agent search with query:`, agentQuery);
+  console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} agent search with query:`, queryString);
   
   // Show appropriate loading indicator
   if (!isRefresh) {
@@ -2622,12 +2622,17 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
   
   // Function to load agent results from a specific page
   function loadAgentsPage(page = 1, allResults = []) {
-    // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${agentQuery}&page=${page}&per_page=30`;
-    console.log('Agent API URL:', requestUrl);
+    // Use proper context parameters instead of path_suffix
+    console.log('Agent search query:', queryString, 'page:', page);
     
     window.client.request.invokeTemplate("getAgents", {
-      path_suffix: requestUrl
+      context: {
+        query: queryString,
+        page: page,
+        per_page: 30
+      },
+      cache: true,
+      ttl: 300000 // 5 minutes cache
     })
     .then(function(data) {
       try {
@@ -5209,11 +5214,9 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   // Use field-specific format for both requesters and agents API (since agents can be requesters too)
   // Use Freshservice API query syntax with proper double quotes
   // Format: "~[first_name|last_name|primary_email]:'searchterm'"
-  const userQuery = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
-  
   // Note: If server-side filtering fails, we rely on client-side filtering
   
-  console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} requester search with query:`, userQuery);
+  console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} requester search for:`, searchTerm);
   
   // Show appropriate loading indicator
   if (!isRefresh) {
@@ -5230,13 +5233,17 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
-    // Use invokeTemplate with path suffix to add query parameter
+    // Use proper context parameters instead of path_suffix
     // Note: include_agents=true removed due to API permission limitations
-    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
-    console.log('Requester API URL:', requestUrl);
+    const queryString = `"~[first_name|last_name|primary_email]:'${searchTerm}'"`;
+    console.log('Requester search query:', queryString, 'page:', page);
     
     window.client.request.invokeTemplate("getRequesters", {
-      path_suffix: requestUrl,
+      context: {
+        query: queryString,
+        page: page,
+        per_page: 30
+      },
       cache: true,
       ttl: 300000 // 5 minutes cache
     })
@@ -5370,13 +5377,16 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   
   // Function to search agents as potential requesters (since include_agents=true doesn't work)
   function loadAgentsAsRequesters(page = 1, existingResults = []) {
-    // Use the same query format for agents
-    const agentQuery = encodeURIComponent(`"~[first_name|last_name|email]:'${searchTerm}'"`);
-    const requestUrl = `?query=${agentQuery}&page=${page}&per_page=30`;
-    console.log('Agent-as-requester API URL:', requestUrl);
+    // Use proper context parameters for agents
+    const queryString = `"~[first_name|last_name|email]:'${searchTerm}'"`;
+    console.log('Agent search query:', queryString, 'page:', page);
     
     window.client.request.invokeTemplate("getAgents", {
-      path_suffix: requestUrl,
+      context: {
+        query: queryString,
+        page: page,
+        per_page: 30
+      },
       cache: true,
       ttl: 300000 // 5 minutes cache
     })
