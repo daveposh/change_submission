@@ -350,9 +350,9 @@ const ImpactedServices = {
         return;
       }
 
-      // Use Freshservice API query syntax for "starts with" search
-      // Format: ~[first_name|last_name|primary_email]:'searchterm'
-      const userQuery = encodeURIComponent(`~[first_name|last_name|primary_email]:'${searchTerm}'`);
+      // Use simple search parameter - let Freshservice handle the search logic
+      // Complex query syntax doesn't seem to work as expected
+      const userQuery = encodeURIComponent(searchTerm);
       const requestUrl = `?query=${userQuery}&include_agents=true&page=1&per_page=30`;
 
       // Single search call that includes both requesters and agents
