@@ -380,9 +380,9 @@ const ImpactedServices = {
       };
 
       // Search requesters
-      // Use simple query parameter for Freshservice API search
-// The API will search across name and email fields automatically
-const userQuery = encodeURIComponent(searchTerm);
+      // Use Freshservice API query syntax for "starts with" search
+// Format: ~[first_name|last_name|primary_email]:'searchterm'
+const userQuery = encodeURIComponent(`~[first_name|last_name|primary_email]:'${searchTerm}'`);
       const requestUrl = `?query=${userQuery}&page=1&per_page=30`;
 
       // Search in requesters

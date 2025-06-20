@@ -2603,9 +2603,9 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
   }
 
   // Use field-specific format for agents API
-  // Use simple query parameter for Freshservice API search
-  // The API will search across name and email fields automatically
-  const agentQuery = encodeURIComponent(searchTerm);
+  // Use Freshservice API query syntax for "starts with" search  
+  // Format: ~[first_name|last_name|email]:'searchterm' (agents use 'email' not 'primary_email')
+  const agentQuery = encodeURIComponent(`~[first_name|last_name|email]:'${searchTerm}'`);
   
   console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} agent search with query:`, agentQuery);
   
@@ -5206,9 +5206,9 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   }
 
   // Use field-specific format for both requesters and agents API (since agents can be requesters too)
-  // Use simple query parameter for Freshservice API search
-  // The API will search across name and email fields automatically
-  const userQuery = encodeURIComponent(searchTerm);
+  // Use Freshservice API query syntax for "starts with" search
+  // Format: ~[first_name|last_name|primary_email]:'searchterm'
+  const userQuery = encodeURIComponent(`~[first_name|last_name|primary_email]:'${searchTerm}'`);
   
   console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} requester search with query:`, userQuery);
   
@@ -5228,7 +5228,7 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
     // Use invokeTemplate with path suffix to add query parameter
-    const requestUrl = `?query=${userQuery}&page=${page}&per_page=30`;
+    const requestUrl = `?query=${userQuery}&include_agents=true&page=${page}&per_page=30`;
     console.log('Requester API URL:', requestUrl);
     
     window.client.request.invokeTemplate("getRequesters", {
