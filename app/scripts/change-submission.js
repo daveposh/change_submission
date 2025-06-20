@@ -2807,55 +2807,248 @@ const ChangeSubmission = {
   generatePeerReviewCoordinationTaskDescription(changeRequest, agentSME, riskAssessment) {
     const data = window.changeRequestData;
     
-    let description = `Peer Review Coordination Required
+    let description = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; max-width: 800px;">
+  
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+    <h2 style="margin: 0; font-size: 24px; font-weight: 600;">🔍 Peer Review Coordination Required</h2>
+    <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 16px;">Independent technical review coordination task</p>
+  </div>
 
-SME Assignment:
-Assigned SME: ${agentSME.name} (${agentSME.source})
-Responsibility: Coordinate peer review process for this ${riskAssessment.riskLevel} risk change.
+  <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-top: none; padding: 20px; border-radius: 0 0 8px 8px; margin-bottom: 20px;">
+    <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center;">
+      <div style="background: #${riskAssessment.riskLevel === 'High' ? 'dc3545' : riskAssessment.riskLevel === 'Medium' ? 'ffc107' : '28a745'}; color: white; padding: 6px 12px; border-radius: 20px; font-weight: bold; text-align: center; font-size: 14px;">
+        ${riskAssessment.riskLevel?.toUpperCase()} RISK
+      </div>
+      <div style="font-size: 16px; font-weight: 600; color: #495057;">
+        Score: ${riskAssessment.totalScore}/15 Points
+      </div>
+    </div>
+  </div>
 
-Change Request Details:
-Change ID: CHN-${changeRequest.id}
-Title: ${changeRequest.subject}
-Requester: ${data.selectedRequester?.name || 'Unknown'}
-Risk Level: ${riskAssessment.riskLevel?.toUpperCase()} (${riskAssessment.totalScore}/15)
-Planned Start: ${data.plannedStart ? new Date(data.plannedStart).toLocaleString() : 'Not specified'}
-Planned End: ${data.plannedEnd ? new Date(data.plannedEnd).toLocaleString() : 'Not specified'}
+  <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+    <div style="background: #e3f2fd; padding: 15px; border-bottom: 1px solid #dee2e6;">
+      <h3 style="margin: 0; font-size: 18px; color: #1976d2; display: flex; align-items: center;">
+        <span style="margin-right: 10px;">👨‍💻</span>SME Assignment
+      </h3>
+    </div>
+    <div style="padding: 20px;">
+      <div style="margin-bottom: 15px;">
+        <strong style="color: #495057;">Assigned SME:</strong> ${agentSME.name} (${agentSME.source})
+      </div>
+      <div style="background: #fff3cd; padding: 12px; border-radius: 6px; border-left: 4px solid #ffc107;">
+        <strong style="color: #856404;">Responsibility:</strong> Coordinate peer review process for this ${riskAssessment.riskLevel} risk change.
+      </div>
+    </div>
+  </div>
 
-Implementation Plan:
-${data.implementationPlan || 'Not specified'}
+  <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+    <div style="background: #e8f5e8; padding: 15px; border-bottom: 1px solid #dee2e6;">
+      <h3 style="margin: 0; font-size: 18px; color: #2e7d32; display: flex; align-items: center;">
+        <span style="margin-right: 10px;">📋</span>Change Request Details
+      </h3>
+    </div>
+    <div style="padding: 20px;">
+      <div style="display: grid; grid-template-columns: auto 1fr; gap: 15px; margin-bottom: 20px;">
+        <div style="font-weight: 600; color: #495057;">Change ID:</div>
+        <div style="color: #007bff; font-weight: 600;">CHN-${changeRequest.id}</div>
+        
+        <div style="font-weight: 600; color: #495057;">Title:</div>
+        <div style="font-weight: 600;">${changeRequest.subject}</div>
+        
+        <div style="font-weight: 600; color: #495057;">Requester:</div>
+        <div>${data.selectedRequester?.name || 'Unknown'}</div>
+        
+        <div style="font-weight: 600; color: #495057;">Risk Level:</div>
+        <div>
+          <span style="background: #${riskAssessment.riskLevel === 'High' ? 'dc3545' : riskAssessment.riskLevel === 'Medium' ? 'ffc107' : '28a745'}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">
+            ${riskAssessment.riskLevel?.toUpperCase()}
+          </span>
+          <span style="margin-left: 8px; color: #6c757d;">(${riskAssessment.totalScore}/15)</span>
+        </div>
+        
+        <div style="font-weight: 600; color: #495057;">Planned Start:</div>
+        <div>${data.plannedStart ? new Date(data.plannedStart).toLocaleString() : 'Not specified'}</div>
+        
+        <div style="font-weight: 600; color: #495057;">Planned End:</div>
+        <div>${data.plannedEnd ? new Date(data.plannedEnd).toLocaleString() : 'Not specified'}</div>
+      </div>
+    </div>
+  </div>
 
-Validation Plan:
-${data.validationPlan || 'Not specified'}
+  ${data.implementationPlan ? `
+  <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+    <div style="background: #fff3e0; padding: 15px; border-bottom: 1px solid #dee2e6;">
+      <h3 style="margin: 0; font-size: 18px; color: #f57c00; display: flex; align-items: center;">
+        <span style="margin-right: 10px;">⚙️</span>Implementation Plan
+      </h3>
+    </div>
+    <div style="padding: 20px;">
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #f57c00; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.5;">
+${data.implementationPlan}
+      </div>
+    </div>
+  </div>
+  ` : ''}
 
-Your Responsibilities as SME Coordinator:
-As the requester and assigned SME, you must obtain an independent peer review since you cannot review your own work. Choose ONE of the following options:
+  ${data.validationPlan ? `
+  <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+    <div style="background: #e8f5e8; padding: 15px; border-bottom: 1px solid #dee2e6;">
+      <h3 style="margin: 0; font-size: 18px; color: #2e7d32; display: flex; align-items: center;">
+        <span style="margin-right: 10px;">✅</span>Validation Plan
+      </h3>
+    </div>
+    <div style="padding: 20px;">
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #2e7d32; white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.5;">
+${data.validationPlan}
+      </div>
+    </div>
+  </div>
+  ` : ''}
 
-1. Assign to Peer Reviewer: Reassign this task to a qualified technical peer who can perform an independent review of your change plan.
-2. Coordinate External Review: Ask a colleague to review your change and attach evidence of their completed review to this task.
-3. Escalate for Review Assignment: Contact your manager to assign an appropriate independent peer reviewer.
+  <div style="background: white; border: 1px solid #dc3545; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+    <div style="background: #f8d7da; padding: 15px; border-bottom: 1px solid #dc3545;">
+      <h3 style="margin: 0; font-size: 18px; color: #721c24; display: flex; align-items: center;">
+        <span style="margin-right: 10px;">⚠️</span>Your Responsibilities as SME Coordinator
+      </h3>
+    </div>
+    <div style="padding: 20px;">
+      <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+        <p style="margin: 0; font-weight: 600; color: #856404;">
+          As the requester and assigned SME, you must obtain an independent peer review since you cannot review your own work.
+        </p>
+      </div>
+      
+      <p style="font-weight: 600; color: #495057; margin-bottom: 15px;">Choose ONE of the following options:</p>
+      
+      <div style="display: grid; gap: 15px;">
+        <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; border-left: 4px solid #2196f3;">
+          <div style="font-weight: 600; color: #1565c0; margin-bottom: 8px;">1. Assign to Peer Reviewer</div>
+          <div style="color: #424242; font-size: 14px;">Reassign this task to a qualified technical peer who can perform an independent review of your change plan.</div>
+        </div>
+        
+        <div style="background: #e8f5e8; padding: 15px; border-radius: 6px; border-left: 4px solid #4caf50;">
+          <div style="font-weight: 600; color: #2e7d32; margin-bottom: 8px;">2. Coordinate External Review</div>
+          <div style="color: #424242; font-size: 14px;">Ask a colleague to review your change and attach evidence of their completed review to this task.</div>
+        </div>
+        
+        <div style="background: #fff3e0; padding: 15px; border-radius: 6px; border-left: 4px solid #ff9800;">
+          <div style="font-weight: 600; color: #e65100; margin-bottom: 8px;">3. Escalate for Review Assignment</div>
+          <div style="color: #424242; font-size: 14px;">Contact your manager to assign an appropriate independent peer reviewer.</div>
+        </div>
+      </div>
+      
+      <div style="background: #ffebee; padding: 15px; border-radius: 6px; border-left: 4px solid #f44336; margin-top: 20px;">
+        <strong style="color: #c62828;">Important:</strong> Since you are both the requester and SME, independent review is mandatory. You cannot approve your own work.
+      </div>
+    </div>
+  </div>
 
-Important: Since you are both the requester and SME, independent review is mandatory. You cannot approve your own work.
+  <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+    <div style="background: #e1f5fe; padding: 15px; border-bottom: 1px solid #dee2e6;">
+      <h3 style="margin: 0; font-size: 18px; color: #0277bd; display: flex; align-items: center;">
+        <span style="margin-right: 10px;">📝</span>Peer Review Checklist
+      </h3>
+    </div>
+    <div style="padding: 20px;">
+      <p style="margin-bottom: 15px; font-weight: 600; color: #495057;">The peer review (conducted by an independent reviewer) should evaluate:</p>
+      
+      <div style="display: grid; gap: 12px;">
+        <div style="display: flex; align-items: start; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+          <div style="background: #007bff; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; font-weight: bold; flex-shrink: 0;">✓</div>
+          <div>
+            <div style="font-weight: 600; color: #495057;">Technical Feasibility</div>
+            <div style="font-size: 14px; color: #6c757d;">Can this change be implemented as described?</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; align-items: start; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+          <div style="background: #007bff; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; font-weight: bold; flex-shrink: 0;">✓</div>
+          <div>
+            <div style="font-weight: 600; color: #495057;">Risk Assessment</div>
+            <div style="font-size: 14px; color: #6c757d;">Are there additional risks or issues not considered?</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; align-items: start; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+          <div style="background: #007bff; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; font-weight: bold; flex-shrink: 0;">✓</div>
+          <div>
+            <div style="font-weight: 600; color: #495057;">Alternative Approaches</div>
+            <div style="font-size: 14px; color: #6c757d;">Are there better or safer ways to achieve the same outcome?</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; align-items: start; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+          <div style="background: #007bff; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; font-weight: bold; flex-shrink: 0;">✓</div>
+          <div>
+            <div style="font-weight: 600; color: #495057;">Testing Strategy</div>
+            <div style="font-size: 14px; color: #6c757d;">Is the testing approach adequate for the risk level?</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; align-items: start; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+          <div style="background: #007bff; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; font-weight: bold; flex-shrink: 0;">✓</div>
+          <div>
+            <div style="font-weight: 600; color: #495057;">Rollback Plan</div>
+            <div style="font-size: 14px; color: #6c757d;">Is the rollback strategy sufficient and tested?</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; align-items: start; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+          <div style="background: #007bff; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; font-weight: bold; flex-shrink: 0;">✓</div>
+          <div>
+            <div style="font-weight: 600; color: #495057;">Implementation Timeline</div>
+            <div style="font-size: 14px; color: #6c757d;">Is the proposed timeline realistic and appropriate?</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-Peer Review Checklist:
-The peer review (conducted by an independent reviewer) should evaluate:
-- Technical Feasibility: Can this change be implemented as described?
-- Risk Assessment: Are there additional risks or issues not considered?
-- Alternative Approaches: Are there better or safer ways to achieve the same outcome?
-- Testing Strategy: Is the testing approach adequate for the risk level?
-- Rollback Plan: Is the rollback strategy sufficient and tested?
-- Implementation Timeline: Is the proposed timeline realistic and appropriate?
+  <div style="background: white; border: 1px solid #28a745; border-radius: 8px; margin-bottom: 20px; overflow: hidden;">
+    <div style="background: #d4edda; padding: 15px; border-bottom: 1px solid #28a745;">
+      <h3 style="margin: 0; font-size: 18px; color: #155724; display: flex; align-items: center;">
+        <span style="margin-right: 10px;">⏰</span>Completion Instructions
+      </h3>
+    </div>
+    <div style="padding: 20px;">
+      <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+        <div style="font-weight: 600; color: #856404; font-size: 16px;">
+          ⏱️ Deadline: Complete peer review coordination within 24 hours
+        </div>
+      </div>
+      
+      <h4 style="color: #495057; margin-bottom: 15px;">Required Actions:</h4>
+      <ul style="list-style: none; padding: 0; margin: 0;">
+        <li style="display: flex; align-items: start; margin-bottom: 12px;">
+          <span style="background: #28a745; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; margin-top: 2px;">1</span>
+          <span>Identify and assign a qualified peer reviewer (not yourself) to perform independent technical review</span>
+        </li>
+        <li style="display: flex; align-items: start; margin-bottom: 12px;">
+          <span style="background: #28a745; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; margin-top: 2px;">2</span>
+          <span>Ensure the peer reviewer has access to all relevant documentation and plans</span>
+        </li>
+        <li style="display: flex; align-items: start; margin-bottom: 12px;">
+          <span style="background: #28a745; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; margin-top: 2px;">3</span>
+          <span>Collect and attach evidence of completed peer review (review notes, findings, recommendations)</span>
+        </li>
+        <li style="display: flex; align-items: start; margin-bottom: 12px;">
+          <span style="background: #28a745; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; margin-top: 2px;">4</span>
+          <span>Update this task with review results and any concerns identified</span>
+        </li>
+        <li style="display: flex; align-items: start; margin-bottom: 12px;">
+          <span style="background: #28a745; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 12px; margin-top: 2px;">5</span>
+          <span>Coordinate with the change requester if issues are found that need resolution</span>
+        </li>
+      </ul>
+      
+      <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; border-left: 4px solid #2196f3; margin-top: 20px;">
+        <strong style="color: #1565c0;">Important:</strong> The peer review must be conducted by someone other than the original SME or change requester to ensure independent validation of the technical approach.
+      </div>
+    </div>
+  </div>
 
-Completion Instructions:
-Deadline: Complete peer review coordination within 24 hours.
-
-Required Actions:
-- Identify and assign a qualified peer reviewer (not yourself) to perform independent technical review
-- Ensure the peer reviewer has access to all relevant documentation and plans
-- Collect and attach evidence of completed peer review (review notes, findings, recommendations)
-- Update this task with review results and any concerns identified
-- Coordinate with the change requester if issues are found that need resolution
-
-Important: The peer review must be conducted by someone other than the original SME or change requester to ensure independent validation of the technical approach.`;
+</div>`;
     
     return description;
   },
