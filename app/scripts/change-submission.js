@@ -2672,10 +2672,7 @@ const ChangeSubmission = {
     // Ensure description is properly escaped for JSON
     const escapedDescription = description.replace(/[\u0000-\u0019]+/g, "")
                                         .replace(/\\"/g, '"')
-                                        .replace(/"/g, '\\"')
-                                        .replace(/[\u0080-\uFFFF]/g, function(match) {
-                                          return '\\u' + ('0000' + match.charCodeAt(0).toString(16)).substr(-4);
-                                        });
+                                        .replace(/"/g, '\\"');
     
     const taskData = {
       title: `Peer Review Coordination Required: ${changeRequest.subject}`.replace(/[^\x20-\x7E]/g, ''),
