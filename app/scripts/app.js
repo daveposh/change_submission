@@ -5360,9 +5360,43 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         // Combine all results
         const combinedResults = [...allResults, ...uniqueRequesters, ...uniqueAgents];
         
-        // Since include_agents=true doesn't work, search agents separately
-        // This ensures we find all users (requesters + agents who can be requesters)
-        loadAgentsAsRequesters(page, combinedResults);
+        // Check if we should load more requester pages first
+        const shouldLoadMoreRequesterPages = requesters.length === 30; // API returned full page of raw results
+        
+        if (shouldLoadMoreRequesterPages) {
+          // Get configured page limits
+          (async function() {
+              const params = await getInstallationParams();
+              const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
+              const pageLimit = params.listRequestersPageLimit || 3; // Default to 3 pages
+              
+              if (page < pageLimit) {
+                updateLoadingMessage('requester-results', `Loading more requesters... (page ${page + 1}/${pageLimit})`);
+                setTimeout(() => {
+                  loadRequestersPage(page + 1, combinedResults);
+                }, paginationDelay);
+              } else {
+                console.log(`📄 Reached requester page limit (${pageLimit}), now searching agents with ${combinedResults.length} results so far`);
+                // After all requester pages, start loading agents
+                loadAgentsAsRequesters(1, combinedResults);
+              }
+          })().catch(err => {
+              console.error('Error getting pagination settings:', err);
+              // Default behavior if error - limit to 2 pages
+              if (page < 2) {
+                setTimeout(() => {
+                  loadRequestersPage(page + 1, combinedResults);
+                }, DEFAULT_PAGINATION_DELAY);
+              } else {
+                // After all requester pages, start loading agents
+                loadAgentsAsRequesters(1, combinedResults);
+              }
+          });
+        } else {
+          // No more requester pages, start loading agents
+          console.log(`📄 No more requester pages expected (got ${requesters.length} requesters), now searching agents with ${combinedResults.length} results so far`);
+          loadAgentsAsRequesters(1, combinedResults);
+        }
         
       } catch (error) {
         console.error('Error parsing requester response:', error);
