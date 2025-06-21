@@ -350,93 +350,114 @@ const ImpactedServices = {
         return;
       }
 
-      // Use Freshservice API query syntax with proper double quotes
-      // Format: "~[first_name|last_name|primary_email]:'searchterm'"
-      const userQuery = encodeURIComponent(`"~[first_name|last_name|primary_email]:'${searchTerm}'"`);
-      // Note: include_agents=true removed due to API permission limitations  
-      const requestUrl = `?query=${userQuery}&page=1&per_page=30`;
-
-      // Single search call that includes both requesters and agents
-      window.client.request.invokeTemplate("getRequesters", {
-        path_suffix: requestUrl,
-        cache: true,
-        ttl: 300000
-      })
-      .then(function(data) {
-        try {
+      // Use parallel search approach with new templates
+      const searchPromises = [];
+      
+      // Search requesters
+      searchPromises.push(
+        window.client.request.invokeTemplate("searchRequesters", {
+          context: {
+            page: 1,
+            per_page: 30,
+            searchTerm: searchTerm
+          },
+          cache: true,
+          ttl: 300000
+        }).then(data => {
           if (data && data.response) {
             const response = JSON.parse(data.response);
-            const requesters = response.requesters || [];
-            const agents = response.agents || [];
-            
-            const term = searchTerm.toLowerCase();
-            
-            // Check if server-side filtering worked
-            const hasObviousMatches = requesters.some(req => {
-              const fullName = `${req.first_name || ''} ${req.last_name || ''}`.toLowerCase();
-              const email = (req.primary_email || req.email || '').toLowerCase();
-              return fullName.startsWith(term) || email.startsWith(term);
-            }) || agents.some(agent => {
-              const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
-              const email = (agent.email || '').toLowerCase();
-              return fullName.startsWith(term) || email.startsWith(term);
-            });
-            
-            if ((requesters.length === 30 || agents.length > 0) && !hasObviousMatches) {
-              console.warn(`⚠️ Server-side filtering appears to have failed for "${searchTerm}" in impacted services`);
-            }
-            
-            // Filter requesters manually for better accuracy
-            const filteredRequesters = requesters.filter(user => {
-              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
-              const email = (user.primary_email || user.email || '').toLowerCase();
-              return fullName.includes(term) || email.includes(term);
-            });
-
-            // Filter agents manually for better accuracy
-            const filteredAgents = agents.filter(user => {
-              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
-              const email = (user.email || '').toLowerCase();
-              return fullName.includes(term) || email.includes(term);
-            });
-
-            // Mark agents as agents
-            const agentsWithFlag = filteredAgents.map(agent => ({
-              ...agent,
-              _isAgent: true
-            }));
-
-            // Combine all results
-            const allResults = [...filteredRequesters, ...agentsWithFlag];
-
-            // Remove duplicates based on email
-            const uniqueResults = [];
-            const seenEmails = new Set();
-            
-            allResults.forEach(user => {
-              const email = user.primary_email || user.email;
-              if (!seenEmails.has(email)) {
-                seenEmails.add(email);
-                uniqueResults.push({
-                  id: user.id,
-                  name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
-                  email: email,
-                  department: user.department_names ? user.department_names.join(', ') : 'N/A',
-                  role: user.role || (user._isAgent ? 'Agent' : 'Requester'),
-                  userDetails: user
-                });
-              }
-            });
-
-            resolve(uniqueResults);
-          } else {
-            resolve([]);
+            return response.requesters || [];
           }
-        } catch (error) {
-          console.warn('Error parsing user search response:', error);
-          resolve([]);
-        }
-      })
+          return [];
+        }).catch(error => {
+          console.warn('Requester search failed in impacted services:', error);
+          return [];
+        })
+      );
+      
+      // Search agents
+      searchPromises.push(
+        window.client.request.invokeTemplate("searchAgents", {
+          context: {
+            page: 1,
+            per_page: 30,
+            searchTerm: searchTerm
+          },
+          cache: true,
+          ttl: 300000
+        }).then(data => {
+          if (data && data.response) {
+            const response = JSON.parse(data.response);
+            return response.agents || [];
+          }
+          return [];
+        }).catch(error => {
+          console.warn('Agent search failed in impacted services:', error);
+          return [];
+        })
+      );
+      
+             // Wait for both searches to complete
+       Promise.all(searchPromises)
+       .then(function(results) {
+         try {
+           const [requesters, agents] = results;
+           
+           console.log(`🔍 Impacted services search for "${searchTerm}": ${requesters.length} requesters, ${agents.length} agents`);
+           
+           const term = searchTerm.toLowerCase();
+           
+           // Check if server-side filtering worked
+           const requesterMatches = requesters.filter(req => {
+             const fullName = `${req.first_name || ''} ${req.last_name || ''}`.toLowerCase();
+             const email = (req.primary_email || req.email || '').toLowerCase();
+             return fullName.includes(term) || email.includes(term);
+           });
+           
+           const agentMatches = agents.filter(agent => {
+             const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+             const email = (agent.email || '').toLowerCase();
+             return fullName.includes(term) || email.includes(term);
+           });
+           
+           console.log(`✅ Impacted services filtering: ${requesterMatches.length} requester matches, ${agentMatches.length} agent matches`);
+           
+           // Mark agents as agents and normalize email field
+           const agentsWithFlag = agentMatches.map(agent => ({
+             ...agent,
+             _isAgent: true,
+             primary_email: agent.email // Normalize email field for consistency
+           }));
+
+           // Combine all results
+           const allResults = [...requesterMatches, ...agentsWithFlag];
+
+           // Remove duplicates based on email
+           const uniqueResults = [];
+           const seenEmails = new Set();
+           
+           allResults.forEach(user => {
+             const email = user.primary_email || user.email;
+             if (email && !seenEmails.has(email)) {
+               seenEmails.add(email);
+               uniqueResults.push({
+                 id: user.id,
+                 name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+                 email: email,
+                 department: user.department_names ? user.department_names.join(', ') : 'N/A',
+                 role: user.role || (user._isAgent ? 'Agent' : 'Requester'),
+                 userDetails: user
+               });
+             }
+           });
+
+           console.log(`🎯 Impacted services final results: ${uniqueResults.length} unique users`);
+           resolve(uniqueResults);
+         } catch (error) {
+           console.warn('Error processing impacted services search results:', error);
+           resolve([]);
+         }
+       })
       .catch(function(error) {
         console.warn('User search failed:', error);
         reject(error);
