@@ -5240,9 +5240,211 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
     }
   }
 
-  // Use client-side filtering approach (server-side filtering is broken)
-  console.log('🔍 Using client-side filtering for user search');
-  performRequesterSearchFallback(searchTerm, isRefresh, isLiveSearch);
+  // Use parallel search approach for better performance
+  console.log('🔍 Using parallel search for requesters and agents');
+  performParallelUserSearch(searchTerm, isRefresh, isLiveSearch);
+}
+
+// Parallel search function for better performance
+function performParallelUserSearch(searchTerm, isRefresh = false, isLiveSearch = false) {
+  console.log('🚀 Starting parallel search for requesters and agents:', searchTerm);
+  
+  // Show appropriate loading indicator
+  if (!isRefresh) {
+    const resultsContainer = document.getElementById('requester-results');
+    if (resultsContainer) {
+      if (isLiveSearch) {
+        showLiveSearchIndicator('requester-results', 'requesters');
+      } else {
+        resultsContainer.innerHTML = '<div class="text-center p-3"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>';
+        resultsContainer.style.display = 'block';
+      }
+    }
+  }
+
+  let allRequesters = [];
+  let allAgents = [];
+  let requestersComplete = false;
+  let agentsComplete = false;
+
+  // Function to check if both searches are complete and finalize
+  function checkAndFinalize() {
+    if (requestersComplete && agentsComplete) {
+      console.log(`🎯 Parallel search complete: ${allRequesters.length} requesters, ${allAgents.length} agents`);
+      
+             // Server-side filtering should now work, but add client-side as backup
+       const term = searchTerm.toLowerCase();
+       
+       // Check if server-side filtering worked
+       const serverFilteredRequesters = allRequesters.some(req => {
+         const fullName = `${req.first_name || ''} ${req.last_name || ''}`.toLowerCase();
+         return fullName.includes(term);
+       });
+       
+       const serverFilteredAgents = allAgents.some(agent => {
+         const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+         return fullName.includes(term);
+       });
+       
+       console.log(`🔍 Server-side filtering status: requesters=${serverFilteredRequesters}, agents=${serverFilteredAgents}`);
+       
+       // Use all results if server-side filtering worked, otherwise apply client-side filter
+       const filteredRequesters = serverFilteredRequesters || allRequesters.length <= 30 ? 
+         allRequesters : 
+         allRequesters.filter(requester => {
+           const fullName = `${requester.first_name || ''} ${requester.last_name || ''}`.toLowerCase();
+           const email = (requester.primary_email || requester.email || '').toLowerCase();
+           return fullName.includes(term) || email.includes(term);
+         });
+
+       // Same for agents
+       const filteredAgents = (serverFilteredAgents || allAgents.length <= 30 ? 
+         allAgents : 
+         allAgents.filter(agent => {
+           const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+           const email = (agent.email || '').toLowerCase();
+           return fullName.includes(term) || email.includes(term);
+         })
+       ).map(agent => ({
+         ...agent,
+         _isAgent: true,
+         primary_email: agent.email // Normalize email field
+       }));
+
+      // Combine and deduplicate
+      const combined = [];
+      const emailSet = new Set();
+
+      // Add requesters first
+      filteredRequesters.forEach(requester => {
+        const email = (requester.primary_email || requester.email || '').toLowerCase();
+        if (email && !emailSet.has(email)) {
+          emailSet.add(email);
+          combined.push(requester);
+        }
+      });
+
+      // Add agents, avoiding duplicates
+      filteredAgents.forEach(agent => {
+        const email = (agent.email || '').toLowerCase();
+        if (email && !emailSet.has(email)) {
+          emailSet.add(email);
+          combined.push(agent);
+        }
+      });
+
+      console.log(`✅ Found ${combined.length} matching users: ${filteredRequesters.length} requesters + ${filteredAgents.length} agents`);
+      
+      // Cache and finalize
+      addToSearchCache('requesters', searchTerm, combined);
+      finalizeRequesterSearch(searchTerm, combined, isRefresh);
+    }
+  }
+
+  // Start requester search
+  loadAllRequesters(1, []);
+  
+  // Start agent search in parallel
+  loadAllAgents(1, []);
+
+  // Function to load all requester pages
+  function loadAllRequesters(page, results) {
+    console.log(`📄 Loading requesters page ${page} with server-side filtering for: ${searchTerm}`);
+    
+    window.client.request.invokeTemplate("getRequesters", {
+      context: {
+        page: page,
+        per_page: 30,
+        searchTerm: searchTerm
+      },
+      cache: false
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.log('❌ No data returned for requesters page', page);
+          requestersComplete = true;
+          checkAndFinalize();
+          return;
+        }
+
+        const response = JSON.parse(data.response || '{"requesters":[]}');
+        const requesters = response.requesters || [];
+        console.log(`📄 Requesters page ${page}: ${requesters.length} users`);
+
+        const newResults = [...results, ...requesters];
+        allRequesters = newResults;
+
+        // Continue if we got a full page and haven't hit the limit
+        if (requesters.length === 30 && page < 10) {
+          setTimeout(() => loadAllRequesters(page + 1, newResults), 100);
+        } else {
+          console.log(`✅ Requesters search complete: ${newResults.length} total requesters`);
+          requestersComplete = true;
+          checkAndFinalize();
+        }
+      } catch (error) {
+        console.error('❌ Error loading requesters page', page, error);
+        requestersComplete = true;
+        checkAndFinalize();
+      }
+    })
+    .catch(function(error) {
+      console.error('❌ Requesters API failed for page', page, error);
+      requestersComplete = true;
+      checkAndFinalize();
+    });
+  }
+
+  // Function to load all agent pages
+  function loadAllAgents(page, results) {
+    console.log(`👤 Loading agents page ${page} with server-side filtering for: ${searchTerm}`);
+    
+    window.client.request.invokeTemplate("getAgents", {
+      context: {
+        page: page,
+        per_page: 30,
+        searchTerm: searchTerm
+      },
+      cache: true,
+      ttl: 300000
+    })
+    .then(function(data) {
+      try {
+        if (!data) {
+          console.log('❌ No data returned for agents page', page);
+          agentsComplete = true;
+          checkAndFinalize();
+          return;
+        }
+
+        const response = JSON.parse(data.response || '{"agents":[]}');
+        const agents = response.agents || [];
+        console.log(`👤 Agents page ${page}: ${agents.length} users`);
+
+        const newResults = [...results, ...agents];
+        allAgents = newResults;
+
+        // Continue if we got a full page and haven't hit the limit
+        if (agents.length === 30 && page < 10) {
+          setTimeout(() => loadAllAgents(page + 1, newResults), 100);
+        } else {
+          console.log(`✅ Agents search complete: ${newResults.length} total agents`);
+          agentsComplete = true;
+          checkAndFinalize();
+        }
+      } catch (error) {
+        console.error('❌ Error loading agents page', page, error);
+        agentsComplete = true;
+        checkAndFinalize();
+      }
+    })
+    .catch(function(error) {
+      console.error('❌ Agents API failed for page', page, error);
+      agentsComplete = true;
+      checkAndFinalize();
+    });
+  }
 }
 
 // Fallback function using the original search method
