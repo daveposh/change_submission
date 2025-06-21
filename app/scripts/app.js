@@ -5242,8 +5242,8 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         page: page,
         per_page: 30
       },
-      // Use correct query format as per API documentation
-      path_suffix: `?query="~[first_name|last_name]:'${searchTerm}'"&_t=${Date.now()}`,
+      // Use correct query format with proper URL encoding
+      path_suffix: `?query=${encodeURIComponent(`"~[first_name|last_name]:'${searchTerm}'"`)}`,
       cache: false // Keep cache disabled to avoid stale results
     })
     .then(function(data) {
@@ -5409,8 +5409,8 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         page: page,
         per_page: 30
       },
-      // Use correct query format as per API documentation
-      path_suffix: `?query="~[first_name|last_name]:'${searchTerm}'"&_t=${Date.now()}`,
+      // Use correct query format with proper URL encoding
+      path_suffix: `?query=${encodeURIComponent(`"~[first_name|last_name]:'${searchTerm}'"`)}`,
       cache: false // Keep cache disabled to avoid stale results
     })
     .then(function(data) {
