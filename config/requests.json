@@ -7,8 +7,7 @@
       "path": "/api/v2/requesters",
       "query": {
         "page": "<%= context.page || '1' %>",
-        "per_page": "<%= context.per_page || '30' %>",
-        "query": "<%= context.search_query %>"
+        "per_page": "<%= context.per_page || '30' %>"
       },
       "headers": {
         "Content-Type": "application/json",
@@ -24,8 +23,7 @@
       "path": "/api/v2/agents",
       "query": {
         "page": "<%= context.page || '1' %>",
-        "per_page": "<%= context.per_page || '30' %>",
-        "query": "<%= context.search_query %>"
+        "per_page": "<%= context.per_page || '30' %>"
       },
       "headers": {
         "Content-Type": "application/json",
