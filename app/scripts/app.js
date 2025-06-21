@@ -5236,7 +5236,7 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   function loadRequestersPage(page = 1, allResults = []) {
     // Use context for pagination and path_suffix for complex query parameter
     // Note: include_agents=true removed due to API permission limitations
-    const queryString = `"~[first_name|last_name|primary_email]:'${searchTerm}'"`;
+    const queryString = `"~[first_name|last_name]:'${searchTerm}'"`;
     const encodedQuery = encodeURIComponent(queryString);
     console.log('Requester search query:', queryString, 'page:', page);
     
@@ -5414,7 +5414,7 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   // Function to search agents as potential requesters (since include_agents=true doesn't work)
   function loadAgentsAsRequesters(page = 1, existingResults = []) {
     // Use context for pagination and path_suffix for complex query parameter
-    const queryString = `"~[first_name|last_name|email]:'${searchTerm}'"`;
+    const queryString = `"~[first_name|last_name]:'${searchTerm}'"`;
     const encodedQuery = encodeURIComponent(queryString);
     console.log('Agent search query:', queryString, 'page:', page);
     
