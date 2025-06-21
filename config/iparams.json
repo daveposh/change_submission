@@ -99,17 +99,17 @@
   },
   "listRequestersPageLimit": {
     "display_name": "Requester Page Limit",
-    "description": "Maximum number of pages to fetch for requesters (default: 3)",
+    "description": "Maximum number of pages to fetch for requesters (default: 10)",
     "type": "number",
     "required": false,
-    "default_value": 3
+    "default_value": 10
   },
   "listAgentsPageLimit": {
     "display_name": "Agent Page Limit",
-    "description": "Maximum number of pages to fetch for agents (default: 3)",
+    "description": "Maximum number of pages to fetch for agents (default: 10)",
     "type": "number",
     "required": false,
-    "default_value": 3
+    "default_value": 10
   },
   "enableDebugMode": {
     "display_name": "Enable Debug Mode",
