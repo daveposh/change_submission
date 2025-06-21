@@ -2604,8 +2604,8 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
 
   // Use field-specific format for agents API
   // Use Freshservice API query syntax for agents with proper double quotes
-  // Format: "~[first_name|last_name|email]:'searchterm'" (agents use 'email' not 'primary_email')
-  const queryString = `"~[first_name|last_name|email]:'${searchTerm}'"`;
+  // Format: "~[first_name|last_name]:'searchterm'" (focusing on names only)
+  const queryString = `"~[first_name|last_name]:'${searchTerm}'"`;
   
   console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} agent search with query:`, queryString);
   
@@ -5214,7 +5214,7 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
 
   // Use field-specific format for both requesters and agents API (since agents can be requesters too)
   // Use Freshservice API query syntax with proper double quotes
-  // Format: "~[first_name|last_name|primary_email]:'searchterm'"
+  // Format: "~[first_name|last_name]:'searchterm'" (focusing on names only)
   // Note: If server-side filtering fails, we rely on client-side filtering
   
   console.log(`${isRefresh ? 'Refreshing' : isLiveSearch ? 'Live searching' : 'Performing'} requester search for:`, searchTerm);
