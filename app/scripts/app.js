@@ -2683,7 +2683,7 @@ function performAgentSearchFallback(searchTerm, isRefresh = false, isLiveSearch 
           (async function() {
               const params = await getInstallationParams();
               const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-              const pageLimit = params.listAgentsPageLimit || 3; // Default to 3 pages
+              const pageLimit = params.listAgentsPageLimit || 10; // Default to 10 pages
               
               if (page < pageLimit) {
                 updateLoadingMessage('agent-results', `Loading more results... (page ${page + 1}/${pageLimit})`);
@@ -5385,7 +5385,7 @@ function performRequesterSearchFallback(searchTerm, isRefresh = false, isLiveSea
           (async function() {
               const params = await getInstallationParams();
               const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-              const pageLimit = params.listRequestersPageLimit || 3; // Default to 3 pages
+              const pageLimit = params.listRequestersPageLimit || 10; // Default to 10 pages
               
               if (page < pageLimit) {
                 updateLoadingMessage('requester-results', `Loading more requesters... (page ${page + 1}/${pageLimit})`);
@@ -5500,7 +5500,7 @@ function performRequesterSearchFallback(searchTerm, isRefresh = false, isLiveSea
           (async function() {
               const params = await getInstallationParams();
               const paginationDelay = params.paginationDelay || DEFAULT_PAGINATION_DELAY;
-              const pageLimit = params.listRequestersPageLimit || 3; // Default to 3 pages
+              const pageLimit = params.listRequestersPageLimit || 10; // Default to 10 pages
               
               if (page < pageLimit) {
                 updateLoadingMessage('requester-results', `Loading more results... (page ${page + 1}/${pageLimit})`);
