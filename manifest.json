@@ -12,7 +12,9 @@
 
       "requests": {
         "getRequesters": {},
+        "searchRequesters": {},
         "getAgents": {},
+        "searchAgents": {},
         "getAssets": {},
         "getAssetsByType": {},
         "getAssetDetails": {},

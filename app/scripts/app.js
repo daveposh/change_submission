@@ -5351,12 +5351,20 @@ function performParallelUserSearch(searchTerm, isRefresh = false, isLiveSearch =
   function loadAllRequesters(page, results) {
     console.log(`📄 Loading requesters page ${page} with server-side filtering for: ${searchTerm}`);
     
-    window.client.request.invokeTemplate("getRequesters", {
-      context: {
-        page: page,
-        per_page: 30,
-        searchTerm: searchTerm
-      },
+    const templateName = searchTerm && searchTerm.trim() ? "searchRequesters" : "getRequesters";
+    const context = {
+      page: page,
+      per_page: 30
+    };
+    
+    if (searchTerm && searchTerm.trim()) {
+      context.searchTerm = searchTerm;
+    }
+    
+    console.log(`🔍 Requester search using template: ${templateName} with context:`, context);
+    
+    window.client.request.invokeTemplate(templateName, {
+      context: context,
       cache: false
     })
     .then(function(data) {
@@ -5400,13 +5408,20 @@ function performParallelUserSearch(searchTerm, isRefresh = false, isLiveSearch =
   function loadAllAgents(page, results) {
     console.log(`👤 Loading agents page ${page} with server-side filtering for: ${searchTerm}`);
     
-    // Test: Load agents without search query first to see if they exist
-    window.client.request.invokeTemplate("getAgents", {
-      context: {
-        page: page,
-        per_page: 30
-        // Temporarily remove searchTerm to test basic agent loading
-      },
+    const templateName = searchTerm && searchTerm.trim() ? "searchAgents" : "getAgents";
+    const context = {
+      page: page,
+      per_page: 30
+    };
+    
+    if (searchTerm && searchTerm.trim()) {
+      context.searchTerm = searchTerm;
+    }
+    
+    console.log(`🔍 Agent search using template: ${templateName} with context:`, context);
+    
+    window.client.request.invokeTemplate(templateName, {
+      context: context,
       cache: true,
       ttl: 300000
     })
@@ -6903,3 +6918,75 @@ window.testCacheIssue = async function(searchTerm = "orlando") {
 };
 
 console.log('🧪 Added cache testing function. Run: await testCacheIssue("orlando") to test');
+
+// Add agent search testing function
+window.testAgentSearch = async function(searchTerm = "dav") {
+  console.log(`🧪 === TESTING AGENT SEARCH FOR "${searchTerm}" ===`);
+  
+  try {
+    // Test 1: Direct agent search with new template
+    console.log(`\n🔍 Test 1: Using searchAgents template`);
+    const response1 = await window.client.request.invokeTemplate("searchAgents", {
+      context: {
+        page: 1,
+        per_page: 30,
+        searchTerm: searchTerm
+      },
+      cache: false
+    });
+    
+    if (response1 && response1.response) {
+      const data1 = JSON.parse(response1.response);
+      const agents1 = data1.agents || [];
+      console.log(`📊 searchAgents template got ${agents1.length} agents`);
+      console.log(`📋 First 3 names: ${agents1.slice(0, 3).map(a => `${a.first_name} ${a.last_name}`).join(', ')}`);
+      
+      // Check if our search term appears
+      const matches1 = agents1.filter(a => {
+        const fullName = `${a.first_name || ''} ${a.last_name || ''}`.toLowerCase();
+        return fullName.includes(searchTerm.toLowerCase());
+      });
+      console.log(`✅ Found ${matches1.length} matches for "${searchTerm}" with searchAgents template`);
+      if (matches1.length > 0) {
+        console.log(`🎉 AGENT SEARCH IS WORKING! Matches:`, matches1.map(a => `${a.first_name} ${a.last_name}`));
+      }
+    }
+    
+    // Test 2: Basic agent listing to see if agents exist at all
+    console.log(`\n🔍 Test 2: Using getAgents template (no search)`);
+    const response2 = await window.client.request.invokeTemplate("getAgents", {
+      context: {
+        page: 1,
+        per_page: 30
+      },
+      cache: false
+    });
+    
+    if (response2 && response2.response) {
+      const data2 = JSON.parse(response2.response);
+      const agents2 = data2.agents || [];
+      console.log(`📊 getAgents template got ${agents2.length} agents`);
+      console.log(`📋 First 3 names: ${agents2.slice(0, 3).map(a => `${a.first_name} ${a.last_name}`).join(', ')}`);
+      
+      // Check if our search term appears in the full list
+      const matches2 = agents2.filter(a => {
+        const fullName = `${a.first_name || ''} ${a.last_name || ''}`.toLowerCase();
+        return fullName.includes(searchTerm.toLowerCase());
+      });
+      console.log(`✅ Found ${matches2.length} potential matches for "${searchTerm}" in full agent list`);
+      if (matches2.length > 0) {
+        console.log(`💡 Potential matches in full list:`, matches2.map(a => `${a.first_name} ${a.last_name}`));
+      }
+    }
+    
+    console.log(`\n💡 === RECOMMENDATIONS ===`);
+    console.log(`🔧 If Test 1 shows 0 results but Test 2 shows potential matches, then server-side filtering is broken`);
+    console.log(`🔧 If both tests show 0 results, then there are no agents matching "${searchTerm}"`);
+    console.log(`🔧 If Test 1 works, then the agent search is properly fixed!`);
+    
+  } catch (error) {
+    console.error('❌ Error testing agent search:', error);
+  }
+};
+
+console.log('🧪 Added agent search testing function. Run: await testAgentSearch("dav") to test');
