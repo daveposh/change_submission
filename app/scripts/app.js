@@ -5234,20 +5234,18 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
-    // Use context for pagination and path_suffix for complex query parameter
-    // Note: include_agents=true removed due to API permission limitations
-    const queryString = `"~[first_name|last_name]:'${searchTerm}'"`;
-    const encodedQuery = encodeURIComponent(queryString);
-    console.log('Requester search query:', queryString, 'page:', page);
+    // IMPORTANT: Server-side filtering is broken, so we fetch all users and filter client-side
+    // This is slower but actually works correctly
+    console.log('Requester search (client-side filtering):', searchTerm, 'page:', page);
     
     window.client.request.invokeTemplate("getRequesters", {
       context: {
         page: page,
         per_page: 30
       },
-      path_suffix: `?query=${encodedQuery}`,
-      cache: true,
-      ttl: 300000 // 5 minutes cache
+      // Add cache-busting parameter to ensure fresh data
+      path_suffix: `?_t=${Date.now()}`,
+      cache: false // Disable cache to test if caching is causing search issues
     })
     .then(function(data) {
       try {
@@ -5264,33 +5262,12 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         const agents = response && response.agents ? response.agents : [];
         console.log(`Requester search returned ${requesters.length} requesters and ${agents.length} agents`);
         
-        // Check if server-side filtering worked by looking for obvious matches
+        // Since we're using client-side filtering only, all filtering happens below
         const term = searchTerm.toLowerCase();
-        const hasObviousMatches = requesters.some(req => {
-          const fullName = `${req.first_name || ''} ${req.last_name || ''}`.toLowerCase();
-          const email = (req.primary_email || req.email || '').toLowerCase();
-          return fullName.startsWith(term) || email.startsWith(term);
-        }) || agents.some(agent => {
-          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
-          const email = (agent.email || '').toLowerCase();
-          return fullName.startsWith(term) || email.startsWith(term);
-        });
+        console.log(`🔍 Processing ${requesters.length} requesters and ${agents.length} agents with client-side filtering for "${searchTerm}"`);
         
-        // If we got 30 results but no obvious matches, server-side filtering likely failed
-        const serverFilteringFailed = (requesters.length === 30 || agents.length > 0) && !hasObviousMatches;
-        
-        if (serverFilteringFailed) {
-          console.warn(`⚠️ Server-side filtering appears to have failed for "${searchTerm}" - falling back to client-side filtering`);
-          console.log(`💡 Suggestion: Try searching for existing users like "adam", "agnes", or "ahmed" to test if search works`);
-          console.log(`🔍 Debug: include_agents=true returned ${agents.length} agents - this might be a permission or API issue`);
-          
-          // If include_agents=true isn't working, we should search agents separately
-          if (agents.length === 0) {
-            console.log(`💡 Recommendation: Try searching in the "Agent" field instead of "Requester" field to find agent users`);
-            console.log(`⚙️ API Limitation: include_agents=true requires "Manage Agents" permission which this API key lacks`);
-            console.log(`🔧 Workaround: Use separate agent search or request permission upgrade`);
-          }
-        }
+        // Note: Server-side filtering has been disabled due to API issues
+        // All filtering is now done client-side for reliability
         
         // Manual filtering for requesters (always do this as server-side may not work)
         const filteredRequesters = requesters.filter(requester => {
@@ -5413,19 +5390,17 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   
   // Function to search agents as potential requesters (since include_agents=true doesn't work)
   function loadAgentsAsRequesters(page = 1, existingResults = []) {
-    // Use context for pagination and path_suffix for complex query parameter
-    const queryString = `"~[first_name|last_name]:'${searchTerm}'"`;
-    const encodedQuery = encodeURIComponent(queryString);
-    console.log('Agent search query:', queryString, 'page:', page);
+    // IMPORTANT: Server-side filtering is broken, so we fetch all agents and filter client-side
+    console.log('Agent search (client-side filtering):', searchTerm, 'page:', page);
     
     window.client.request.invokeTemplate("getAgents", {
       context: {
         page: page,
         per_page: 30
       },
-      path_suffix: `?query=${encodedQuery}`,
-      cache: true,
-      ttl: 300000 // 5 minutes cache
+      // Add cache-busting parameter to ensure fresh data
+      path_suffix: `?_t=${Date.now()}`,
+      cache: false // Disable cache to test if caching is causing search issues
     })
     .then(function(data) {
       try {
@@ -6543,3 +6518,146 @@ window.testEnhancedUserCache = async function() {
     return null;
   }
 };
+
+// Add a test function to try different search approaches
+async function testSearchFormats(searchTerm) {
+  console.log(`🧪 Testing different search formats for "${searchTerm}"`);
+  
+  const formats = [
+    { name: 'Current format', query: `"~[first_name|last_name]:'${searchTerm}'"` },
+    { name: 'Simple contains', query: `first_name:*${searchTerm}* OR last_name:*${searchTerm}*` },
+    { name: 'Basic search', query: searchTerm },
+    { name: 'Name contains', query: `name:*${searchTerm}*` },
+    { name: 'No quotes', query: `~[first_name|last_name]:${searchTerm}` }
+  ];
+  
+  for (const format of formats) {
+    try {
+      console.log(`Testing ${format.name}: ${format.query}`);
+      const encodedQuery = encodeURIComponent(format.query);
+      
+      const response = await window.client.request.invokeTemplate("getRequesters", {
+        context: {
+          page: 1,
+          per_page: 5
+        },
+        path_suffix: `?query=${encodedQuery}`,
+        cache: false
+      });
+      
+      if (response && response.response) {
+        const data = JSON.parse(response.response);
+        const requesters = data.requesters || [];
+        const matchingCount = requesters.filter(r => {
+          const fullName = `${r.first_name || ''} ${r.last_name || ''}`.toLowerCase();
+          return fullName.includes(searchTerm.toLowerCase());
+        }).length;
+        
+        console.log(`${format.name}: Got ${requesters.length} total, ${matchingCount} matching results`);
+        if (matchingCount > 0) {
+          console.log(`✅ ${format.name} found matches!`);
+          return format;
+        }
+      }
+    } catch (error) {
+      console.log(`❌ ${format.name} failed:`, error.message);
+    }
+  }
+  
+  return null;
+}
+
+// Make test function available globally for debugging
+window.testSearchFormats = testSearchFormats;
+
+// Add cache debugging function
+window.testCacheIssue = async function(searchTerm = "orlando") {
+  console.log(`🧪 === TESTING CACHE ISSUE FOR "${searchTerm}" ===`);
+  
+  try {
+    // Test 1: Direct API call without cache
+    console.log(`\n🔍 Test 1: Direct API call without cache (page 1)`);
+    const response1 = await window.client.request.invokeTemplate("getRequesters", {
+      context: { page: 1, per_page: 30 },
+      path_suffix: `?_t=${Date.now()}`,
+      cache: false
+    });
+    
+    if (response1 && response1.response) {
+      const data1 = JSON.parse(response1.response);
+      const requesters1 = data1.requesters || [];
+      console.log(`📊 Got ${requesters1.length} requesters on page 1`);
+      console.log(`📋 First 3 names: ${requesters1.slice(0, 3).map(r => `${r.first_name} ${r.last_name}`).join(', ')}`);
+      
+      // Check if our search term appears
+      const matches1 = requesters1.filter(r => {
+        const fullName = `${r.first_name || ''} ${r.last_name || ''}`.toLowerCase();
+        return fullName.includes(searchTerm.toLowerCase());
+      });
+      console.log(`✅ Found ${matches1.length} matches for "${searchTerm}" on page 1`);
+    }
+    
+    // Test 2: Try a different page to see if names change
+    console.log(`\n🔍 Test 2: Direct API call without cache (page 5)`);
+    const response2 = await window.client.request.invokeTemplate("getRequesters", {
+      context: { page: 5, per_page: 30 },
+      path_suffix: `?_t=${Date.now()}`,
+      cache: false
+    });
+    
+    if (response2 && response2.response) {
+      const data2 = JSON.parse(response2.response);
+      const requesters2 = data2.requesters || [];
+      console.log(`📊 Got ${requesters2.length} requesters on page 5`);
+      console.log(`📋 First 3 names: ${requesters2.slice(0, 3).map(r => `${r.first_name} ${r.last_name}`).join(', ')}`);
+      
+      // Check if our search term appears
+      const matches2 = requesters2.filter(r => {
+        const fullName = `${r.first_name || ''} ${r.last_name || ''}`.toLowerCase();
+        return fullName.includes(searchTerm.toLowerCase());
+      });
+      console.log(`✅ Found ${matches2.length} matches for "${searchTerm}" on page 5`);
+    }
+    
+    // Test 3: Try with original search query to see if server-side filtering works now
+    console.log(`\n🔍 Test 3: Testing server-side filtering with query parameter`);
+    const queryString = `"~[first_name|last_name]:'${searchTerm}'"`;
+    const encodedQuery = encodeURIComponent(queryString);
+    
+    const response3 = await window.client.request.invokeTemplate("getRequesters", {
+      context: { page: 1, per_page: 30 },
+      path_suffix: `?query=${encodedQuery}&_t=${Date.now()}`,
+      cache: false
+    });
+    
+    if (response3 && response3.response) {
+      const data3 = JSON.parse(response3.response);
+      const requesters3 = data3.requesters || [];
+      console.log(`📊 Got ${requesters3.length} requesters with server-side query`);
+      console.log(`📋 First 3 names: ${requesters3.slice(0, 3).map(r => `${r.first_name} ${r.last_name}`).join(', ')}`);
+      
+      // Check if our search term appears
+      const matches3 = requesters3.filter(r => {
+        const fullName = `${r.first_name || ''} ${r.last_name || ''}`.toLowerCase();
+        return fullName.includes(searchTerm.toLowerCase());
+      });
+      console.log(`✅ Found ${matches3.length} matches for "${searchTerm}" with server-side filtering`);
+      
+      if (matches3.length > 0) {
+        console.log(`🎉 SERVER-SIDE FILTERING IS WORKING! Try re-enabling it in the search code.`);
+      } else {
+        console.log(`❌ Server-side filtering still not working. Client-side filtering is the right approach.`);
+      }
+    }
+    
+    console.log(`\n💡 === RECOMMENDATIONS ===`);
+    console.log(`🔧 The search should now work better with cache disabled`);
+    console.log(`🔍 Try searching for "${searchTerm}" in the UI to see if it works now`);
+    console.log(`📄 With 10-page pagination, you should be able to find users later in the alphabet`);
+    
+  } catch (error) {
+    console.error('❌ Error testing cache issue:', error);
+  }
+};
+
+console.log('🧪 Added cache testing function. Run: await testCacheIssue("orlando") to test');
