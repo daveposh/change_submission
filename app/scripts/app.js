@@ -2615,57 +2615,14 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
     }
   }
 
-  // Use Server Method Invocation for agent search
-  console.log('🚀 Using Server Method Invocation for agent search');
-  
-  window.client.request.invoke("searchAgents", {
-    searchTerm: searchTerm,
-    maxPages: 10
-  }).then(function(data) {
-    try {
-      console.log('✅ SMI Agent Search response:', data);
-      
-      if (!data || !data.response) {
-        console.error('No response data from SMI agent search');
-        finalizeAgentSearch(searchTerm, [], isRefresh);
-        return;
-      }
-      
-      const response = data.response;
-      const agents = response.agents || [];
-      
-      console.log(`🔍 SMI Agent Search found ${agents.length} agents for "${searchTerm}"`);
-      
-      // Cache the results for faster subsequent searches
-      addToSearchCache('agents', searchTerm, agents);
-      
-      // Finalize the search with the results
-      finalizeAgentSearch(searchTerm, agents, isRefresh);
-      
-    } catch (error) {
-      console.error('❌ Error processing SMI agent search response:', error);
-      finalizeAgentSearch(searchTerm, [], isRefresh);
-    }
-  }).catch(function(error) {
-    console.error('❌ SMI Agent Search failed:', error);
-    console.log('📋 Error details:', {
-      requestID: error.requestID,
-      status: error.status,
-      message: error.message
-    });
-    
-    // Fallback to original search method if SMI fails
-    console.log('🔄 Falling back to original agent search method...');
-    performAgentSearchFallback(searchTerm, isRefresh, isLiveSearch);
-  });
+  // Use client-side filtering approach (server-side filtering is broken)
+  console.log('🔍 Using client-side filtering for agent search');
+  performAgentSearchFallback(searchTerm, isRefresh, isLiveSearch);
 }
 
 // Fallback function using the original agent search method
 function performAgentSearchFallback(searchTerm, isRefresh = false, isLiveSearch = false) {
   console.log('🔄 Using fallback agent search method for:', searchTerm);
-  
-  const queryString = `"~[first_name|last_name]:'${searchTerm}'"`;
-  console.log('Agent search with query:', queryString);
   
   // Show appropriate loading indicator
   if (!isRefresh) {
@@ -2680,14 +2637,14 @@ function performAgentSearchFallback(searchTerm, isRefresh = false, isLiveSearch 
   
   // Function to load agent results from a specific page
   function loadAgentsPage(page = 1, allResults = []) {
-    // Use context for pagination and path_suffix for complex query parameter
-    const encodedQuery = encodeURIComponent(queryString);
-    console.log('Agent search query:', queryString, 'page:', page);
+    // Load all agents without server-side filtering (which is broken)
+    const pathSuffix = `?page=${page}&per_page=30`;
+    console.log('🔄 Fallback: Loading agents page', page, 'for client-side filtering of:', searchTerm);
     
     window.client.request.invokeTemplate("getAgents", {
       context: {},
-      // Include all query parameters in path_suffix
-      path_suffix: `?page=${page}&per_page=30&query=${encodedQuery}`,
+      // Load all agents without server-side filtering
+      path_suffix: pathSuffix,
       cache: true,
       ttl: 300000 // 5 minutes cache
     })
@@ -5283,50 +5240,9 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
     }
   }
 
-  // Use Server Method Invocation for proper search functionality
-  console.log('🚀 Using Server Method Invocation for user search');
-  
-  window.client.request.invoke("searchUsers", {
-    searchTerm: searchTerm,
-    maxPages: 10
-  }).then(function(data) {
-    try {
-      console.log('✅ SMI Search response:', data);
-      
-      if (!data || !data.response) {
-        console.error('No response data from SMI search');
-        finalizeRequesterSearch(searchTerm, [], isRefresh);
-        return;
-      }
-      
-      const response = data.response;
-      const combinedResults = response.combined || [];
-      
-      console.log(`🔍 SMI Search found ${combinedResults.length} total users for "${searchTerm}"`);
-      console.log(`📊 Breakdown: ${response.requesters?.length || 0} requesters, ${response.agents?.length || 0} agents`);
-      
-      // Cache the results for faster subsequent searches
-      addToSearchCache('requesters', searchTerm, combinedResults);
-      
-      // Finalize the search with the combined results
-      finalizeRequesterSearch(searchTerm, combinedResults, isRefresh);
-      
-    } catch (error) {
-      console.error('❌ Error processing SMI search response:', error);
-      finalizeRequesterSearch(searchTerm, [], isRefresh);
-    }
-  }).catch(function(error) {
-    console.error('❌ SMI Search failed:', error);
-    console.log('📋 Error details:', {
-      requestID: error.requestID,
-      status: error.status,
-      message: error.message
-    });
-    
-    // Fallback to original search method if SMI fails
-    console.log('🔄 Falling back to original search method...');
-    performRequesterSearchFallback(searchTerm, isRefresh, isLiveSearch);
-  });
+  // Use client-side filtering approach (server-side filtering is broken)
+  console.log('🔍 Using client-side filtering for user search');
+  performRequesterSearchFallback(searchTerm, isRefresh, isLiveSearch);
 }
 
 // Fallback function using the original search method
@@ -5348,10 +5264,10 @@ function performRequesterSearchFallback(searchTerm, isRefresh = false, isLiveSea
   
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
-    // Server-side filtering is broken - load all users and filter client-side
+    // Load all users without server-side filtering (which is broken)
     const pathSuffix = `?page=${page}&per_page=30`;
-    console.log('Requester search with client-side filtering:', searchTerm, 'page:', page);
-    console.log('🔍 Path suffix (no query):', pathSuffix);
+    console.log('🔄 Fallback: Loading requesters page', page, 'for client-side filtering of:', searchTerm);
+    console.log('🔍 Path suffix (no server-side query):', pathSuffix);
     
     window.client.request.invokeTemplate("getRequesters", {
       context: {},
@@ -5514,12 +5430,10 @@ function performRequesterSearchFallback(searchTerm, isRefresh = false, isLiveSea
   
   // Function to search agents as potential requesters (since include_agents=true doesn't work)
   function loadAgentsAsRequesters(page = 1, existingResults = []) {
-    // Using server-side filtering with correct API query format
-    const queryParam = `"~[first_name|last_name]:'${searchTerm}'"`;
-    const pathSuffix = `?page=${page}&per_page=30&query=${encodeURIComponent(queryParam)}`;
-    console.log('Agent search with server-side filtering:', searchTerm, 'page:', page);
-    console.log('🔍 Agent path suffix:', pathSuffix);
-    console.log('🔍 Agent query parameter:', queryParam);
+    // Load all agents without server-side filtering (which is broken)
+    const pathSuffix = `?page=${page}&per_page=30`;
+    console.log('🔄 Fallback: Loading agents page', page, 'for client-side filtering of:', searchTerm);
+    console.log('🔍 Agent path suffix (no server-side query):', pathSuffix);
     
     window.client.request.invokeTemplate("getAgents", {
       context: {},

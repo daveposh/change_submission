@@ -9,11 +9,7 @@
           "name": "Change Request"
         }
       },
-      "functions": {
-        "searchUsers": {},
-        "searchRequesters": {},
-        "searchAgents": {}
-      },
+
       "requests": {
         "getRequesters": {},
         "getAgents": {},
