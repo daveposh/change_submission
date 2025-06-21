@@ -5234,18 +5234,17 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
-    // IMPORTANT: Server-side filtering is broken, so we fetch all users and filter client-side
-    // This is slower but actually works correctly
-    console.log('Requester search (client-side filtering):', searchTerm, 'page:', page);
+    // Using server-side filtering with correct API query format
+    console.log('Requester search with server-side filtering:', searchTerm, 'page:', page);
     
     window.client.request.invokeTemplate("getRequesters", {
       context: {
         page: page,
         per_page: 30
       },
-      // Add cache-busting parameter to ensure fresh data
-      path_suffix: `?_t=${Date.now()}`,
-      cache: false // Disable cache to test if caching is causing search issues
+      // Use correct query format as per API documentation
+      path_suffix: `?query="~[first_name|last_name]:'${searchTerm}'"&_t=${Date.now()}`,
+      cache: false // Keep cache disabled to avoid stale results
     })
     .then(function(data) {
       try {
@@ -5262,12 +5261,24 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
         const agents = response && response.agents ? response.agents : [];
         console.log(`Requester search returned ${requesters.length} requesters and ${agents.length} agents`);
         
-        // Since we're using client-side filtering only, all filtering happens below
+        // Server-side filtering should now work with correct query format
         const term = searchTerm.toLowerCase();
-        console.log(`🔍 Processing ${requesters.length} requesters and ${agents.length} agents with client-side filtering for "${searchTerm}"`);
+        console.log(`🔍 Processing ${requesters.length} requesters and ${agents.length} agents for "${searchTerm}"`);
         
-        // Note: Server-side filtering has been disabled due to API issues
-        // All filtering is now done client-side for reliability
+        // Check if server-side filtering worked
+        const hasMatches = requesters.some(req => {
+          const fullName = `${req.first_name || ''} ${req.last_name || ''}`.toLowerCase();
+          return fullName.includes(term);
+        }) || agents.some(agent => {
+          const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.toLowerCase();
+          return fullName.includes(term);
+        });
+        
+        if (requesters.length > 0 && !hasMatches) {
+          console.warn(`⚠️ Server-side filtering may have failed - no obvious matches found`);
+        } else if (hasMatches) {
+          console.log(`✅ Server-side filtering appears to be working correctly`);
+        }
         
         // Manual filtering for requesters (always do this as server-side may not work)
         const filteredRequesters = requesters.filter(requester => {
@@ -5390,17 +5401,17 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   
   // Function to search agents as potential requesters (since include_agents=true doesn't work)
   function loadAgentsAsRequesters(page = 1, existingResults = []) {
-    // IMPORTANT: Server-side filtering is broken, so we fetch all agents and filter client-side
-    console.log('Agent search (client-side filtering):', searchTerm, 'page:', page);
+    // Using server-side filtering with correct API query format
+    console.log('Agent search with server-side filtering:', searchTerm, 'page:', page);
     
     window.client.request.invokeTemplate("getAgents", {
       context: {
         page: page,
         per_page: 30
       },
-      // Add cache-busting parameter to ensure fresh data
-      path_suffix: `?_t=${Date.now()}`,
-      cache: false // Disable cache to test if caching is causing search issues
+      // Use correct query format as per API documentation
+      path_suffix: `?query="~[first_name|last_name]:'${searchTerm}'"&_t=${Date.now()}`,
+      cache: false // Keep cache disabled to avoid stale results
     })
     .then(function(data) {
       try {

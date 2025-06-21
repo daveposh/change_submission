@@ -1714,30 +1714,30 @@ const ChangeSubmission = {
       });
     }
     
-                  if (riskAssessment.testing >= 3) {
-        actions.push({
-          icon: '🧪',
-          text: 'Enhanced testing validation recommended',
-          color: '#20c997'
-        });
-      }
-      
-      if (riskAssessment.rollback >= 3) {
-        actions.push({
-          icon: '↩️',
-          text: 'Rollback plan development required',
-          color: '#e83e8c'
-        });
-      }
-      
-      if (riskAssessment.complexity >= 3) {
-        actions.push({
-          icon: '⚙️',
-          text: 'Technical architecture review suggested',
-          color: '#6c757d'
-        });
-      }
-      
+    if (riskAssessment.testing >= 3) {
+      actions.push({
+        icon: '🧪',
+        text: 'Enhanced testing validation recommended',
+        color: '#20c997'
+      });
+    }
+    
+    if (riskAssessment.rollback >= 3) {
+      actions.push({
+        icon: '↩️',
+        text: 'Rollback plan development required',
+        color: '#e83e8c'
+      });
+    }
+    
+    if (riskAssessment.complexity >= 3) {
+      actions.push({
+        icon: '⚙️',
+        text: 'Technical architecture review suggested',
+        color: '#6c757d'
+      });
+    }
+    
       // Add technical owner approval notice for all risk levels
       actions.push({
         icon: '✅',
@@ -2360,22 +2360,22 @@ const ChangeSubmission = {
     body += `<p><strong>Title:</strong> ${changeRequest.subject}</p>`;
     body += `<p><strong>Requester:</strong> ${data.selectedRequester?.name || data.selectedRequester?.first_name + ' ' + data.selectedRequester?.last_name || 'Unknown'}</p>`;
     
-          if (riskAssessment) {
-        const riskColor = this.getRiskColor(riskAssessment.riskLevel);
-        body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
-        
-        // Add risk level explanation and workflow status in notifications
-        body += `<div style="background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid ${riskColor}; margin-top: 10px;">`;
-        body += `<div style="font-size: 13px; color: #495057;">`;
-        if (riskAssessment.riskLevel === 'High') {
-          body += `<strong>High Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner and CAB approval. Final status will be "Scheduled" when ready for implementation.`;
-        } else if (riskAssessment.riskLevel === 'Medium') {
+    if (riskAssessment) {
+      const riskColor = this.getRiskColor(riskAssessment.riskLevel);
+      body += `<p><strong>Risk Level:</strong> <span style="background-color: ${riskColor}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${riskAssessment.riskLevel?.toUpperCase()}</span> (${riskAssessment.totalScore}/15)</p>`;
+      
+      // Add risk level explanation and workflow status in notifications
+      body += `<div style="background: #f8f9fa; padding: 10px; border-radius: 4px; border-left: 3px solid ${riskColor}; margin-top: 10px;">`;
+      body += `<div style="font-size: 13px; color: #495057;">`;
+      if (riskAssessment.riskLevel === 'High') {
+        body += `<strong>High Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner and CAB approval. Final status will be "Scheduled" when ready for implementation.`;
+      } else if (riskAssessment.riskLevel === 'Medium') {
           body += `<strong>Medium Risk:</strong> This change starts in "Pending Review" status and requires mandatory peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
-        } else {
-          body += `<strong>Low Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
-        }
-        body += `</div></div>`;
+      } else {
+        body += `<strong>Low Risk:</strong> This change starts in "Pending Review" status and requires peer review coordination before moving to "Pending Approval" for technical owner approval. Final status will be "Scheduled" when ready for implementation.`;
       }
+      body += `</div></div>`;
+    }
     
     body += `</div>`;
     
@@ -2865,8 +2865,8 @@ const ChangeSubmission = {
           
           // Show user-friendly retry option
           this.showTaskCreationFailure(changeRequest, agentSME, riskAssessment, taskData);
-          return null;
-        }
+      return null;
+    }
         
         console.log(`⏳ Will retry task creation (attempt ${attempt + 1}/${maxRetries})...`);
       }
