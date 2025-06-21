@@ -5240,7 +5240,8 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
     window.client.request.invokeTemplate("getRequesters", {
       context: {
         page: page,
-        per_page: 30
+        per_page: 30,
+        search_query: `"~[first_name|last_name]:'${searchTerm}'"`
       },
       // Use correct query format with proper URL encoding
       path_suffix: `?query=${encodeURIComponent(`"~[first_name|last_name]:'${searchTerm}'"`)}`,
