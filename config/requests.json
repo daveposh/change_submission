@@ -121,6 +121,22 @@
       }
     }
   },
+  "searchAssets": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/assets",
+      "query": {
+        "search": "\"<%= context.searchField %>:'<%= context.searchTerm %>'\"",
+        "include": "<%= context.include_fields %>"
+      },
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    }
+  },
   "getAssetDetails": {
     "schema": {
       "method": "GET",
@@ -301,6 +317,26 @@
       "path": "/api/v2/assets",
       "query": {
         "filter": "\"<%= context.filter_query %>\"",
+        "page": "<%= context.page || '1' %>",
+        "include": "<%= context.include %>"
+      },
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    },
+    "options": {
+      "isOAuth": false
+    }
+  },
+  "filterAssetsByType": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/assets",
+      "query": {
+        "filter": "\"asset_type_id:<%= context.assetTypeId %>\"",
         "page": "<%= context.page || '1' %>",
         "include": "<%= context.include %>"
       },

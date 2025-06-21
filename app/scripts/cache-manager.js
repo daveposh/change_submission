@@ -436,9 +436,9 @@ const CacheManager = {
             console.log(`   📄 Fetching assets for asset type ID ${typeId}...`);
             
             // Use single asset type filter
-            const response = await window.client.request.invokeTemplate('getAssetsByType', {
+            const response = await window.client.request.invokeTemplate('filterAssetsByType', {
               context: {
-                filter_query: `asset_type_id:${typeId}`,
+                assetTypeId: typeId,
                 include: 'type_fields',
                 page: '1'
               },
@@ -975,12 +975,12 @@ const CacheManager = {
         console.log(`📡 CacheManager: Using filter for asset_type_id search: ${searchString}`);
         
         const templateContext = {
-          filter_query: `asset_type_id:${searchString}`,
+          assetTypeId: searchString,
           include: 'type_fields',
           page: '1'
         };
         
-        const response = await window.client.request.invokeTemplate('getAssetsByType', {
+        const response = await window.client.request.invokeTemplate('filterAssetsByType', {
           context: templateContext,
           cache: true,
           ttl: 180000 // 3 minutes cache for asset searches
@@ -1012,26 +1012,29 @@ const CacheManager = {
       console.log(`📡 CacheManager: Using simple search for '${searchString}'`);
       
       // Use the format the API expects: "search_field:'search_term'"
-      let searchQuery;
-      if (searchField === 'name') {
-        searchQuery = `name:'${searchString}'`;
-      } else if (searchField === 'type_fields') {
-        // For type_fields searches, just use the search term without field specification
-        // This is more likely to work with the API than trying to search within JSON fields
-        searchQuery = searchString;
+      // Use the new searchAssets template with proper parameter separation
+      let templateName, templateContext;
+      
+      if (searchField === 'type_fields') {
+        // For type_fields searches, use simple search without field specification
+        templateName = 'getAssets';
+        templateContext = {
+          search_query: searchString,
+          include_fields: 'type_fields'
+        };
       } else {
-        // For other fields, use the field:term format
-        searchQuery = `${searchField}:'${searchString}'`;
+        // For field-specific searches, use the new searchAssets template
+        templateName = 'searchAssets';
+        templateContext = {
+          searchField: searchField,
+          searchTerm: searchString,
+          include_fields: 'type_fields'
+        };
       }
       
-      console.log(`🔍 Search query: "${searchQuery}"`);
+      console.log(`🔍 Using template: ${templateName} with context:`, templateContext);
       
-      const templateContext = {
-        search_query: searchQuery,
-        include_fields: 'type_fields'
-      };
-      
-      const response = await window.client.request.invokeTemplate('getAssets', {
+      const response = await window.client.request.invokeTemplate(templateName, {
         context: templateContext,
         cache: true,
         ttl: 180000 // 3 minutes cache for asset searches
@@ -1090,9 +1093,10 @@ const CacheManager = {
         console.log('🔄 CacheManager: Retrying type_fields search with name-based approach...');
         try {
           // Fallback: search by name instead since type_fields search failed
-          const fallbackResponse = await window.client.request.invokeTemplate('getAssets', {
+          const fallbackResponse = await window.client.request.invokeTemplate('searchAssets', {
             context: {
-              search_query: `name:'${searchString}'`,
+              searchField: 'name',
+              searchTerm: searchString,
               include_fields: 'type_fields'
             },
             cache: true,
