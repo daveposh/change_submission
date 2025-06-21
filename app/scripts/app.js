@@ -5400,11 +5400,12 @@ function performParallelUserSearch(searchTerm, isRefresh = false, isLiveSearch =
   function loadAllAgents(page, results) {
     console.log(`👤 Loading agents page ${page} with server-side filtering for: ${searchTerm}`);
     
+    // Test: Load agents without search query first to see if they exist
     window.client.request.invokeTemplate("getAgents", {
       context: {
         page: page,
-        per_page: 30,
-        searchTerm: searchTerm
+        per_page: 30
+        // Temporarily remove searchTerm to test basic agent loading
       },
       cache: true,
       ttl: 300000

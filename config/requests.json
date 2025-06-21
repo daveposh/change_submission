@@ -7,6 +7,22 @@
       "path": "/api/v2/requesters",
       "query": {
         "page": "<%= context.page || '1' %>",
+        "per_page": "<%= context.per_page || '30' %>"
+      },
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    }
+  },
+  "searchRequesters": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/requesters",
+      "query": {
+        "page": "<%= context.page || '1' %>",
         "per_page": "<%= context.per_page || '30' %>",
         "query": "\"~[first_name|last_name]:'<%= context.searchTerm %>'\""
       },
@@ -17,6 +33,22 @@
     }
   },
   "getAgents": {
+    "schema": {
+      "method": "GET",
+      "protocol": "https",
+      "host": "<%=iparam.freshservice_domain%>",
+      "path": "/api/v2/agents",
+      "query": {
+        "page": "<%= context.page || '1' %>",
+        "per_page": "<%= context.per_page || '30' %>"
+      },
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Basic <%= encode(iparam.api_key + ':X') %>"
+      }
+    }
+  },
+  "searchAgents": {
     "schema": {
       "method": "GET",
       "protocol": "https",
