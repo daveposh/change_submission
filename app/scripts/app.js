@@ -2627,11 +2627,9 @@ function performAgentSearch(searchTerm, isRefresh = false, isLiveSearch = false)
     console.log('Agent search query:', queryString, 'page:', page);
     
     window.client.request.invokeTemplate("getAgents", {
-      context: {
-        page: page,
-        per_page: 30
-      },
-      path_suffix: `?query=${encodedQuery}`,
+      context: {},
+      // Include all query parameters in path_suffix
+      path_suffix: `?page=${page}&per_page=30&query=${encodedQuery}`,
       cache: true,
       ttl: 300000 // 5 minutes cache
     })
@@ -5235,15 +5233,16 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   // Function to load requester results from a specific page
   function loadRequestersPage(page = 1, allResults = []) {
     // Using server-side filtering with correct API query format
+    const queryParam = `"~[first_name|last_name]:'${searchTerm}'"`;
+    const pathSuffix = `?page=${page}&per_page=30&query=${encodeURIComponent(queryParam)}`;
     console.log('Requester search with server-side filtering:', searchTerm, 'page:', page);
+    console.log('🔍 Full path suffix:', pathSuffix);
+    console.log('🔍 Query parameter:', queryParam);
     
     window.client.request.invokeTemplate("getRequesters", {
-      context: {
-        page: page,
-        per_page: 30
-      },
-      // Use correct query format with proper URL encoding
-      path_suffix: `?query=${encodeURIComponent(`"~[first_name|last_name]:'${searchTerm}'"`)}`,
+      context: {},
+      // Include all query parameters in path_suffix
+      path_suffix: pathSuffix,
       cache: false // Keep cache disabled to avoid stale results
     })
     .then(function(data) {
@@ -5402,15 +5401,16 @@ function performRequesterSearch(searchTerm, isRefresh = false, isLiveSearch = fa
   // Function to search agents as potential requesters (since include_agents=true doesn't work)
   function loadAgentsAsRequesters(page = 1, existingResults = []) {
     // Using server-side filtering with correct API query format
+    const queryParam = `"~[first_name|last_name]:'${searchTerm}'"`;
+    const pathSuffix = `?page=${page}&per_page=30&query=${encodeURIComponent(queryParam)}`;
     console.log('Agent search with server-side filtering:', searchTerm, 'page:', page);
+    console.log('🔍 Agent path suffix:', pathSuffix);
+    console.log('🔍 Agent query parameter:', queryParam);
     
     window.client.request.invokeTemplate("getAgents", {
-      context: {
-        page: page,
-        per_page: 30
-      },
-      // Use correct query format with proper URL encoding
-      path_suffix: `?query=${encodeURIComponent(`"~[first_name|last_name]:'${searchTerm}'"`)}`,
+      context: {},
+      // Include all query parameters in path_suffix
+      path_suffix: pathSuffix,
       cache: false // Keep cache disabled to avoid stale results
     })
     .then(function(data) {
