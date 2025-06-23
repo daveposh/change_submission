@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Change Management Application - Knowledge Base</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            color: #34495e;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        
+        h3 {
+            color: #555;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+        
+        .toc {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        
+        .toc h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        
+        .toc ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .toc a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        
+        .alert {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+        
+        .alert-info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+        
+        .alert-warning {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        
+        .alert-danger {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+        
+        .badge-low { background-color: #28a745; color: white; }
+        .badge-medium { background-color: #ffc107; color: #212529; }
+        .badge-high { background-color: #dc3545; color: white; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .workflow-step {
+            background: #e8f4f8;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .workflow-step h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+        
+        code {
+            background-color: #f1f2f6;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e74c3c;
+        }
+        
+        pre {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .feature-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .feature-card h4 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+        
+        .process-flow {
+            background: linear-gradient(90deg, #3498db, #2980b9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .contact-info {
+            background: #e8f5e8;
+            padding: 20px;
+            border-radius: 5px;
+            border: 1px solid #c8e6c9;
+            margin-top: 30px;
+        }
+        
+        .checklist {
+            background: #fff8e1;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }
+        
+        .checklist ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .config-section {
+            background: #f0f8ff;
+            padding: 20px;
+            border-radius: 5px;
+            border: 1px solid #b3d9ff;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Change Management Application - Knowledge Base</h1>
+        
+        <div class="alert alert-info">
+            <strong>📖 About This Knowledge Base:</strong> This comprehensive guide covers the Freshservice Change Management Application, a Freshworks FDK-powered tool that automates change request creation, risk assessment, and approval workflows.
+        </div>
+
+        <div class="toc">
+            <h3>📋 Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">Application Overview</a></li>
+                <li><a href="#features">Key Features</a></li>
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#user-guide">User Guide</a></li>
+                <li><a href="#risk-assessment">Risk Assessment</a></li>
+                <li><a href="#approval-workflow">Approval Workflow</a></li>
+                <li><a href="#configuration">Configuration</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+                <li><a href="#support">Support & Contact</a></li>
+            </ul>
+        </div>
+
+        <h2 id="overview">🎯 Application Overview</h2>
+        
+        <p>The Change Management Application is a comprehensive Freshworks FDK-built solution that transforms the way organizations handle IT change requests. Built specifically for Freshservice, it provides a structured, automated approach to change management with risk-based approval workflows.</p>
+        
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h4>🔄 Automated Workflows</h4>
+                <p>Risk-based routing with automatic state transitions and approval coordination.</p>
+            </div>
+            <div class="feature-card">
+                <h4>📊 Smart Risk Assessment</h4>
+                <p>5-factor scoring system with automated risk level determination and appropriate routing.</p>
+            </div>
+            <div class="feature-card">
+                <h4>🎯 Asset Integration</h4>
+                <p>Comprehensive asset association with automatic stakeholder identification.</p>
+            </div>
+            <div class="feature-card">
+                <h4>💾 Auto-Save Feature</h4>
+                <p>Persistent draft storage allows users to save progress and resume later.</p>
+            </div>
+        </div>
+
+        <h2 id="features">✨ Key Features</h2>
+
+        <h3>🗂️ Three-Tab Interface</h3>
+        <ul>
+            <li><strong>Change Details:</strong> Basic change information, requester/agent selection, implementation planning</li>
+            <li><strong>Risk Assessment:</strong> 5-factor risk evaluation with automated scoring</li>
+            <li><strong>Impacted Assets:</strong> Asset/service search and association with stakeholder identification</li>
+        </ul>
+
+        <h3>🎛️ Advanced Capabilities</h3>
+        <ul>
+            <li><strong>API-Powered Search:</strong> Real-time search for requesters, agents, assets, and services</li>
+            <li><strong>Automated Lead Time:</strong> Calculation based on change type and risk level</li>
+            <li><strong>Stakeholder Notifications:</strong> Automatic identification and notification of technical owners</li>
+            <li><strong>Workflow Automation:</strong> Freshservice workflow triggers based on peer review completion</li>
+            <li><strong>Data Persistence:</strong> Auto-save functionality with draft management</li>
+        </ul>
+
+        <h2 id="getting-started">🚀 Getting Started</h2>
+
+        <div class="alert alert-info">
+            <strong>📝 Prerequisites:</strong> Access to Freshservice instance, appropriate user permissions, and basic understanding of your organization's IT assets.
+        </div>
+
+        <h3>Initial Setup</h3>
+        <ol>
+            <li><strong>Access the Application:</strong> Navigate to the Change Request app in your Freshservice instance</li>
+            <li><strong>Verify Permissions:</strong> Ensure you have requester or agent permissions</li>
+            <li><strong>Understand Your Environment:</strong> Familiarize yourself with available assets and services</li>
+        </ol>
+
+        <h2 id="user-guide">📖 User Guide</h2>
+
+        <h3>Step-by-Step Process</h3>
+
+        <div class="workflow-step">
+            <h4>Step 1: Change Details</h4>
+            <p><strong>Purpose:</strong> Define basic change information and planning</p>
+            <ul>
+                <li>Complete change title and description</li>
+                <li>Select change type (Normal/Emergency)</li>
+                <li>Choose requester and assigned agent</li>
+                <li>Define implementation, validation, and backout plans</li>
+                <li>Set planned start/end dates</li>
+            </ul>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 2: Risk Assessment</h4>
+            <p><strong>Purpose:</strong> Evaluate change risk using standardized criteria</p>
+            <p>Complete assessment across 5 factors (each scored 1-3):</p>
+            <ul>
+                <li><strong>Business Impact:</strong> Effect on business operations</li>
+                <li><strong>Affected Users:</strong> Number of users impacted</li>
+                <li><strong>Complexity:</strong> Technical complexity level</li>
+                <li><strong>Testing Level:</strong> Extent of testing performed</li>
+                <li><strong>Rollback Capability:</strong> Ease of rollback procedures</li>
+            </ul>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 3: Impacted Assets</h4>
+            <p><strong>Purpose:</strong> Associate assets and identify stakeholders</p>
+            <ul>
+                <li>Use services dropdown for quick selection of configured asset types</li>
+                <li>Search for additional assets using the general search</li>
+                <li>Review automatically identified technical owners</li>
+                <li>Verify stakeholder completeness</li>
+            </ul>
+        </div>
+
+        <div class="workflow-step">
+            <h4>Step 4: Review & Submit</h4>
+            <p><strong>Purpose:</strong> Final validation and submission</p>
+            <ul>
+                <li>Review comprehensive change summary</li>
+                <li>Verify risk assessment and asset associations</li>
+                <li>Confirm implementation readiness</li>
+                <li>Submit for processing</li>
+            </ul>
+        </div>
+
+        <h2 id="risk-assessment">⚠️ Risk Assessment</h2>
+
+        <h3>Risk Scoring Matrix</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Criteria</th>
+                    <th>Score 1 (Low)</th>
+                    <th>Score 2 (Medium)</th>
+                    <th>Score 3 (High)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Business Impact</strong></td>
+                    <td>Minimal impact, isolated system</td>
+                    <td>Moderate impact, affects department</td>
+                    <td>High impact, multiple departments/customers</td>
+                </tr>
+                <tr>
+                    <td><strong>Affected Users</strong></td>
+                    <td>&lt; 50 users</td>
+                    <td>50-200 users</td>
+                    <td>&gt; 200 users</td>
+                </tr>
+                <tr>
+                    <td><strong>Complexity</strong></td>
+                    <td>Simple, routine change</td>
+                    <td>Moderate complexity, standard procedure</td>
+                    <td>Complex, multiple systems/teams</td>
+                </tr>
+                <tr>
+                    <td><strong>Testing Level</strong></td>
+                    <td>Comprehensive testing</td>
+                    <td>Limited testing, some risk</td>
+                    <td>Minimal testing, high uncertainty</td>
+                </tr>
+                <tr>
+                    <td><strong>Rollback Capability</strong></td>
+                    <td>Easy rollback, automated</td>
+                    <td>Moderate rollback complexity</td>
+                    <td>Difficult rollback, potential data loss</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Risk Level Determination</h3>
+        <div style="margin: 20px 0;">
+            <div style="display: flex; align-items: center; margin: 10px 0;">
+                <span class="badge badge-low">LOW RISK</span>
+                <span><strong>Score 5-7:</strong> Standard approval process, 2+ days lead time</span>
+            </div>
+            <div style="display: flex; align-items: center; margin: 10px 0;">
+                <span class="badge badge-medium">MEDIUM RISK</span>
+                <span><strong>Score 8-11:</strong> Peer review required, 5+ days lead time</span>
+            </div>
+            <div style="display: flex; align-items: center; margin: 10px 0;">
+                <span class="badge badge-high">HIGH RISK</span>
+                <span><strong>Score 12-15:</strong> Peer review + CAB approval, 10+ days lead time</span>
+            </div>
+        </div>
+
+        <h2 id="approval-workflow">🔄 Approval Workflow</h2>
+
+        <h3>Workflow States</h3>
+        <div class="process-flow">
+            All Changes: Submitted → Pending Review → Pending Approval → Scheduled
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>State</th>
+                    <th>Description</th>
+                    <th>Duration</th>
+                    <th>Responsible Party</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Submitted</strong></td>
+                    <td>Initial state, system processing</td>
+                    <td>Momentary</td>
+                    <td>System</td>
+                </tr>
+                <tr>
+                    <td><strong>Pending Review</strong></td>
+                    <td>Requires peer review coordination</td>
+                    <td>24 hours target</td>
+                    <td>Agent SME</td>
+                </tr>
+                <tr>
+                    <td><strong>Pending Approval</strong></td>
+                    <td>Awaiting technical owner/CAB approval</td>
+                    <td>Varies by risk level</td>
+                    <td>Technical Owners/CAB</td>
+                </tr>
+                <tr>
+                    <td><strong>Scheduled</strong></td>
+                    <td>Ready for implementation</td>
+                    <td>Until change window</td>
+                    <td>Implementation Team</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Risk-Based Routing</h3>
+
+        <div class="alert alert-success">
+            <strong>✅ Low Risk Changes (Score 5-7):</strong><br>
+            Status "Pending Review" → Peer review → Technical owner approval → "Scheduled"
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>⚠️ Medium Risk Changes (Score 8-11):</strong><br>
+            Status "Pending Review" → Peer review → Technical owner approval → "Scheduled"
+        </div>
+
+        <div class="alert alert-danger">
+            <strong>🚨 High Risk Changes (Score 12-15):</strong><br>
+            Status "Pending Review" → Peer review → Technical owner + CAB approval → "Scheduled"
+        </div>
+
+        <h3>Key Automation Features</h3>
+        <ul>
+            <li><strong>Automatic SME Assignment:</strong> System identifies appropriate Subject Matter Expert for peer review coordination</li>
+            <li><strong>Workflow Triggers:</strong> Freshservice workflow automator monitors peer review task completion</li>
+            <li><strong>Status Transitions:</strong> Automatic movement from "Pending Review" to "Pending Approval"</li>
+            <li><strong>Approval Creation:</strong> Automated generation of approval tickets for technical owners and CAB</li>
+        </ul>
+
+        <h2 id="configuration">⚙️ Configuration</h2>
+
+        <div class="config-section">
+            <h3>Installation Parameters</h3>
+            <p>During app installation, configure the following parameters:</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Description</th>
+                        <th>Required</th>
+                        <th>Default</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>freshservice_domain</code></td>
+                        <td>Your Freshservice domain (e.g., company.freshservice.com)</td>
+                        <td>Yes</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td><code>api_key</code></td>
+                        <td>Freshservice API key with appropriate permissions</td>
+                        <td>Yes</td>
+                        <td>-</td>
+                    </tr>
+                    <tr>
+                        <td><code>assetTypeNames</code></td>
+                        <td>Comma-separated asset type names for services dropdown</td>
+                        <td>No</td>
+                        <td>"Software, IT Software, ISP"</td>
+                    </tr>
+                    <tr>
+                        <td><code>plan_type</code></td>
+                        <td>Freshservice plan for API rate limit configuration</td>
+                        <td>Yes</td>
+                        <td>starter</td>
+                    </tr>
+                    <tr>
+                        <td><code>workspace_id</code></td>
+                        <td>Workspace ID for change management</td>
+                        <td>No</td>
+                        <td>2</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Asset Type Configuration</h3>
+        <div class="checklist">
+            <p><strong>To configure asset types for the services dropdown:</strong></p>
+            <ol>
+                <li>Navigate to <strong>Admin → Asset Management → Asset Types</strong> in Freshservice</li>
+                <li>Note the names of asset types you want to include</li>
+                <li>Enter these names (comma-separated) in the <code>assetTypeNames</code> field during installation</li>
+                <li>Examples: <code>"Software, IT Software, Database"</code> or <code>"Hardware, Servers, Network Equipment"</code></li>
+            </ol>
+        </div>
+
+        <h2 id="troubleshooting">🛠️ Troubleshooting</h2>
+
+        <h3>Common Issues & Solutions</h3>
+
+        <div class="alert alert-warning">
+            <strong>❌ Application Not Loading</strong><br>
+            <strong>Solutions:</strong>
+            <ul>
+                <li>Clear browser cache and cookies</li>
+                <li>Try a different browser or incognito mode</li>
+                <li>Verify Freshservice permissions</li>
+                <li>Check network connectivity</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>❌ Asset Search Not Working</strong><br>
+            <strong>Solutions:</strong>
+            <ul>
+                <li>Verify API key has appropriate permissions</li>
+                <li>Check asset type configuration in settings</li>
+                <li>Ensure assets exist in your Freshservice instance</li>
+                <li>Try searching with different keywords</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>❌ Validation Errors on Submission</strong><br>
+            <strong>Solutions:</strong>
+            <ul>
+                <li>Complete all required fields in Change Details</li>
+                <li>Ensure risk assessment is fully completed</li>
+                <li>Verify planned dates meet minimum lead time requirements</li>
+                <li>Check that at least one asset is associated</li>
+            </ul>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>❌ Missing Notifications</strong><br>
+            <strong>Solutions:</strong>
+            <ul>
+                <li>Verify email addresses are correct in user profiles</li>
+                <li>Check spam/junk folders</li>
+                <li>Confirm notification settings in Freshservice</li>
+                <li>Contact administrator to verify email configuration</li>
+            </ul>
+        </div>
+
+        <h3>Performance Optimization</h3>
+        <ul>
+            <li><strong>Search Response:</strong> Search results are cached for improved performance</li>
+            <li><strong>Rate Limiting:</strong> API calls are automatically throttled based on your plan</li>
+            <li><strong>Data Persistence:</strong> Form data is auto-saved to prevent data loss</li>
+            <li><strong>Browser Compatibility:</strong> Optimized for modern browsers (Chrome, Firefox, Safari, Edge)</li>
+        </ul>
+
+        <h2 id="support">📞 Support & Contact</h2>
+
+        <div class="contact-info">
+            <h3>📧 Getting Help</h3>
+            <ul>
+                <li><strong>Technical Issues:</strong> Contact your IT Help Desk or Freshservice administrator</li>
+                <li><strong>Process Questions:</strong> Reach out to your Change Manager or CAB representative</li>
+                <li><strong>Training:</strong> Request training sessions through your IT department</li>
+                <li><strong>Feedback:</strong> Submit suggestions through your organization's feedback channels</li>
+            </ul>
+        </div>
+
+        <h3>📚 Additional Resources</h3>
+        <ul>
+            <li><strong>Quick Reference Guide:</strong> Key information for daily use</li>
+            <li><strong>Process Documentation:</strong> Detailed workflow procedures</li>
+            <li><strong>Training Materials:</strong> Available through your IT department</li>
+            <li><strong>Best Practices:</strong> Organizational change management guidelines</li>
+        </ul>
+
+        <div class="alert alert-info">
+            <strong>💡 Pro Tip:</strong> Bookmark this knowledge base and the Change Management application for quick access. Consider printing the Quick Reference section for offline reference.
+        </div>
+
+        <hr style="margin: 40px 0; border: none; border-top: 2px solid #ecf0f1;">
+        
+        <div style="text-align: center; color: #7f8c8d; font-size: 14px;">
+            <p><strong>Change Management Application Knowledge Base</strong><br>
+            Last Updated: December 2024 | Version 2.0<br>
+            Built with Freshworks FDK for Freshservice</p>
+        </div>
+    </div>
+</body>
+</html> 
