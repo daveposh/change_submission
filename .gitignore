@@ -10,3 +10,5 @@ config/oauth_config.json
 config/iparams_test_data.json
 log/**/*
 .cursorrules
+knowledge_base_users.html
+knowledge_base_admin.html
